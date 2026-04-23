@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Game</title>
+  <style>
+    body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="800" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const player = {
+      x: 400, y: 300,
+      vx: 0, vy: 0,
+      angle: -Math.PI / 2,  // pointing up
+      av: 0,               // angular velocity
+      radius: 20,
+      rotAccel: 0.004,
+      rotDamp: 0.88,
+      thrustPower: 0.2,
+      gravity: 0.05,
+    };
+    const keys = {};
+
+    document.addEventListener('keydown', e => { keys[e.key] = true; e.preventDefault(); });
+    document.addEventListener('keyup',   e => keys[e.key] = false);
+
+    function update() {
+      if (keys['ArrowLeft'])  player.av -= player.rotAccel;
+      if (keys['ArrowRight']) player.av += player.rotAccel;
+      player.av *= player.rotDamp;
+      player.angle += player.av;
+
+      if (keys['ArrowUp']) {
+        player.vx += Math.cos(player.angle) * player.thrustPower;
+        player.vy += Math.sin(player.angle) * player.thrustPower;
+      }
+
+      // gravity
+      player.vy += player.gravity;
+
+      player.x += player.vx;
+      player.y += player.vy;
+
+      // bounce off walls
+      if (player.x < player.radius)              { player.x = player.radius;              player.vx *= -0.5; }
+      if (player.x > canvas.width - player.radius) { player.x = canvas.width - player.radius; player.vx *= -0.5; }
+      if (player.y < player.radius)              { player.y = player.radius;              player.vy *= -0.5; }
+      if (player.y > canvas.height - player.radius) { player.y = canvas.height - player.radius; player.vy *= -0.5; }
+    }
+
+    function draw() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+
+      const r = player.radius;
+      const b = r * 0.45;
+
+      // thrust flame
+      if (keys['ArrowUp']) {
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.rotate(player.angle);
+        ctx.beginPath();
+        ctx.moveTo(-r, -b * 0.6);
+        ctx.lineTo(-r - r * 0.8, 0);
+        ctx.lineTo(-r,  b * 0.6);
+        ctx.fillStyle = '#ff6600';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // triangle
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.rotate(player.angle);
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(-r, -b);
+      ctx.lineTo(-r,  b);
+      ctx.closePath();
+      ctx.fillStyle = '#00cc44';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
