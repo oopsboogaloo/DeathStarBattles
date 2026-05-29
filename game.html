@@ -16,15 +16,43 @@
     const player = {
       x: 400, y: 300,
       vx: 0, vy: 0,
-      angle: -Math.PI / 2,  // pointing up
-      av: 0,               // angular velocity
+      angle: -Math.PI / 2,
+      av: 0,
       radius: 20,
-      rotAccel: 0.004,
+      rotAccel: 0.006,
       rotDamp: 0.88,
       thrustPower: 0.2,
       gravity: 0.05,
     };
     const keys = {};
+
+    // terrain points across the full width, bottom ~25% of screen
+    const terrain = [
+      { x:   0, y: 510 },
+      { x:  80, y: 490 },
+      { x: 160, y: 460 },
+      { x: 240, y: 475 },
+      { x: 320, y: 500 },
+      { x: 400, y: 465 },
+      { x: 480, y: 480 },
+      { x: 560, y: 455 },
+      { x: 640, y: 490 },
+      { x: 720, y: 470 },
+      { x: 800, y: 510 },
+    ];
+
+    function terrainYAt(x) {
+      // wrap x into [0, canvas.width] for lookup
+      const wx = ((x % canvas.width) + canvas.width) % canvas.width;
+      for (let i = 0; i < terrain.length - 1; i++) {
+        const a = terrain[i], b = terrain[i + 1];
+        if (wx >= a.x && wx <= b.x) {
+          const t = (wx - a.x) / (b.x - a.x);
+          return a.y + t * (b.y - a.y);
+        }
+      }
+      return canvas.height;
+    }
 
     document.addEventListener('keydown', e => { keys[e.key] = true; e.preventDefault(); });
     document.addEventListener('keyup',   e => keys[e.key] = false);
@@ -40,17 +68,28 @@
         player.vy += Math.sin(player.angle) * player.thrustPower;
       }
 
-      // gravity
       player.vy += player.gravity;
 
       player.x += player.vx;
       player.y += player.vy;
 
-      // bounce off walls
-      if (player.x < player.radius)              { player.x = player.radius;              player.vx *= -0.5; }
-      if (player.x > canvas.width - player.radius) { player.x = canvas.width - player.radius; player.vx *= -0.5; }
-      if (player.y < player.radius)              { player.y = player.radius;              player.vy *= -0.5; }
-      if (player.y > canvas.height - player.radius) { player.y = canvas.height - player.radius; player.vy *= -0.5; }
+      // horizontal wrap
+      if (player.x < -player.radius)              player.x = canvas.width + player.radius;
+      if (player.x > canvas.width + player.radius) player.x = -player.radius;
+
+      // top wall bounce
+      if (player.y < player.radius) {
+        player.y = player.radius;
+        player.vy *= -0.5;
+      }
+
+      // terrain collision
+      const groundY = terrainYAt(player.x);
+      if (player.y + player.radius > groundY) {
+        player.y = groundY - player.radius;
+        player.vy *= -0.5;
+        player.vx *= 0.85;
+      }
     }
 
     function draw() {
@@ -60,6 +99,21 @@
       ctx.strokeStyle = '#444';
       ctx.lineWidth = 2;
       ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+
+      // terrain
+      ctx.beginPath();
+      ctx.moveTo(terrain[0].x, terrain[0].y);
+      for (let i = 1; i < terrain.length; i++) {
+        ctx.lineTo(terrain[i].x, terrain[i].y);
+      }
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.closePath();
+      ctx.fillStyle = '#1a5c1a';
+      ctx.fill();
+      ctx.strokeStyle = '#00cc44';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
       const r = player.radius;
       const b = r * 0.45;
