@@ -80,6 +80,74 @@ export class ScenarioFactory {
 
   static randomId(rng) { return weightedRandomId(rng); }
 
+  // ─── station placement ───────────────────────────────────────────────────
+  // Called after planets are confirmed. Sets position on each Station object.
+
+  static placeStations(teams, planets, gw, gh, stationSize, rng) {
+    const all = teams.flatMap(t => t.stations);
+    const n   = all.length;
+    const sr  = stationSize.radius;
+
+    // Min inter-station distance and retry reduction (matches original Java table)
+    const minDistTable  = [0, 0, 450, 450, 300, 250, 200, 200, 200, 150, 150, 120];
+    const reductionTable = [0, 0, 0.17, 0.10, 0.0625, 0.05, 0.0375, 0.0375, 0.0375, 0.025, 0.025, 0.0175];
+    let minDist  = n < minDistTable.length  ? minDistTable[n]   : 100;
+    const reduction = n < reductionTable.length ? reductionTable[n] : 0.0125;
+
+    let attempts = 0;
+    let valid    = false;
+
+    while (!valid && attempts < 4000) {
+      // Place all stations within the safe inner margin
+      for (const s of all) {
+        s.position = new Vec2(
+          (0.8 * rng.next() + 0.075 * rng.next()) * gw + 0.075 * gw,
+          (0.8 * rng.next() + 0.075 * rng.next()) * gh + 0.075 * gh,
+        );
+      }
+
+      valid = true;
+
+      // Station–station distance check
+      outer:
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          const distSq  = all[i].position.distanceSqTo(all[j].position);
+          const sameTeam = all[i].team === all[j].team;
+          // Same-team: must stay ≥ half min-distance apart; different teams: full min-distance
+          const limit = sameTeam ? minDist * minDist * 0.25 : minDist * minDist;
+          if (distSq < limit) {
+            valid = false;
+            minDist = Math.max(60, minDist - reduction);
+            break outer;
+          }
+        }
+      }
+
+      // Station–planet distance check
+      if (valid) {
+        for (const s of all) {
+          for (const p of planets) {
+            if (s.position.distanceSqTo(p.position) < (p.impactRadius + sr) ** 2) {
+              valid = false;
+              break;
+            }
+          }
+          if (!valid) break;
+        }
+      }
+
+      attempts++;
+    }
+
+    // Fallback after 4000 attempts — scatter randomly (matches Java hyperspace fallback)
+    if (!valid) {
+      for (const s of all) {
+        s.position = new Vec2(rng.next() * gw, rng.next() * gh);
+      }
+    }
+  }
+
   // ─── scenario cap ──────────────────────────────────────────────────────────
 
   static _cap(id, n) {
