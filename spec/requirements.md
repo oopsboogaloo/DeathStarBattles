@@ -139,7 +139,13 @@ In any scenario, a small random chance (~10%) adds a bonus special object to the
 - Planets may not overlap each other (checked on generation with retry)
 - At least ~25% of the play area must remain free of planets
 - Stations are placed after planets and must not overlap planets or be too close to enemy stations
-- If placement fails after many attempts, hyperspace is used to scatter stations
+
+### 6.3 Station Placement Guarantee
+Stations **must never be rendered inside a planet**, even on extreme scenarios (e.g. large binary stars that leave almost no free space). The placement algorithm uses a three-tier fallback:
+
+1. **Normal** — retry up to 4000 times enforcing both station-station spacing AND planet avoidance. Spacing threshold decreases on each failure.
+2. **Emergency** — if normal fails, drop station-station spacing requirements but continue checking planet avoidance (up to 2000 more attempts).
+3. **Last resort** — if emergency also fails (can happen when stars cover >95% of play area), push any station that landed inside a planet outward to the planet's surface + a small buffer. Stations may be close together but will never be inside a planet.
 
 ---
 

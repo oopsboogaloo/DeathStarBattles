@@ -140,12 +140,41 @@ export class ScenarioFactory {
       attempts++;
     }
 
-    // Fallback after 4000 attempts — scatter randomly (matches Java hyperspace fallback)
+    // Tier-2 fallback: drop station–station requirement, keep planet avoidance.
+    // Handles extreme scenarios (e.g. large binary stars) where spacing is impossible.
     if (!valid) {
-      for (const s of all) {
-        s.position = new Vec2(rng.next() * gw, rng.next() * gh);
+      let emergency = 0;
+      do {
+        for (const s of all) {
+          s.position = new Vec2(rng.next() * gw, rng.next() * gh);
+        }
+        valid = ScenarioFactory._stationsOutsidePlanets(all, planets, sr);
+        emergency++;
+      } while (!valid && emergency < 2000);
+    }
+
+    // Tier-3 last resort: push any station that's still inside a planet to its surface.
+    for (const s of all) {
+      for (const p of planets) {
+        const dist    = s.position.distanceTo(p.position);
+        const minR    = p.impactRadius + sr + 5;
+        if (dist < minR) {
+          const dir = dist < 0.001
+            ? new Vec2(1, 0)
+            : s.position.sub(p.position).normalised();
+          s.position = p.position.add(dir.scale(minR));
+        }
       }
     }
+  }
+
+  static _stationsOutsidePlanets(stations, planets, sr) {
+    for (const s of stations) {
+      for (const p of planets) {
+        if (s.position.distanceSqTo(p.position) < (p.impactRadius + sr) ** 2) return false;
+      }
+    }
+    return true;
   }
 
   // ─── scenario cap ──────────────────────────────────────────────────────────
