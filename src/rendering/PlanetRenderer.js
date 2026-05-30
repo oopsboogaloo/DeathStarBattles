@@ -177,38 +177,52 @@ export class PlanetRenderer {
     const r  = Math.max(3, planet.radius * conv);
     const [pr, pg, pb] = planet.colour;
 
-    const margin  = Math.ceil(r * 0.15) + 4;
-    const offSize = Math.ceil(r * 2) + margin * 2;
-    const off     = document.createElement('canvas');
-    off.width = off.height = offSize;
-    const oc  = off.getContext('2d');
-    const oCx = offSize / 2;
-    const oCy = offSize / 2;
+    if (planet.type === PlanetType.STAR) {
+      // Stars: render via offscreen canvas so the disc edge can be blurred
+      const margin  = Math.ceil(r * 0.15) + 4;
+      const offSize = Math.ceil(r * 2) + margin * 2;
+      const off     = document.createElement('canvas');
+      off.width = off.height = offSize;
+      const oc  = off.getContext('2d');
+      const oCx = offSize / 2;
+      const oCy = offSize / 2;
 
-    const coreGrad = oc.createRadialGradient(oCx, oCy, r * 0.05, oCx, oCy, r);
+      const coreGrad = oc.createRadialGradient(oCx, oCy, r * 0.05, oCx, oCy, r);
+      coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
+      coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
+      coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .75)},${Math.floor(pg * .75)},${Math.floor(pb * .6)})`);
+      oc.beginPath();
+      oc.arc(oCx, oCy, r, 0, Math.PI * 2);
+      oc.fillStyle = coreGrad;
+      oc.fill();
+
+      if (!_simplified) ctx.filter = 'blur(1.8px)';
+      ctx.drawImage(off, cx - oCx, cy - oCy);
+      ctx.filter = 'none';
+      return;
+    }
+
+    // All other glowing types (white hole, white dwarf, pulsar) — draw directly,
+    // no offscreen canvas, so halos of any size render correctly.
+    const coreGrad = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
     coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
     coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
     coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .75)},${Math.floor(pg * .75)},${Math.floor(pb * .6)})`);
-    oc.beginPath();
-    oc.arc(oCx, oCy, r, 0, Math.PI * 2);
-    oc.fillStyle = coreGrad;
-    oc.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = coreGrad;
+    ctx.fill();
 
     if (planet.halo > 1.0) {
       const haloR    = r * planet.halo;
-      const haloGrad = oc.createRadialGradient(oCx, oCy, r, oCx, oCy, haloR);
+      const haloGrad = ctx.createRadialGradient(cx, cy, r, cx, cy, haloR);
       haloGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
       haloGrad.addColorStop(1, 'rgba(255,255,255,0)');
-      oc.beginPath();
-      oc.arc(oCx, oCy, haloR, 0, Math.PI * 2);
-      oc.fillStyle = haloGrad;
-      oc.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
+      ctx.fillStyle = haloGrad;
+      ctx.fill();
     }
-
-    // Blur only for proper stars — white holes, white dwarfs, pulsars draw sharp
-    if (!_simplified && planet.type === PlanetType.STAR) ctx.filter = 'blur(1.8px)';
-    ctx.drawImage(off, cx - oCx, cy - oCy);
-    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
