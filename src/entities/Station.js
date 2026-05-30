@@ -4,7 +4,8 @@ export const StationSize = Object.freeze({
   SMALL:  { name: 'Small',  radius: 4,   bulletRadius: 0.6  },
   MEDIUM: { name: 'Medium', radius: 4.8, bulletRadius: 0.8  },
   LARGE:  { name: 'Large',  radius: 6.4, bulletRadius: 1.04 },
-  GIANT:  { name: 'Giant',  radius: 9.6, bulletRadius: 1.36 },
+  GIANT:   { name: 'Giant',   radius: 9.6,  bulletRadius: 1.36 },
+  MAMMOTH: { name: 'Mammoth', radius: 19.2, bulletRadius: 2.72 },
 });
 
 export const StationStatus = Object.freeze({
