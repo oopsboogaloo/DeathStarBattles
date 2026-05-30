@@ -86,6 +86,7 @@ gameOverScreen.onContinue(() => {
 gameOverScreen.onNewGame(() => {
   tournament = null;
   if (loop) { loop.stop(); loop = null; }
+  renderer.setGameAspect(null, null); // unlock aspect ratio while on menu
   panel.show();
 });
 
@@ -264,6 +265,7 @@ function startGame(cfg) {
 
   const gw  = renderer.gameWidth;
   const gh  = renderer.gameHeight;
+  renderer.setGameAspect(gw, gh); // lock aspect ratio for letterboxing on resize
   const rng = new RNG(RNG.randomSeed());
 
   const size       = StationSize[cfg.stationSize] ?? StationSize.LARGE;

@@ -60,21 +60,21 @@ export class InputHandler {
     const station = this.loop.gs.activeStation;
     if (!station || station.status !== 'active') return;
 
+    const conv = this.renderer.conv;
+    const rect = this.canvas.getBoundingClientRect();
+    // Subtract viewport offset so coordinates are relative to the game area,
+    // not the full canvas (which may have letterbox/pillarbox black bars).
+    const vpX  = e.clientX - rect.left - this.renderer._ox;
+    const vpY  = e.clientY - rect.top  - this.renderer._oy;
+
     // If waiting for a move-target click, handle that first
     if (this.loop.gs.waitingForMove) {
-      const conv = this.renderer.conv;
-      const rect = this.canvas.getBoundingClientRect();
-      this.loop.humanSetMove(
-        (e.clientX - rect.left)  / conv,
-        (e.clientY - rect.top) / conv,
-      );
+      this.loop.humanSetMove(vpX / conv, vpY / conv);
       return;
     }
 
-    const conv = this.renderer.conv;
-    const rect = this.canvas.getBoundingClientRect();
-    const mx   = e.clientX - rect.left;
-    const my   = e.clientY - rect.top;
+    const mx = vpX;
+    const my = vpY;
     const cx   = station.position.x * conv;
     const cy   = station.position.y * conv;
     const dx   = mx - cx;

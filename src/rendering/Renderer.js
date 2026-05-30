@@ -19,6 +19,13 @@ export class Renderer {
     this._stars       = [];
     this._planets     = [];
     this._performance = 'full'; // 'full' | 'simplified'
+
+    // Letterbox / pillarbox viewport — updated by resize() and setGameAspect()
+    this._gameAspect = null; // null = no lock yet, fill window
+    this._vpW = this.width;
+    this._vpH = this.height;
+    this._ox  = 0; // x offset of viewport within canvas (pillarbox bars)
+    this._oy  = 0; // y offset of viewport within canvas (letterbox bars)
   }
 
   setPerformance(mode) {
@@ -31,20 +38,56 @@ export class Renderer {
   // Layout
   // ----------------------------------------------------------------
 
+  // Called at game start to lock in the aspect ratio for the lifetime of that game.
+  setGameAspect(gw, gh) {
+    this._gameAspect = (gw && gh) ? gw / gh : null;
+    this._calcViewport(this.width, this.height);
+    this.bgCanvas.width      = this._vpW;
+    this.bgCanvas.height     = this._vpH;
+    this.trailsCanvas.width  = this._vpW;
+    this.trailsCanvas.height = this._vpH;
+  }
+
+  // Compute letterbox/pillarbox dimensions to fit _gameAspect into w×h.
+  _calcViewport(w, h) {
+    if (!this._gameAspect) {
+      this._vpW = w; this._vpH = h; this._ox = 0; this._oy = 0;
+      return;
+    }
+    const winAspect = w / h;
+    if (winAspect > this._gameAspect) {
+      // Wider than game — pillarbox (black bars left/right)
+      this._vpH = h;
+      this._vpW = Math.round(h * this._gameAspect);
+      this._ox  = Math.round((w - this._vpW) / 2);
+      this._oy  = 0;
+    } else {
+      // Taller than game — letterbox (black bars top/bottom)
+      this._vpW = w;
+      this._vpH = Math.round(w / this._gameAspect);
+      this._ox  = 0;
+      this._oy  = Math.round((h - this._vpH) / 2);
+    }
+  }
+
   resize(w, h) {
     this.width  = w;
     this.height = h;
-    for (const c of [this.mainCanvas, this.bgCanvas, this.trailsCanvas]) {
-      c.width  = w;
-      c.height = h;
-    }
+    this.mainCanvas.width  = w;
+    this.mainCanvas.height = h;
+    this._calcViewport(w, h);
+    this.bgCanvas.width     = this._vpW;
+    this.bgCanvas.height    = this._vpH;
+    this.trailsCanvas.width  = this._vpW;
+    this.trailsCanvas.height = this._vpH;
     if (this._stars.length) this._renderBackground();
   }
 
   // All game positions are in a 700-unit-wide coordinate space.
-  get conv()       { return this.width / 700; }
+  // conv and gameHeight are derived from the viewport, not the full canvas.
+  get conv()       { return this._vpW / 700; }
   get gameWidth()  { return 700; }
-  get gameHeight() { return this.height / this.conv; }
+  get gameHeight() { return this._vpH / this.conv; }
 
   // ----------------------------------------------------------------
   // Layer 0 — Background (stars + planets, drawn once per game)
@@ -59,7 +102,7 @@ export class Renderer {
   _renderBackground() {
     const ctx = this.bgCtx;
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.fillRect(0, 0, this._vpW, this._vpH);
     this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating) and gas giants (drawn live — transparent)
@@ -75,10 +118,9 @@ export class Renderer {
   }
 
   _drawStarField(ctx) {
-    // Draw stars to an offscreen canvas so we can apply a blur in one pass
     const off    = document.createElement('canvas');
-    off.width    = this.width;
-    off.height   = this.height;
+    off.width    = this._vpW;
+    off.height   = this._vpH;
     const offCtx = off.getContext('2d');
     const conv   = this.conv;
 
@@ -103,7 +145,7 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   clearTrails() {
-    this.trailsCtx.clearRect(0, 0, this.width, this.height);
+    this.trailsCtx.clearRect(0, 0, this._vpW, this._vpH);
   }
 
   // Draw the latest trail segment — call each time a trail point is pushed.
@@ -142,10 +184,18 @@ export class Renderer {
 
   drawFrame(gameState) {
     const ctx = this.mainCtx;
-    ctx.clearRect(0, 0, this.width, this.height);
-    ctx.drawImage(this.bgCanvas,     0, 0);
-    ctx.drawImage(this.trailsCanvas, 0, 0);
-    if (gameState) this._drawLive(ctx, gameState);
+    // Fill entire canvas black — letterbox/pillarbox bars are simply unpainted
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, this.width, this.height);
+    // Draw viewport layers at their offset position
+    ctx.drawImage(this.bgCanvas,     this._ox, this._oy);
+    ctx.drawImage(this.trailsCanvas, this._ox, this._oy);
+    if (gameState) {
+      ctx.save();
+      ctx.translate(this._ox, this._oy);
+      this._drawLive(ctx, gameState);
+      ctx.restore();
+    }
   }
 
   _drawLive(ctx, gameState) {
@@ -242,7 +292,7 @@ export class Renderer {
     const statNum  = gameState.currentStatIdx + 1;
 
     // ── "T e a m  N     S t a t i o n  N" — top centre ──
-    const headerPx = Math.max(22, Math.floor(this.width / 32));
+    const headerPx = Math.max(22, Math.floor(this._vpW / 32));
     ctx.save();
     ctx.font         = `bold ${headerPx}px monospace`;
     ctx.textAlign    = 'center';
@@ -251,11 +301,11 @@ export class Renderer {
     ctx.shadowColor  = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur   = 6;
     const header = `T e a m  ${teamNum}        S t a t i o n  ${statNum}`;
-    ctx.fillText(header, this.width / 2, 10);
+    ctx.fillText(header, this._vpW / 2, 10);
     ctx.restore();
 
     // ── Angle / Power corners (bottom) — or HYPERSPACING ──
-    const hudPx = Math.max(18, Math.floor(this.width / 50));
+    const hudPx = Math.max(18, Math.floor(this._vpW / 50));
     ctx.save();
     ctx.font         = `bold ${hudPx}px monospace`;
     ctx.textBaseline = 'bottom';
@@ -263,11 +313,10 @@ export class Renderer {
     ctx.shadowBlur   = 5;
 
     if (station.hyperspaceQueued) {
-      // Pulsing team-colour HYPERSPACING text centred (angle/power hidden by DOM buttons)
       const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 250);
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
-      ctx.fillText('H Y P E R S P A C I N G . . .', this.width / 2, this.height - 60);
+      ctx.fillText('H Y P E R S P A C I N G . . .', this._vpW / 2, this._vpH - 60);
     }
     // Angle / Power values are now rendered by AimControls DOM buttons
     ctx.restore();
@@ -276,10 +325,10 @@ export class Renderer {
   _drawOverlay(ctx, gameState) {
     if (gameState.mode === 'gameover') {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.fillRect(0, 0, this._vpW, this._vpH);
 
       const winner = gameState.winner;
-      const fontSize = Math.max(32, Math.floor(this.width / 18));
+      const fontSize = Math.max(32, Math.floor(this._vpW / 18));
       ctx.font         = `bold ${fontSize}px monospace`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
@@ -287,26 +336,26 @@ export class Renderer {
       if (winner) {
         const [r, g, b] = winner.colour;
         ctx.fillStyle = `rgb(${r},${g},${b})`;
-        ctx.fillText('TEAM WINS!', this.width / 2, this.height / 2 - fontSize * 0.6);
+        ctx.fillText('TEAM WINS!', this._vpW / 2, this._vpH / 2 - fontSize * 0.6);
         ctx.fillStyle = '#fff';
         ctx.font      = `${Math.floor(fontSize * 0.55)}px monospace`;
-        ctx.fillText('click to play again', this.width / 2, this.height / 2 + fontSize * 0.7);
+        ctx.fillText('click to play again', this._vpW / 2, this._vpH / 2 + fontSize * 0.7);
       } else {
         ctx.fillStyle = '#aaa';
-        ctx.fillText('DRAW', this.width / 2, this.height / 2 - fontSize * 0.6);
+        ctx.fillText('DRAW', this._vpW / 2, this._vpH / 2 - fontSize * 0.6);
         ctx.fillStyle = '#fff';
         ctx.font      = `${Math.floor(fontSize * 0.55)}px monospace`;
-        ctx.fillText('click to play again', this.width / 2, this.height / 2 + fontSize * 0.7);
+        ctx.fillText('click to play again', this._vpW / 2, this._vpH / 2 + fontSize * 0.7);
       }
     }
 
     // Turn counter (top-right corner, unobtrusive)
     if (gameState.mode !== 'gameover') {
-      ctx.font         = `${Math.max(12, Math.floor(this.width / 80))}px monospace`;
+      ctx.font         = `${Math.max(12, Math.floor(this._vpW / 80))}px monospace`;
       ctx.textAlign    = 'right';
       ctx.textBaseline = 'top';
       ctx.fillStyle    = 'rgba(255,255,255,0.5)';
-      ctx.fillText(`Turn ${gameState.turn + 1}`, this.width - 10, 10);
+      ctx.fillText(`Turn ${gameState.turn + 1}`, this._vpW - 10, 10);
     }
   }
 
@@ -725,26 +774,25 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawOffScreenIndicators(ctx, bullets) {
-    const cx = this.width / 2, cy = this.height / 2;
+    const cx = this._vpW / 2, cy = this._vpH / 2;
 
     for (const bullet of bullets) {
       if (bullet.status !== 'active') continue;
       const bx = bullet.position.x * this.conv;
       const by = bullet.position.y * this.conv;
-      if (bx >= 0 && bx <= this.width && by >= 0 && by <= this.height) continue;
+      if (bx >= 0 && bx <= this._vpW && by >= 0 && by <= this._vpH) continue;
 
       const [tr, tg, tb] = bullet.owner.team.colour;
       const colour = `rgb(${tr},${tg},${tb})`;
       const angle  = Math.atan2(by - cy, bx - cx);
       const cosA   = Math.cos(angle), sinA = Math.sin(angle);
 
-      // Helper: find t where ray hits boundary inset by margin m
       const edgeT = m => {
         let t = Infinity;
-        if (cosA > 0) t = Math.min(t, (this.width  - m - cx) / cosA);
-        if (cosA < 0) t = Math.min(t, (m           - cx) / cosA);
-        if (sinA > 0) t = Math.min(t, (this.height - m - cy) / sinA);
-        if (sinA < 0) t = Math.min(t, (m           - cy) / sinA);
+        if (cosA > 0) t = Math.min(t, (this._vpW - m - cx) / cosA);
+        if (cosA < 0) t = Math.min(t, (m         - cx) / cosA);
+        if (sinA > 0) t = Math.min(t, (this._vpH - m - cy) / sinA);
+        if (sinA < 0) t = Math.min(t, (m         - cy) / sinA);
         return t;
       };
 
@@ -757,7 +805,7 @@ export class Renderer {
       const nx   = cx + cosA * tNum, ny = cy + sinA * tNum;
 
       // Distance from nearest screen edge in game units
-      const distPx = Math.max(0, -bx, bx - this.width, -by, by - this.height);
+      const distPx = Math.max(0, -bx, bx - this._vpW, -by, by - this._vpH);
       const dist   = Math.round(distPx / this.conv);
 
       // Draw number at inset position
