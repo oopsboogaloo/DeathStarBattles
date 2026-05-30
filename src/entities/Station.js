@@ -45,6 +45,8 @@ export class Station {
     this.velocity         = null;  // Vec2 | null — one-turn movement vector (game units/timestep)
     this.status          = StationStatus.ACTIVE;
     this.explosionT      = 0;            // 0→1 animation progress
+    this.shockwave       = null;         // {t: 0, colour} | null — expanding solid disc
+    this.particles       = null;         // [{x,y,vx,vy,t,r,g,b}] | null — debris
     this.hyperspaceFlash = null;         // {t, oldPos, newPos} | null — hyperspace anim
     this.lastTrail       = null;         // Vec2[] | null — ghost trail from previous shot
     this.lastAngle       = null;         // int | null — angle fired last turn (for ghost aim line)

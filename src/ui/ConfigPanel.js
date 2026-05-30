@@ -21,17 +21,27 @@ export class ConfigPanel {
       mode:              'single',
       speed:             'normal',
       stationMovement:   false,
+      performance:       'full',
     };
     this._onStartCb  = null;
+    this._onResumeCb = null;
+    this._canResume  = false;
     this._humanCtrl  = null; // updated when numPlayers changes
     this.element     = this._build();
   }
 
   show() { this.element.style.display = 'flex'; }
   hide() { this.element.style.display = 'none'; }
+  get isVisible() { return this.element.style.display !== 'none'; }
 
-  onStart(cb) { this._onStartCb = cb; }
-  onInfo(cb)  { this._onInfoBtn = cb; }
+  onStart(cb)  { this._onStartCb  = cb; }
+  onInfo(cb)   { this._onInfoBtn  = cb; }
+  onResume(cb) { this._onResumeCb = cb; }
+
+  setCanResume(bool) {
+    this._canResume = bool;
+    if (this._resumeBtn) this._resumeBtn.style.display = bool ? 'block' : 'none';
+  }
 
   get config() { return { ...this._d }; }
 
@@ -57,6 +67,26 @@ export class ConfigPanel {
       boxShadow:    '0 0 50px rgba(50,70,200,0.25), inset 0 0 30px rgba(40,60,180,0.04)',
     });
     overlay.appendChild(panel);
+
+    // Resume button — only shown when there is a paused game to return to
+    this._resumeBtn = el('button', {
+      display:       'none',
+      margin:        '0 auto 18px',
+      padding:       '9px 36px',
+      background:    'rgba(20,80,30,0.75)',
+      border:        '1px solid rgba(80,210,100,0.5)',
+      borderRadius:  '5px',
+      color:         '#cec',
+      fontFamily:    'monospace',
+      fontSize:      '14px',
+      letterSpacing: '0.1em',
+      cursor:        'pointer',
+    });
+    this._resumeBtn.textContent = '▶  RESUME GAME';
+    this._resumeBtn.addEventListener('mouseenter', () => { this._resumeBtn.style.background = 'rgba(30,110,45,0.9)'; });
+    this._resumeBtn.addEventListener('mouseleave', () => { this._resumeBtn.style.background = 'rgba(20,80,30,0.75)'; });
+    this._resumeBtn.addEventListener('click', () => { this.hide(); this._onResumeCb?.(); });
+    panel.appendChild(this._resumeBtn);
 
     // Title
     const title = el('div', {
@@ -89,8 +119,8 @@ export class ConfigPanel {
 
     panel.appendChild(this._row('STATION SIZE',
       this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase())));
-    panel.appendChild(this._row('PLANETS',
-      this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i])));
+    this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
+    panel.appendChild(this._row('PLANETS', this._planetsCtrl));
     panel.appendChild(this._row('SCENARIO',
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`)));
@@ -103,6 +133,9 @@ export class ConfigPanel {
     panel.appendChild(this._row('STATION MOVEMENT',
       this._cycle('stationMovement', [false, true],
         v => v ? 'On' : 'Off')));
+    panel.appendChild(this._row('PERFORMANCE',
+      this._cycle('performance', ['full', 'simplified'],
+        v => v === 'full' ? 'Full' : 'Simplified')));
 
     // ── Start button ─────────────────────────────────────────────────────────
 
@@ -256,9 +289,13 @@ export class ConfigPanel {
 
   _onChange(key) {
     if (key === 'numPlayers') {
-      // Clamp numHuman and refresh its display
       this._d.numHuman = Math.min(this._d.numHuman, this._d.numPlayers);
       this._humanCtrlRefresh?.();
+    }
+    if (key === 'performance' && this._d.performance === 'simplified') {
+      // Simplified mode: cap planets at 20, players at 4
+      if (this._d.numPlanets > 20)  { this._d.numPlanets = 20;  this._planetsCtrl?._refresh(); }
+      if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
     }
   }
 }

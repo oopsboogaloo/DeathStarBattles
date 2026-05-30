@@ -1,7 +1,7 @@
-import { PlanetRenderer } from './PlanetRenderer.js';
+import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 
-const MAX_STATION_SPEED = 0.03; // must match GameLoop.MAX_STATION_SPEED
+const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
 export class Renderer {
   constructor(mainCanvas) {
@@ -16,9 +16,16 @@ export class Renderer {
 
     this.width  = mainCanvas.width  || 800;
     this.height = mainCanvas.height || 600;
-    this._stars   = [];
-    this._planets = [];
+    this._stars       = [];
+    this._planets     = [];
+    this._performance = 'full'; // 'full' | 'simplified'
   }
+
+  setPerformance(mode) {
+    this._performance = mode ?? 'full';
+    setPlanetRendererSimplified(this._simplified);
+  }
+  get _simplified() { return this._performance === 'simplified'; }
 
   // ----------------------------------------------------------------
   // Layout
@@ -86,7 +93,7 @@ export class Renderer {
     }
 
     // Composite with a gentle blur — softens sharp dots into a nebula texture
-    ctx.filter = 'blur(1.2px)';
+    if (!this._simplified) ctx.filter = 'blur(1.2px)';
     ctx.drawImage(off, 0, 0);
     ctx.filter = 'none';
   }
@@ -106,10 +113,21 @@ export class Renderer {
     if (trail.length < 2) return;
     const prev = trail[trail.length - 2];
     const cur  = trail[trail.length - 1];
-    if (!prev || !cur) return; // wormhole break — don't draw this segment
+    if (!cur) return; // cur is a wormhole marker — nothing to draw yet
     const ctx  = this.trailsCtx;
     const conv = this.conv;
     const [tr, tg, tb] = bullet.owner.team.colour;
+
+    if (!prev) {
+      // First point after a wormhole exit — draw a tiny anchor dot so the
+      // next segment has something to connect to visually.
+      ctx.beginPath();
+      ctx.arc(cur.x * conv, cur.y * conv, Math.max(1, conv * 0.5), 0, Math.PI * 2);
+      ctx.fillStyle = `rgb(${tr},${tg},${tb})`;
+      ctx.fill();
+      return;
+    }
+
     ctx.beginPath();
     ctx.moveTo(prev.x * conv, prev.y * conv);
     ctx.lineTo(cur.x  * conv, cur.y  * conv);
@@ -164,16 +182,27 @@ export class Renderer {
 
     // Bullets + off-screen indicators
     for (const bullet of gameState.activeBullets) {
-      if (bullet.status === 'active')    this._drawBullet(ctx, bullet);
+      if (bullet.status === 'active') {
+        if (!this._simplified) this._drawBulletGlow(ctx, bullet);
+        this._drawBullet(ctx, bullet);
+      }
       if (bullet.status === 'exploding') this._drawExplosion(ctx, bullet);
     }
     this._drawOffScreenIndicators(ctx, gameState.activeBullets);
+
+    // Asteroid freestanding explosions (drawn before stations so they sit behind)
+    for (const ex of gameState.activeExplosions) {
+      this._drawShockwave(ctx, ex.x, ex.y, ex.t, ex.radius * 4, ex.r, ex.g, ex.b);
+      if (!this._simplified) this._drawParticles(ctx, ex.particles);
+    }
 
     // Stations + station explosions + hyperspace flashes
     for (const station of gameState.allStations) {
       if (station.hyperspaceFlash)        this._drawHyperspaceFlash(ctx, station);
       if (station.status === 'exploding') this._drawStationExplosion(ctx, station);
+      if (station.shockwave)              this._drawShockwave(ctx, station.position.x, station.position.y, station.shockwave.t, station.radius * 5, station.shockwave.r, station.shockwave.g, station.shockwave.b);
       if (station.status !== 'dead')      this._drawStation(ctx, station);
+      if (!this._simplified && station.particles?.length) this._drawParticles(ctx, station.particles);
     }
 
     // Velocity indicators — all active stations with a move queued
@@ -461,6 +490,79 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // Bullet glow trace — short trail of segments behind the bullet,
+  // white-hot at the tip cooling toward the team colour at the tail.
+  // ----------------------------------------------------------------
+
+  _drawBulletGlow(ctx, bullet) {
+    const trail = bullet.trail;
+    const conv  = this.conv;
+    const [tr, tg, tb] = bullet.owner.team.colour;
+
+    // Collect the last few trail points plus the live bullet position as the tip
+    const N = Math.min(7, trail.length);
+    const pts = [];
+    for (let i = trail.length - N; i < trail.length; i++) {
+      if (trail[i]) pts.push(trail[i]);
+    }
+    pts.push(bullet.position); // live tip
+
+    if (pts.length < 2) return;
+
+    for (let i = 1; i < pts.length; i++) {
+      const frac  = i / (pts.length - 1); // 0 = tail, 1 = tip
+      const alpha = frac * 0.85;
+      const r     = Math.round(tr + (255 - tr) * frac);
+      const g     = Math.round(tg + (255 - tg) * frac);
+      const b     = Math.round(tb + (255 - tb) * frac);
+      const lw    = Math.max(1, conv * (0.4 + frac * 1.0));
+
+      ctx.beginPath();
+      ctx.moveTo(pts[i - 1].x * conv, pts[i - 1].y * conv);
+      ctx.lineTo(pts[i].x     * conv, pts[i].y     * conv);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.lineWidth   = lw;
+      ctx.stroke();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Shockwave — solid disc that expands quickly then fades.
+  // Masks object removal on the first few frames of an explosion.
+  // Coordinates in game units; maxR is the maximum radius in game units.
+  // ----------------------------------------------------------------
+
+  _drawShockwave(ctx, gx, gy, t, maxR, r, g, b) {
+    const cx   = gx * this.conv;
+    const cy   = gy * this.conv;
+    const ease = 1 - (1 - Math.min(1, t)) ** 2; // quad ease-out
+    const rad  = Math.max(1, ease * maxR * this.conv);
+    const alpha = Math.max(0, (1 - t) * 0.80);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+    ctx.fill();
+  }
+
+  // ----------------------------------------------------------------
+  // Particles — small radial debris dots fading over their lifetime.
+  // Particle positions in game units.
+  // ----------------------------------------------------------------
+
+  _drawParticles(ctx, particles) {
+    if (!particles?.length) return;
+    const conv = this.conv;
+    for (const p of particles) {
+      const alpha = Math.max(0, 1 - p.t);
+      const rad   = Math.max(1, conv * (1.2 - p.t * 0.8));
+      ctx.beginPath();
+      ctx.arc(p.x * conv, p.y * conv, rad, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${Math.round(p.r)},${Math.round(p.g)},${Math.round(p.b)},${alpha})`;
+      ctx.fill();
+    }
+  }
+
+  // ----------------------------------------------------------------
   // Bullet — small filled circle in team colour
   // ----------------------------------------------------------------
 
@@ -510,12 +612,13 @@ export class Renderer {
     const cy = planet.position.y * this.conv;
     const r  = Math.max(4, planet.radius * 2 * this.conv);
     const [pr, pg, pb] = planet.colour;
-    // Offset phase by position so paired wormholes pulse out of sync
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.8 + planet.position.x * 0.07);
+    // Giant wormholes (display radius > 100 px) get half-thickness halo
+    const thickMul = r > 100 ? 0.5 : 1;
     ctx.beginPath();
     ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
-    ctx.lineWidth   = Math.max(1, r * 0.12 + r * 0.08 * pulse);
+    ctx.lineWidth   = Math.max(1, (r * 0.12 + r * 0.08 * pulse) * thickMul);
     ctx.stroke();
   }
 
@@ -753,33 +856,33 @@ export class Renderer {
         ? 0.4 + Math.random() * 1.0          // tiny (0.4–1.4)
         : 1.4 + Math.random() * Math.random() * 2.0; // occasional larger (1.4–3.4)
 
-      // Nebula colour palette: deep blues, purples, reds, rare warm white
+      // Nebula colour palette: cooler, deeper tones biased toward blue
       const palette = Math.random();
       let red, green, blue;
-      if (palette < 0.40) {
-        // Deep blue / indigo
-        red = Math.floor(20 + Math.random() * 60);
-        green = Math.floor(15 + Math.random() * 45);
-        blue = Math.floor(120 + Math.random() * 135);
-      } else if (palette < 0.70) {
-        // Purple / magenta
-        red = Math.floor(80 + Math.random() * 120);
-        green = Math.floor(10 + Math.random() * 40);
-        blue = Math.floor(100 + Math.random() * 130);
+      if (palette < 0.45) {
+        // Deep blue / indigo (boosted blue channel)
+        red   = Math.floor(10 + Math.random() * 40);
+        green = Math.floor(10 + Math.random() * 30);
+        blue  = Math.floor(150 + Math.random() * 105);
+      } else if (palette < 0.72) {
+        // Purple / blue-violet (less red, more blue)
+        red   = Math.floor(50 + Math.random() * 90);
+        green = Math.floor(5  + Math.random() * 25);
+        blue  = Math.floor(130 + Math.random() * 125);
       } else if (palette < 0.88) {
-        // Deep red / crimson
-        red = Math.floor(120 + Math.random() * 110);
-        green = Math.floor(10 + Math.random() * 40);
-        blue = Math.floor(20 + Math.random() * 60);
+        // Deep red / crimson (dimmed)
+        red   = Math.floor(90 + Math.random() * 90);
+        green = Math.floor(5  + Math.random() * 25);
+        blue  = Math.floor(15 + Math.random() * 45);
       } else {
-        // Rare warm white / pale yellow
-        red = Math.floor(200 + Math.random() * 55);
-        green = Math.floor(190 + Math.random() * 55);
-        blue = Math.floor(160 + Math.random() * 80);
+        // Rare cool white / blue-white (shifted blue)
+        red   = Math.floor(170 + Math.random() * 60);
+        green = Math.floor(175 + Math.random() * 55);
+        blue  = Math.floor(210 + Math.random() * 45);
       }
 
-      // Alpha: denser regions appear brighter via blending
-      const alpha = 0.3 + Math.random() * 0.55;
+      // Alpha: reduced range for a darker, less distracting background
+      const alpha = 0.18 + Math.random() * 0.32;
 
       stars.push({ gx, gy, gr, red, green, blue, alpha });
     }

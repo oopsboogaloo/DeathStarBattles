@@ -21,6 +21,7 @@ export class GameState {
     this.currentStatIdx   = 0;
     this.winner           = undefined;  // undefined=ongoing, null=draw, Team=winner
     this.activeBullets    = [];
+    this.activeExplosions = [];         // asteroid/debris explosions: [{x,y,t,radius,colour,particles}]
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click
   }

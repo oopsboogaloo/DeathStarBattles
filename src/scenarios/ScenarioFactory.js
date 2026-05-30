@@ -235,6 +235,36 @@ export class ScenarioFactory {
         }
       }
     }
+
+    // Final pass: iteratively push overlapping stations apart so no two stations
+    // ever share the same position, even after tier-2/3 fallback.
+    const minSep = sr * 2 + 4;
+    for (let iter = 0; iter < 30; iter++) {
+      let anyOverlap = false;
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          const a  = all[i], b = all[j];
+          const dx = b.position.x - a.position.x;
+          const dy = b.position.y - a.position.y;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (d < minSep) {
+            anyOverlap = true;
+            const push = (minSep - d) / 2 + 1;
+            const nx   = d < 0.001 ? 1 : dx / d;
+            const ny   = d < 0.001 ? 0 : dy / d;
+            a.position = new Vec2(
+              Math.max(sr, Math.min(gw - sr, a.position.x - nx * push)),
+              Math.max(sr, Math.min(gh - sr, a.position.y - ny * push)),
+            );
+            b.position = new Vec2(
+              Math.max(sr, Math.min(gw - sr, b.position.x + nx * push)),
+              Math.max(sr, Math.min(gh - sr, b.position.y + ny * push)),
+            );
+          }
+        }
+      }
+      if (!anyOverlap) break;
+    }
   }
 
   static _stationsOutsidePlanets(stations, planets, sr) {

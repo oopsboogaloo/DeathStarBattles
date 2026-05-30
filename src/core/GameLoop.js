@@ -118,7 +118,7 @@ export class GameLoop {
   // ─── Station movement ────────────────────────────────────────────────────────
 
   // MAX_STATION_SPEED in game-units per timestep (well below min bullet speed ~0.16)
-  static MAX_STATION_SPEED = 0.03;
+  static MAX_STATION_SPEED = 0.015; // halved from 0.03 — keeps movement subtle
 
   // Move all stations one physics step and check for collisions.
   _stepStations(allStations) {
@@ -214,6 +214,7 @@ export class GameLoop {
       if (!p.destroyed) continue;
       this.gs.planets.splice(i, 1);
       children.push(...this._fragmentAsteroid(p));
+      this._spawnAsteroidExplosion(p);
     }
     if (children.length) this.gs.planets.push(...children);
   }
@@ -409,6 +410,8 @@ export class GameLoop {
     // Remove dead bullets
     this.gs.activeBullets = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD);
 
+    this._advanceExplosionEffects();
+
     // All resolved → RESULTS
     if (this.gs.activeBullets.length === 0) {
       this._processHyperspace();
@@ -416,6 +419,44 @@ export class GameLoop {
       this._resultsTimer = 240; // ~4 s at 60 fps
       this.gs.mode = GameMode.RESULTS;
     }
+  }
+
+  // Spawn shockwave + particle burst on a newly-killed station.
+  _spawnStationExplosion(station) {
+    const [r, g, b] = station.colour;
+    station.shockwave = { t: 0, r, g, b };
+    station.particles = this._makeParticles(station.position.x, station.position.y, r, g, b, 16);
+  }
+
+  // Spawn a freestanding explosion for an asteroid (position in game units).
+  _spawnAsteroidExplosion(planet) {
+    const r = 139, g = 26, b = 26; // dark red
+    this.gs.activeExplosions.push({
+      x: planet.position.x, y: planet.position.y,
+      radius: planet.radius,
+      t: 0, r, g, b,
+      particles: this._makeParticles(planet.position.x, planet.position.y, r, g, b, 10),
+    });
+  }
+
+  // Build N radial particles at (ox, oy) in game units.
+  _makeParticles(ox, oy, r, g, b, n) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.8;
+      const speed = 0.8 + Math.random() * 2.2; // game units per rAF frame
+      const hue   = Math.random() * 40 - 20;   // ±20 hue jitter
+      out.push({
+        x: ox, y: oy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        t: 0,
+        r: Math.min(255, Math.max(0, r + hue)),
+        g: Math.min(255, Math.max(0, g + hue * 0.5)),
+        b: Math.min(255, Math.max(0, b + hue * 0.2)),
+      });
+    }
+    return out;
   }
 
   _resolveStationHit(bullet, target) {
@@ -434,6 +475,7 @@ export class GameLoop {
 
     target.status     = 'exploding';
     target.explosionT = 0;
+    this._spawnStationExplosion(target);
 
     const shooter = bullet.owner;
     target.stats.killedBy = shooter;
@@ -496,6 +538,33 @@ export class GameLoop {
     }
   }
 
+  // ─── Explosion effect advancement ────────────────────────────────────────────
+
+  _advanceExplosionEffects() {
+    const DT_SW = 0.035; // shockwave expansion rate
+    const DT_P  = 0.04;  // particle fade rate
+
+    // Station shockwaves + particles
+    for (const station of this.gs.allStations) {
+      if (station.shockwave) {
+        station.shockwave.t += DT_SW;
+        if (station.shockwave.t >= 1) station.shockwave = null;
+      }
+      if (station.particles?.length) {
+        for (const p of station.particles) { p.x += p.vx; p.y += p.vy; p.t += DT_P; }
+        station.particles = station.particles.filter(p => p.t < 1);
+      }
+    }
+
+    // Freestanding asteroid explosions
+    for (const ex of this.gs.activeExplosions) {
+      ex.t += DT_SW;
+      for (const p of ex.particles) { p.x += p.vx; p.y += p.vy; p.t += DT_P; }
+      ex.particles = ex.particles.filter(p => p.t < 1);
+    }
+    this.gs.activeExplosions = this.gs.activeExplosions.filter(ex => ex.t < 1 || ex.particles.length > 0);
+  }
+
   // ─── RESULTS ────────────────────────────────────────────────────────────────
 
   _advanceResults() {
@@ -511,6 +580,8 @@ export class GameLoop {
         if (station.hyperspaceFlash.t >= 1) station.hyperspaceFlash = null;
       }
     }
+
+    this._advanceExplosionEffects();
 
     if (--this._resultsTimer <= 0) {
       if (this.gs.winner !== undefined) {

@@ -1,5 +1,9 @@
 import { ShadingStyle, PlanetType, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
 
+// Set by Renderer before drawing backgrounds in simplified performance mode.
+let _simplified = false;
+export function setPlanetRendererSimplified(v) { _simplified = v; }
+
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
   static drawCorona(ctx, planet, conv) {
@@ -123,8 +127,8 @@ export class PlanetRenderer {
     }
     oc.stroke();
 
-    // Composite blurred offscreen canvas — softens hard edges into a true glow
-    ctx.filter = 'blur(4px)';
+    // Composite offscreen canvas — blur disabled in simplified performance mode
+    if (!_simplified) ctx.filter = 'blur(4px)';
     ctx.drawImage(off, cx - oCx, cy - oCy);
     ctx.filter = 'none';
   }
@@ -200,37 +204,48 @@ export class PlanetRenderer {
     const [br, bg, bb] = planet.colourB ?? planet.colour;
 
     const stripeH = Math.max(2, r * 0.12);
+    const margin  = 4;
+    const offSize = Math.ceil(r * 2) + margin * 2;
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.clip();
+    // Draw to an offscreen canvas so we can composite with a soft blur
+    const off = document.createElement('canvas');
+    off.width = off.height = offSize;
+    const oc  = off.getContext('2d');
+    const ocx = offSize / 2;
+    const ocy = offSize / 2;
 
-    // Base fill: colour A covers the full disc
-    ctx.fillStyle = `rgba(${ar},${ag},${ab},0.50)`;
-    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    oc.save();
+    oc.beginPath();
+    oc.arc(ocx, ocy, r, 0, Math.PI * 2);
+    oc.clip();
 
-    // Curved colour-B bands overlaid on the base — every other stripe.
-    // Each stripe uses a bezier that bows downward slightly, suggesting a sphere.
-    // Per-stripe amplitude is deterministic (seeded by index + planet position).
-    const top     = cy - r;
+    // Base fill: colour A
+    oc.fillStyle = `rgba(${ar},${ag},${ab},0.50)`;
+    oc.fillRect(ocx - r, ocy - r, r * 2, r * 2);
+
+    // Curved colour-B bands
+    const top     = ocy - r;
     const nStripes = Math.ceil(r * 2 / stripeH) + 2;
     for (let i = 0; i < nStripes; i += 2) {
       const y    = top + i * stripeH;
       const seed = Math.sin(i * 2.3999 + planet.position.x * 0.1) * 0.5 + 0.5;
-      const amp  = stripeH * (0.15 + seed * 0.35); // curve bow: 15%–50% of stripe height
+      const amp  = stripeH * (0.15 + seed * 0.35);
 
-      ctx.beginPath();
-      ctx.moveTo(cx - r, y);
-      ctx.quadraticCurveTo(cx, y + amp, cx + r, y);          // top edge bows down
-      ctx.lineTo(cx + r, y + stripeH);
-      ctx.quadraticCurveTo(cx, y + stripeH + amp, cx - r, y + stripeH); // bottom edge bows down
-      ctx.closePath();
-      ctx.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
-      ctx.fill();
+      oc.beginPath();
+      oc.moveTo(ocx - r, y);
+      oc.quadraticCurveTo(ocx, y + amp, ocx + r, y);
+      oc.lineTo(ocx + r, y + stripeH);
+      oc.quadraticCurveTo(ocx, y + stripeH + amp, ocx - r, y + stripeH);
+      oc.closePath();
+      oc.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
+      oc.fill();
     }
+    oc.restore();
 
-    ctx.restore();
+    // Composite with a gentle blur — softens stripe edges to look gaseous
+    if (!_simplified) ctx.filter = 'blur(2.5px)';
+    ctx.drawImage(off, cx - ocx, cy - ocy);
+    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------

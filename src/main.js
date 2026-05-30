@@ -1,6 +1,6 @@
 import { Renderer }             from './rendering/Renderer.js';
 import { ScenarioFactory }      from './scenarios/ScenarioFactory.js';
-import { SCENARIO_NAMES, weightedRandomId } from './scenarios/scenarioData.js';
+import { weightedRandomId } from './scenarios/scenarioData.js';
 import { RNG }                  from './core/RNG.js';
 import { GameState, GameMode }  from './core/GameState.js';
 import { GameLoop }             from './core/GameLoop.js';
@@ -35,10 +35,11 @@ const _baseDrawFrame = renderer.drawFrame.bind(renderer);
 const panel = new ConfigPanel();
 document.body.appendChild(panel.element);
 
-let activeConfig   = panel.config; // last config used to start a real game
-let isDemo         = false;
-let tournament     = null;          // TournamentState | null
-let lastGameState  = null;          // game state from most recently completed game (for Scores modal)
+let activeConfig      = panel.config; // last config used to start a real game
+let isDemo            = false;
+let tournament        = null;          // TournamentState | null
+let lastGameState     = null;          // game state from most recently completed game (for Scores modal)
+let _menuPausedLoop   = false;         // true when ⚙ paused a running game (resume can unpause it)
 
 // ─── Leaderboard & game-over screen ──────────────────────────────────────────
 
@@ -55,6 +56,11 @@ document.body.appendChild(aboutModal.element);
 document.body.appendChild(instructionsModal.element);
 document.body.appendChild(educationModal.element);
 document.body.appendChild(scoreModal.element);
+
+panel.onResume(() => {
+  if (_menuPausedLoop && loop?.isPaused) { loop.togglePause(); }
+  _menuPausedLoop = false;
+});
 
 panel.onInfo(which => {
   if (which === 'about')        aboutModal.show();
@@ -166,8 +172,20 @@ Object.assign(menuBtn.style, {
 menuBtn.title = 'Settings';
 menuBtn.addEventListener('click', e => {
   e.stopPropagation();
+  const wasDemo = isDemo;
   isDemo = false;
-  if (loop) { loop.stop(); loop = null; }
+  _hideDemoHint();
+  if (wasDemo && loop) {
+    // Demo: stop completely, never resume
+    loop.stop(); loop = null;
+    panel.setCanResume(false);
+  } else if (loop) {
+    // Real game: just pause so Resume can return to it
+    if (!loop.isPaused) { loop.togglePause(); _menuPausedLoop = true; }
+    panel.setCanResume(loop.gs.mode !== 'gameover');
+  } else {
+    panel.setCanResume(false);
+  }
   gameOverBar.style.display = 'none';
   panel.show();
 });
@@ -178,6 +196,7 @@ document.body.appendChild(menuBtn);
 let _prevMode = null;
 
 function updateButtons(gs) {
+  if (panel.isVisible) return; // panel is open — don't show game UI on top of it
   if (!gs || isDemo) {
     btnBar.style.display      = 'none';
     gameOverBar.style.display = 'none';
@@ -194,8 +213,8 @@ function updateButtons(gs) {
   moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
 
-  // AimControls: shown and updated when human is aiming
-  if (isAiming) {
+  // AimControls: shown when aiming but NOT when selecting a movement target
+  if (isAiming && !gs.waitingForMove) {
     aimControls.show();
     aimControls.update(gs.activeStation);
   } else {
@@ -214,6 +233,8 @@ function updateButtons(gs) {
 function _onGameOver(gs) {
   if (isDemo) return;
   lastGameState = gs;
+  _menuPausedLoop = false;
+  panel.setCanResume(false);
 
   const isTournament = activeConfig.mode === 'tournament';
   if (isTournament) {
@@ -231,11 +252,14 @@ let loop    = null;
 let handler = null;
 
 function startGame(cfg) {
-  if (loop) loop.stop();
+  if (loop) { loop.stop(); loop = null; }
+  _menuPausedLoop = false;
+  panel.setCanResume(false);
   _prevMode = null;
   leaderboard.hide();
 
   renderer.resize(window.innerWidth, window.innerHeight);
+  renderer.setPerformance(cfg.performance ?? 'full');
   renderer.clearTrails();
 
   const gw  = renderer.gameWidth;
@@ -282,7 +306,6 @@ function startGame(cfg) {
   handler = new InputHandler({ canvas, loop, renderer });
   loop.start();
 
-  if (!isDemo) updateLabel(scenarioId);
   updateButtons(gameState);
 }
 
@@ -342,23 +365,6 @@ function startDemo() {
 function getUrlScenario() {
   const s = parseInt(new URLSearchParams(location.search).get('s'));
   return (s >= 1 && s <= 23) ? s : null;
-}
-
-// ─── Scenario label (top-right) ───────────────────────────────────────────────
-
-function updateLabel(id) {
-  let label = document.getElementById('scenario-label');
-  if (!label) {
-    label = document.createElement('div');
-    label.id = 'scenario-label';
-    Object.assign(label.style, {
-      position: 'fixed', top: '10px', right: '10px',
-      color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace', fontSize: '13px',
-      pointerEvents: 'none', userSelect: 'none',
-    });
-    document.body.appendChild(label);
-  }
-  label.textContent = `${id}. ${SCENARIO_NAMES[id]}`;
 }
 
 // Canvas click on game-over → Play Again shortcut (same as the DOM button)
