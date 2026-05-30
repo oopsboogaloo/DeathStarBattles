@@ -320,6 +320,13 @@ export class Renderer {
     const r  = Math.max(3, station.radius * this.conv);
     const [cr, cg, cb] = station.colour;
 
+    // Fade ship body out from the moment it starts exploding
+    const alpha = station.status === 'exploding'
+      ? Math.max(0, 1 - station.explosionT * 2.5)
+      : 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
     // Sphere body with radial lighting (lit upper-left)
     const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
     grad.addColorStop(0,   `rgb(${Math.min(255,cr+65)},${Math.min(255,cg+65)},${Math.min(255,cb+65)})`);
@@ -365,6 +372,8 @@ export class Renderer {
       ctx.fillStyle = 'rgba(0,0,0,0.85)';
       ctx.fill();
     }
+
+    ctx.restore(); // restore globalAlpha
   }
 
   // ----------------------------------------------------------------

@@ -402,7 +402,7 @@ export class GameLoop {
     }
     for (const station of allStations) {
       if (station.status === 'exploding') {
-        station.explosionT += 0.02;
+        station.explosionT += 0.008; // 40% of original speed
         if (station.explosionT >= 1) station.status = 'dead';
       }
     }
@@ -541,8 +541,8 @@ export class GameLoop {
   // ─── Explosion effect advancement ────────────────────────────────────────────
 
   _advanceExplosionEffects() {
-    const DT_SW = 0.035; // shockwave expansion rate
-    const DT_P  = 0.04;  // particle fade rate
+    const DT_SW = 0.014; // shockwave expansion rate (40% of original 0.035)
+    const DT_P  = 0.016; // particle fade rate (40% of original 0.04)
 
     // Station shockwaves + particles
     for (const station of this.gs.allStations) {
@@ -571,7 +571,7 @@ export class GameLoop {
     for (const station of this.gs.allStations) {
       // Finish lingering explosions
       if (station.status === 'exploding') {
-        station.explosionT += 0.02;
+        station.explosionT += 0.008; // 40% of original speed
         if (station.explosionT >= 1) station.status = 'dead';
       }
       // Advance hyperspace flash animation
