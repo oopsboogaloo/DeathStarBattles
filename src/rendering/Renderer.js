@@ -1,4 +1,5 @@
 import { PlanetRenderer } from './PlanetRenderer.js';
+import { ShadingStyle }   from '../entities/Planet.js';
 
 export class Renderer {
   constructor(mainCanvas) {
@@ -106,14 +107,23 @@ export class Renderer {
   }
 
   _drawLive(ctx, gameState) {
+    // Animated wormhole pulse (time-based, overlaid on static background layer)
+    const now = Date.now() / 1000;
+    for (const planet of this._planets) {
+      if (planet.shading === ShadingStyle.WORMHOLE) {
+        this._drawWormholePulse(ctx, planet, now);
+      }
+    }
+
     // Bullets
     for (const bullet of gameState.activeBullets) {
       if (bullet.status === 'active')    this._drawBullet(ctx, bullet);
       if (bullet.status === 'exploding') this._drawExplosion(ctx, bullet);
     }
 
-    // Stations + station explosions
+    // Stations + station explosions + hyperspace flashes
     for (const station of gameState.allStations) {
+      if (station.hyperspaceFlash)        this._drawHyperspaceFlash(ctx, station);
       if (station.status === 'exploding') this._drawStationExplosion(ctx, station);
       if (station.status !== 'dead')      this._drawStation(ctx, station);
     }
@@ -386,6 +396,86 @@ export class Renderer {
       ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255,255,200,${(0.3 - t) * 3})`;
       ctx.fill();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Wormhole pulse — animated ring overlay drawn every frame
+  // ----------------------------------------------------------------
+
+  _drawWormholePulse(ctx, planet, t) {
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const r  = Math.max(4, planet.radius * 2 * this.conv);
+    const [pr, pg, pb] = planet.colour;
+    // Offset phase by position so paired wormholes pulse out of sync
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.8 + planet.position.x * 0.07);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
+    ctx.lineWidth   = Math.max(1, r * 0.12 + r * 0.08 * pulse);
+    ctx.stroke();
+  }
+
+  // ----------------------------------------------------------------
+  // Hyperspace flash — departure ring + arrival glow
+  // ----------------------------------------------------------------
+
+  _drawHyperspaceFlash(ctx, station) {
+    const flash = station.hyperspaceFlash;
+    const [cr, cg, cb] = station.colour;
+    const t      = flash.t;
+    const maxR   = Math.max(40, station.radius * this.conv * 5);
+    const fadeOut = Math.max(0, 1 - t);
+
+    // Departure: expanding ring at old position
+    const ox = flash.oldPos.x * this.conv;
+    const oy = flash.oldPos.y * this.conv;
+    ctx.beginPath();
+    ctx.arc(ox, oy, t * maxR, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${fadeOut * 0.85})`;
+    ctx.lineWidth   = Math.max(1, fadeOut * 5);
+    ctx.stroke();
+    // Inner flash at departure
+    if (t < 0.25) {
+      ctx.beginPath();
+      ctx.arc(ox, oy, maxR * 0.3 * (1 - t / 0.25), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${(0.25 - t) * 3})`;
+      ctx.fill();
+    }
+
+    // Arrival: contracting glow at new position
+    const nx = flash.newPos.x * this.conv;
+    const ny = flash.newPos.y * this.conv;
+    if (t > 0.1) {
+      const at = Math.min(1, (t - 0.1) / 0.9);
+      ctx.beginPath();
+      ctx.arc(nx, ny, maxR * (1 - at), 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(1 - at) * 0.7})`;
+      ctx.lineWidth   = Math.max(1, (1 - at) * 4);
+      ctx.stroke();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Redraw all bullet trails after a canvas resize
+  // ----------------------------------------------------------------
+
+  redrawTrails(bullets) {
+    const ctx  = this.trailsCtx;
+    const conv = this.conv;
+    for (const bullet of bullets) {
+      const trail = bullet.trail;
+      if (trail.length < 2) continue;
+      const [tr, tg, tb] = bullet.owner.team.colour;
+      ctx.strokeStyle = `rgb(${tr},${tg},${tb})`;
+      ctx.lineWidth   = Math.max(1, conv * 0.6);
+      ctx.beginPath();
+      ctx.moveTo(trail[0].x * conv, trail[0].y * conv);
+      for (let i = 1; i < trail.length; i++) {
+        ctx.lineTo(trail[i].x * conv, trail[i].y * conv);
+      }
+      ctx.stroke();
     }
   }
 

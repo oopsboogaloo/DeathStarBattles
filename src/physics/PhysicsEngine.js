@@ -135,11 +135,11 @@ export class PhysicsEngine {
           break;
         }
 
-        const sign  = dx < 0 ? -1 : 1;
-        const theta = Math.atan(dy / dx);
-        const accel = sign * G * planet.mass / rSq;
-        ax += Math.cos(theta) * accel;
-        ay += Math.sin(theta) * accel;
+        // Direct vector formula (avoids atan/cos/sin; mathematically equivalent)
+        const r3inv = 1 / (rSq * Math.sqrt(rSq));
+        const accel = G * planet.mass * r3inv;
+        ax += dx * accel;
+        ay += dy * accel;
       }
 
       if (stop) break;

@@ -224,12 +224,17 @@ export class GameLoop {
     for (const station of this.gs.allStations) {
       if (!station.hyperspaceQueued || station.status !== 'active') continue;
       station.hyperspaceQueued = false;
+      const oldPos = new Vec2(station.position.x, station.position.y);
       for (let a = 0; a < 300; a++) {
         const pos = new Vec2(this.rng.next() * gw, this.rng.next() * gh);
         const clear = this.gs.planets.every(
           p => pos.distanceSqTo(p.position) >= (p.impactRadius + station.radius + 5) ** 2,
         );
-        if (clear) { station.position = pos; break; }
+        if (clear) {
+          station.position      = pos;
+          station.hyperspaceFlash = { t: 0, oldPos, newPos: new Vec2(pos.x, pos.y) };
+          break;
+        }
       }
     }
   }
@@ -247,11 +252,16 @@ export class GameLoop {
   // ─── RESULTS ────────────────────────────────────────────────────────────────
 
   _advanceResults() {
-    // Finish any lingering station explosions
     for (const station of this.gs.allStations) {
+      // Finish lingering explosions
       if (station.status === 'exploding') {
         station.explosionT += 0.02;
         if (station.explosionT >= 1) station.status = 'dead';
+      }
+      // Advance hyperspace flash animation
+      if (station.hyperspaceFlash) {
+        station.hyperspaceFlash.t += 0.04;
+        if (station.hyperspaceFlash.t >= 1) station.hyperspaceFlash = null;
       }
     }
 

@@ -251,6 +251,31 @@ function startGame(cfg) {
   updateButtons(gameState);
 }
 
+// ─── Demo hint label ─────────────────────────────────────────────────────────
+
+function _showDemoHint() {
+  let hint = document.getElementById('demo-hint');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.id = 'demo-hint';
+    Object.assign(hint.style, {
+      position: 'fixed', bottom: '38px', left: '50%',
+      transform: 'translateX(-50%)',
+      color: 'rgba(200,210,255,0.55)', fontFamily: 'monospace', fontSize: '13px',
+      letterSpacing: '0.1em', pointerEvents: 'none', userSelect: 'none',
+      zIndex: '5',
+    });
+    document.body.appendChild(hint);
+  }
+  hint.textContent = 'CLICK OR PRESS ANY KEY TO START';
+  hint.style.display = 'block';
+}
+
+function _hideDemoHint() {
+  const hint = document.getElementById('demo-hint');
+  if (hint) hint.style.display = 'none';
+}
+
 // ─── Demo mode ────────────────────────────────────────────────────────────────
 
 const DEMO_CONFIG = {
@@ -261,6 +286,7 @@ const DEMO_CONFIG = {
 function startDemo() {
   isDemo = true;
   leaderboard.hide();
+  _showDemoHint();
   startGame(DEMO_CONFIG);
 
   function onFirstInteraction(e) {
@@ -268,6 +294,7 @@ function startDemo() {
     if (e.target?.closest?.('#btn-bar')) return;
     if (!isDemo) return;
     isDemo = false;
+    _hideDemoHint();
     if (loop) { loop.stop(); loop = null; }
     updateButtons(null);
     panel.show();
@@ -319,7 +346,11 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('resize', () => {
-  if (loop && !isDemo) startGame(activeConfig);
+  renderer.resize(window.innerWidth, window.innerHeight);
+  // Re-draw any in-flight bullet trails (canvas was cleared by resize)
+  if (loop && loop.gs.activeBullets.length > 0) {
+    renderer.redrawTrails(loop.gs.activeBullets);
+  }
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

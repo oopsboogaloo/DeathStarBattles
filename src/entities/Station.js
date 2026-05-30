@@ -44,6 +44,7 @@ export class Station {
     this.hyperspaceQueued = false;
     this.status          = StationStatus.ACTIVE;
     this.explosionT      = 0;            // 0→1 animation progress
+    this.hyperspaceFlash = null;         // {t, oldPos, newPos} | null — hyperspace anim
     this.stats           = new StationStats();
   }
 
