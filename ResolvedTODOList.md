@@ -11,6 +11,11 @@ All items here are complete. Moved from IssuesTODOList.md.
 - [x] **Explosions too fast** — fixed (moved out of inner loop; slowed rates; resultsTimer 240).
 - [x] **Ghost trails from previous turn not showing** — fixed: trail now saved inside inner loop at the moment bullet transitions from ACTIVE, rather than relying on a post-loop condition check.
 - [x] **Wormholes spawning inside stars/planets** — fixed: `_addBonus` now checks each candidate against existing planets and retries position up to 20 times before placing.
+- [x] **Angle buttons reversed** — fixed: ► now calls `humanAngle(-0.1)` (clockwise = decreasing angle), ◄ calls `humanAngle(+0.1)`. Keyboard Z/A remain counter-clockwise, X/S clockwise.
+- [x] **"Click or press any key to start" hint persists after demo** — fixed: `_hideDemoHint()` now called before the btn-bar guard so the `{ once: true }` listener always clears the text.
+- [x] **Stations placed on top of each other** — fixed: iterative spread pass after tier-3 placement ensures no two stations share a position.
+- [x] **Ghost trail breaks at wormhole entry** — fixed: `appendTrailPoint` now draws an anchor dot at the wormhole exit so the first post-teleport segment connects correctly.
+- [x] **Station movement speed too high** — fixed: `MAX_STATION_SPEED` halved from 0.03 to 0.015 in both `GameLoop.js` and `Renderer.js`.
 
 ## Improvements
 
@@ -28,6 +33,12 @@ All items here are complete. Moved from IssuesTODOList.md.
 - [x] **Station trench curve — increase to avoid dome overlap** — fixed: control point raised to `r * 0.40`.
 - [x] **Star halo layered glow improvement** — fixed: 5-layer concentric radial-gradient halo + bristles drawn to offscreen canvas, composited with `blur(4px)` filter.
 - [x] **Star gradient — center the emission, not offset it** — fixed: gradient origin changed from `cx - r*0.15, cy - r*0.15` to `cx, cy`.
+- [x] **Hide aim/power controls during movement targeting** — `AimControls` hidden when `gs.waitingForMove` is true.
+- [x] **Darken and blue-shift the background nebula** — alpha reduced and palette shifted cooler (blue-biased).
+- [x] **Gas giant soft blur** — 2.5px blur via offscreen canvas composite.
+- [x] **Giant wormhole halo too thick** — `lineWidth` halved for wormholes with display radius > 100px.
+- [x] **Remove scenario label from top-right** — removed.
+- [x] **Resume / close menu button** — green "Resume Game" button added to config panel; ⚙ now pauses rather than stops the loop.
 
 ## Features
 
@@ -46,3 +57,35 @@ All items here are complete. Moved from IssuesTODOList.md.
   - **Child properties**: fresh random polygon (6–10 verts), random rotation and rotation speed, inherit parent density. `_rotatedVerts` pre-computed immediately so rendering and SAT collision are correct from the first frame.
   - **Gravity**: children are full `PlanetType.ASTEROID` planets added to `gs.planets`, so they exert gravity on bullets as normal.
   - **Rendering**: destroyed asteroids are hidden (`planet.destroyed` guard in renderer) before children appear, preventing a one-frame ghost.
+
+- [x] **Modal Information Pages** — About, Instructions, and Education overlays accessible from the main menu. ESC and backdrop-click to close. Education paginated over 8 pages (gravity, Newton, inverse-square law, orbits, three-body problem, chaos theory, astronomical bodies, physics modelling).
+
+- [x] **Gas Giant Planet Type** — projectiles pass through; interior gravity reduces linearly to zero at core; horizontal curved stripes at 50% transparency with 2.5px blur; Jovian scenario uses a gas giant central body; new "Gas Giants" scenario 22.
+
+- [x] **Station Movement** — optional config toggle; Move button during aiming phase; click-to-set velocity; transparent triangle indicator; stations bounce off play area boundaries; AI tiers use movement with varying aggression.
+
+- [x] **Improved ship and asteroid explosions** — shockwave (solid expanding disc, eased + faded) + radial particle burst. Ships fade out as soon as explosion starts. All at 40% original speed.
+
+- [x] **Bullet trail glow** — white-hot tip cooling to team colour over 7 trail segments, drawn live each frame.
+
+- [x] **Performance mode** — Full / Simplified toggle in config. Simplified disables all `ctx.filter` blurs, bullet glow, and particles; caps selectable planets at 20 and players at 4.
+
+## Polish
+
+- [x] **Score display moved to modal** — live leaderboard removed from game screen. "Scores" link in config panel opens a modal showing the last game's team scores, kills, and station status.
+
+- [x] **Star corona lines brighter** — bristle opacity doubled (outer layer 0.30→0.60, inner layer 0.45→0.90). Added chromosphere inner ring and dense surface fringe (STAR type only). Star body disc softly blurred at 1.8px.
+
+- [x] **Gas giant curved stripes** — quadratic bezier curves bowing downward with per-stripe deterministic jitter. Base fill colour A; curved colour-B bands overlaid.
+
+- [x] **Pulsar stellar object** — white-dwarf-mass body; period 0.1–1 s; rings expand over 1.5 s to 180 game-unit radius; outward impulse `(1 − t) × 0.027`; scenario 23 "Neutron Star"; in wildcard bonus pool.
+
+- [x] **Config panel limits expanded** — players all integers 2–12; stations/player up to 8; planets up to 50 (multiples of 5 above 10); Mammoth station size (2× Giant).
+
+- [x] **Game speed rebalance + new tiers** — normal −30% (42 steps/frame); Very Slow (¼×=11), Slow (½×=21), Normal (1×=42), Fast (2×=84), Very Fast (4×=168).
+
+- [x] **Letterbox/pillarbox on window resize** — game aspect ratio locked at start; resize shows black bars to preserve play area; new game picks up current window shape.
+
+- [x] **Demo/loading screen title** — "DEATH STAR BATTLES" and "Chloe Bolland" overlay during demo, black text with white glow, hidden on first interaction.
+
+- [x] **Game over stats simplified** — one row per team; SHOTS / KILLS / ACCURACY / FRIENDLY FIRE (SUI+OG combined) / survived indicator.
