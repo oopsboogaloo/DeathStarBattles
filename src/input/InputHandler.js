@@ -31,10 +31,10 @@ export class InputHandler {
 
     switch (e.key) {
       // Angle fine/coarse
-      case 'z': case 'Z': loop.humanAngle(+1);  break;
-      case 'x': case 'X': loop.humanAngle(-1);  break;
-      case 'a': case 'A': loop.humanAngle(+5);  break;
-      case 's': case 'S': loop.humanAngle(-5);  break;
+      case 'z': case 'Z': loop.humanAngle(+0.1);  break;
+      case 'x': case 'X': loop.humanAngle(-0.1);  break;
+      case 'a': case 'A': loop.humanAngle(+0.5);  break;
+      case 's': case 'S': loop.humanAngle(-0.5);  break;
       // Power fine/coarse
       case 'k': case 'K': loop.humanPower(+1);  break;
       case 'm': case 'M': loop.humanPower(-1);  break;
@@ -71,14 +71,14 @@ export class InputHandler {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     const stationR_px = station.radius * conv;
-    const boxR_px     = Math.max(30, 3 * stationR_px);
+    const boxR_px     = Math.max(57, 3 * stationR_px);
     const arrowMin_px = Math.max(10, 1.2 * stationR_px);
 
     // Only respond within the interactive circle and outside the station body
     if (dist <= stationR_px || dist > 1.25 * boxR_px) return;
 
     // Angle — atan2(dx, dy) gives clockwise-from-down convention matching physics
-    station.angle = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360);
+    station.angle = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360 * 10) / 10;
 
     // Power — distance maps from arrowMin to boxR → 1 to 800
     const fraction = Math.max(0, Math.min(1, (dist - arrowMin_px) / (boxR_px - arrowMin_px)));

@@ -2,6 +2,7 @@ import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY }     from '../physics/PhysicsEngine.js';
+import { PlanetType }                  from '../entities/Planet.js';
 
 // Physics steps per rAF frame for each speed setting
 export const SPEED_STEPS = { slow: 30, normal: 60, fast: 120 };
@@ -48,10 +49,45 @@ export class GameLoop {
 
   _advance() {
     switch (this.gs.mode) {
-      case GameMode.AIMING:  this._advanceAiming();  break;
-      case GameMode.FIRING:  this._advanceFiring();  break;
+      case GameMode.AIMING:
+        this._rotateAsteroids();
+        this._advanceAiming();
+        break;
+      case GameMode.FIRING:
+        this._rotateAsteroids();
+        this._advanceFiring();
+        break;
       case GameMode.RESULTS: this._advanceResults(); break;
       // GAMEOVER: no advance — waits for external restart
+    }
+  }
+
+  // Advance asteroid rotation once per rAF frame and refresh cached world-space verts.
+  _rotateAsteroids() {
+    for (const planet of this.gs.planets) {
+      if (!planet.vertices || planet.rotationSpeed === 0) continue;
+      planet.rotation = (planet.rotation + planet.rotationSpeed) % (2 * Math.PI);
+      this._computeRotatedVerts(planet);
+    }
+  }
+
+  // Compute and cache world-space rotated vertices from unit-radius vertex offsets.
+  _computeRotatedVerts(planet) {
+    const cos = Math.cos(planet.rotation);
+    const sin = Math.sin(planet.rotation);
+    const px  = planet.position.x;
+    const py  = planet.position.y;
+    const r   = planet.radius;
+    planet._rotatedVerts = planet.vertices.map(v => new Vec2(
+      px + r * (v.x * cos - v.y * sin),
+      py + r * (v.x * sin + v.y * cos),
+    ));
+  }
+
+  // Seed the rotated-verts cache at startup so the first frame has valid data.
+  _initAsteroidVerts() {
+    for (const planet of this.gs.planets) {
+      if (planet.vertices) this._computeRotatedVerts(planet);
     }
   }
 
@@ -303,7 +339,7 @@ export class GameLoop {
 
   humanAngle(delta) {
     const s = this.gs.activeStation;
-    if (s) s.angle = ((s.angle + delta) % 360 + 360) % 360;
+    if (s) s.angle = Math.round(((s.angle + delta) % 360 + 360) % 360 * 10) / 10;
   }
 
   humanPower(delta) {

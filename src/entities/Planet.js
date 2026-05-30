@@ -28,10 +28,13 @@ export class Planet {
     type,
     colour,
     shading,
-    halo         = 1.0,
-    partner      = null,
-    impactRadius = null,
-    mass         = null,   // overrides radius²×density for gravity (used by black/white holes and white dwarfs)
+    halo          = 1.0,
+    partner       = null,
+    impactRadius  = null,
+    mass          = null,   // overrides radius²×density for gravity (used by black/white holes and white dwarfs)
+    vertices      = null,   // unit-radius polygon offsets for ASTEROID type (Vec2[])
+    rotation      = 0,      // current rotation angle in radians
+    rotationSpeed = 0,      // radians per rAF frame
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -43,6 +46,10 @@ export class Planet {
     this.partner       = partner;
     this._impactRadius = impactRadius;
     this._massOverride = mass;
+    this.vertices      = vertices;
+    this.rotation      = rotation;
+    this.rotationSpeed = rotationSpeed;
+    this._rotatedVerts = null; // cached world-space vertices, updated each frame
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

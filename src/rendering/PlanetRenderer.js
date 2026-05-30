@@ -20,12 +20,26 @@ export class PlanetRenderer {
 
   // ----------------------------------------------------------------
   // Rocky planet / asteroid — lit-side shading
+  // ASTEROID with vertices: draw rotating convex polygon (flat colour, no gradient)
   // ----------------------------------------------------------------
   static _drawRocky(ctx, planet, conv) {
     const cx = planet.position.x * conv;
     const cy = planet.position.y * conv;
     const r  = Math.max(2, planet.radius * conv);
     const [pr, pg, pb] = planet.colour;
+
+    if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
+      ctx.beginPath();
+      const verts = planet._rotatedVerts;
+      ctx.moveTo(verts[0].x * conv, verts[0].y * conv);
+      for (let i = 1; i < verts.length; i++) {
+        ctx.lineTo(verts[i].x * conv, verts[i].y * conv);
+      }
+      ctx.closePath();
+      ctx.fillStyle = `rgb(${pr},${pg},${pb})`;
+      ctx.fill();
+      return;
+    }
 
     const grad = ctx.createRadialGradient(
       cx - r * 0.35, cy - r * 0.35, r * 0.1,
@@ -42,7 +56,7 @@ export class PlanetRenderer {
   }
 
   // ----------------------------------------------------------------
-  // Star corona — outer glow + bristles only (drawn in pass 1)
+  // Star corona — multi-layer halo + bristles, composited with blur (pass 1)
   // ----------------------------------------------------------------
   static _drawStarCorona(ctx, planet, conv) {
     const cx = planet.position.x * conv;
@@ -54,41 +68,64 @@ export class PlanetRenderer {
     const cg = Math.floor(pg * 0.38);
     const cb = Math.floor(pb * 0.15);
 
-    // Soft outer glow
-    const outerGlow = ctx.createRadialGradient(cx, cy, r * 0.95, cx, cy, r * 1.65);
-    outerGlow.addColorStop(0,   `rgba(${cr},${cg},${cb},0.9)`);
-    outerGlow.addColorStop(0.5, `rgba(${cr},${cg},${cb},0.4)`);
-    outerGlow.addColorStop(1,   `rgba(${cr},${cg},${cb},0)`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.65, 0, Math.PI * 2);
-    ctx.fillStyle = outerGlow;
-    ctx.fill();
+    // Offscreen canvas sized to fit the full corona (max extent 3.2×r)
+    const margin  = 4;
+    const offSize = Math.ceil(r * 3.2 * 2) + margin * 2;
+    const off     = document.createElement('canvas');
+    off.width = off.height = offSize;
+    const oc  = off.getContext('2d');
+    const oCx = offSize / 2;
+    const oCy = offSize / 2;
 
-    // Bristle corona — two batched stroke() passes for inner/outer depth
+    // 5 concentric radial-gradient layers — build up the atmospheric glow
+    const layers = [
+      { scale: 1.0, alpha: 0.35 },
+      { scale: 1.4, alpha: 0.22 },
+      { scale: 1.9, alpha: 0.14 },
+      { scale: 2.5, alpha: 0.08 },
+      { scale: 3.2, alpha: 0.04 },
+    ];
+    for (const { scale, alpha } of layers) {
+      const lr   = r * scale;
+      const grad = oc.createRadialGradient(oCx, oCy, 0, oCx, oCy, lr);
+      grad.addColorStop(0, `rgba(${cr},${cg},${cb},${alpha})`);
+      grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      oc.beginPath();
+      oc.arc(oCx, oCy, lr, 0, Math.PI * 2);
+      oc.fillStyle = grad;
+      oc.fill();
+    }
+
+    // Bristles at reduced opacity for texture
     const count = Math.max(200, Math.floor(r * 3.5));
-    ctx.lineWidth = Math.max(1, conv * 0.7);
+    oc.lineWidth = Math.max(1, conv * 0.7);
 
-    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.55)`;
-    ctx.beginPath();
+    oc.strokeStyle = `rgba(${cr},${cg},${cb},0.30)`;
+    oc.beginPath();
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const s = r * (0.87 + Math.random() * 0.13);
       const e = r * (1.10 + Math.random() * 0.50);
-      ctx.moveTo(cx + Math.cos(a) * s, cy + Math.sin(a) * s);
-      ctx.lineTo(cx + Math.cos(a) * e, cy + Math.sin(a) * e);
+      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
+      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
     }
-    ctx.stroke();
+    oc.stroke();
 
-    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.8)`;
-    ctx.beginPath();
+    oc.strokeStyle = `rgba(${cr},${cg},${cb},0.45)`;
+    oc.beginPath();
     for (let i = 0, n = Math.floor(count * 0.55); i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const s = r * (0.92 + Math.random() * 0.08);
       const e = r * (1.04 + Math.random() * 0.20);
-      ctx.moveTo(cx + Math.cos(a) * s, cy + Math.sin(a) * s);
-      ctx.lineTo(cx + Math.cos(a) * e, cy + Math.sin(a) * e);
+      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
+      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
     }
-    ctx.stroke();
+    oc.stroke();
+
+    // Composite blurred offscreen canvas — softens hard edges into a true glow
+    ctx.filter = 'blur(4px)';
+    ctx.drawImage(off, cx - oCx, cy - oCy);
+    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
@@ -100,7 +137,7 @@ export class PlanetRenderer {
     const r  = Math.max(3, planet.radius * conv);
     const [pr, pg, pb] = planet.colour;
 
-    const coreGrad = ctx.createRadialGradient(cx - r * 0.15, cy - r * 0.15, r * 0.05, cx, cy, r);
+    const coreGrad = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
     coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
     coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
     coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .75)},${Math.floor(pg * .75)},${Math.floor(pb * .6)})`);

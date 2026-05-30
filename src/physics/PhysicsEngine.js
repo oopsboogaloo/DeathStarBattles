@@ -51,7 +51,15 @@ export class PhysicsEngine {
       const dy  = planet.position.y - bullet.position.y;
       const rSq = dx * dx + dy * dy;
 
-      if (rSq < planet.impactRadius * planet.impactRadius) {
+      // Broad-phase: skip SAT if bullet is outside the bounding circle
+      if (rSq >= planet.impactRadius * planet.impactRadius) {
+        // gravity only (below)
+      } else if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
+        if (PhysicsEngine._satCollides(bullet.position, planet._rotatedVerts)) {
+          this._handlePlanetImpact(bullet, planet, dx, dy, planets);
+          return;
+        }
+      } else {
         this._handlePlanetImpact(bullet, planet, dx, dy, planets);
         return; // don't update position after an impact
       }
@@ -231,5 +239,55 @@ export class PhysicsEngine {
         bullet.status = BulletStatus.EXPLODING;
         break;
     }
+  }
+
+  // ─── SAT circle-vs-polygon collision (world-space rotated verts) ─────────
+  // Tests each polygon edge normal; if any axis separates the bullet point
+  // from the polygon, returns false. Also tests the closest-vertex axis.
+  static _satCollides(point, verts) {
+    const bx = point.x, by = point.y;
+    const n  = verts.length;
+
+    for (let i = 0; i < n; i++) {
+      const a  = verts[i];
+      const b  = verts[(i + 1) % n];
+      const ex = b.x - a.x, ey = b.y - a.y;
+      const len = Math.sqrt(ex * ex + ey * ey);
+      if (len === 0) continue;
+      // Edge normal (either direction works for SAT)
+      const nx = -ey / len, ny = ex / len;
+
+      let polyMin = Infinity, polyMax = -Infinity;
+      for (const v of verts) {
+        const proj = v.x * nx + v.y * ny;
+        if (proj < polyMin) polyMin = proj;
+        if (proj > polyMax) polyMax = proj;
+      }
+      const bulletProj = bx * nx + by * ny;
+      if (bulletProj < polyMin || bulletProj > polyMax) return false;
+    }
+
+    // Closest-vertex axis (handles bullet approaching a vertex from outside)
+    let closestDistSq = Infinity, closestV = null;
+    for (const v of verts) {
+      const dsq = (bx - v.x) ** 2 + (by - v.y) ** 2;
+      if (dsq < closestDistSq) { closestDistSq = dsq; closestV = v; }
+    }
+    if (closestV) {
+      const vlen = Math.sqrt(closestDistSq);
+      if (vlen > 0) {
+        const nx = (bx - closestV.x) / vlen, ny = (by - closestV.y) / vlen;
+        let polyMin = Infinity, polyMax = -Infinity;
+        for (const v of verts) {
+          const proj = v.x * nx + v.y * ny;
+          if (proj < polyMin) polyMin = proj;
+          if (proj > polyMax) polyMax = proj;
+        }
+        const bulletProj = bx * nx + by * ny;
+        if (bulletProj < polyMin || bulletProj > polyMax) return false;
+      }
+    }
+
+    return true;
   }
 }

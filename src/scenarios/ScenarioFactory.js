@@ -2,6 +2,19 @@ import { Vec2 }                            from '../core/Vec2.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 import { weightedRandomId }                 from './scenarioData.js';
 
+// Generate a convex-ish polygon with N=6–10 unit-radius vertices (in angle order)
+function asteroidVertices(rng, n) {
+  const verts = [];
+  for (let i = 0; i < n; i++) {
+    const baseAngle = (2 * Math.PI * i) / n;
+    const jitter    = (rng.next() - 0.5) * (Math.PI / n) * 1.2;
+    const angle     = baseAngle + jitter;
+    const r         = 0.55 + rng.next() * 0.45;
+    verts.push(new Vec2(r * Math.cos(angle), r * Math.sin(angle)));
+  }
+  return verts;
+}
+
 const ROCKY_COL    = [150, 120,  80];
 const ASTEROID_COL = [120,  80,  10];
 const MOON_COL     = [120, 100,  70];
@@ -34,6 +47,32 @@ function makePlanet(rng, A, B, C, D, E, F, gw, gh, density, type, colour, shadin
     density, type, colour: [...colour], shading,
     ...extras,
   });
+}
+
+function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density) {
+  const n        = 6 + Math.floor(rng.next() * 5); // 6–10 vertices
+  const vertices = asteroidVertices(rng, n);
+  const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180; // biased toward slow
+  const rotation = rng.next() * Math.PI * 2;
+  const planet   = new Planet({
+    position:      new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
+    radius:        rr(rng, D, E, F),
+    density,
+    type:          PlanetType.ASTEROID,
+    colour:        [...ASTEROID_COL],
+    shading:       ShadingStyle.ROCKY,
+    vertices,
+    rotation,
+    rotationSpeed: speed,
+  });
+  // Pre-compute rotated verts so background rendering has them immediately
+  const cos = Math.cos(rotation), sin = Math.sin(rotation);
+  const px = planet.position.x, py = planet.position.y, r = planet.radius;
+  planet._rotatedVerts = vertices.map(v => new Vec2(
+    px + r * (v.x * cos - v.y * sin),
+    py + r * (v.x * sin + v.y * cos),
+  ));
+  return planet;
 }
 
 function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
@@ -201,7 +240,7 @@ export class ScenarioFactory {
       // ── 2: Asteroids ──────────────────────────────────────────────────────
       case 2: {
         for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 20,5,3, gw,gh, 0.05, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
         break;
       }
 
@@ -231,7 +270,7 @@ export class ScenarioFactory {
           }));
         }
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.08, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08));
         break;
       }
 
@@ -260,7 +299,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 30,5,9, gw,gh, 0.05, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 30,5,9, gw,gh, 0.05));
         break;
       }
 
@@ -276,7 +315,7 @@ export class ScenarioFactory {
           }));
         }
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 10,10,9, gw,gh, 0.05, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05));
         break;
       }
 
@@ -299,7 +338,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: s2Col, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 10,10,9, gw,gh, 0.05, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05));
         break;
       }
 
@@ -313,7 +352,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: rgCol, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.065, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065));
         break;
       }
 
@@ -335,7 +374,7 @@ export class ScenarioFactory {
           planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
         }
         for (let i = initial; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.1, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1));
         break;
       }
 
@@ -384,7 +423,7 @@ export class ScenarioFactory {
           // Yellow self-teleport
           planets.push(makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF));
           for (let i = 1; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 18,18,3, gw,gh, 0.03, PlanetType.ASTEROID, ASTEROID_COL, ShadingStyle.ROCKY));
+            planets.push(makeAsteroid(rng, 1,0,0, 18,18,3, gw,gh, 0.03));
         }
         break;
       }

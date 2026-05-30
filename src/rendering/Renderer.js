@@ -275,7 +275,7 @@ export class Renderer {
       ctx.beginPath();
       // Curved trench — quadratic bezier bows downward to suggest a sphere
       ctx.moveTo(cx - r, cy);
-      ctx.quadraticCurveTo(cx, cy + r * 0.22, cx + r, cy);
+      ctx.quadraticCurveTo(cx, cy + r * 0.40, cx + r, cy);
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.lineWidth = Math.max(1, r * 0.14);
       ctx.stroke();
@@ -311,7 +311,7 @@ export class Renderer {
     const cx    = station.position.x * this.conv;
     const cy    = station.position.y * this.conv;
     const r     = Math.max(3, station.radius * this.conv);
-    const boxR  = Math.max(30, 3 * r);   // interactive zone radius in px
+    const boxR  = Math.max(57, 3 * r);   // interactive zone radius in px
 
     // Angle convention: 0 = up, 90 = right (clockwise), matches original Java
     // angle=0 → fires down (+y canvas), angle=180 → fires up (-y canvas)

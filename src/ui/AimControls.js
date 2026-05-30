@@ -2,10 +2,11 @@
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
 
-const HOLD_DELAY   = 350;  // ms before repeat begins
-const TICK_MS      = 80;   // ms between repeat ticks
-const MAX_RATE     = 10;   // max units per tick
-const RAMP_TICKS   = 12;   // ticks to reach max rate
+const HOLD_DELAY    = 350;  // ms before repeat begins
+const TICK_MS       = 80;   // ms between repeat ticks
+const MAX_RATE      = 10;   // max repetitions per tick for power buttons
+const MAX_RATE_ANG  = 50;   // max repetitions per tick for angle (50 × 0.1° = 5°/tick)
+const RAMP_TICKS    = 12;   // ticks to reach max rate
 
 export class AimControls {
   constructor() {
@@ -23,7 +24,7 @@ export class AimControls {
   // Call each frame while aiming so values stay in sync
   update(station) {
     if (!station) return;
-    this._angleVal.textContent = `Angle: ${station.angle}°`;
+    this._angleVal.textContent = `Angle: ${station.angle.toFixed(1)}°`;
     const p = (station.power / 8).toFixed(1);
     this._powerVal.textContent = `Power: ${p}`;
   }
@@ -32,10 +33,11 @@ export class AimControls {
 
   _build() {
     const bar = el('div', {
-      position: 'fixed', bottom: '55px', left: '0', right: '0',
+      position: 'fixed', bottom: '0', left: '0', right: '0',
       display: 'none',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'flex-end',
+      paddingBottom: '8px',
       pointerEvents: 'none',
       zIndex: '10',
     });
@@ -47,13 +49,13 @@ export class AimControls {
     });
     this._angleVal = el('span', {
       fontFamily: 'monospace', fontSize: '18px', fontWeight: 'bold',
-      color: '#fff', minWidth: '120px', textAlign: 'center',
+      color: '#fff', minWidth: '130px', textAlign: 'center',
       textShadow: '0 0 6px rgba(0,0,0,0.9)',
     });
-    this._angleVal.textContent = 'Angle: 180°';
-    angleGroup.appendChild(this._makeBtn('◄', () => this._loop?.humanAngle(-1)));
+    this._angleVal.textContent = 'Angle: 180.0°';
+    angleGroup.appendChild(this._makeBtn('◄', () => this._loop?.humanAngle(-0.1), MAX_RATE_ANG));
     angleGroup.appendChild(this._angleVal);
-    angleGroup.appendChild(this._makeBtn('►', () => this._loop?.humanAngle(+1)));
+    angleGroup.appendChild(this._makeBtn('►', () => this._loop?.humanAngle(+0.1), MAX_RATE_ANG));
 
     // Power group (right)
     const powerGroup = el('div', {
@@ -75,7 +77,7 @@ export class AimControls {
     return bar;
   }
 
-  _makeBtn(label, action) {
+  _makeBtn(label, action, maxRate = MAX_RATE) {
     const btn = el('button', {
       background:   'rgba(10,10,25,0.82)',
       border:       '1px solid rgba(255,255,255,0.32)',
@@ -101,7 +103,7 @@ export class AimControls {
     btn.addEventListener('mousedown', e => {
       e.preventDefault();
       btn.style.transform = 'scale(0.9)';
-      this._startHold(action);
+      this._startHold(action, maxRate);
     });
     btn.addEventListener('mouseup', () => {
       btn.style.transform = 'scale(1)';
@@ -110,7 +112,7 @@ export class AimControls {
     // Touch support
     btn.addEventListener('touchstart', e => {
       e.preventDefault();
-      this._startHold(action);
+      this._startHold(action, maxRate);
     }, { passive: false });
     btn.addEventListener('touchend', () => this._stopHold());
 
@@ -119,13 +121,13 @@ export class AimControls {
 
   // ── Hold logic ─────────────────────────────────────────────────────────────
 
-  _startHold(action) {
+  _startHold(action, maxRate = MAX_RATE) {
     action(); // immediate first nudge
     this._holdCount = 0;
     this._holdTimer = setTimeout(() => {
       this._holdTimer = setInterval(() => {
         this._holdCount++;
-        const rate = Math.min(MAX_RATE, 1 + Math.floor(this._holdCount / RAMP_TICKS));
+        const rate = Math.min(maxRate, 1 + Math.floor(this._holdCount / RAMP_TICKS));
         for (let i = 0; i < rate; i++) action();
       }, TICK_MS);
     }, HOLD_DELAY);
