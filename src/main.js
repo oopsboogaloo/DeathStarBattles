@@ -259,13 +259,14 @@ function startGame(cfg) {
   _prevMode = null;
   leaderboard.hide();
 
+  renderer.setGameAspect(null, null); // unlock old ratio so resize measures the actual window
   renderer.resize(window.innerWidth, window.innerHeight);
   renderer.setPerformance(cfg.performance ?? 'full');
   renderer.clearTrails();
 
   const gw  = renderer.gameWidth;
   const gh  = renderer.gameHeight;
-  renderer.setGameAspect(gw, gh); // lock aspect ratio for letterboxing on resize
+  renderer.setGameAspect(gw, gh); // lock new ratio for letterboxing on resize
   const rng = new RNG(RNG.randomSeed());
 
   const size       = StationSize[cfg.stationSize] ?? StationSize.LARGE;
