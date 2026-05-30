@@ -178,25 +178,37 @@ export class PlanetRenderer {
     const r  = Math.max(3, planet.radius * conv);
     const [pr, pg, pb] = planet.colour;
 
-    const coreGrad = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
+    const margin  = Math.ceil(r * 0.15) + 4;
+    const offSize = Math.ceil(r * 2) + margin * 2;
+    const off     = document.createElement('canvas');
+    off.width = off.height = offSize;
+    const oc  = off.getContext('2d');
+    const oCx = offSize / 2;
+    const oCy = offSize / 2;
+
+    const coreGrad = oc.createRadialGradient(oCx, oCy, r * 0.05, oCx, oCy, r);
     coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
     coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
     coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .75)},${Math.floor(pg * .75)},${Math.floor(pb * .6)})`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = coreGrad;
-    ctx.fill();
+    oc.beginPath();
+    oc.arc(oCx, oCy, r, 0, Math.PI * 2);
+    oc.fillStyle = coreGrad;
+    oc.fill();
 
     if (planet.halo > 1.0) {
       const haloR    = r * planet.halo;
-      const haloGrad = ctx.createRadialGradient(cx, cy, r, cx, cy, haloR);
+      const haloGrad = oc.createRadialGradient(oCx, oCy, r, oCx, oCy, haloR);
       haloGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
       haloGrad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.beginPath();
-      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
-      ctx.fillStyle = haloGrad;
-      ctx.fill();
+      oc.beginPath();
+      oc.arc(oCx, oCy, haloR, 0, Math.PI * 2);
+      oc.fillStyle = haloGrad;
+      oc.fill();
     }
+
+    if (!_simplified) ctx.filter = 'blur(1.8px)';
+    ctx.drawImage(off, cx - oCx, cy - oCy);
+    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
