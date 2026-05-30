@@ -138,6 +138,20 @@ export class PlanetRenderer {
     }
     oc.stroke();
 
+    // Dense bright surface bristles — very short, very bright, right at the
+    // star edge. Break up the perfectly smooth disc boundary.
+    oc.strokeStyle = `rgba(${cr},${cg},${cb},1.00)`;
+    oc.lineWidth   = Math.max(1, conv * 0.5);
+    oc.beginPath();
+    for (let i = 0, n = Math.floor(count * 1.4); i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = r * (0.96 + Math.random() * 0.04);   // starts at/just inside surface
+      const e = r * (1.01 + Math.random() * 0.07);   // barely pokes out
+      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
+      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
+    }
+    oc.stroke();
+
     // Composite offscreen canvas — blur disabled in simplified performance mode
     if (!_simplified) ctx.filter = 'blur(4px)';
     ctx.drawImage(off, cx - oCx, cy - oCy);
