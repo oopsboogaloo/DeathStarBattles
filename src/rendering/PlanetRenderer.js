@@ -147,13 +147,15 @@ export class PlanetRenderer {
     // sharp and don't smear back into the star body. Each spike starts just
     // inside the star edge (will be covered by the star body in pass 2) and
     // pokes out 3–11% of r beyond the surface.
+    // Use the star's white-hot core colour for the surface fringe
+    const spikeB = Math.min(255, pb + 120);
     const nSpikes = Math.max(350, Math.floor(r * 7));
-    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.92)`;
+    ctx.strokeStyle = `rgba(255,255,${spikeB},0.92)`;
     ctx.lineWidth   = Math.max(0.5, conv * 0.45);
     ctx.beginPath();
     for (let i = 0; i < nSpikes; i++) {
       const a   = Math.random() * Math.PI * 2;
-      const len = r * (0.03 + Math.random() * 0.08);
+      const len = r * (0.024 + Math.random() * 0.064); // 0.8× previous length
       ctx.moveTo(cx + Math.cos(a) * r * 0.97, cy + Math.sin(a) * r * 0.97);
       ctx.lineTo(cx + Math.cos(a) * (r + len), cy + Math.sin(a) * (r + len));
     }
