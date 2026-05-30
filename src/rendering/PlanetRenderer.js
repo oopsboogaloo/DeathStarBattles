@@ -148,18 +148,16 @@ export class PlanetRenderer {
     // inside the star edge (will be covered by the star body in pass 2) and
     // pokes out 3–11% of r beyond the surface.
     // Surface fringe on its own offscreen canvas so it gets its own blur pass.
-    const spikeB   = Math.min(255, pb + 120);
-    const nSpikes  = Math.max(350, Math.floor(r * 7));
-    const spikeExt = r * 0.15 + 4; // max extension + margin
-    const spOff    = document.createElement('canvas');
+    const nSpikes = Math.max(350, Math.floor(r * 7));
+    const spOff   = document.createElement('canvas');
     spOff.width = spOff.height = offSize;
     const sp = spOff.getContext('2d');
-    sp.strokeStyle = `rgba(255,255,${spikeB},0.92)`;
+    sp.strokeStyle = `rgba(210,230,255,0.92)`; // blue-white, cooler than core
     sp.lineWidth   = Math.max(0.5, conv * 0.45);
     sp.beginPath();
     for (let i = 0; i < nSpikes; i++) {
       const a   = Math.random() * Math.PI * 2;
-      const len = r * (0.012 + Math.random() * 0.032);
+      const len = r * (0.006 + Math.random() * 0.060); // wider range: ±50%
       sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
       sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
     }
