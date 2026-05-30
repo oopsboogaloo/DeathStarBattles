@@ -325,11 +325,10 @@ function startDemo() {
   startGame(DEMO_CONFIG);
 
   function onFirstInteraction(e) {
-    // Ignore clicks on the game buttons (shouldn't be visible, but just in case)
-    if (e.target?.closest?.('#btn-bar')) return;
     if (!isDemo) return;
     isDemo = false;
-    _hideDemoHint();
+    _hideDemoHint(); // always hide before any early return
+    if (e.target?.closest?.('#btn-bar')) return;
     if (loop) { loop.stop(); loop = null; }
     updateButtons(null);
     panel.show();

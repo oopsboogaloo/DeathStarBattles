@@ -111,6 +111,18 @@ Resolved items have been moved to ResolvedTODOList.md.
   - **SuperBot**: calculates local gravitational potential energy gradient; moves toward lower gravitational influence in the majority of turns.
   - **MegaBot**: same gradient calculation as SuperBot, but suppresses movement if it would reduce average distance to friendly stations below a minimum threshold.
 
+## Bugs
+
+- [ ] **"Click or press any key to start" hint persists after demo** — the demo-mode hint text shown at the bottom of the screen is not being reliably hidden when the user first interacts. The `{ once: true }` event listeners in `startDemo()` call `_hideDemoHint()`, but if the first interaction is swallowed (e.g. by a btn-bar guard or a race), the listener removes itself without hiding the element, leaving the text permanently visible. Fix the hide logic so it is robust regardless of interaction order.
+
+## Improvements
+
+- [ ] **Giant wormhole halo too thick** — the big wormholes (scenario 18 off-screen paired type) render with the same halo ring thickness as normal wormholes, but at their enormous display radius the effect is overwhelming. Halve the `lineWidth` multiplier for wormholes whose radius exceeds a threshold (e.g. display radius > 100 px). Normal-sized wormholes must remain unchanged.
+
+- [ ] **Remove scenario label from top-right** — the `scenario-label` div (e.g. "3. Star System") shown in the top-right corner during play should be removed. No replacement needed.
+
+- [ ] **Resume / close menu button** — when a game is in progress and the player opens the config panel (via the ⚙ button), a "Resume Game" button should appear at the top of the panel that closes the panel and returns to the current game without restarting it.
+
 ## Polish
 
 - [x] **Score display moved to modal** — live leaderboard removed from game screen. "Scores" link in config panel opens a modal showing the last game's team scores, kills, and station status.
