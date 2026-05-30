@@ -113,4 +113,25 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Polish
 
-<!-- e.g. [ ] Sound effects -->
+- [x] **Score display moved to modal** — live leaderboard removed from game screen. "Scores" link in config panel opens a modal showing the last game's team scores, kills, and station status.
+
+- [x] **Star corona lines brighter** — bristle opacity doubled (outer layer 0.30→0.60, inner layer 0.45→0.90).
+
+- [x] **Gas giant curved stripes** — stripes now rendered as quadratic bezier curves bowing downward; per-stripe amplitude is deterministically varied by stripe index + planet position. Base fill is colour A; curved colour-B bands overlay it, giving both stripe types curved edges.
+
+- [x] **Pulsar stellar object** — white-dwarf-mass body emitting expanding circular pressure rings:
+  - Period 0.5–5 seconds (random per pulsar).
+  - Rings expand over 1.5 s to 180 game-unit radius, fading in opacity and push strength.
+  - Any bullet crossing an active ring receives an outward radial impulse `(1 − t) × 0.09`.
+  - New scenario 23 "Neutron Star": one pulsar + mixed rocky planets and asteroids.
+  - Pulsars added to the wildcard bonus pool (~15% chance alongside white dwarfs and black holes).
+
+- [x] **Config panel player/planet/station limits expanded**:
+  - Players: all integers 2–12 selectable.
+  - Max stations per player raised to **8**.
+  - Planets: up to **50**, with multiples of 5 above 10 (10, 15, 20 … 50). Random range unchanged.
+
+- [x] **Game speed rebalance + new speed tiers**:
+  - Normal reduced by 30% (42 physics steps/frame, was 60).
+  - All speeds scaled proportionally: Slow = 21, Fast = 84.
+  - Added **Very Slow** (¼× = 11 steps/frame) and **Very Fast** (4× = 168 steps/frame).

@@ -15,7 +15,7 @@ import { Leaderboard }          from './ui/Leaderboard.js';
 import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
-import { AboutModal, InstructionsModal, EducationModal } from './ui/InfoModals.js';
+import { AboutModal, InstructionsModal, EducationModal, ScoreModal } from './ui/InfoModals.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
 import './ai/AimBot.js';
@@ -38,6 +38,7 @@ document.body.appendChild(panel.element);
 let activeConfig   = panel.config; // last config used to start a real game
 let isDemo         = false;
 let tournament     = null;          // TournamentState | null
+let lastGameState  = null;          // game state from most recently completed game (for Scores modal)
 
 // ─── Leaderboard & game-over screen ──────────────────────────────────────────
 
@@ -49,14 +50,17 @@ document.body.appendChild(aimControls.element);
 const aboutModal        = new AboutModal();
 const instructionsModal = new InstructionsModal();
 const educationModal    = new EducationModal();
+const scoreModal        = new ScoreModal();
 document.body.appendChild(aboutModal.element);
 document.body.appendChild(instructionsModal.element);
 document.body.appendChild(educationModal.element);
+document.body.appendChild(scoreModal.element);
 
 panel.onInfo(which => {
   if (which === 'about')        aboutModal.show();
   if (which === 'instructions') instructionsModal.show();
   if (which === 'education')    educationModal.show();
+  if (which === 'scores')       scoreModal.show(lastGameState);
 });
 
 const leaderboard    = new Leaderboard();
@@ -178,7 +182,6 @@ function updateButtons(gs) {
     btnBar.style.display      = 'none';
     gameOverBar.style.display = 'none';
     aimControls.hide();
-    leaderboard.update(null);
     return;
   }
 
@@ -199,10 +202,6 @@ function updateButtons(gs) {
     aimControls.hide();
   }
 
-  // Leaderboard: visible during play, hidden on game over
-  if (!isGameOver) leaderboard.update(gs);
-  else             leaderboard.hide();
-
   // On first frame of GAMEOVER, trigger end-of-game flow
   if (isGameOver && _prevMode !== GameMode.GAMEOVER) {
     _onGameOver(gs);
@@ -214,6 +213,7 @@ function updateButtons(gs) {
 
 function _onGameOver(gs) {
   if (isDemo) return;
+  lastGameState = gs;
 
   const isTournament = activeConfig.mode === 'tournament';
   if (isTournament) {
@@ -233,7 +233,7 @@ let handler = null;
 function startGame(cfg) {
   if (loop) loop.stop();
   _prevMode = null;
-  leaderboard.show();
+  leaderboard.hide();
 
   renderer.resize(window.innerWidth, window.innerHeight);
   renderer.clearTrails();
@@ -342,7 +342,7 @@ function startDemo() {
 
 function getUrlScenario() {
   const s = parseInt(new URLSearchParams(location.search).get('s'));
-  return (s >= 1 && s <= 21) ? s : null;
+  return (s >= 1 && s <= 23) ? s : null;
 }
 
 // ─── Scenario label (top-right) ───────────────────────────────────────────────
@@ -377,7 +377,6 @@ window.addEventListener('keydown', e => {
   if (!loop || isDemo) return;
   if (e.key === 'p' || e.key === 'P') loop.togglePause();
   if (e.key === 'o' || e.key === 'O') loop.stepOne();
-  if (e.key === 'l' || e.key === 'L') leaderboard.toggle();
 });
 
 window.addEventListener('resize', () => {

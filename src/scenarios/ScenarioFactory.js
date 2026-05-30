@@ -1,4 +1,4 @@
-import { Vec2 }                                           from '../core/Vec2.js';
+import { Vec2 }                                                      from '../core/Vec2.js';
 import { Planet, PlanetType, ShadingStyle, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
 import { weightedRandomId }                                from './scenarioData.js';
 
@@ -86,6 +86,22 @@ function makeGasGiant(rng, A, B, C, D, E, F, gw, gh, density) {
     colour:   [...colA],
     colourB:  [...colB],
     shading:  ShadingStyle.GAS_GIANT,
+  });
+}
+
+function makePulsar(rng, A, B, C, gw, gh) {
+  const bigR  = rng.nextInRange(80, 160) + 140.5;
+  const dispR = rng.nextInRange(7, 10);
+  return new Planet({
+    position:     new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
+    radius:       dispR,
+    density:      0.014,
+    mass:         bigR * bigR * 0.014, // white-dwarf equivalent mass
+    type:         PlanetType.PULSAR,
+    colour:       [...WHITE_COL],
+    shading:      ShadingStyle.GLOWING,
+    pulsarPeriod: 0.5 + rng.next() * 4.5, // 0.5–5 seconds
+    pulsarPhase:  rng.next() * 4.5,        // random initial phase so they desync
   });
 }
 
@@ -611,6 +627,18 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 23: Neutron Star (one pulsar + mix of rocky planets and asteroids) ──
+      case 23: {
+        planets.push(makePulsar(rng, 0.1, 0.1, 0.4, gw, gh));
+        for (let i = 1; i < nPlanets; i++) {
+          if (i % 3 === 1)
+            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065));
+          else
+            planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -671,12 +699,23 @@ export class ScenarioFactory {
       candidates = wc;
     } else if (rb < 0.6) {
       candidates = [makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM)];
-    } else if (rb < 0.90) {
+    } else if (rb < 0.75) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: bigR, density: 3,
         type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
+      })];
+    } else if (rb < 0.90) {
+      const bigR = rng.nextInRange(3, 6) + 4;
+      candidates = [new Planet({
+        position:     new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
+        radius:       bigR, density: 3,
+        type:         PlanetType.PULSAR,
+        colour:       [...WHITE_COL],
+        shading:      ShadingStyle.GLOWING,
+        pulsarPeriod: 0.5 + rng.next() * 4.5,
+        pulsarPhase:  rng.next() * 4.5,
       })];
     } else {
       candidates = [new Planet({

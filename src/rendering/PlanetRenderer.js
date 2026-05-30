@@ -101,7 +101,7 @@ export class PlanetRenderer {
     const count = Math.max(200, Math.floor(r * 3.5));
     oc.lineWidth = Math.max(1, conv * 0.7);
 
-    oc.strokeStyle = `rgba(${cr},${cg},${cb},0.30)`;
+    oc.strokeStyle = `rgba(${cr},${cg},${cb},0.60)`;
     oc.beginPath();
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -112,7 +112,7 @@ export class PlanetRenderer {
     }
     oc.stroke();
 
-    oc.strokeStyle = `rgba(${cr},${cg},${cb},0.45)`;
+    oc.strokeStyle = `rgba(${cr},${cg},${cb},0.90)`;
     oc.beginPath();
     for (let i = 0, n = Math.floor(count * 0.55); i < n; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -199,22 +199,35 @@ export class PlanetRenderer {
     const [ar, ag, ab] = planet.colour;
     const [br, bg, bb] = planet.colourB ?? planet.colour;
 
-    const stripeH = Math.max(2, r * 0.12); // stripe height in px
+    const stripeH = Math.max(2, r * 0.12);
 
     ctx.save();
-    // Clip everything to the circle disc
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
 
-    // Fill stripes top to bottom, alternating colours
-    const top   = cy - r;
-    const nStripes = Math.ceil(r * 2 / stripeH) + 1;
-    for (let i = 0; i < nStripes; i++) {
-      const y   = top + i * stripeH;
-      const [sr, sg, sb] = i % 2 === 0 ? [ar, ag, ab] : [br, bg, bb];
-      ctx.fillStyle = `rgba(${sr},${sg},${sb},0.50)`;
-      ctx.fillRect(cx - r, y, r * 2, stripeH);
+    // Base fill: colour A covers the full disc
+    ctx.fillStyle = `rgba(${ar},${ag},${ab},0.50)`;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+    // Curved colour-B bands overlaid on the base — every other stripe.
+    // Each stripe uses a bezier that bows downward slightly, suggesting a sphere.
+    // Per-stripe amplitude is deterministic (seeded by index + planet position).
+    const top     = cy - r;
+    const nStripes = Math.ceil(r * 2 / stripeH) + 2;
+    for (let i = 0; i < nStripes; i += 2) {
+      const y    = top + i * stripeH;
+      const seed = Math.sin(i * 2.3999 + planet.position.x * 0.1) * 0.5 + 0.5;
+      const amp  = stripeH * (0.15 + seed * 0.35); // curve bow: 15%–50% of stripe height
+
+      ctx.beginPath();
+      ctx.moveTo(cx - r, y);
+      ctx.quadraticCurveTo(cx, y + amp, cx + r, y);          // top edge bows down
+      ctx.lineTo(cx + r, y + stripeH);
+      ctx.quadraticCurveTo(cx, y + stripeH + amp, cx - r, y + stripeH); // bottom edge bows down
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
+      ctx.fill();
     }
 
     ctx.restore();

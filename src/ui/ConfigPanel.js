@@ -3,10 +3,10 @@ import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 const AI_NAMES  = ['RandBot', 'AimBot', 'CleverBot', 'SuperBot', 'MegaBot'];
 const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT'];
 
-const PLANET_VALS   = [-1, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15];
-const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '12', '15'];
+const PLANET_VALS   = [-1, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', '20', '25', '30', '35', '40', '45', '50'];
 
-const SCENARIO_VALS = [0, ...Array.from({ length: 22 }, (_, i) => i + 1)];
+const SCENARIO_VALS = [0, ...Array.from({ length: 23 }, (_, i) => i + 1)];
 
 export class ConfigPanel {
   constructor() {
@@ -75,7 +75,7 @@ export class ConfigPanel {
     panel.appendChild(this._playerRow());
     panel.appendChild(this._humanRow());
     panel.appendChild(this._row('STATIONS / PLAYER',
-      this._cycle('stationsPerPlayer', [1, 2, 3], v => String(v))));
+      this._cycle('stationsPerPlayer', [1, 2, 3, 4, 5, 6, 7, 8], v => String(v))));
     panel.appendChild(this._row('CPU LEVEL',
       this._cycle('aiLevel', [1, 2, 3, 4, 5], v => AI_NAMES[v - 1])));
 
@@ -98,8 +98,8 @@ export class ConfigPanel {
       this._cycle('mode', ['single', 'tournament'],
         v => v === 'single' ? 'Single Game' : 'Tournament')));
     panel.appendChild(this._row('GAME SPEED',
-      this._cycle('speed', ['slow', 'normal', 'fast'],
-        v => ({ slow: '0.5×  Slow', normal: '1×  Normal', fast: '2×  Fast' }[v]))));
+      this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
+        v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v]))));
     panel.appendChild(this._row('STATION MOVEMENT',
       this._cycle('stationMovement', [false, true],
         v => v ? 'On' : 'Off')));
@@ -141,7 +141,7 @@ export class ConfigPanel {
       display: 'flex', justifyContent: 'center', gap: '22px',
       marginTop: '20px',
     });
-    for (const label of ['About', 'Instructions', 'Education']) {
+    for (const label of ['About', 'Instructions', 'Education', 'Scores']) {
       const btn = el('button', {
         background:    'transparent',
         border:        'none',
@@ -198,7 +198,7 @@ export class ConfigPanel {
 
   // Players row — feeds into the human/cpu row
   _playerRow() {
-    const vals = [2, 3, 4, 5, 6, 8, 10, 12];
+    const vals = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     const ctrl = this._cycle('numPlayers', vals, v => `${v} players`);
     this._playersCtrl = ctrl;
     return this._row('PLAYERS', ctrl);

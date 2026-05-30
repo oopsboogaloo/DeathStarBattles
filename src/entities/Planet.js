@@ -5,6 +5,7 @@ export const PlanetType = Object.freeze({
   JOVIAN:          'jovian',
   GAS_GIANT:       'gasGiant',
   WHITE_DWARF:     'whiteDwarf',
+  PULSAR:          'pulsar',
   BLACK_HOLE:      'blackHole',
   WHITE_HOLE:      'whiteHole',
   WORMHOLE_PAIRED: 'wormholePaired',
@@ -46,6 +47,8 @@ export class Planet {
     rotation      = 0,      // current rotation angle in radians
     rotationSpeed = 0,      // radians per rAF frame
     colourB       = null,   // secondary colour for GAS_GIANT stripes ([r,g,b] or null)
+    pulsarPeriod  = 0,      // seconds between pressure pulses (PULSAR type only)
+    pulsarPhase   = 0,      // current phase within period (seconds)
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -62,6 +65,9 @@ export class Planet {
     this.rotationSpeed = rotationSpeed;
     this._rotatedVerts = null; // cached world-space vertices, updated each frame
     this.colourB       = colourB;
+    this.pulsarPeriod  = pulsarPeriod;
+    this.pulsarPhase   = pulsarPhase;
+    this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

@@ -139,6 +139,13 @@ export class Renderer {
       }
     }
 
+    // Pulsar expanding pressure rings
+    for (const planet of this._planets) {
+      if (planet.type === PlanetType.PULSAR && planet.pulsarPulses?.length) {
+        this._drawPulsarRings(ctx, planet);
+      }
+    }
+
     // Gas giants — drawn live so their 50% transparency composites over the background
     for (const planet of this._planets) {
       if (planet.shading === ShadingStyle.GAS_GIANT) PlanetRenderer.draw(ctx, planet, this.conv);
@@ -510,6 +517,31 @@ export class Renderer {
     ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
     ctx.lineWidth   = Math.max(1, r * 0.12 + r * 0.08 * pulse);
     ctx.stroke();
+  }
+
+  // ----------------------------------------------------------------
+  // Pulsar pressure rings — expanding circles that fade as they grow
+  // ----------------------------------------------------------------
+
+  _drawPulsarRings(ctx, planet) {
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const [pr, pg, pb] = planet.colour;
+    const PULSE_MAX_R = 180;
+    const bodyR = planet.impactRadius;
+
+    for (const pulse of planet.pulsarPulses) {
+      const t      = pulse.t;
+      const pulseR = (bodyR + (PULSE_MAX_R - bodyR) * t) * this.conv;
+      const alpha  = (1 - t) * 0.65;
+      const width  = Math.max(1, (1 - t) * 3.5);
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${alpha})`;
+      ctx.lineWidth   = width;
+      ctx.stroke();
+    }
   }
 
   // ----------------------------------------------------------------

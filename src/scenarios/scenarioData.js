@@ -1,4 +1,4 @@
-export const SCENARIO_COUNT = 22;
+export const SCENARIO_COUNT = 23;
 
 export const SCENARIO_NAMES = [
   null,           // 0 unused
@@ -24,6 +24,7 @@ export const SCENARIO_NAMES = [
   'White Holes',  // 20
   'Hyperspace',   // 21
   'Gas Giants',   // 22
+  'Neutron Star', // 23
 ];
 
 // Weighted random scenario selection matching the original:

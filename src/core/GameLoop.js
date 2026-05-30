@@ -4,8 +4,9 @@ import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY, TIMESTEP } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 
-// Physics steps per rAF frame for each speed setting
-export const SPEED_STEPS = { slow: 30, normal: 60, fast: 120 };
+// Physics steps per rAF frame for each speed setting.
+// Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
+export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryFast: 168 };
 
 export class GameLoop {
   constructor({ gameState, physics, renderer, rng, speed = 'normal' }) {
@@ -48,6 +49,7 @@ export class GameLoop {
   // ─── state machine ──────────────────────────────────────────────────────────
 
   _advance() {
+    this._advancePulsars(); // always animate pulsars regardless of game phase
     switch (this.gs.mode) {
       case GameMode.AIMING:
         this._advanceAiming();
@@ -61,6 +63,24 @@ export class GameLoop {
         this._advanceResults();
         break;
       // GAMEOVER: no advance — waits for external restart
+    }
+  }
+
+  // Advance pulsar phase each rAF frame (wall-clock timing, ~1/60 s per frame).
+  // Emits new pressure pulses and advances/expires existing ones.
+  _advancePulsars() {
+    const dt            = 1 / 60;
+    const PULSE_DURATION = 1.5; // seconds for a pulse to fully expand
+    for (const planet of this.gs.planets) {
+      if (!planet.pulsarPulses) continue;
+      planet.pulsarPhase += dt;
+      if (planet.pulsarPhase >= planet.pulsarPeriod) {
+        planet.pulsarPhase -= planet.pulsarPeriod;
+        planet.pulsarPulses.push({ t: 0 });
+      }
+      const dtFrac = dt / PULSE_DURATION;
+      for (const pulse of planet.pulsarPulses) pulse.t += dtFrac;
+      planet.pulsarPulses = planet.pulsarPulses.filter(p => p.t < 1);
     }
   }
 

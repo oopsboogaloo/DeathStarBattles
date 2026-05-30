@@ -1,4 +1,4 @@
-// About, Instructions, and Education modal overlays.
+// About, Instructions, Education, and Score modal overlays.
 // Each has show() / hide() and responds to ESC to close.
 
 const EDUCATION_PAGES = [
@@ -160,6 +160,80 @@ function el(tag, styles) {
   const node = document.createElement(tag);
   Object.assign(node.style, styles);
   return node;
+}
+
+// ── ScoreModal ────────────────────────────────────────────────────────────────
+
+export class ScoreModal {
+  constructor() {
+    this._visible = false;
+    this._wrap    = overlay();
+    const p       = panel('420px');
+    this._wrap.appendChild(p);
+
+    const close = () => this.hide();
+    p.appendChild(closeBtn(close));
+    p.appendChild(heading('✦  SCORES'));
+
+    this._body = el('div', { marginTop: '12px' });
+    p.appendChild(this._body);
+
+    this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && this._visible) close(); });
+  }
+
+  show(gameState) {
+    this._visible = true;
+    this._render(gameState);
+    this._wrap.style.display = 'flex';
+  }
+
+  hide() {
+    this._visible = false;
+    this._wrap.style.display = 'none';
+  }
+
+  get element() { return this._wrap; }
+
+  _render(gameState) {
+    if (!gameState) {
+      this._body.innerHTML = '<div style="color:#778;font-size:13px;text-align:center;padding:24px 0">No game data — play a game first.</div>';
+      return;
+    }
+
+    const winner = gameState.winner;
+    const teams  = [...gameState.teams].sort((a, b) => b.stats.score - a.stats.score);
+
+    const rows = teams.map(t => {
+      const alive  = t.stations.filter(s => s.status === 'active').length;
+      const total  = t.stations.length;
+      const dead   = !t.isAlive;
+      const isWinner = t === winner;
+      const [r, g, b] = t.colour;
+      const opacity   = dead ? 0.4 : 1;
+
+      const swatch = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;`
+        + `background:rgb(${r},${g},${b});margin-right:7px;vertical-align:middle;opacity:${opacity}"></span>`;
+
+      const winnerBadge = isWinner
+        ? `<span style="margin-left:8px;color:#ffd700;font-size:11px;letter-spacing:0.05em">★ WINNER</span>`
+        : '';
+
+      const staDots = '▪'.repeat(alive) + '▫'.repeat(total - alive);
+
+      return `<div style="display:flex;align-items:center;justify-content:space-between;`
+        + `padding:6px 10px;margin-bottom:4px;border-radius:4px;`
+        + `background:rgba(255,255,255,0.04);opacity:${opacity}">`
+        + `<div>${swatch}<span style="color:rgb(${r},${g},${b});font-size:13px">Team ${t.index + 1}</span>${winnerBadge}</div>`
+        + `<div style="display:flex;gap:18px;font-size:13px">`
+        + `<span style="color:#aab">Score <b style="color:#dde">${t.stats.score}</b></span>`
+        + `<span style="color:#8a8">Kills <b style="color:#aca">${t.stats.kills}</b></span>`
+        + `<span style="letter-spacing:2px;font-size:11px;color:#667">${staDots}</span>`
+        + `</div></div>`;
+    });
+
+    this._body.innerHTML = rows.join('');
+  }
 }
 
 // ── AboutModal ────────────────────────────────────────────────────────────────
