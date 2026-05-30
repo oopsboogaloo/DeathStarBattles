@@ -113,15 +113,39 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Bugs
 
-- [ ] **"Click or press any key to start" hint persists after demo** — the demo-mode hint text shown at the bottom of the screen is not being reliably hidden when the user first interacts. The `{ once: true }` event listeners in `startDemo()` call `_hideDemoHint()`, but if the first interaction is swallowed (e.g. by a btn-bar guard or a race), the listener removes itself without hiding the element, leaving the text permanently visible. Fix the hide logic so it is robust regardless of interaction order.
+- [x] **"Click or press any key to start" hint persists after demo** — fixed: `_hideDemoHint()` now called before the btn-bar guard so the `{ once: true }` listener always clears the text.
+
+- [ ] **Ghost trail breaks at wormhole entry** — when a bullet passes through a wormhole the trail is split by a `null` marker, but the ghost trail renderer (`_drawGhostTrail`) currently skips null entries and draws nothing for the post-wormhole segment. Fix so all segments of the previous shot are drawn, including the portion after teleport, so players can see the full trajectory.
+
+- [ ] **Station movement speed too high** — reduce `MAX_STATION_SPEED` (and the `humanSetMove` cap) by 50%. Update the matching constant in `Renderer.js` accordingly. — the demo-mode hint text shown at the bottom of the screen is not being reliably hidden when the user first interacts. The `{ once: true }` event listeners in `startDemo()` call `_hideDemoHint()`, but if the first interaction is swallowed (e.g. by a btn-bar guard or a race), the listener removes itself without hiding the element, leaving the text permanently visible. Fix the hide logic so it is robust regardless of interaction order.
 
 ## Improvements
+
+- [ ] **Hide aim/power controls during movement targeting** — when `gs.waitingForMove` is true, hide the `AimControls` DOM element entirely (angle/power sliders and readout) so the player sees only the canvas and the Move/Cancel button. Restore aim controls when movement targeting is cancelled or confirmed.
 
 - [ ] **Giant wormhole halo too thick** — the big wormholes (scenario 18 off-screen paired type) render with the same halo ring thickness as normal wormholes, but at their enormous display radius the effect is overwhelming. Halve the `lineWidth` multiplier for wormholes whose radius exceeds a threshold (e.g. display radius > 100 px). Normal-sized wormholes must remain unchanged.
 
 - [ ] **Remove scenario label from top-right** — the `scenario-label` div (e.g. "3. Star System") shown in the top-right corner during play should be removed. No replacement needed.
 
 - [ ] **Resume / close menu button** — when a game is in progress and the player opens the config panel (via the ⚙ button), a "Resume Game" button should appear at the top of the panel that closes the panel and returns to the current game without restarting it.
+
+## Features
+
+- [ ] **Improved ship and asteroid explosions** — replace the current simple ring animation with a two-layer effect:
+  - **Shockwave**: solid filled circle at the impact point that expands quickly, slows, then fades to transparent. Colour = team colour for ships, dark red (`#8b1a1a`) for asteroids.
+  - **Particles**: 12–20 small debris particles launched radially from the centre at random angles and speeds, each fading over ~0.8 s. Particles inherit the shockwave colour with slight hue variation.
+  - The shockwave should be large enough to mask the object's removal for at least the first few frames.
+  - Bullet impact explosions (existing ring) remain unchanged.
+
+- [ ] **Bullet trail glow** — add a short glowing trace just behind each active bullet each frame:
+  - Drawn as a series of 6–10 fading line segments along the most-recent trail points.
+  - The tip (closest to bullet) is bright white; segments cool toward the team's trail colour over the length of the trace.
+  - Drawn on the live canvas layer each frame (not baked into the trails canvas), so it doesn't persist.
+
+- [ ] **Performance mode** — add a PERFORMANCE option to the config panel (default: FULL):
+  - **FULL**: current behaviour, all effects enabled.
+  - **SIMPLIFIED**: disables Gaussian blur (`ctx.filter = 'blur(...)'`) on star coronas and star fields; caps selectable planets at 20 and players at 4 in the config UI; disables particle effects from explosions and the bullet trail glow.
+  - The setting should be stored in config and passed into the renderer and game loop so all relevant paths check it before drawing expensive effects.
 
 ## Polish
 
