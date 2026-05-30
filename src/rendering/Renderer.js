@@ -124,8 +124,64 @@ export class Renderer {
       this._drawAimingIndicator(ctx, active);
     }
 
-    // Overlays
+    // HUD (drawn above everything)
+    this._drawHUD(ctx, gameState);
+
+    // Mode overlays (gameover screen, turn counter)
     this._drawOverlay(ctx, gameState);
+  }
+
+  // ----------------------------------------------------------------
+  // HUD — team/station header + angle/power corners
+  // Only shown when a human station is aiming (waitingForInput)
+  // ----------------------------------------------------------------
+
+  _drawHUD(ctx, gameState) {
+    if (!gameState.waitingForInput && gameState.mode !== 'aiming') return;
+    const station = gameState.activeStation;
+    if (!station) return;
+
+    const [cr, cg, cb] = station.team.colour;
+    const teamNum  = station.team.index + 1;
+    const statNum  = gameState.currentStatIdx + 1;
+
+    // ── "T e a m  N     S t a t i o n  N" — top centre ──
+    const headerPx = Math.max(22, Math.floor(this.width / 32));
+    ctx.save();
+    ctx.font         = `bold ${headerPx}px monospace`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle    = `rgb(${cr},${cg},${cb})`;
+    ctx.shadowColor  = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur   = 6;
+    const header = `T e a m  ${teamNum}        S t a t i o n  ${statNum}`;
+    ctx.fillText(header, this.width / 2, 10);
+    ctx.restore();
+
+    // ── Angle / Power corners (bottom) — or HYPERSPACING ──
+    const hudPx = Math.max(18, Math.floor(this.width / 50));
+    ctx.save();
+    ctx.font         = `bold ${hudPx}px monospace`;
+    ctx.textBaseline = 'bottom';
+    ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur   = 5;
+
+    if (station.hyperspaceQueued) {
+      // Pulsing team-colour HYPERSPACING text centred
+      const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 250);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
+      ctx.fillText('H Y P E R S P A C I N G . . .', this.width / 2, this.height - 14);
+    } else {
+      // Angle bottom-left, Power bottom-right
+      const powerDisplay = (station.power / 8).toFixed(1);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Angle:${station.angle}`, 14, this.height - 14);
+      ctx.textAlign = 'right';
+      ctx.fillText(`Power:${powerDisplay}`, this.width - 14, this.height - 14);
+    }
+    ctx.restore();
   }
 
   _drawOverlay(ctx, gameState) {
