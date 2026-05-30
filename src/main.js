@@ -312,9 +312,49 @@ function startGame(cfg) {
   updateButtons(gameState);
 }
 
-// ─── Demo hint label ─────────────────────────────────────────────────────────
+// ─── Demo title + hint overlay ───────────────────────────────────────────────
 
 function _showDemoHint() {
+  // Title block — "DEATH STAR BATTLES" + author
+  let titleEl = document.getElementById('demo-title');
+  if (!titleEl) {
+    titleEl = document.createElement('div');
+    titleEl.id = 'demo-title';
+    Object.assign(titleEl.style, {
+      position: 'fixed', top: '28%', left: '50%',
+      transform: 'translateX(-50%)',
+      textAlign: 'center',
+      pointerEvents: 'none', userSelect: 'none',
+      zIndex: '5',
+    });
+
+    const titleLine = document.createElement('div');
+    titleLine.textContent = 'DEATH STAR BATTLES';
+    Object.assign(titleLine.style, {
+      fontFamily: 'monospace',
+      fontSize: 'clamp(26px, 5vw, 62px)',
+      letterSpacing: '0.22em',
+      color: 'rgba(200,215,255,0.90)',
+      textShadow: '0 0 40px rgba(100,130,255,0.65), 0 0 90px rgba(80,110,255,0.30)',
+      marginBottom: '10px',
+    });
+
+    const authorLine = document.createElement('div');
+    authorLine.textContent = 'Chloe Bolland';
+    Object.assign(authorLine.style, {
+      fontFamily: 'monospace',
+      fontSize: 'clamp(12px, 1.4vw, 18px)',
+      letterSpacing: '0.18em',
+      color: 'rgba(155,170,225,0.55)',
+    });
+
+    titleEl.appendChild(titleLine);
+    titleEl.appendChild(authorLine);
+    document.body.appendChild(titleEl);
+  }
+  titleEl.style.display = 'block';
+
+  // "Click to start" hint at the bottom
   let hint = document.getElementById('demo-hint');
   if (!hint) {
     hint = document.createElement('div');
@@ -333,8 +373,10 @@ function _showDemoHint() {
 }
 
 function _hideDemoHint() {
-  const hint = document.getElementById('demo-hint');
-  if (hint) hint.style.display = 'none';
+  const hint  = document.getElementById('demo-hint');
+  if (hint)  hint.style.display  = 'none';
+  const title = document.getElementById('demo-title');
+  if (title) title.style.display = 'none';
 }
 
 // ─── Demo mode ────────────────────────────────────────────────────────────────
