@@ -82,16 +82,20 @@ export class PlanetRenderer {
     const oCx = offSize / 2;
     const oCy = offSize / 2;
 
-    // Tight bright inner ring — peaks just outside the star surface then quickly
-    // fades. Creates the chromosphere/inner-corona effect without extending far.
-    const ringGrad = oc.createRadialGradient(oCx, oCy, r * 0.85, oCx, oCy, r * 1.45);
-    ringGrad.addColorStop(0,    `rgba(${cr},${cg},${cb},0)`);
-    ringGrad.addColorStop(0.35, `rgba(${cr},${cg},${cb},0.72)`);
-    ringGrad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
-    oc.beginPath();
-    oc.arc(oCx, oCy, r * 1.45, 0, Math.PI * 2);
-    oc.fillStyle = ringGrad;
-    oc.fill();
+    // Chromosphere inner ring + surface bristles — STAR type only.
+    // White holes, white dwarfs, and pulsars keep the plain corona.
+    const isStar = planet.type === PlanetType.STAR;
+
+    if (isStar) {
+      const ringGrad = oc.createRadialGradient(oCx, oCy, r * 0.85, oCx, oCy, r * 1.45);
+      ringGrad.addColorStop(0,    `rgba(${cr},${cg},${cb},0)`);
+      ringGrad.addColorStop(0.35, `rgba(${cr},${cg},${cb},0.72)`);
+      ringGrad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
+      oc.beginPath();
+      oc.arc(oCx, oCy, r * 1.45, 0, Math.PI * 2);
+      oc.fillStyle = ringGrad;
+      oc.fill();
+    }
 
     // 5 concentric radial-gradient layers — build up the wider atmospheric glow
     const layers = [
@@ -143,28 +147,25 @@ export class PlanetRenderer {
     ctx.drawImage(off, cx - oCx, cy - oCy);
     ctx.filter = 'none';
 
-    // Surface fringe — drawn directly on ctx AFTER the blur so spikes are
-    // sharp and don't smear back into the star body. Each spike starts just
-    // inside the star edge (will be covered by the star body in pass 2) and
-    // pokes out 3–11% of r beyond the surface.
-    // Surface fringe on its own offscreen canvas so it gets its own blur pass.
-    const nSpikes = Math.max(350, Math.floor(r * 7));
-    const spOff   = document.createElement('canvas');
-    spOff.width = spOff.height = offSize;
-    const sp = spOff.getContext('2d');
-    sp.strokeStyle = `rgba(210,230,255,0.92)`; // blue-white, cooler than core
-    sp.lineWidth   = Math.max(0.5, conv * 0.45);
-    sp.beginPath();
-    for (let i = 0; i < nSpikes; i++) {
-      const a   = Math.random() * Math.PI * 2;
-      const len = r * (0.006 + Math.random() * 0.060); // wider range: ±50%
-      sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
-      sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
+    if (isStar) {
+      const nSpikes = Math.max(350, Math.floor(r * 7));
+      const spOff   = document.createElement('canvas');
+      spOff.width = spOff.height = offSize;
+      const sp = spOff.getContext('2d');
+      sp.strokeStyle = `rgba(210,230,255,0.92)`;
+      sp.lineWidth   = Math.max(0.5, conv * 0.45);
+      sp.beginPath();
+      for (let i = 0; i < nSpikes; i++) {
+        const a   = Math.random() * Math.PI * 2;
+        const len = r * (0.006 + Math.random() * 0.060);
+        sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
+        sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
+      }
+      sp.stroke();
+      if (!_simplified) ctx.filter = 'blur(2px)';
+      ctx.drawImage(spOff, cx - oCx, cy - oCy);
+      ctx.filter = 'none';
     }
-    sp.stroke();
-    if (!_simplified) ctx.filter = 'blur(2px)';
-    ctx.drawImage(spOff, cx - oCx, cy - oCy);
-    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
@@ -204,7 +205,8 @@ export class PlanetRenderer {
       oc.fill();
     }
 
-    if (!_simplified) ctx.filter = 'blur(1.8px)';
+    // Blur only for proper stars — white holes, white dwarfs, pulsars draw sharp
+    if (!_simplified && planet.type === PlanetType.STAR) ctx.filter = 'blur(1.8px)';
     ctx.drawImage(off, cx - oCx, cy - oCy);
     ctx.filter = 'none';
   }
