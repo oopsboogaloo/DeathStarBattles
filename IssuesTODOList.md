@@ -115,6 +115,8 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] **"Click or press any key to start" hint persists after demo** — fixed: `_hideDemoHint()` now called before the btn-bar guard so the `{ once: true }` listener always clears the text.
 
+- [ ] **Stations placed on top of each other** — the placement algorithm occasionally fails to enforce minimum separation between stations, resulting in two or more stations spawning at the same or nearly identical position. Investigate the tier-2 and tier-3 fallback paths in `ScenarioFactory.placeStations` and ensure a hard minimum station–station separation (at least `2 × stationRadius`) is enforced even in the last-resort push-to-surface fallback.
+
 - [ ] **Ghost trail breaks at wormhole entry** — when a bullet passes through a wormhole the trail is split by a `null` marker, but the ghost trail renderer (`_drawGhostTrail`) currently skips null entries and draws nothing for the post-wormhole segment. Fix so all segments of the previous shot are drawn, including the portion after teleport, so players can see the full trajectory.
 
 - [ ] **Station movement speed too high** — reduce `MAX_STATION_SPEED` (and the `humanSetMove` cap) by 50%. Update the matching constant in `Renderer.js` accordingly. — the demo-mode hint text shown at the bottom of the screen is not being reliably hidden when the user first interacts. The `{ once: true }` event listeners in `startDemo()` call `_hideDemoHint()`, but if the first interaction is swallowed (e.g. by a btn-bar guard or a race), the listener removes itself without hiding the element, leaving the text permanently visible. Fix the hide logic so it is robust regardless of interaction order.
@@ -122,6 +124,10 @@ Resolved items have been moved to ResolvedTODOList.md.
 ## Improvements
 
 - [ ] **Hide aim/power controls during movement targeting** — when `gs.waitingForMove` is true, hide the `AimControls` DOM element entirely (angle/power sliders and readout) so the player sees only the canvas and the Move/Cancel button. Restore aim controls when movement targeting is cancelled or confirmed.
+
+- [ ] **Darken and blue-shift the background nebula** — the star field is currently too bright and distracting. Reduce overall star alpha by ~20% and shift the colour palette slightly cooler (increase the blue channel weighting across all palette buckets). Aim for a darker, deeper space feel that lets planets and bullets read more clearly.
+
+- [ ] **Gas giant soft blur** — apply a subtle blur to the gas giant disc (similar to the star corona offscreen-canvas technique) to soften its stripe edges and make it read as a gaseous body rather than a flat graphic. A 2–3 px blur radius should be sufficient; it must not affect the background layer behind it.
 
 - [ ] **Giant wormhole halo too thick** — the big wormholes (scenario 18 off-screen paired type) render with the same halo ring thickness as normal wormholes, but at their enormous display radius the effect is overwhelming. Halve the `lineWidth` multiplier for wormholes whose radius exceeds a threshold (e.g. display radius > 100 px). Normal-sized wormholes must remain unchanged.
 
