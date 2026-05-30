@@ -47,6 +47,8 @@ export class PhysicsEngine {
     let vy = bullet.velocity.y;
 
     for (const planet of planets) {
+      if (planet.destroyed) continue; // already queued for removal this frame
+
       const dx  = planet.position.x - bullet.position.x;
       const dy  = planet.position.y - bullet.position.y;
       const rSq = dx * dx + dy * dy;
@@ -234,8 +236,14 @@ export class PhysicsEngine {
         }
         break;
 
+      case PlanetType.ASTEROID:
+        // Mark for fragmentation — GameLoop processes children after the physics batch
+        planet.destroyed = true;
+        bullet.status = BulletStatus.EXPLODING;
+        break;
+
       default:
-        // ROCKY, ASTEROID, STAR, JOVIAN, WHITE_DWARF — normal explosion
+        // ROCKY, STAR, JOVIAN, WHITE_DWARF — normal explosion
         bullet.status = BulletStatus.EXPLODING;
         break;
     }

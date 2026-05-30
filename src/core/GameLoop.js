@@ -2,7 +2,7 @@ import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY }     from '../physics/PhysicsEngine.js';
-import { PlanetType }                  from '../entities/Planet.js';
+import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 
 // Physics steps per rAF frame for each speed setting
 export const SPEED_STEPS = { slow: 30, normal: 60, fast: 120 };
@@ -50,14 +50,16 @@ export class GameLoop {
   _advance() {
     switch (this.gs.mode) {
       case GameMode.AIMING:
-        this._rotateAsteroids();
         this._advanceAiming();
         break;
       case GameMode.FIRING:
         this._rotateAsteroids();
         this._advanceFiring();
         break;
-      case GameMode.RESULTS: this._advanceResults(); break;
+      case GameMode.RESULTS:
+        this._rotateAsteroids();
+        this._advanceResults();
+        break;
       // GAMEOVER: no advance — waits for external restart
     }
   }
@@ -89,6 +91,84 @@ export class GameLoop {
     for (const planet of this.gs.planets) {
       if (planet.vertices) this._computeRotatedVerts(planet);
     }
+  }
+
+  // ─── Asteroid fragmentation ──────────────────────────────────────────────────
+
+  // Remove destroyed asteroids and replace with child fragments (in-place).
+  _processAsteroidFragments() {
+    const children = [];
+    for (let i = this.gs.planets.length - 1; i >= 0; i--) {
+      const p = this.gs.planets[i];
+      if (!p.destroyed) continue;
+      this.gs.planets.splice(i, 1);
+      children.push(...this._fragmentAsteroid(p));
+    }
+    if (children.length) this.gs.planets.push(...children);
+  }
+
+  // Return 2–4 child asteroid planets placed inside the parent bounding circle.
+  // Returns [] if the parent is too small to fragment.
+  _fragmentAsteroid(parent) {
+    const MIN_RADIUS = 5;
+    if (parent.radius < MIN_RADIUS) return [];
+
+    const n      = 2 + Math.floor(this.rng.next() * 3); // 2, 3, or 4
+    const factor = n === 2 ? 0.42 : n === 3 ? 0.35 : 0.30;
+    const childR = parent.radius * factor;
+    const maxDist = parent.radius - childR; // max center offset so child fits inside
+
+    const centers = [];
+    for (let i = 0; i < n; i++) {
+      let placed = false;
+      for (let attempt = 0; attempt < 120; attempt++) {
+        const angle = this.rng.next() * Math.PI * 2;
+        const dist  = Math.sqrt(this.rng.next()) * maxDist; // uniform-in-disk sampling
+        const cx    = parent.position.x + Math.cos(angle) * dist;
+        const cy    = parent.position.y + Math.sin(angle) * dist;
+        const minSep = 2 * childR;
+        if (centers.every(c => (cx - c.x) ** 2 + (cy - c.y) ** 2 >= minSep * minSep)) {
+          centers.push({ x: cx, y: cy });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) break; // give up on remaining children if placement fails
+    }
+
+    return centers.map(c => this._makeChildAsteroid(new Vec2(c.x, c.y), childR, parent.density));
+  }
+
+  // Create a single child asteroid planet with fresh polygon and rotated-verts cache.
+  _makeChildAsteroid(position, radius, density) {
+    const n        = 6 + Math.floor(this.rng.next() * 5);
+    const vertices = this._randomAsteroidVerts(n);
+    const rotation = this.rng.next() * Math.PI * 2;
+    const speed    = (0.1 + this.rng.next() * this.rng.next() * 0.7) * Math.PI / 180;
+
+    const planet = new Planet({
+      position, radius, density,
+      type:          PlanetType.ASTEROID,
+      colour:        [120, 80, 10],
+      shading:       ShadingStyle.ROCKY,
+      vertices, rotation, rotationSpeed: speed,
+    });
+
+    // Pre-compute rotated verts so rendering and collision are correct immediately
+    this._computeRotatedVerts(planet);
+    return planet;
+  }
+
+  // Generate N unit-radius polygon vertex offsets (same algorithm as ScenarioFactory).
+  _randomAsteroidVerts(n) {
+    const verts = [];
+    for (let i = 0; i < n; i++) {
+      const base  = (2 * Math.PI * i) / n;
+      const angle = base + (this.rng.next() - 0.5) * (Math.PI / n) * 1.2;
+      const r     = 0.55 + this.rng.next() * 0.45;
+      verts.push(new Vec2(r * Math.cos(angle), r * Math.sin(angle)));
+    }
+    return verts;
   }
 
   // ─── AIMING ─────────────────────────────────────────────────────────────────
@@ -190,6 +270,9 @@ export class GameLoop {
         }
       }
     }
+
+    // Fragment any asteroids hit this frame (mutates gs.planets in-place)
+    this._processAsteroidFragments();
 
     // Advance explosion animations once per rAF frame (not per physics step)
     // This keeps explosions visible for ~20–25 frames instead of < 1 frame.

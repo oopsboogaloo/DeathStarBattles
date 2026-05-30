@@ -52,10 +52,16 @@ export class Renderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this.width, this.height);
     this._drawStarField(ctx);
-    // Pass 1: coronas/bristles behind everything
-    for (const planet of this._planets) PlanetRenderer.drawCorona(ctx, planet, this.conv);
-    // Pass 2: solid bodies on top
-    for (const planet of this._planets) PlanetRenderer.draw(ctx, planet, this.conv);
+    // Pass 1: coronas/bristles behind everything (skip rotating asteroids — drawn live)
+    for (const planet of this._planets) {
+      if (planet.vertices) continue;
+      PlanetRenderer.drawCorona(ctx, planet, this.conv);
+    }
+    // Pass 2: solid bodies on top (skip rotating asteroids — drawn live)
+    for (const planet of this._planets) {
+      if (planet.vertices) continue;
+      PlanetRenderer.draw(ctx, planet, this.conv);
+    }
   }
 
   _drawStarField(ctx) {
@@ -128,6 +134,11 @@ export class Renderer {
       if (planet.shading === ShadingStyle.WORMHOLE) {
         this._drawWormholePulse(ctx, planet, now);
       }
+    }
+
+    // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
+    for (const planet of this._planets) {
+      if (planet.vertices && !planet.destroyed) PlanetRenderer.draw(ctx, planet, this.conv);
     }
 
     // Ghost trail of previous shot — helps human players adjust aim
