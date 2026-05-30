@@ -138,24 +138,26 @@ export class PlanetRenderer {
     }
     oc.stroke();
 
-    // Dense bright surface bristles — very short, very bright, right at the
-    // star edge. Break up the perfectly smooth disc boundary.
-    oc.strokeStyle = `rgba(${cr},${cg},${cb},1.00)`;
-    oc.lineWidth   = Math.max(1, conv * 0.5);
-    oc.beginPath();
-    for (let i = 0, n = Math.floor(count * 1.4); i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = r * (0.96 + Math.random() * 0.04);   // starts at/just inside surface
-      const e = r * (1.01 + Math.random() * 0.07);   // barely pokes out
-      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
-      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
-    }
-    oc.stroke();
-
     // Composite offscreen canvas — blur disabled in simplified performance mode
     if (!_simplified) ctx.filter = 'blur(4px)';
     ctx.drawImage(off, cx - oCx, cy - oCy);
     ctx.filter = 'none';
+
+    // Surface fringe — drawn directly on ctx AFTER the blur so spikes are
+    // sharp and don't smear back into the star body. Each spike starts just
+    // inside the star edge (will be covered by the star body in pass 2) and
+    // pokes out 3–11% of r beyond the surface.
+    const nSpikes = Math.max(350, Math.floor(r * 7));
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.92)`;
+    ctx.lineWidth   = Math.max(0.5, conv * 0.45);
+    ctx.beginPath();
+    for (let i = 0; i < nSpikes; i++) {
+      const a   = Math.random() * Math.PI * 2;
+      const len = r * (0.03 + Math.random() * 0.08);
+      ctx.moveTo(cx + Math.cos(a) * r * 0.97, cy + Math.sin(a) * r * 0.97);
+      ctx.lineTo(cx + Math.cos(a) * (r + len), cy + Math.sin(a) * (r + len));
+    }
+    ctx.stroke();
   }
 
   // ----------------------------------------------------------------
