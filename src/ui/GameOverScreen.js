@@ -99,16 +99,14 @@ export class GameOverScreen {
       width: '100%', borderCollapse: 'collapse', fontSize: '12px',
     });
 
-    // Header
     const thead = document.createElement('thead');
     thead.innerHTML =
       `<tr style="color:rgba(150,165,230,0.5);text-align:right;font-size:10px">` +
-      `<td style="text-align:left;padding:2px 4px">TEAM / STA</td>` +
+      `<td style="text-align:left;padding:2px 4px">TEAM</td>` +
       `<td style="padding:2px 8px">SHOTS</td>` +
       `<td style="padding:2px 8px">KILLS</td>` +
-      `<td style="padding:2px 8px">ACC</td>` +
-      `<td style="padding:2px 8px">SUI</td>` +
-      `<td style="padding:2px 8px">OG</td>` +
+      `<td style="padding:2px 8px">ACCURACY</td>` +
+      `<td style="padding:2px 8px">FRIENDLY FIRE</td>` +
       `<td style="padding:2px 4px"></td>` +
       `</tr>`;
     table.appendChild(thead);
@@ -117,21 +115,24 @@ export class GameOverScreen {
     for (const team of gameState.teams) {
       const [r, g, b] = team.colour;
       const colour = `rgb(${r},${g},${b})`;
-      for (const sta of team.stations) {
-        const s = sta.stats;
-        const acc = s.shots > 0 ? Math.round(s.kills / s.shots * 100) + '%' : '—';
-        const survived = sta.status === 'active' ? '✓' : '';
-        tbody.innerHTML +=
-          `<tr style="border-top:1px solid rgba(80,100,200,0.12)">` +
-          `<td style="padding:4px 4px;color:${colour}">T${team.index + 1} · S${team.stations.indexOf(sta) + 1}</td>` +
-          `<td style="text-align:right;padding:4px 8px;color:#aab">${s.shots}</td>` +
-          `<td style="text-align:right;padding:4px 8px;color:#aab">${s.kills}</td>` +
-          `<td style="text-align:right;padding:4px 8px;color:#9ab">${acc}</td>` +
-          `<td style="text-align:right;padding:4px 8px;color:#a88">${s.suicides || '—'}</td>` +
-          `<td style="text-align:right;padding:4px 8px;color:#a88">${s.ownGoals || '—'}</td>` +
-          `<td style="text-align:right;padding:4px 4px;color:${colour}">${survived}</td>` +
-          `</tr>`;
-      }
+
+      const shots = team.stations.reduce((n, s) => n + s.stats.shots, 0);
+      const kills = team.stations.reduce((n, s) => n + s.stats.kills, 0);
+      const ff    = team.stations.reduce((n, s) => n + s.stats.suicides + s.stats.ownGoals, 0);
+      const acc   = shots > 0 ? Math.round(kills / shots * 100) + '%' : '—';
+      const alive = team.stations.filter(s => s.status === 'active').length;
+      const total = team.stations.length;
+      const survived = alive > 0 ? (total > 1 ? `✓ ${alive}/${total}` : '✓') : '';
+
+      tbody.innerHTML +=
+        `<tr style="border-top:1px solid rgba(80,100,200,0.12)">` +
+        `<td style="padding:4px 4px;color:${colour}">Team ${team.index + 1}</td>` +
+        `<td style="text-align:right;padding:4px 8px;color:#aab">${shots}</td>` +
+        `<td style="text-align:right;padding:4px 8px;color:#aab">${kills}</td>` +
+        `<td style="text-align:right;padding:4px 8px;color:#9ab">${acc}</td>` +
+        `<td style="text-align:right;padding:4px 8px;color:#a88">${ff || '—'}</td>` +
+        `<td style="text-align:right;padding:4px 4px;color:${colour}">${survived}</td>` +
+        `</tr>`;
     }
     table.appendChild(tbody);
     wrap.appendChild(table);
