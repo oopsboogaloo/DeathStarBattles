@@ -69,10 +69,19 @@ export class GameLoop {
       const station = this._turnOrder[this._turnIdx];
 
       if (!station.team.isHuman) {
-        // Phase 5 stub AI — random angle/power. Phase 7 replaces with real bots.
-        station.angle = Math.floor(Math.random() * 360);
-        station.power = Math.floor(Math.random() * 700) + 100;
-        station.hyperspaceQueued = Math.random() < 0.12;
+        let action;
+        if (station.team.controller) {
+          action = station.team.controller.chooseAction(station, this.gs);
+        } else {
+          action = {
+            angle:      Math.floor(Math.random() * 360),
+            power:      Math.floor(Math.random() * 700) + 100,
+            hyperspace: Math.random() < 0.12,
+          };
+        }
+        station.angle            = action.angle;
+        station.power            = action.power;
+        station.hyperspaceQueued = action.hyperspace ?? false;
         this._setActive(station);
         this._turnIdx++;
       } else {

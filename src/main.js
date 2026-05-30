@@ -9,6 +9,13 @@ import { InputHandler }         from './input/InputHandler.js';
 import { Team }                 from './entities/Team.js';
 import { Station, StationSize } from './entities/Station.js';
 import { Vec2 }                 from './core/Vec2.js';
+import { AIController }         from './ai/AIController.js';
+// Side-effect imports register each bot with AIController
+import './ai/RandBot.js';
+import './ai/AimBot.js';
+import './ai/CleverBot.js';
+import './ai/SuperBot.js';
+import './ai/MegaBot.js';
 
 // ─── Canvas + renderer ────────────────────────────────────────────────────────
 
@@ -93,6 +100,12 @@ function startGame(sid) {
 
   const gameState = new GameState({ planets, teams });
   const physics   = new PhysicsEngine(gw, gh);
+
+  // Assign real AI controllers to non-human teams (levels: AimBot, CleverBot, SuperBot)
+  const aiLevels = [2, 3, 4];
+  for (let i = 1; i < teams.length; i++) {
+    teams[i].controller = AIController.create(aiLevels[i - 1] ?? 1, physics);
+  }
 
   loop = new GameLoop({ gameState, physics, renderer, rng });
 

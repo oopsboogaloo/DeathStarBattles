@@ -1,6 +1,6 @@
-import { Vec2 }                            from '../core/Vec2.js';
-import { PlanetType }                       from '../entities/Planet.js';
-import { BulletStatus }                     from '../entities/Bullet.js';
+import { Vec2 }          from '../core/Vec2.js';
+import { PlanetType }    from '../entities/Planet.js';
+import { BulletStatus }  from '../entities/Bullet.js';
 
 // ─── constants (match original Java values exactly) ───────────────────────────
 export const G             = 0.2;
@@ -95,6 +95,65 @@ export class PhysicsEngine {
       }
     }
     return null;
+  }
+
+  // ─── fast trajectory simulation for AI ───────────────────────────────────
+  // Runs a coarser version of the physics loop and returns the closest-approach
+  // distance the bullet achieves to targetStation.position over the simulation.
+  // stepSize: number of TIMESTEP units advanced per iteration (larger = faster, less accurate).
+
+  simulate(angle, power, fromStation, targetStation, planets, opts = {}) {
+    const { stepSize = 20, simSteps = 400, useWormholes = false } = opts;
+    const init = this.initialState(angle, power, fromStation);
+    let px = init.position.x, py = init.position.y;
+    let vx = init.velocity.x, vy = init.velocity.y;
+    const dt = TIMESTEP * stepSize;
+    const tx = targetStation.position.x, ty = targetStation.position.y;
+    let minDist = 1e9;
+
+    for (let i = 0; i < simSteps; i++) {
+      let ax = 0, ay = 0, stop = false;
+
+      for (const planet of planets) {
+        const dx  = planet.position.x - px;
+        const dy  = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+
+        if (rSq < planet.impactRadius * planet.impactRadius) {
+          const isWH = planet.type === PlanetType.WORMHOLE_PAIRED
+                    || planet.type === PlanetType.WORMHOLE_CYCLIC;
+          if (useWormholes && isWH && planet.partner) {
+            const dest  = planet.partner;
+            const sign  = dx < 0 ? -1 : 1;
+            const theta = Math.atan(dy / dx);
+            const t2    = sign < 0 ? theta + Math.PI : theta;
+            px = dest.position.x + Math.cos(t2) * (dest.impactRadius + 0.5);
+            py = dest.position.y + Math.sin(t2) * (dest.impactRadius + 0.5);
+          } else {
+            stop = true;
+          }
+          break;
+        }
+
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        const accel = sign * G * planet.mass / rSq;
+        ax += Math.cos(theta) * accel;
+        ay += Math.sin(theta) * accel;
+      }
+
+      if (stop) break;
+
+      vx += ax * dt; vy += ay * dt;
+      px += vx * dt; py += vy * dt;
+
+      if (px < -this.gw || px > 2 * this.gw || py < -this.gw || py > this.gh + this.gw) break;
+
+      const d = (px - tx) ** 2 + (py - ty) ** 2;
+      if (d < minDist) minDist = d;
+    }
+
+    return minDist >= 1e9 ? 1e5 : Math.sqrt(minDist);
   }
 
   // ─── planet impact handler ────────────────────────────────────────────────
