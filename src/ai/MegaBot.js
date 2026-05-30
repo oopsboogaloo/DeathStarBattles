@@ -23,6 +23,30 @@ export class MegaBot extends SuperBot {
     return topEnemies[Math.floor(Math.random() * topEnemies.length)];
   }
 
+  _chooseMoveVelocity(station, gameState) {
+    if (Math.random() >= 0.70) return null;
+    const g   = SimBot._netGravity(station.position, gameState.planets);
+    const mag = Math.sqrt(g.x * g.x + g.y * g.y);
+    if (mag < 0.0001) return null;
+    const speed = 0.01 + Math.random() * 0.02;
+    const vel   = { x: -g.x / mag * speed, y: -g.y / mag * speed };
+
+    // Suppress movement that would bring friendly stations closer together than threshold
+    const friends = station.team.stations.filter(s => s !== station && s.status === 'active');
+    if (friends.length) {
+      const MIN_FRIENDLY_DIST = 30;
+      const newX = station.position.x + vel.x * 60; // rough estimate: 60 steps
+      const newY = station.position.y + vel.y * 60;
+      const avgDist = friends.reduce((sum, f) => {
+        const dx = newX - f.position.x, dy = newY - f.position.y;
+        return sum + Math.sqrt(dx * dx + dy * dy);
+      }, 0) / friends.length;
+      if (avgDist < MIN_FRIENDLY_DIST) return null;
+    }
+
+    return vel;
+  }
+
   // Leaderboard-aware hyperspace: more aggressive when losing
   _shouldHyperspace(station, target, gameState, closestDist) {
     const myScore  = station.team.stats.score;

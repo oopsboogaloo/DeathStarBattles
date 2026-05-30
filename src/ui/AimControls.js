@@ -53,9 +53,9 @@ export class AimControls {
       textShadow: '0 0 6px rgba(0,0,0,0.9)',
     });
     this._angleVal.textContent = 'Angle: 180.0°';
-    angleGroup.appendChild(this._makeBtn('◄', () => this._loop?.humanAngle(-0.1), MAX_RATE_ANG));
+    angleGroup.appendChild(this._makeBtn('◄', () => this._loop?.humanAngle(+0.1), MAX_RATE_ANG));
     angleGroup.appendChild(this._angleVal);
-    angleGroup.appendChild(this._makeBtn('►', () => this._loop?.humanAngle(+0.1), MAX_RATE_ANG));
+    angleGroup.appendChild(this._makeBtn('►', () => this._loop?.humanAngle(-0.1), MAX_RATE_ANG));
 
     // Power group (right)
     const powerGroup = el('div', {

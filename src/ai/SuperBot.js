@@ -1,5 +1,6 @@
 import { SimBot }       from './CleverBot.js';
 import { AIController } from './AIController.js';
+// SimBot imported for _netGravity helper
 
 export class SuperBot extends SimBot {
   constructor(physics, level = 4) { super(level, physics); }
@@ -24,6 +25,15 @@ export class SuperBot extends SimBot {
     return Math.random() < 0.70
       ? enemies[0]
       : enemies[Math.floor(Math.random() * enemies.length)];
+  }
+
+  _chooseMoveVelocity(station, gameState) {
+    if (Math.random() >= 0.70) return null;
+    const g   = SimBot._netGravity(station.position, gameState.planets);
+    const mag = Math.sqrt(g.x * g.x + g.y * g.y);
+    if (mag < 0.0001) return null;
+    const speed = 0.01 + Math.random() * 0.02;
+    return { x: -g.x / mag * speed, y: -g.y / mag * speed };
   }
 
   // Hyperspace when the trajectory is far from the target and conditions are bad

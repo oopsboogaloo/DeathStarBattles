@@ -52,9 +52,27 @@ export class PhysicsEngine {
       const dx  = planet.position.x - bullet.position.x;
       const dy  = planet.position.y - bullet.position.y;
       const rSq = dx * dx + dy * dy;
+      const R   = planet.impactRadius;
 
-      // Broad-phase: skip SAT if bullet is outside the bounding circle
-      if (rSq >= planet.impactRadius * planet.impactRadius) {
+      // Gas giant: bullet passes through; apply linearly-reduced interior gravity
+      if (planet.type === PlanetType.GAS_GIANT) {
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        let accel;
+        if (rSq >= R * R) {
+          accel = sign * G * planet.mass / rSq;
+        } else {
+          // Interior: g reduces linearly from surface value to zero at core
+          const r   = Math.sqrt(rSq);
+          accel = sign * G * planet.mass * r / (R * R * R);
+        }
+        vx += Math.cos(theta) * accel * TIMESTEP;
+        vy += Math.sin(theta) * accel * TIMESTEP;
+        continue; // never impacts — no collision check
+      }
+
+      // Broad-phase: skip collision if bullet is outside the bounding circle
+      if (rSq >= R * R) {
         // gravity only (below)
       } else if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
         if (PhysicsEngine._satCollides(bullet.position, planet._rotatedVerts)) {

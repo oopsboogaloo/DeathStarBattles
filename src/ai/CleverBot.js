@@ -32,7 +32,23 @@ export class SimBot extends AIController {
       angle,
       power,
       hyperspace: this._shouldHyperspace(station, target, gameState, closestDist),
+      velocity:   this._chooseMoveVelocity(station, gameState),
     };
+  }
+
+  _chooseMoveVelocity(_station, _gameState) { return null; } // overridden in sub-bots
+
+  // Compute net gravity acceleration vector at position from all planets (G=0.2)
+  static _netGravity(position, planets) {
+    let gx = 0, gy = 0;
+    for (const p of planets) {
+      const dx = p.position.x - position.x, dy = p.position.y - position.y;
+      const rSq = Math.max(1, dx * dx + dy * dy);
+      const r   = Math.sqrt(rSq);
+      const a   = 0.2 * p.mass / rSq;
+      gx += a * dx / r; gy += a * dy / r;
+    }
+    return { x: gx, y: gy };
   }
 
   _numTrials(turn) {
@@ -86,6 +102,15 @@ export class CleverBot extends SimBot {
   get simSteps()  { return 800; }
   get times()     { return 8; }
   get hyperProb() { return 0.11; }
+
+  _chooseMoveVelocity(station, gameState) {
+    if (Math.random() >= 0.35) return null;
+    const g   = SimBot._netGravity(station.position, gameState.planets);
+    const mag = Math.sqrt(g.x * g.x + g.y * g.y);
+    if (mag < 0.0001) return null;
+    const speed = 0.008 + Math.random() * 0.012;
+    return { x: -g.x / mag * speed, y: -g.y / mag * speed };
+  }
 }
 
 AIController.register(3, CleverBot);

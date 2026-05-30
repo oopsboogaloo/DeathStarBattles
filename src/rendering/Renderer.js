@@ -1,5 +1,7 @@
 import { PlanetRenderer } from './PlanetRenderer.js';
-import { ShadingStyle }   from '../entities/Planet.js';
+import { ShadingStyle, PlanetType } from '../entities/Planet.js';
+
+const MAX_STATION_SPEED = 0.03; // must match GameLoop.MAX_STATION_SPEED
 
 export class Renderer {
   constructor(mainCanvas) {
@@ -52,14 +54,15 @@ export class Renderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this.width, this.height);
     this._drawStarField(ctx);
-    // Pass 1: coronas/bristles behind everything (skip rotating asteroids — drawn live)
+    // Pass 1: coronas/bristles behind everything
+    // Skip asteroids (drawn live — rotating) and gas giants (drawn live — transparent)
     for (const planet of this._planets) {
-      if (planet.vertices) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT) continue;
       PlanetRenderer.drawCorona(ctx, planet, this.conv);
     }
-    // Pass 2: solid bodies on top (skip rotating asteroids — drawn live)
+    // Pass 2: solid bodies on top
     for (const planet of this._planets) {
-      if (planet.vertices) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
     }
   }
@@ -136,6 +139,11 @@ export class Renderer {
       }
     }
 
+    // Gas giants — drawn live so their 50% transparency composites over the background
+    for (const planet of this._planets) {
+      if (planet.shading === ShadingStyle.GAS_GIANT) PlanetRenderer.draw(ctx, planet, this.conv);
+    }
+
     // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
     for (const planet of this._planets) {
       if (planet.vertices && !planet.destroyed) PlanetRenderer.draw(ctx, planet, this.conv);
@@ -159,6 +167,15 @@ export class Renderer {
       if (station.hyperspaceFlash)        this._drawHyperspaceFlash(ctx, station);
       if (station.status === 'exploding') this._drawStationExplosion(ctx, station);
       if (station.status !== 'dead')      this._drawStation(ctx, station);
+    }
+
+    // Velocity indicators — all active stations with a move queued
+    if (gameState.stationMovement) {
+      for (const station of gameState.allStations) {
+        if (station.status === 'active' && station.velocity) {
+          this._drawVelocityIndicator(ctx, station);
+        }
+      }
     }
 
     // Aiming indicator — active station in AIMING mode
@@ -363,6 +380,39 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth   = 2;
     ctx.stroke();
+  }
+
+  // ----------------------------------------------------------------
+  // Velocity indicator — transparent triangle showing movement direction
+  // ----------------------------------------------------------------
+
+  _drawVelocityIndicator(ctx, station) {
+    const cx  = station.position.x * this.conv;
+    const cy  = station.position.y * this.conv;
+    const vx  = station.velocity.x;
+    const vy  = station.velocity.y;
+    const mag = Math.sqrt(vx * vx + vy * vy);
+    if (mag < 0.0001) return;
+
+    const [cr, cg, cb] = station.colour;
+    // Scale arrow length: 1 unit of speed → 200px visual length
+    const len   = Math.min(80, mag / MAX_STATION_SPEED * 60);
+    const angle = Math.atan2(vy, vx);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(len,        0);
+    ctx.lineTo(len * 0.5, -8);
+    ctx.lineTo(len * 0.5,  8);
+    ctx.closePath();
+    ctx.fillStyle   = `rgba(${cr},${cg},${cb},0.45)`;
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.75)`;
+    ctx.lineWidth   = 1;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------

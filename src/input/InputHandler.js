@@ -30,7 +30,7 @@ export class InputHandler {
     if (!this._isHumanAiming()) return;
 
     switch (e.key) {
-      // Angle fine/coarse
+      // Angle fine/coarse (Z/A = counter-clockwise = ◄, X/S = clockwise = ►)
       case 'z': case 'Z': loop.humanAngle(+0.1);  break;
       case 'x': case 'X': loop.humanAngle(-0.1);  break;
       case 'a': case 'A': loop.humanAngle(+0.5);  break;
@@ -59,6 +59,17 @@ export class InputHandler {
     if (!this._isHumanAiming()) return;
     const station = this.loop.gs.activeStation;
     if (!station || station.status !== 'active') return;
+
+    // If waiting for a move-target click, handle that first
+    if (this.loop.gs.waitingForMove) {
+      const conv = this.renderer.conv;
+      const rect = this.canvas.getBoundingClientRect();
+      this.loop.humanSetMove(
+        (e.clientX - rect.left)  / conv,
+        (e.clientY - rect.top) / conv,
+      );
+      return;
+    }
 
     const conv = this.renderer.conv;
     const rect = this.canvas.getBoundingClientRect();

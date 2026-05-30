@@ -1,4 +1,4 @@
-import { ShadingStyle, PlanetType } from '../entities/Planet.js';
+import { ShadingStyle, PlanetType, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
 
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
@@ -11,10 +11,11 @@ export class PlanetRenderer {
   // Pass 2: draw solid planet body (no corona)
   static draw(ctx, planet, conv) {
     switch (planet.shading) {
-      case ShadingStyle.GLOWING:  PlanetRenderer._drawStarBody(ctx, planet, conv);  break;
-      case ShadingStyle.WORMHOLE: PlanetRenderer._drawWormhole(ctx, planet, conv);  break;
-      case ShadingStyle.NONE:     PlanetRenderer._drawBlackHole(ctx, planet, conv); break;
-      default:                    PlanetRenderer._drawRocky(ctx, planet, conv);     break;
+      case ShadingStyle.GLOWING:    PlanetRenderer._drawStarBody(ctx, planet, conv);   break;
+      case ShadingStyle.WORMHOLE:   PlanetRenderer._drawWormhole(ctx, planet, conv);   break;
+      case ShadingStyle.NONE:       PlanetRenderer._drawBlackHole(ctx, planet, conv);  break;
+      case ShadingStyle.GAS_GIANT:  PlanetRenderer._drawGasGiant(ctx, planet, conv);   break;
+      default:                      PlanetRenderer._drawRocky(ctx, planet, conv);      break;
     }
   }
 
@@ -184,6 +185,39 @@ export class PlanetRenderer {
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = ringGrad;
     ctx.fill();
+  }
+
+  // ----------------------------------------------------------------
+  // Gas giant — horizontal alternating stripes at 50% transparency.
+  // Projectiles pass through; rendered in the live pass so it composites
+  // over the background correctly (background is drawn first, then this).
+  // ----------------------------------------------------------------
+  static _drawGasGiant(ctx, planet, conv) {
+    const cx = planet.position.x * conv;
+    const cy = planet.position.y * conv;
+    const r  = Math.max(2, planet.radius * conv);
+    const [ar, ag, ab] = planet.colour;
+    const [br, bg, bb] = planet.colourB ?? planet.colour;
+
+    const stripeH = Math.max(2, r * 0.12); // stripe height in px
+
+    ctx.save();
+    // Clip everything to the circle disc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Fill stripes top to bottom, alternating colours
+    const top   = cy - r;
+    const nStripes = Math.ceil(r * 2 / stripeH) + 1;
+    for (let i = 0; i < nStripes; i++) {
+      const y   = top + i * stripeH;
+      const [sr, sg, sb] = i % 2 === 0 ? [ar, ag, ab] : [br, bg, bb];
+      ctx.fillStyle = `rgba(${sr},${sg},${sb},0.50)`;
+      ctx.fillRect(cx - r, y, r * 2, stripeH);
+    }
+
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------

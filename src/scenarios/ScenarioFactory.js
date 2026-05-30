@@ -1,6 +1,6 @@
-import { Vec2 }                            from '../core/Vec2.js';
-import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
-import { weightedRandomId }                 from './scenarioData.js';
+import { Vec2 }                                           from '../core/Vec2.js';
+import { Planet, PlanetType, ShadingStyle, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
+import { weightedRandomId }                                from './scenarioData.js';
 
 // Generate a convex-ish polygon with N=6–10 unit-radius vertices (in angle order)
 function asteroidVertices(rng, n) {
@@ -73,6 +73,20 @@ function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density) {
     py + r * (v.x * sin + v.y * cos),
   ));
   return planet;
+}
+
+function makeGasGiant(rng, A, B, C, D, E, F, gw, gh, density) {
+  const pairIdx = Math.floor(rng.next() * GAS_GIANT_COLOUR_PAIRS.length);
+  const [colA, colB] = GAS_GIANT_COLOUR_PAIRS[pairIdx];
+  return new Planet({
+    position: new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
+    radius:   rr(rng, D, E, F),
+    density,
+    type:     PlanetType.GAS_GIANT,
+    colour:   [...colA],
+    colourB:  [...colB],
+    shading:  ShadingStyle.GAS_GIANT,
+  });
 }
 
 function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
@@ -276,12 +290,15 @@ export class ScenarioFactory {
 
       // ── 5: Jovian ─────────────────────────────────────────────────────────
       case 5: {
-        const jCol = [Math.floor(rng.next()*100)+145, Math.floor(rng.next()*125), Math.floor(rng.next()*55)];
         const bigR = rng.nextInRange(80, 160) + 40;
+        // Central body is now a gas giant of equivalent Jovian mass
+        const pairIdx = Math.floor(rng.next() * GAS_GIANT_COLOUR_PAIRS.length);
+        const [colA, colB] = GAS_GIANT_COLOUR_PAIRS[pairIdx];
         planets.push(new Planet({
           position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
           radius: bigR, density: 0.01,
-          type: PlanetType.JOVIAN, colour: jCol, shading: ShadingStyle.ROCKY,
+          type: PlanetType.GAS_GIANT, colour: [...colA], colourB: [...colB],
+          shading: ShadingStyle.GAS_GIANT,
         }));
         for (let i = 1; i < nPlanets; i++)
           planets.push(makePlanet(rng, 1,0,0, 6,6,3, gw,gh, 0.04, PlanetType.ROCKY, MOON_COL, ShadingStyle.ROCKY));
@@ -584,6 +601,13 @@ export class ScenarioFactory {
           const shading = useWormholeShading ? ShadingStyle.WORMHOLE : ShadingStyle.GLOWING;
           planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading));
         }
+        break;
+      }
+
+      // ── 22: Gas Giants ────────────────────────────────────────────────────
+      case 22: {
+        for (let i = 0; i < nPlanets; i++)
+          planets.push(makeGasGiant(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03));
         break;
       }
 

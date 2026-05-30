@@ -3,6 +3,7 @@ export const PlanetType = Object.freeze({
   ASTEROID:        'asteroid',
   STAR:            'star',
   JOVIAN:          'jovian',
+  GAS_GIANT:       'gasGiant',
   WHITE_DWARF:     'whiteDwarf',
   BLACK_HOLE:      'blackHole',
   WHITE_HOLE:      'whiteHole',
@@ -14,11 +15,20 @@ export const PlanetType = Object.freeze({
 });
 
 export const ShadingStyle = Object.freeze({
-  NONE:     0,  // black hole — near-invisible
-  ROCKY:    1,  // standard lit-side shading
-  GLOWING:  2,  // star / white hole — bright core + bristle corona
-  WORMHOLE: 3,  // glowing ring with dark centre
+  NONE:      0,  // black hole — near-invisible
+  ROCKY:     1,  // standard lit-side shading
+  GLOWING:   2,  // star / white hole — bright core + bristle corona
+  WORMHOLE:  3,  // glowing ring with dark centre
+  GAS_GIANT: 4,  // horizontal stripes at 50% transparency, pass-through physics
 });
+
+// Colour pairs for gas giants [colourA, colourB]
+export const GAS_GIANT_COLOUR_PAIRS = [
+  [[160,  60, 220], [200,  40,  60]],  // purple / red
+  [[220,  70,  40], [240, 210,  50]],  // red / yellow
+  [[230, 215,  45], [ 50, 110, 230]],  // yellow / blue
+  [[ 55, 100, 225], [150,  45, 215]],  // blue / purple
+];
 
 export class Planet {
   constructor({
@@ -35,6 +45,7 @@ export class Planet {
     vertices      = null,   // unit-radius polygon offsets for ASTEROID type (Vec2[])
     rotation      = 0,      // current rotation angle in radians
     rotationSpeed = 0,      // radians per rAF frame
+    colourB       = null,   // secondary colour for GAS_GIANT stripes ([r,g,b] or null)
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -50,6 +61,7 @@ export class Planet {
     this.rotation      = rotation;
     this.rotationSpeed = rotationSpeed;
     this._rotatedVerts = null; // cached world-space vertices, updated each frame
+    this.colourB       = colourB;
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

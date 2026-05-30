@@ -15,6 +15,7 @@ import { Leaderboard }          from './ui/Leaderboard.js';
 import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
+import { AboutModal, InstructionsModal, EducationModal } from './ui/InfoModals.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
 import './ai/AimBot.js';
@@ -42,6 +43,21 @@ let tournament     = null;          // TournamentState | null
 
 const aimControls    = new AimControls();
 document.body.appendChild(aimControls.element);
+
+// ── Info modals ───────────────────────────────────────────────────────────────
+
+const aboutModal        = new AboutModal();
+const instructionsModal = new InstructionsModal();
+const educationModal    = new EducationModal();
+document.body.appendChild(aboutModal.element);
+document.body.appendChild(instructionsModal.element);
+document.body.appendChild(educationModal.element);
+
+panel.onInfo(which => {
+  if (which === 'about')        aboutModal.show();
+  if (which === 'instructions') instructionsModal.show();
+  if (which === 'education')    educationModal.show();
+});
 
 const leaderboard    = new Leaderboard();
 document.body.appendChild(leaderboard.element);
@@ -97,11 +113,13 @@ function makeBtn(label, accent = 'rgba(10,10,25,0.85)') {
 
 const endTurnBtn    = makeBtn('End Turn');
 const hyperspaceBtn = makeBtn('Hyperspace');
-btnBar.append(endTurnBtn, hyperspaceBtn);
+const moveBtn       = makeBtn('Move');
+btnBar.append(endTurnBtn, hyperspaceBtn, moveBtn);
 document.body.appendChild(btnBar);
 
 endTurnBtn.addEventListener('click',    e => { e.stopPropagation(); if (loop) loop.humanFire(); });
 hyperspaceBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanHyperspace(); });
+moveBtn.addEventListener('click',       e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
 
 // ─── Game-over overlay ────────────────────────────────────────────────────────
 
@@ -168,6 +186,9 @@ function updateButtons(gs) {
   const isGameOver = gs.mode === GameMode.GAMEOVER;
 
   btnBar.style.display      = isAiming ? 'flex' : 'none';
+  moveBtn.style.display     = (isAiming && gs.stationMovement) ? 'inline-block' : 'none';
+  moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : 'Move';
+  moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
 
   // AimControls: shown and updated when human is aiming
@@ -246,7 +267,7 @@ function startGame(cfg) {
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, planets);
 
-  const gameState = new GameState({ planets, teams });
+  const gameState = new GameState({ planets, teams, stationMovement: cfg.stationMovement ?? false });
   const physics   = new PhysicsEngine(gw, gh);
 
   for (const team of teams.filter(t => !t.isHuman)) {

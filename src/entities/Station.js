@@ -42,6 +42,7 @@ export class Station {
     this.angle           = 180;           // 0-359, default pointing down
     this.power           = 1;             // 1-800
     this.hyperspaceQueued = false;
+    this.velocity         = null;  // Vec2 | null — one-turn movement vector (game units/timestep)
     this.status          = StationStatus.ACTIVE;
     this.explosionT      = 0;            // 0→1 animation progress
     this.hyperspaceFlash = null;         // {t, oldPos, newPos} | null — hyperspace anim

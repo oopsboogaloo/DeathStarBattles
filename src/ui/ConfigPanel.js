@@ -6,7 +6,7 @@ const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT'];
 const PLANET_VALS   = [-1, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15];
 const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '12', '15'];
 
-const SCENARIO_VALS = [0, ...Array.from({ length: 21 }, (_, i) => i + 1)];
+const SCENARIO_VALS = [0, ...Array.from({ length: 22 }, (_, i) => i + 1)];
 
 export class ConfigPanel {
   constructor() {
@@ -20,6 +20,7 @@ export class ConfigPanel {
       scenarioId:        0,
       mode:              'single',
       speed:             'normal',
+      stationMovement:   false,
     };
     this._onStartCb  = null;
     this._humanCtrl  = null; // updated when numPlayers changes
@@ -30,6 +31,7 @@ export class ConfigPanel {
   hide() { this.element.style.display = 'none'; }
 
   onStart(cb) { this._onStartCb = cb; }
+  onInfo(cb)  { this._onInfoBtn = cb; }
 
   get config() { return { ...this._d }; }
 
@@ -98,6 +100,9 @@ export class ConfigPanel {
     panel.appendChild(this._row('GAME SPEED',
       this._cycle('speed', ['slow', 'normal', 'fast'],
         v => ({ slow: '0.5×  Slow', normal: '1×  Normal', fast: '2×  Fast' }[v]))));
+    panel.appendChild(this._row('STATION MOVEMENT',
+      this._cycle('stationMovement', [false, true],
+        v => v ? 'On' : 'Off')));
 
     // ── Start button ─────────────────────────────────────────────────────────
 
@@ -129,6 +134,31 @@ export class ConfigPanel {
       this._onStartCb?.(this.config);
     });
     panel.appendChild(startBtn);
+
+    // ── Info links ───────────────────────────────────────────────────────────
+
+    const infoBar = el('div', {
+      display: 'flex', justifyContent: 'center', gap: '22px',
+      marginTop: '20px',
+    });
+    for (const label of ['About', 'Instructions', 'Education']) {
+      const btn = el('button', {
+        background:    'transparent',
+        border:        'none',
+        color:         'rgba(140,155,210,0.65)',
+        fontFamily:    'monospace',
+        fontSize:      '12px',
+        letterSpacing: '0.06em',
+        cursor:        'pointer',
+        padding:       '2px 6px',
+      });
+      btn.textContent = label;
+      btn.addEventListener('mouseenter', () => { btn.style.color = 'rgba(180,195,255,0.9)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.color = 'rgba(140,155,210,0.65)'; });
+      btn.addEventListener('click', () => this._onInfoBtn?.(label.toLowerCase()));
+      infoBar.appendChild(btn);
+    }
+    panel.appendChild(infoBar);
 
     return overlay;
   }

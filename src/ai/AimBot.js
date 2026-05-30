@@ -19,10 +19,15 @@ export class AimBot extends AIController {
     const noiseMag  = Math.min(80, Math.sqrt(totalMass) * 2);
     const noise     = (Math.random() - 0.5) * 2 * noiseMag;
 
+    const moveAngle = Math.random() * Math.PI * 2;
+    const moveSpeed = 0.005 + Math.random() * 0.015;
     return {
       angle:      Math.round((baseAngle + noise + 360) % 360),
       power:      Math.floor(Math.random() * 600) + 200,
       hyperspace: Math.random() < 0.14,
+      velocity:   Math.random() < 0.15
+        ? { x: Math.cos(moveAngle) * moveSpeed, y: Math.sin(moveAngle) * moveSpeed }
+        : null,
     };
   }
 

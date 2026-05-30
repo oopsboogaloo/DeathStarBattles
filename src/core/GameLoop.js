@@ -1,7 +1,7 @@
 import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
-import { PRINT_EVERY, SHOW_EVERY }     from '../physics/PhysicsEngine.js';
+import { PRINT_EVERY, SHOW_EVERY, TIMESTEP } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 
 // Physics steps per rAF frame for each speed setting
@@ -95,6 +95,97 @@ export class GameLoop {
 
   // ─── Asteroid fragmentation ──────────────────────────────────────────────────
 
+  // ─── Station movement ────────────────────────────────────────────────────────
+
+  // MAX_STATION_SPEED in game-units per timestep (well below min bullet speed ~0.16)
+  static MAX_STATION_SPEED = 0.03;
+
+  // Move all stations one physics step and check for collisions.
+  _stepStations(allStations) {
+    for (const station of allStations) {
+      if (station.status !== 'active' || !station.velocity) continue;
+      station.position = new Vec2(
+        station.position.x + station.velocity.x * TIMESTEP,
+        station.position.y + station.velocity.y * TIMESTEP,
+      );
+    }
+    // Collision: station hits planet/asteroid
+    for (const station of allStations) {
+      if (station.status !== 'active' || !station.velocity) continue;
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed || planet.type === 'gasGiant') continue;
+        const d = station.position.distanceTo(planet.position);
+        if (d < planet.impactRadius + station.radius) {
+          station.status     = 'exploding';
+          station.explosionT = 0;
+          break;
+        }
+      }
+    }
+    // Collision: two moving stations occupy the same space
+    for (let i = 0; i < allStations.length; i++) {
+      for (let j = i + 1; j < allStations.length; j++) {
+        const a = allStations[i], b = allStations[j];
+        if (a.status !== 'active' || b.status !== 'active') continue;
+        if (!a.velocity && !b.velocity) continue;
+        if (a.position.distanceSqTo(b.position) < (a.radius + b.radius) ** 2) {
+          a.status = b.status = 'exploding';
+          a.explosionT = b.explosionT = 0;
+        }
+      }
+    }
+  }
+
+  // Clear velocity on all stations at start of each new turn.
+  _clearStationVelocities() {
+    for (const s of this.gs.allStations) s.velocity = null;
+  }
+
+  // Human API — toggle movement targeting mode
+  humanStartMove() {
+    if (!this.gs.stationMovement || !this.gs.waitingForInput) return;
+    this.gs.waitingForMove = !this.gs.waitingForMove;
+  }
+
+  // Human API — called by InputHandler with canvas coords when waitingForMove
+  humanSetMove(gameX, gameY) {
+    if (!this.gs.waitingForMove) return;
+    const station = this.gs.activeStation;
+    if (!station) return;
+    const dx  = gameX - station.position.x;
+    const dy  = gameY - station.position.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) { station.velocity = null; this.gs.waitingForMove = false; return; }
+    const speed = Math.min(GameLoop.MAX_STATION_SPEED, dist * 0.002);
+    station.velocity = new Vec2(dx / dist * speed, dy / dist * speed);
+    this.gs.waitingForMove = false;
+  }
+
+  // Compute net gravity vector at a position (for AI movement decisions)
+  _gravityAt(position) {
+    let gx = 0, gy = 0;
+    for (const planet of this.gs.planets) {
+      const dx  = planet.position.x - position.x;
+      const dy  = planet.position.y - position.y;
+      const rSq = Math.max(1, dx * dx + dy * dy);
+      const a   = 0.2 * planet.mass / rSq; // G=0.2
+      const r   = Math.sqrt(rSq);
+      gx += a * dx / r;
+      gy += a * dy / r;
+    }
+    return { x: gx, y: gy };
+  }
+
+  // AI movement: move away from the net gravity gradient with given probability.
+  _aiMoveAwayFromGravity(station, prob) {
+    if (Math.random() >= prob) return null;
+    const g    = this._gravityAt(station.position);
+    const mag  = Math.sqrt(g.x * g.x + g.y * g.y);
+    if (mag < 0.0001) return null;
+    const speed = 0.01 + this.rng.next() * 0.02;
+    return new Vec2(-g.x / mag * speed, -g.y / mag * speed);
+  }
+
   // Remove destroyed asteroids and replace with child fragments (in-place).
   _processAsteroidFragments() {
     const children = [];
@@ -177,7 +268,9 @@ export class GameLoop {
     this._turnOrder = this.gs.allStations.filter(s => s.status === 'active');
     this._turnIdx   = 0;
     this.gs.waitingForInput = false;
+    this.gs.waitingForMove  = false;
     this.gs.mode = GameMode.AIMING;
+    if (this.gs.stationMovement) this._clearStationVelocities();
     // Process leading AI stations immediately so first human gets the indicator
     this._advanceAiming();
   }
@@ -202,6 +295,7 @@ export class GameLoop {
         station.angle            = action.angle;
         station.power            = action.power;
         station.hyperspaceQueued = action.hyperspace ?? false;
+        station.velocity         = this.gs.stationMovement ? (action.velocity ?? null) : null;
         this._setActive(station);
         this._turnIdx++;
       } else {
@@ -269,6 +363,9 @@ export class GameLoop {
           bullet.owner.lastTrail = [...bullet.trail];
         }
       }
+
+      // Move stations one physics step (only when feature is enabled)
+      if (this.gs.stationMovement) this._stepStations(allStations);
     }
 
     // Fragment any asteroids hit this frame (mutates gs.planets in-place)
@@ -411,6 +508,7 @@ export class GameLoop {
   humanFire() {
     if (this.gs.mode !== GameMode.AIMING || !this.gs.waitingForInput) return;
     this.gs.waitingForInput = false;
+    this.gs.waitingForMove  = false;
     this._turnIdx++;
     this._advanceAiming();
   }
