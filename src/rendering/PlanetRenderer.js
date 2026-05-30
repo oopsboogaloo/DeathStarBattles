@@ -159,7 +159,7 @@ export class PlanetRenderer {
     sp.beginPath();
     for (let i = 0; i < nSpikes; i++) {
       const a   = Math.random() * Math.PI * 2;
-      const len = r * (0.024 + Math.random() * 0.064);
+      const len = r * (0.012 + Math.random() * 0.032);
       sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
       sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
     }
