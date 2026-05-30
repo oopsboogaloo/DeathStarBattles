@@ -76,21 +76,21 @@ export class Renderer {
     this.trailsCtx.clearRect(0, 0, this.width, this.height);
   }
 
-  // Phase 4 implementation — draws a line segment to the trail layer.
+  // Draw the latest trail segment — call each time a trail point is pushed.
   appendTrailPoint(bullet) {
-    if (!bullet._lastTrailPx) return;
+    const trail = bullet.trail;
+    if (trail.length < 2) return;
     const ctx  = this.trailsCtx;
     const conv = this.conv;
-    const cur  = bullet.trail[bullet.trail.length - 1];
-    const prev = bullet._lastTrailPx;
     const [tr, tg, tb] = bullet.owner.team.colour;
+    const prev = trail[trail.length - 2];
+    const cur  = trail[trail.length - 1];
     ctx.beginPath();
-    ctx.moveTo(prev.x, prev.y);
-    ctx.lineTo(cur.x * conv, cur.y * conv);
+    ctx.moveTo(prev.x * conv, prev.y * conv);
+    ctx.lineTo(cur.x  * conv, cur.y  * conv);
     ctx.strokeStyle = `rgb(${tr},${tg},${tb})`;
     ctx.lineWidth   = Math.max(1, conv * 0.6);
     ctx.stroke();
-    bullet._lastTrailPx = { x: cur.x * conv, y: cur.y * conv };
   }
 
   // ----------------------------------------------------------------
@@ -106,12 +106,18 @@ export class Renderer {
   }
 
   _drawLive(ctx, gameState) {
+    // Bullets
+    for (const bullet of gameState.activeBullets) {
+      if (bullet.status === 'active')    this._drawBullet(ctx, bullet);
+      if (bullet.status === 'exploding') this._drawExplosion(ctx, bullet);
+    }
+
     // Stations
     for (const station of gameState.allStations) {
       if (station.status !== 'dead') this._drawStation(ctx, station);
     }
 
-    // Aiming indicator — active human station only
+    // Aiming indicator — active station in AIMING mode
     const active = gameState.activeStation;
     if (active && active.status === 'active' && gameState.mode === 'aiming') {
       this._drawAimingIndicator(ctx, active);
@@ -185,9 +191,11 @@ export class Renderer {
     const boxR  = Math.max(30, 3 * r);   // interactive zone radius in px
 
     // Angle convention: 0 = up, 90 = right (clockwise), matches original Java
+    // angle=0 → fires down (+y canvas), angle=180 → fires up (-y canvas)
+    // matches Java physics: vx=sin(rad), vy=cos(rad)
     const rad = (station.angle * Math.PI) / 180;
-    const dx  =  Math.sin(rad);
-    const dy  = -Math.cos(rad);   // canvas y is inverted
+    const dx  = Math.sin(rad);
+    const dy  = Math.cos(rad);
 
     // Bounding circle
     ctx.beginPath();
@@ -203,6 +211,47 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth   = 2;
     ctx.stroke();
+  }
+
+  // ----------------------------------------------------------------
+  // Bullet — small filled circle in team colour
+  // ----------------------------------------------------------------
+
+  _drawBullet(ctx, bullet) {
+    const cx = bullet.position.x * this.conv;
+    const cy = bullet.position.y * this.conv;
+    const r  = Math.max(2, bullet.owner.size.bulletRadius * this.conv);
+    const [cr, cg, cb] = bullet.owner.team.colour;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.fill();
+  }
+
+  // ----------------------------------------------------------------
+  // Explosion — expanding ring that fades out
+  // ----------------------------------------------------------------
+
+  _drawExplosion(ctx, bullet) {
+    const cx = bullet.position.x * this.conv;
+    const cy = bullet.position.y * this.conv;
+    const t  = bullet.explosionT;               // 0→1
+    const maxR = Math.max(20, 40 * this.conv);
+    const r    = t * maxR;
+    const alpha = Math.max(0, 1 - t);
+    const [cr, cg, cb] = bullet.owner.team.colour;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+    ctx.lineWidth   = Math.max(1, (1 - t) * 4);
+    ctx.stroke();
+    // Inner flash
+    if (t < 0.3) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,200,${(0.3 - t) * 3})`;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
