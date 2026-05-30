@@ -10,16 +10,17 @@ export const GameMode = Object.freeze({
 
 export class GameState {
   constructor({ planets = [], teams = [], config = {} } = {}) {
-    this.planets        = planets;
-    this.teams          = teams;
-    this.config         = config;
-    this.mode           = GameMode.AIMING;
-    this.turn           = 0;
-    this.gameIndex      = 0;
-    this.currentTeamIdx = 0;
-    this.currentStatIdx = 0;
-    this.winner         = undefined;    // undefined=ongoing, null=draw, Team=winner
-    this.activeBullets  = [];
+    this.planets          = planets;
+    this.teams            = teams;
+    this.config           = config;
+    this.mode             = GameMode.AIMING;
+    this.turn             = 0;
+    this.gameIndex        = 0;
+    this.currentTeamIdx   = 0;
+    this.currentStatIdx   = 0;
+    this.winner           = undefined;  // undefined=ongoing, null=draw, Team=winner
+    this.activeBullets    = [];
+    this.waitingForInput  = false;      // true when a human station is aiming
   }
 
   get activeStation() {

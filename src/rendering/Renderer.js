@@ -112,15 +112,56 @@ export class Renderer {
       if (bullet.status === 'exploding') this._drawExplosion(ctx, bullet);
     }
 
-    // Stations
+    // Stations + station explosions
     for (const station of gameState.allStations) {
-      if (station.status !== 'dead') this._drawStation(ctx, station);
+      if (station.status === 'exploding') this._drawStationExplosion(ctx, station);
+      if (station.status !== 'dead')      this._drawStation(ctx, station);
     }
 
     // Aiming indicator — active station in AIMING mode
     const active = gameState.activeStation;
     if (active && active.status === 'active' && gameState.mode === 'aiming') {
       this._drawAimingIndicator(ctx, active);
+    }
+
+    // Overlays
+    this._drawOverlay(ctx, gameState);
+  }
+
+  _drawOverlay(ctx, gameState) {
+    if (gameState.mode === 'gameover') {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0, 0, this.width, this.height);
+
+      const winner = gameState.winner;
+      const fontSize = Math.max(32, Math.floor(this.width / 18));
+      ctx.font         = `bold ${fontSize}px monospace`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (winner) {
+        const [r, g, b] = winner.colour;
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillText('TEAM WINS!', this.width / 2, this.height / 2 - fontSize * 0.6);
+        ctx.fillStyle = '#fff';
+        ctx.font      = `${Math.floor(fontSize * 0.55)}px monospace`;
+        ctx.fillText('click to play again', this.width / 2, this.height / 2 + fontSize * 0.7);
+      } else {
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('DRAW', this.width / 2, this.height / 2 - fontSize * 0.6);
+        ctx.fillStyle = '#fff';
+        ctx.font      = `${Math.floor(fontSize * 0.55)}px monospace`;
+        ctx.fillText('click to play again', this.width / 2, this.height / 2 + fontSize * 0.7);
+      }
+    }
+
+    // Turn counter (top-right corner, unobtrusive)
+    if (gameState.mode !== 'gameover') {
+      ctx.font         = `${Math.max(12, Math.floor(this.width / 80))}px monospace`;
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle    = 'rgba(255,255,255,0.5)';
+      ctx.fillText(`Turn ${gameState.turn + 1}`, this.width - 10, 10);
     }
   }
 
@@ -211,6 +252,44 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth   = 2;
     ctx.stroke();
+  }
+
+  // ----------------------------------------------------------------
+  // Station explosion — large expanding ring in team colour
+  // ----------------------------------------------------------------
+
+  _drawStationExplosion(ctx, station) {
+    const cx   = station.position.x * this.conv;
+    const cy   = station.position.y * this.conv;
+    const t    = station.explosionT;
+    const maxR = Math.max(40, station.radius * this.conv * 4);
+    const r    = t * maxR;
+    const alpha = Math.max(0, 1 - t);
+    const [cr, cg, cb] = station.colour;
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+    ctx.lineWidth   = Math.max(1, (1 - t) * 6);
+    ctx.stroke();
+
+    // Secondary ring
+    if (r > 8) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,200,80,${alpha * 0.6})`;
+      ctx.lineWidth   = Math.max(1, (1 - t) * 3);
+      ctx.stroke();
+    }
+
+    // Bright central flash (early in explosion)
+    if (t < 0.3) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, station.radius * this.conv * (1 + t * 4), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,230,120,${(0.3 - t) * 3.3})`;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
