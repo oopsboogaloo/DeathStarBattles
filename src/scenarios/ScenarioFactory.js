@@ -100,7 +100,7 @@ function makePulsar(rng, A, B, C, gw, gh) {
     type:         PlanetType.PULSAR,
     colour:       [...WHITE_COL],
     shading:      ShadingStyle.GLOWING,
-    pulsarPeriod: 0.5 + rng.next() * 4.5, // 0.5–5 seconds
+    pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
     pulsarPhase:  rng.next() * 4.5,        // random initial phase so they desync
   });
 }
