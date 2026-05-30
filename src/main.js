@@ -14,6 +14,7 @@ import { ConfigPanel }          from './ui/ConfigPanel.js';
 import { Leaderboard }          from './ui/Leaderboard.js';
 import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
+import { AimControls }          from './ui/AimControls.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
 import './ai/AimBot.js';
@@ -38,6 +39,9 @@ let isDemo         = false;
 let tournament     = null;          // TournamentState | null
 
 // ─── Leaderboard & game-over screen ──────────────────────────────────────────
+
+const aimControls    = new AimControls();
+document.body.appendChild(aimControls.element);
 
 const leaderboard    = new Leaderboard();
 document.body.appendChild(leaderboard.element);
@@ -153,8 +157,9 @@ let _prevMode = null;
 
 function updateButtons(gs) {
   if (!gs || isDemo) {
-    btnBar.style.display     = 'none';
+    btnBar.style.display      = 'none';
     gameOverBar.style.display = 'none';
+    aimControls.hide();
     leaderboard.update(null);
     return;
   }
@@ -162,8 +167,16 @@ function updateButtons(gs) {
   const isAiming   = gs.mode === GameMode.AIMING && gs.waitingForInput;
   const isGameOver = gs.mode === GameMode.GAMEOVER;
 
-  btnBar.style.display      = isAiming   ? 'flex' : 'none';
-  gameOverBar.style.display = 'none';  // replaced by GameOverScreen in all modes
+  btnBar.style.display      = isAiming ? 'flex' : 'none';
+  gameOverBar.style.display = 'none';
+
+  // AimControls: shown and updated when human is aiming
+  if (isAiming) {
+    aimControls.show();
+    aimControls.update(gs.activeStation);
+  } else {
+    aimControls.hide();
+  }
 
   // Leaderboard: visible during play, hidden on game over
   if (!isGameOver) leaderboard.update(gs);
@@ -240,7 +253,8 @@ function startGame(cfg) {
     team.controller = AIController.create(cfg.aiLevel ?? 3, physics);
   }
 
-  loop = new GameLoop({ gameState, physics, renderer, rng });
+  loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal' });
+  aimControls.setLoop(loop);
 
   renderer.drawFrame = gs => { _baseDrawFrame(gs); updateButtons(gs); };
 

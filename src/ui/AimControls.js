@@ -1,0 +1,146 @@
+// Hold-down angle / power controls shown during AIMING phase.
+// Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
+// Holding a button starts slow and accelerates up to MAX_RATE units/tick.
+
+const HOLD_DELAY   = 350;  // ms before repeat begins
+const TICK_MS      = 80;   // ms between repeat ticks
+const MAX_RATE     = 10;   // max units per tick
+const RAMP_TICKS   = 12;   // ticks to reach max rate
+
+export class AimControls {
+  constructor() {
+    this._loop      = null;
+    this._holdTimer = null;
+    this._holdCount = 0;
+    this.element    = this._build();
+  }
+
+  setLoop(loop) { this._loop = loop; }
+
+  show() { this.element.style.display = 'flex'; }
+  hide() { this.element.style.display = 'none'; }
+
+  // Call each frame while aiming so values stay in sync
+  update(station) {
+    if (!station) return;
+    this._angleVal.textContent = `Angle: ${station.angle}°`;
+    const p = (station.power / 8).toFixed(1);
+    this._powerVal.textContent = `Power: ${p}`;
+  }
+
+  // ── DOM ────────────────────────────────────────────────────────────────────
+
+  _build() {
+    const bar = el('div', {
+      position: 'fixed', bottom: '55px', left: '0', right: '0',
+      display: 'none',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      pointerEvents: 'none',
+      zIndex: '10',
+    });
+
+    // Angle group (left)
+    const angleGroup = el('div', {
+      display: 'flex', alignItems: 'center', gap: '5px',
+      pointerEvents: 'auto', marginLeft: '14px',
+    });
+    this._angleVal = el('span', {
+      fontFamily: 'monospace', fontSize: '18px', fontWeight: 'bold',
+      color: '#fff', minWidth: '120px', textAlign: 'center',
+      textShadow: '0 0 6px rgba(0,0,0,0.9)',
+    });
+    this._angleVal.textContent = 'Angle: 180°';
+    angleGroup.appendChild(this._makeBtn('◄', () => this._loop?.humanAngle(-1)));
+    angleGroup.appendChild(this._angleVal);
+    angleGroup.appendChild(this._makeBtn('►', () => this._loop?.humanAngle(+1)));
+
+    // Power group (right)
+    const powerGroup = el('div', {
+      display: 'flex', alignItems: 'center', gap: '5px',
+      pointerEvents: 'auto', marginRight: '14px',
+    });
+    this._powerVal = el('span', {
+      fontFamily: 'monospace', fontSize: '18px', fontWeight: 'bold',
+      color: '#fff', minWidth: '120px', textAlign: 'center',
+      textShadow: '0 0 6px rgba(0,0,0,0.9)',
+    });
+    this._powerVal.textContent = 'Power: 0.1';
+    powerGroup.appendChild(this._makeBtn('◄', () => this._loop?.humanPower(-1)));
+    powerGroup.appendChild(this._powerVal);
+    powerGroup.appendChild(this._makeBtn('►', () => this._loop?.humanPower(+1)));
+
+    bar.appendChild(angleGroup);
+    bar.appendChild(powerGroup);
+    return bar;
+  }
+
+  _makeBtn(label, action) {
+    const btn = el('button', {
+      background:   'rgba(10,10,25,0.82)',
+      border:       '1px solid rgba(255,255,255,0.32)',
+      borderRadius: '4px',
+      color:        '#dde',
+      fontFamily:   'monospace',
+      fontSize:     '16px',
+      padding:      '5px 14px',
+      cursor:       'pointer',
+      userSelect:   'none',
+      transition:   'background 0.1s, transform 0.07s',
+    });
+    btn.textContent = label;
+
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = 'rgba(40,45,90,0.95)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'rgba(10,10,25,0.82)';
+      btn.style.transform  = 'scale(1)';
+      this._stopHold();
+    });
+    btn.addEventListener('mousedown', e => {
+      e.preventDefault();
+      btn.style.transform = 'scale(0.9)';
+      this._startHold(action);
+    });
+    btn.addEventListener('mouseup', () => {
+      btn.style.transform = 'scale(1)';
+      this._stopHold();
+    });
+    // Touch support
+    btn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      this._startHold(action);
+    }, { passive: false });
+    btn.addEventListener('touchend', () => this._stopHold());
+
+    return btn;
+  }
+
+  // ── Hold logic ─────────────────────────────────────────────────────────────
+
+  _startHold(action) {
+    action(); // immediate first nudge
+    this._holdCount = 0;
+    this._holdTimer = setTimeout(() => {
+      this._holdTimer = setInterval(() => {
+        this._holdCount++;
+        const rate = Math.min(MAX_RATE, 1 + Math.floor(this._holdCount / RAMP_TICKS));
+        for (let i = 0; i < rate; i++) action();
+      }, TICK_MS);
+    }, HOLD_DELAY);
+  }
+
+  _stopHold() {
+    clearTimeout(this._holdTimer);
+    clearInterval(this._holdTimer);
+    this._holdTimer = null;
+    this._holdCount = 0;
+  }
+}
+
+function el(tag, styles) {
+  const node = document.createElement(tag);
+  Object.assign(node.style, styles);
+  return node;
+}

@@ -6,19 +6,22 @@ Issues and improvements to address. Add new items below with a short description
 
 ## Bugs
 
-- [x] **Wormhole trail continuity** — fixed: `null` sentinel pushed into `bullet.trail` on every wormhole teleport inside `_handlePlanetImpact`; `appendTrailPoint` and `redrawTrails` skip segments involving null (pen lift). Trail now breaks cleanly at wormhole entry and restarts at exit.
-
-- [x] **Star corona draws over other planets** — fixed: `_renderBackground` now does two passes — `PlanetRenderer.drawCorona` for all planets first, then `PlanetRenderer.draw` (body only) for all planets. Corona bristles always sit behind solid planet discs.
-
-- [x] **Explosions too fast** — fixed: explosion advancement moved from inside the physics inner loop (ran 100×/frame) to outside it (runs once per rAF frame). Station explosions: `+= 0.04/frame` (~25 frames). Bullet explosions: `+= 0.05/frame` (~20 frames). `_resultsTimer` extended to 150 frames (~2.5 s).
+- [x] **Wormhole trail continuity** — fixed.
+- [x] **Star corona draws over other planets** — fixed via two-pass rendering.
+- [x] **Explosions too fast** — fixed (moved out of inner loop; slowed rates; resultsTimer 240).
+- [x] **Ghost trails from previous turn not showing** — fixed: trail now saved inside inner loop at the moment bullet transitions from ACTIVE, rather than relying on a post-loop condition check.
+- [x] **Wormholes spawning inside stars/planets** — fixed: `_addBonus` now checks each candidate against existing planets and retries position up to 20 times before placing.
 
 ## Improvements
 
-- [x] **Ghost trail of previous shot** — implemented: `station.lastTrail` saved when all bullets stop flying; rendered as a dashed, 28%-opacity line in team colour during AIMING phase for the active human station.
-
-- [x] **Aiming indicator line length reflects power** — fixed: line length now scales from station radius (power ≈ 0) to full `boxR` (power = 800). Formula: `r + (boxR - r) * (station.power / 800)`.
-
-- [x] **Off-screen bullet indicator** — implemented: for each active bullet outside the canvas, a team-coloured filled triangle is drawn at the nearest canvas edge pointing toward the bullet, with a distance-from-edge integer label beside it.
+- [x] **Ghost trail of previous shot** — implemented and fixed.
+- [x] **Aiming indicator line length reflects power** — fixed.
+- [x] **Off-screen bullet indicator** — implemented; triangle at canvas edge, distance number inset.
+- [x] **Off-screen indicator layout swap** — done: triangle at very edge, number inset ~30px.
+- [x] **Reduce station sizes by 60%** — all StationSize radii × 0.4; dome/trench thresholds lowered.
+- [x] **Game speed control** — Slow (30 steps/frame) / Normal (60) / Fast (120) cycle in config panel; passed to GameLoop as `speed` param.
+- [x] **Hold-down angle/power HUD buttons** — AimControls DOM component with ◄/► buttons, hover + depress states, acceleration from 1→10 units/tick over ~1 s of holding.
+- [x] **Improved star field background** — layered value noise density map (two octaves); 3500 small transparent stars (0.4–1.4px mostly); RGBA blending builds up colour in dense regions; composited through 1.2px blur for nebula texture.
 
 ## Polish
 

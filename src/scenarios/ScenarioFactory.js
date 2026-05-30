@@ -595,37 +595,47 @@ export class ScenarioFactory {
 
   static _addBonus(planets, rng, ra, rb, gw, gh) {
     if (planets.length < 2) return;
-    const idx = Math.floor(ra * (planets.length - 1)) + 1;
 
+    let candidates;
     if (rb < 0.25 && planets.length > 2) {
-      // Wormhole pair
       const w0 = makeWormhole(rng, gw,gh, [255,55,255], PlanetType.WORMHOLE_PAIRED);
       const w1 = makeWormhole(rng, gw,gh, [255,55,255], PlanetType.WORMHOLE_PAIRED);
       w0.partner = w1; w1.partner = w0;
-      planets.push(w0, w1);
+      candidates = [w0, w1];
     } else if (rb < 0.5 && planets.length > 3) {
-      // Wormhole triple
       const wc = [0,1,2].map(() => makeWormhole(rng, gw,gh, [55,55,255], PlanetType.WORMHOLE_CYCLIC));
       wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
-      planets.push(...wc);
+      candidates = wc;
     } else if (rb < 0.6) {
-      // Random wormhole
-      planets.push(makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM));
+      candidates = [makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM)];
     } else if (rb < 0.90) {
-      // White dwarf
       const bigR = rng.nextInRange(3, 6) + 4;
-      planets.push(new Planet({
+      candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: bigR, density: 3,
         type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
-      }));
+      })];
     } else {
-      // Black hole
-      planets.push(new Planet({
+      candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: 3, density: 50,
         type: PlanetType.BLACK_HOLE, colour: BLACK_COL, shading: ShadingStyle.NONE,
-      }));
+      })];
+    }
+
+    // Reject any candidate that overlaps an existing planet; retry position up to 20 times
+    const allSoFar = [...planets];
+    for (const c of candidates) {
+      let placed = false;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const overlaps = allSoFar.some(p =>
+          c.position.distanceTo(p.position) < c.impactRadius + p.impactRadius + 10,
+        );
+        if (!overlaps) { placed = true; break; }
+        // Reroll position
+        c.position = new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh));
+      }
+      if (placed) { allSoFar.push(c); planets.push(c); }
     }
   }
 }

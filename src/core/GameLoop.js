@@ -3,12 +3,16 @@ import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY }     from '../physics/PhysicsEngine.js';
 
+// Physics steps per rAF frame for each speed setting
+export const SPEED_STEPS = { slow: 30, normal: 60, fast: 120 };
+
 export class GameLoop {
-  constructor({ gameState, physics, renderer, rng }) {
-    this.gs       = gameState;
-    this.physics  = physics;
-    this.renderer = renderer;
-    this.rng      = rng;
+  constructor({ gameState, physics, renderer, rng, speed = 'normal' }) {
+    this.gs         = gameState;
+    this.physics    = physics;
+    this.renderer   = renderer;
+    this.rng        = rng;
+    this._speedSteps = SPEED_STEPS[speed] ?? SPEED_STEPS.normal;
 
     this._rafId        = null;
     this._paused       = false;
@@ -16,7 +20,6 @@ export class GameLoop {
     this._turnOrder    = [];      // active stations for this turn, in order
     this._turnIdx      = 0;
     this._resultsTimer = 0;
-    this._trailSaved   = false;   // true once ghost trails saved this firing phase
 
     this._startTurn();
   }
@@ -103,7 +106,6 @@ export class GameLoop {
   }
 
   _fireAll() {
-    this._trailSaved      = false;
     this.gs.activeBullets = [];
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
@@ -129,8 +131,7 @@ export class GameLoop {
 
   _advanceFiring() {
     const allStations   = this.gs.allStations;
-    // Slow-motion: one PRINT_EVERY block per frame instead of PRINT_EVERY*SHOW_EVERY
-    const stepsPerFrame = this._paused ? PRINT_EVERY : PRINT_EVERY * SHOW_EVERY;
+    const stepsPerFrame = this._paused ? PRINT_EVERY : this._speedSteps;
 
     for (let i = 0; i < stepsPerFrame; i++) {
       // Physics step + trail (no explosion advancement inside the inner loop)
@@ -146,6 +147,11 @@ export class GameLoop {
 
         const hit = this.physics.checkStationCollisions(bullet, allStations);
         if (hit) this._resolveStationHit(bullet, hit);
+
+        // Save trail as ghost the moment a bullet leaves the active state
+        if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
+          bullet.owner.lastTrail = [...bullet.trail];
+        }
       }
     }
 
@@ -153,25 +159,15 @@ export class GameLoop {
     // This keeps explosions visible for ~20–25 frames instead of < 1 frame.
     for (const bullet of this.gs.activeBullets) {
       if (bullet.status === BulletStatus.EXPLODING) {
-        bullet.explosionT += 0.05;
+        bullet.explosionT += 0.025;
         if (bullet.explosionT >= 1) bullet.status = BulletStatus.DEAD;
       }
     }
     for (const station of allStations) {
       if (station.status === 'exploding') {
-        station.explosionT += 0.04;
+        station.explosionT += 0.02;
         if (station.explosionT >= 1) station.status = 'dead';
       }
-    }
-
-    // Save ghost trails once when all bullets have stopped flying
-    if (!this._trailSaved &&
-        this.gs.activeBullets.length > 0 &&
-        this.gs.activeBullets.every(b => b.status !== BulletStatus.ACTIVE)) {
-      for (const bullet of this.gs.activeBullets) {
-        if (bullet.trail.length > 1) bullet.owner.lastTrail = [...bullet.trail];
-      }
-      this._trailSaved = true;
     }
 
     // Remove dead bullets
@@ -181,7 +177,7 @@ export class GameLoop {
     if (this.gs.activeBullets.length === 0) {
       this._processHyperspace();
       this._checkWin();
-      this._resultsTimer = 150; // ~2.5 s at 60 fps
+      this._resultsTimer = 240; // ~4 s at 60 fps
       this.gs.mode = GameMode.RESULTS;
     }
   }
@@ -270,7 +266,7 @@ export class GameLoop {
     for (const station of this.gs.allStations) {
       // Finish lingering explosions
       if (station.status === 'exploding') {
-        station.explosionT += 0.04;
+        station.explosionT += 0.02;
         if (station.explosionT >= 1) station.status = 'dead';
       }
       // Advance hyperspace flash animation

@@ -1,10 +1,10 @@
 export const StationSize = Object.freeze({
-  MICRO:  { name: 'Micro',  radius: 5,  bulletRadius: 1.0 },
-  TINY:   { name: 'Tiny',   radius: 8,  bulletRadius: 1.2 },
-  SMALL:  { name: 'Small',  radius: 10, bulletRadius: 1.5 },
-  MEDIUM: { name: 'Medium', radius: 12, bulletRadius: 2.0 },
-  LARGE:  { name: 'Large',  radius: 16, bulletRadius: 2.6 },
-  GIANT:  { name: 'Giant',  radius: 24, bulletRadius: 3.4 },
+  MICRO:  { name: 'Micro',  radius: 2,   bulletRadius: 0.4  },
+  TINY:   { name: 'Tiny',   radius: 3.2, bulletRadius: 0.48 },
+  SMALL:  { name: 'Small',  radius: 4,   bulletRadius: 0.6  },
+  MEDIUM: { name: 'Medium', radius: 4.8, bulletRadius: 0.8  },
+  LARGE:  { name: 'Large',  radius: 6.4, bulletRadius: 1.04 },
+  GIANT:  { name: 'Giant',  radius: 9.6, bulletRadius: 1.36 },
 });
 
 export const StationStatus = Object.freeze({

@@ -59,15 +59,27 @@ export class Renderer {
   }
 
   _drawStarField(ctx) {
+    // Draw stars to an offscreen canvas so we can apply a blur in one pass
+    const off    = document.createElement('canvas');
+    off.width    = this.width;
+    off.height   = this.height;
+    const offCtx = off.getContext('2d');
+    const conv   = this.conv;
+
     for (const star of this._stars) {
-      const px = star.gx * this.conv;
-      const py = star.gy * this.conv;
-      const pr = Math.max(1, star.gr * this.conv);
-      ctx.beginPath();
-      ctx.arc(px, py, pr, 0, Math.PI * 2);
-      ctx.fillStyle = `rgb(${star.red},${star.green},${star.blue})`;
-      ctx.fill();
+      const px = star.gx * conv;
+      const py = star.gy * conv;
+      const pr = Math.max(0.5, star.gr * conv);
+      offCtx.beginPath();
+      offCtx.arc(px, py, pr, 0, Math.PI * 2);
+      offCtx.fillStyle = `rgba(${star.red},${star.green},${star.blue},${star.alpha ?? 1})`;
+      offCtx.fill();
     }
+
+    // Composite with a gentle blur — softens sharp dots into a nebula texture
+    ctx.filter = 'blur(1.2px)';
+    ctx.drawImage(off, 0, 0);
+    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
@@ -187,20 +199,13 @@ export class Renderer {
     ctx.shadowBlur   = 5;
 
     if (station.hyperspaceQueued) {
-      // Pulsing team-colour HYPERSPACING text centred
+      // Pulsing team-colour HYPERSPACING text centred (angle/power hidden by DOM buttons)
       const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 250);
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
-      ctx.fillText('H Y P E R S P A C I N G . . .', this.width / 2, this.height - 14);
-    } else {
-      // Angle bottom-left, Power bottom-right
-      const powerDisplay = (station.power / 8).toFixed(1);
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Angle:${station.angle}`, 14, this.height - 14);
-      ctx.textAlign = 'right';
-      ctx.fillText(`Power:${powerDisplay}`, this.width - 14, this.height - 14);
+      ctx.fillText('H Y P E R S P A C I N G . . .', this.width / 2, this.height - 60);
     }
+    // Angle / Power values are now rendered by AimControls DOM buttons
     ctx.restore();
   }
 
@@ -262,7 +267,7 @@ export class Renderer {
     ctx.fill();
 
     // Equatorial trench — clipped to the sphere
-    if (r >= 6) {
+    if (r >= 3) {
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -277,8 +282,8 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Dome + aperture — only at Medium+ sizes (r ≥ 10 px)
-    if (r >= 10) {
+    // Dome + aperture — only when large enough to be visible
+    if (r >= 6) {
       const domeR  = r * 0.32;
       const domeCx = cx + r * 0.28;
       const domeCy = cy - r * 0.25;
@@ -516,7 +521,6 @@ export class Renderer {
 
   _drawOffScreenIndicators(ctx, bullets) {
     const cx = this.width / 2, cy = this.height / 2;
-    const m  = 24; // inset margin in px
 
     for (const bullet of bullets) {
       if (bullet.status !== 'active') continue;
@@ -525,43 +529,54 @@ export class Renderer {
       if (bx >= 0 && bx <= this.width && by >= 0 && by <= this.height) continue;
 
       const [tr, tg, tb] = bullet.owner.team.colour;
-      const angle = Math.atan2(by - cy, bx - cx);
-      const cosA  = Math.cos(angle), sinA = Math.sin(angle);
+      const colour = `rgb(${tr},${tg},${tb})`;
+      const angle  = Math.atan2(by - cy, bx - cx);
+      const cosA   = Math.cos(angle), sinA = Math.sin(angle);
 
-      // Find where the ray from canvas-centre hits the inset canvas boundary
-      let t = Infinity;
-      if (cosA > 0) t = Math.min(t, (this.width  - m - cx) / cosA);
-      if (cosA < 0) t = Math.min(t, (m           - cx) / cosA);
-      if (sinA > 0) t = Math.min(t, (this.height - m - cy) / sinA);
-      if (sinA < 0) t = Math.min(t, (m           - cy) / sinA);
+      // Helper: find t where ray hits boundary inset by margin m
+      const edgeT = m => {
+        let t = Infinity;
+        if (cosA > 0) t = Math.min(t, (this.width  - m - cx) / cosA);
+        if (cosA < 0) t = Math.min(t, (m           - cx) / cosA);
+        if (sinA > 0) t = Math.min(t, (this.height - m - cy) / sinA);
+        if (sinA < 0) t = Math.min(t, (m           - cy) / sinA);
+        return t;
+      };
 
-      const ex = cx + cosA * t;
-      const ey = cy + sinA * t;
+      // Triangle sits at the very canvas edge (m = 6 so it's not clipped)
+      const tTri = edgeT(6);
+      const tx   = cx + cosA * tTri, ty = cy + sinA * tTri;
+
+      // Distance number sits inset (m = 30), where triangle used to be
+      const tNum = edgeT(30);
+      const nx   = cx + cosA * tNum, ny = cy + sinA * tNum;
 
       // Distance from nearest screen edge in game units
       const distPx = Math.max(0, -bx, bx - this.width, -by, by - this.height);
       const dist   = Math.round(distPx / this.conv);
 
+      // Draw number at inset position
       ctx.save();
-      ctx.translate(ex, ey);
+      ctx.translate(nx, ny);
       ctx.rotate(angle);
+      ctx.font         = `bold 11px monospace`;
+      ctx.fillStyle    = colour;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(dist, 0, 0);
+      ctx.restore();
 
-      // Filled triangle pointing toward the bullet
+      // Draw triangle at edge
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(angle);
       ctx.beginPath();
-      ctx.moveTo( 11,  0);
+      ctx.moveTo( 10,  0);
       ctx.lineTo( -7, -5);
       ctx.lineTo( -7,  5);
       ctx.closePath();
-      ctx.fillStyle = `rgb(${tr},${tg},${tb})`;
+      ctx.fillStyle = colour;
       ctx.fill();
-
-      // Distance label beside the triangle
-      ctx.font         = `bold ${Math.max(9, 11)}px monospace`;
-      ctx.fillStyle    = `rgb(${tr},${tg},${tb})`;
-      ctx.textAlign    = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(dist, 15, 0);
-
       ctx.restore();
     }
   }
@@ -592,25 +607,88 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // Star field generation (static — called once per new game)
+  // Star field generation — value-noise clustering, small transparent
+  // stars, composited with a light blur for a nebula feel.
   // ----------------------------------------------------------------
 
-  static generateStarField(gameWidth, gameHeight, count = 2000) {
+  static generateStarField(gameWidth, gameHeight, count = 3500) {
+    // Build a layered value-noise density map on a coarse grid
+    const G = 12; // grid resolution
+    const grid = Array.from({ length: (G + 1) * (G + 1) }, () => Math.random());
+
+    const noise = (nx, ny) => {
+      const ix = Math.floor(nx * G), iy = Math.floor(ny * G);
+      const fx = nx * G - ix,        fy = ny * G - iy;
+      const ux = fx * fx * (3 - 2 * fx); // smoothstep
+      const uy = fy * fy * (3 - 2 * fy);
+      const v00 = grid[ iy      * (G + 1) + ix    ];
+      const v10 = grid[ iy      * (G + 1) + ix + 1];
+      const v01 = grid[(iy + 1) * (G + 1) + ix    ];
+      const v11 = grid[(iy + 1) * (G + 1) + ix + 1];
+      return v00 + (v10 - v00) * ux + ((v01 - v00) + (v00 - v10 - v01 + v11) * ux) * uy;
+    };
+
+    // Second octave for finer detail
+    const G2 = 28;
+    const grid2 = Array.from({ length: (G2 + 1) * (G2 + 1) }, () => Math.random());
+    const noise2 = (nx, ny) => {
+      const ix = Math.floor(nx * G2), iy = Math.floor(ny * G2);
+      const fx = nx * G2 - ix,         fy = ny * G2 - iy;
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const v00 = grid2[ iy      * (G2 + 1) + ix    ];
+      const v10 = grid2[ iy      * (G2 + 1) + ix + 1];
+      const v01 = grid2[(iy + 1) * (G2 + 1) + ix    ];
+      const v11 = grid2[(iy + 1) * (G2 + 1) + ix + 1];
+      return v00 + (v10 - v00) * ux + ((v01 - v00) + (v00 - v10 - v01 + v11) * ux) * uy;
+    };
+
+    const density = (nx, ny) => noise(nx, ny) * 0.65 + noise2(nx, ny) * 0.35;
+
     const stars = [];
     for (let i = 0; i < count; i++) {
-      // Cubic size distribution biased toward small stars (matches original)
-      const gr = 10 * Math.random() * Math.random() * Math.random()
-               + 1.8 * Math.random()
-               + 1.8 * Math.random()
-               + 2;
-      stars.push({
-        gx:    Math.random() * gameWidth,
-        gy:    Math.random() * gameHeight,
-        gr,
-        red:   Math.floor(14 * Math.random() + 95 * Math.random()),
-        green: Math.floor( 3 * Math.random() + 12 * Math.random()),
-        blue:  Math.floor(10 * Math.random() + 80 * Math.random()),
-      });
+      // Rejection sampling: accept candidate with probability = density at that point
+      let gx, gy;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const cx = Math.random(), cy = Math.random();
+        if (Math.random() < density(cx, cy)) { gx = cx * gameWidth; gy = cy * gameHeight; break; }
+      }
+      if (gx === undefined) { gx = Math.random() * gameWidth; gy = Math.random() * gameHeight; }
+
+      // Small radii — mostly sub-pixel, occasional slightly larger
+      const gr = Math.random() < 0.85
+        ? 0.4 + Math.random() * 1.0          // tiny (0.4–1.4)
+        : 1.4 + Math.random() * Math.random() * 2.0; // occasional larger (1.4–3.4)
+
+      // Nebula colour palette: deep blues, purples, reds, rare warm white
+      const palette = Math.random();
+      let red, green, blue;
+      if (palette < 0.40) {
+        // Deep blue / indigo
+        red = Math.floor(20 + Math.random() * 60);
+        green = Math.floor(15 + Math.random() * 45);
+        blue = Math.floor(120 + Math.random() * 135);
+      } else if (palette < 0.70) {
+        // Purple / magenta
+        red = Math.floor(80 + Math.random() * 120);
+        green = Math.floor(10 + Math.random() * 40);
+        blue = Math.floor(100 + Math.random() * 130);
+      } else if (palette < 0.88) {
+        // Deep red / crimson
+        red = Math.floor(120 + Math.random() * 110);
+        green = Math.floor(10 + Math.random() * 40);
+        blue = Math.floor(20 + Math.random() * 60);
+      } else {
+        // Rare warm white / pale yellow
+        red = Math.floor(200 + Math.random() * 55);
+        green = Math.floor(190 + Math.random() * 55);
+        blue = Math.floor(160 + Math.random() * 80);
+      }
+
+      // Alpha: denser regions appear brighter via blending
+      const alpha = 0.3 + Math.random() * 0.55;
+
+      stars.push({ gx, gy, gr, red, green, blue, alpha });
     }
     return stars;
   }

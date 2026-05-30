@@ -19,6 +19,7 @@ export class ConfigPanel {
       numPlanets:        -1,
       scenarioId:        0,
       mode:              'single',
+      speed:             'normal',
     };
     this._onStartCb  = null;
     this._humanCtrl  = null; // updated when numPlayers changes
@@ -94,6 +95,9 @@ export class ConfigPanel {
     panel.appendChild(this._row('MODE',
       this._cycle('mode', ['single', 'tournament'],
         v => v === 'single' ? 'Single Game' : 'Tournament')));
+    panel.appendChild(this._row('GAME SPEED',
+      this._cycle('speed', ['slow', 'normal', 'fast'],
+        v => ({ slow: '0.5×  Slow', normal: '1×  Normal', fast: '2×  Fast' }[v]))));
 
     // ── Start button ─────────────────────────────────────────────────────────
 
