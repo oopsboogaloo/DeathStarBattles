@@ -268,8 +268,9 @@ export class Renderer {
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.clip();
       ctx.beginPath();
+      // Curved trench — quadratic bezier bows downward to suggest a sphere
       ctx.moveTo(cx - r, cy);
-      ctx.lineTo(cx + r, cy);
+      ctx.quadraticCurveTo(cx, cy + r * 0.22, cx + r, cy);
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.lineWidth = Math.max(1, r * 0.14);
       ctx.stroke();
