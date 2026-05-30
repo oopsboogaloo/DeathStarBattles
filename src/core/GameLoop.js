@@ -116,6 +116,8 @@ export class GameLoop {
       bullet.trail.push(new Vec2(position.x, position.y));
       this.gs.activeBullets.push(bullet);
 
+      station.lastAngle = station.angle;
+      station.lastPower = station.power;
       station.stats.shots++;
       station.stats.totalPower += station.power;
       station.stats.turns++;

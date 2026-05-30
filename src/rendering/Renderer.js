@@ -314,6 +314,23 @@ export class Renderer {
     const dx  = Math.sin(rad);
     const dy  = Math.cos(rad);
 
+    // Ghost aim line from last turn — shown before current line so it sits behind
+    if (station.lastAngle !== null && station.lastPower !== null) {
+      const lastRad  = (station.lastAngle * Math.PI) / 180;
+      const lastDx   = Math.sin(lastRad);
+      const lastDy   = Math.cos(lastRad);
+      const lastLen  = r + (boxR - r) * (station.lastPower / 800);
+      ctx.save();
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + lastDx * lastLen, cy + lastDy * lastLen);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Bounding circle
     ctx.beginPath();
     ctx.arc(cx, cy, boxR, 0, Math.PI * 2);
@@ -477,9 +494,9 @@ export class Renderer {
     const conv  = this.conv;
     const [tr, tg, tb] = station.colour;
     ctx.save();
-    ctx.strokeStyle = `rgba(${tr},${tg},${tb},0.28)`;
-    ctx.lineWidth   = Math.max(1, conv * 0.5);
-    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = `rgba(${tr},${tg},${tb},0.55)`;
+    ctx.lineWidth   = Math.max(1, conv * 0.7);
+    ctx.setLineDash([5, 5]);
     ctx.beginPath();
     let penDown = false;
     for (const pt of trail) {
