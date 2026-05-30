@@ -18,6 +18,7 @@ export class ConfigPanel {
       stationSize:       'LARGE',
       numPlanets:        -1,
       scenarioId:        0,
+      mode:              'single',
     };
     this._onStartCb  = null;
     this._humanCtrl  = null; // updated when numPlayers changes
@@ -90,6 +91,9 @@ export class ConfigPanel {
     panel.appendChild(this._row('SCENARIO',
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`)));
+    panel.appendChild(this._row('MODE',
+      this._cycle('mode', ['single', 'tournament'],
+        v => v === 'single' ? 'Single Game' : 'Tournament')));
 
     // ── Start button ─────────────────────────────────────────────────────────
 

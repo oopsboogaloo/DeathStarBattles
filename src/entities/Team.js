@@ -23,6 +23,7 @@ export class TeamStats {
     this.shots    = 0;
     this.survived = 0;
     this.turns    = 0;
+    this.killedBy = null; // last Station that killed any member of this team (for vengeance)
   }
 }
 

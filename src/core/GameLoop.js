@@ -175,6 +175,16 @@ export class GameLoop {
     bullet.status = BulletStatus.EXPLODING;
     if (target.status !== 'active') return;
 
+    // Capture pre-kill state for kill-type classification
+    const aliveTeams = this.gs.aliveTeams;
+    const scores     = aliveTeams.map(t => t.stats.score);
+    const maxScore   = Math.max(...scores);
+    const minScore   = Math.min(...scores);
+    const staCounts  = aliveTeams.map(t => t.stations.filter(s => s.status === 'active').length);
+    const maxSta     = Math.max(...staCounts);
+    const minSta     = Math.min(...staCounts);
+    const targetSta  = target.team.stations.filter(s => s.status === 'active').length;
+
     target.status     = 'exploding';
     target.explosionT = 0;
 
@@ -191,9 +201,21 @@ export class GameLoop {
       }
       shooter.team.stats.score--;
     } else {
+      // Kill-type classification
+      if (target.team.stats.score >= maxScore)    shooter.stats.strategyKills++;
+      if (target.team.stats.score <= minScore)    shooter.stats.oppressionKills++;
+      if (targetSta >= maxSta)                    shooter.stats.tacticsKills++;
+      if (targetSta <= minSta)                    shooter.stats.bullyKills++;
+
+      const dist = shooter.position.distanceTo(target.position);
+      if (dist > this.physics.gw * 0.6)           shooter.stats.longshotKills++;
+      if (dist < this.physics.gw * 0.2)           shooter.stats.closeshotKills++;
+      if (shooter.team.stats.killedBy === target) shooter.stats.vengeanceKills++;
+
       shooter.stats.kills++;
       shooter.team.stats.kills++;
       shooter.team.stats.score++;
+      target.team.stats.killedBy = shooter; // record for future vengeance
     }
   }
 
@@ -214,7 +236,12 @@ export class GameLoop {
 
   _checkWin() {
     const alive = this.gs.aliveTeams;
-    if (alive.length <= 1) this.gs.winner = alive[0] ?? null;
+    if (alive.length <= 1) {
+      this.gs.winner = alive[0] ?? null;
+      for (const s of this.gs.allStations) {
+        if (s.status === 'active') s.stats.survived = 1;
+      }
+    }
   }
 
   // ─── RESULTS ────────────────────────────────────────────────────────────────

@@ -11,6 +11,9 @@ import { Station, StationSize } from './entities/Station.js';
 import { Vec2 }                 from './core/Vec2.js';
 import { AIController }         from './ai/AIController.js';
 import { ConfigPanel }          from './ui/ConfigPanel.js';
+import { Leaderboard }          from './ui/Leaderboard.js';
+import { GameOverScreen }       from './ui/GameOverScreen.js';
+import { TournamentState }      from './core/TournamentState.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
 import './ai/AimBot.js';
@@ -30,12 +33,36 @@ const _baseDrawFrame = renderer.drawFrame.bind(renderer);
 const panel = new ConfigPanel();
 document.body.appendChild(panel.element);
 
-let activeConfig = panel.config; // last config used to start a real game
-let isDemo       = false;
+let activeConfig   = panel.config; // last config used to start a real game
+let isDemo         = false;
+let tournament     = null;          // TournamentState | null
+
+// ─── Leaderboard & game-over screen ──────────────────────────────────────────
+
+const leaderboard    = new Leaderboard();
+document.body.appendChild(leaderboard.element);
+leaderboard.hide();
+
+const gameOverScreen = new GameOverScreen();
+document.body.appendChild(gameOverScreen.element);
+
+gameOverScreen.onContinue(() => {
+  if (tournament) {
+    startGame(activeConfig);      // same config, next tournament game
+  } else {
+    startGame(activeConfig);      // single game: play again
+  }
+});
+gameOverScreen.onNewGame(() => {
+  tournament = null;
+  if (loop) { loop.stop(); loop = null; }
+  panel.show();
+});
 
 panel.onStart(cfg => {
-  isDemo = false;
+  isDemo       = false;
   activeConfig = cfg;
+  tournament   = null;   // fresh tournament on each new config start
   startGame(cfg);
 });
 
@@ -122,14 +149,46 @@ document.body.appendChild(menuBtn);
 
 // ─── Button visibility sync ───────────────────────────────────────────────────
 
+let _prevMode = null;
+
 function updateButtons(gs) {
   if (!gs || isDemo) {
     btnBar.style.display     = 'none';
     gameOverBar.style.display = 'none';
+    leaderboard.update(null);
     return;
   }
-  btnBar.style.display      = (gs.mode === GameMode.AIMING && gs.waitingForInput) ? 'flex' : 'none';
-  gameOverBar.style.display = gs.mode === GameMode.GAMEOVER ? 'flex' : 'none';
+
+  const isAiming   = gs.mode === GameMode.AIMING && gs.waitingForInput;
+  const isGameOver = gs.mode === GameMode.GAMEOVER;
+
+  btnBar.style.display      = isAiming   ? 'flex' : 'none';
+  gameOverBar.style.display = 'none';  // replaced by GameOverScreen in all modes
+
+  // Leaderboard: visible during play, hidden on game over
+  if (!isGameOver) leaderboard.update(gs);
+  else             leaderboard.hide();
+
+  // On first frame of GAMEOVER, trigger end-of-game flow
+  if (isGameOver && _prevMode !== GameMode.GAMEOVER) {
+    _onGameOver(gs);
+  }
+  _prevMode = gs.mode;
+}
+
+// ─── Game-over handler ────────────────────────────────────────────────────────
+
+function _onGameOver(gs) {
+  if (isDemo) return;
+
+  const isTournament = activeConfig.mode === 'tournament';
+  if (isTournament) {
+    if (!tournament) tournament = new TournamentState();
+    tournament.recordGame(gs);
+    gameOverScreen.show(gs, tournament);
+  } else {
+    gameOverScreen.show(gs, null);
+  }
 }
 
 // ─── Game factory ─────────────────────────────────────────────────────────────
@@ -139,6 +198,8 @@ let handler = null;
 
 function startGame(cfg) {
   if (loop) loop.stop();
+  _prevMode = null;
+  leaderboard.show();
 
   renderer.resize(window.innerWidth, window.innerHeight);
   renderer.clearTrails();
@@ -199,6 +260,7 @@ const DEMO_CONFIG = {
 
 function startDemo() {
   isDemo = true;
+  leaderboard.hide();
   startGame(DEMO_CONFIG);
 
   function onFirstInteraction(e) {
@@ -253,6 +315,7 @@ window.addEventListener('keydown', e => {
   if (!loop || isDemo) return;
   if (e.key === 'p' || e.key === 'P') loop.togglePause();
   if (e.key === 'o' || e.key === 'O') loop.stepOne();
+  if (e.key === 'l' || e.key === 'L') leaderboard.toggle();
 });
 
 window.addEventListener('resize', () => {
