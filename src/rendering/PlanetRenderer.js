@@ -147,19 +147,26 @@ export class PlanetRenderer {
     // sharp and don't smear back into the star body. Each spike starts just
     // inside the star edge (will be covered by the star body in pass 2) and
     // pokes out 3–11% of r beyond the surface.
-    // Use the star's white-hot core colour for the surface fringe
-    const spikeB = Math.min(255, pb + 120);
-    const nSpikes = Math.max(350, Math.floor(r * 7));
-    ctx.strokeStyle = `rgba(255,255,${spikeB},0.92)`;
-    ctx.lineWidth   = Math.max(0.5, conv * 0.45);
-    ctx.beginPath();
+    // Surface fringe on its own offscreen canvas so it gets its own blur pass.
+    const spikeB   = Math.min(255, pb + 120);
+    const nSpikes  = Math.max(350, Math.floor(r * 7));
+    const spikeExt = r * 0.15 + 4; // max extension + margin
+    const spOff    = document.createElement('canvas');
+    spOff.width = spOff.height = offSize;
+    const sp = spOff.getContext('2d');
+    sp.strokeStyle = `rgba(255,255,${spikeB},0.92)`;
+    sp.lineWidth   = Math.max(0.5, conv * 0.45);
+    sp.beginPath();
     for (let i = 0; i < nSpikes; i++) {
       const a   = Math.random() * Math.PI * 2;
-      const len = r * (0.024 + Math.random() * 0.064); // 0.8× previous length
-      ctx.moveTo(cx + Math.cos(a) * r * 0.97, cy + Math.sin(a) * r * 0.97);
-      ctx.lineTo(cx + Math.cos(a) * (r + len), cy + Math.sin(a) * (r + len));
+      const len = r * (0.024 + Math.random() * 0.064);
+      sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
+      sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
     }
-    ctx.stroke();
+    sp.stroke();
+    if (!_simplified) ctx.filter = 'blur(2px)';
+    ctx.drawImage(spOff, cx - oCx, cy - oCy);
+    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
