@@ -82,7 +82,18 @@ export class PlanetRenderer {
     const oCx = offSize / 2;
     const oCy = offSize / 2;
 
-    // 5 concentric radial-gradient layers — build up the atmospheric glow
+    // Tight bright inner ring — peaks just outside the star surface then quickly
+    // fades. Creates the chromosphere/inner-corona effect without extending far.
+    const ringGrad = oc.createRadialGradient(oCx, oCy, r * 0.85, oCx, oCy, r * 1.45);
+    ringGrad.addColorStop(0,    `rgba(${cr},${cg},${cb},0)`);
+    ringGrad.addColorStop(0.35, `rgba(${cr},${cg},${cb},0.72)`);
+    ringGrad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
+    oc.beginPath();
+    oc.arc(oCx, oCy, r * 1.45, 0, Math.PI * 2);
+    oc.fillStyle = ringGrad;
+    oc.fill();
+
+    // 5 concentric radial-gradient layers — build up the wider atmospheric glow
     const layers = [
       { scale: 1.0, alpha: 0.35 },
       { scale: 1.4, alpha: 0.22 },
