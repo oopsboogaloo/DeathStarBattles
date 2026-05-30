@@ -122,12 +122,25 @@ export class GameLoop {
 
   // Move all stations one physics step and check for collisions.
   _stepStations(allStations) {
+    const { gw, gh } = this.physics;
     for (const station of allStations) {
       if (station.status !== 'active' || !station.velocity) continue;
-      station.position = new Vec2(
-        station.position.x + station.velocity.x * TIMESTEP,
-        station.position.y + station.velocity.y * TIMESTEP,
-      );
+      const r  = station.radius;
+      let x  = station.position.x + station.velocity.x * TIMESTEP;
+      let y  = station.position.y + station.velocity.y * TIMESTEP;
+      let vx = station.velocity.x;
+      let vy = station.velocity.y;
+
+      // Reflect off play area boundaries
+      if (x < r)      { x = r;      vx =  Math.abs(vx); }
+      if (x > gw - r) { x = gw - r; vx = -Math.abs(vx); }
+      if (y < r)      { y = r;      vy =  Math.abs(vy); }
+      if (y > gh - r) { y = gh - r; vy = -Math.abs(vy); }
+
+      station.position = new Vec2(x, y);
+      if (vx !== station.velocity.x || vy !== station.velocity.y) {
+        station.velocity = new Vec2(vx, vy);
+      }
     }
     // Collision: station hits planet/asteroid
     for (const station of allStations) {
