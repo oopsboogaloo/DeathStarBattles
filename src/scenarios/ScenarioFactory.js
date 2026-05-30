@@ -744,8 +744,8 @@ export class ScenarioFactory {
         type:         PlanetType.PULSAR,
         colour:       [...WHITE_COL],
         shading:      ShadingStyle.GLOWING,
-        pulsarPeriod: 0.5 + rng.next() * 4.5,
-        pulsarPhase:  rng.next() * 4.5,
+        pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
+        pulsarPhase:  rng.next() * 0.9,
       })];
     } else {
       candidates = [new Planet({
