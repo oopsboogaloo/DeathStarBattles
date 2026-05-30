@@ -1,9 +1,17 @@
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 
 export class PlanetRenderer {
+  // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
+  static drawCorona(ctx, planet, conv) {
+    if (planet.shading === ShadingStyle.GLOWING) {
+      PlanetRenderer._drawStarCorona(ctx, planet, conv);
+    }
+  }
+
+  // Pass 2: draw solid planet body (no corona)
   static draw(ctx, planet, conv) {
     switch (planet.shading) {
-      case ShadingStyle.GLOWING:  PlanetRenderer._drawStar(ctx, planet, conv);      break;
+      case ShadingStyle.GLOWING:  PlanetRenderer._drawStarBody(ctx, planet, conv);  break;
       case ShadingStyle.WORMHOLE: PlanetRenderer._drawWormhole(ctx, planet, conv);  break;
       case ShadingStyle.NONE:     PlanetRenderer._drawBlackHole(ctx, planet, conv); break;
       default:                    PlanetRenderer._drawRocky(ctx, planet, conv);     break;
@@ -34,15 +42,14 @@ export class PlanetRenderer {
   }
 
   // ----------------------------------------------------------------
-  // Star / white dwarf / white hole — bright core + bristle corona
+  // Star corona — outer glow + bristles only (drawn in pass 1)
   // ----------------------------------------------------------------
-  static _drawStar(ctx, planet, conv) {
+  static _drawStarCorona(ctx, planet, conv) {
     const cx = planet.position.x * conv;
     const cy = planet.position.y * conv;
     const r  = Math.max(3, planet.radius * conv);
     const [pr, pg, pb] = planet.colour;
 
-    // Olive-dark corona colour (dark version of star, extra-damped blue channel)
     const cr = Math.floor(pr * 0.30);
     const cg = Math.floor(pg * 0.38);
     const cb = Math.floor(pb * 0.15);
@@ -61,7 +68,6 @@ export class PlanetRenderer {
     const count = Math.max(200, Math.floor(r * 3.5));
     ctx.lineWidth = Math.max(1, conv * 0.7);
 
-    // Outer bristles: longer, lower opacity
     ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.55)`;
     ctx.beginPath();
     for (let i = 0; i < count; i++) {
@@ -73,7 +79,6 @@ export class PlanetRenderer {
     }
     ctx.stroke();
 
-    // Inner bristles: shorter, higher opacity
     ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.8)`;
     ctx.beginPath();
     for (let i = 0, n = Math.floor(count * 0.55); i < n; i++) {
@@ -84,8 +89,17 @@ export class PlanetRenderer {
       ctx.lineTo(cx + Math.cos(a) * e, cy + Math.sin(a) * e);
     }
     ctx.stroke();
+  }
 
-    // Bright core
+  // ----------------------------------------------------------------
+  // Star body — bright core disc + white-hole halo (drawn in pass 2)
+  // ----------------------------------------------------------------
+  static _drawStarBody(ctx, planet, conv) {
+    const cx = planet.position.x * conv;
+    const cy = planet.position.y * conv;
+    const r  = Math.max(3, planet.radius * conv);
+    const [pr, pg, pb] = planet.colour;
+
     const coreGrad = ctx.createRadialGradient(cx - r * 0.15, cy - r * 0.15, r * 0.05, cx, cy, r);
     coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
     coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
@@ -95,9 +109,8 @@ export class PlanetRenderer {
     ctx.fillStyle = coreGrad;
     ctx.fill();
 
-    // White hole: extended bright repulsion halo beyond the corona
     if (planet.halo > 1.0) {
-      const haloR = r * planet.halo;
+      const haloR    = r * planet.halo;
       const haloGrad = ctx.createRadialGradient(cx, cy, r, cx, cy, haloR);
       haloGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
       haloGrad.addColorStop(1, 'rgba(255,255,255,0)');

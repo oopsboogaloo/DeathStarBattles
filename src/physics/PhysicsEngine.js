@@ -175,6 +175,7 @@ export class PhysicsEngine {
       case PlanetType.WORMHOLE_CYCLIC: {
         if (planet.partner && bullet.teleportCount < MAX_TELEPORTS) {
           const dest = planet.partner;
+          bullet.trail.push(null); // break trail at wormhole entry
           bullet.position = new Vec2(
             dest.position.x + Math.cos(theta2) * (dest.impactRadius + 0.5),
             dest.position.y + Math.sin(theta2) * (dest.impactRadius + 0.5),
@@ -188,6 +189,7 @@ export class PhysicsEngine {
 
       case PlanetType.WORMHOLE_RANDOM:
         if (bullet.teleportCount < MAX_TELEPORTS) {
+          bullet.trail.push(null);
           bullet.position = new Vec2(Math.random() * this.gw, Math.random() * this.gh);
           bullet.teleportCount++;
         } else {
@@ -199,6 +201,7 @@ export class PhysicsEngine {
         if (bullet.teleportCount < MAX_TELEPORTS) {
           const dest = planets[Math.floor(Math.random() * planets.length)];
           const a    = Math.random() * Math.PI * 2;
+          bullet.trail.push(null);
           bullet.position = new Vec2(
             dest.position.x + Math.cos(a) * (dest.impactRadius + 0.5),
             dest.position.y + Math.sin(a) * (dest.impactRadius + 0.5),
@@ -212,6 +215,7 @@ export class PhysicsEngine {
 
       case PlanetType.WORMHOLE_SELF:
         if (bullet.teleportCount < MAX_TELEPORTS) {
+          bullet.trail.push(null);
           bullet.position = new Vec2(
             planet.position.x + Math.cos(theta2) * (planet.impactRadius + 0.5),
             planet.position.y + Math.sin(theta2) * (planet.impactRadius + 0.5),

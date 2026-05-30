@@ -16,6 +16,7 @@ export class GameLoop {
     this._turnOrder    = [];      // active stations for this turn, in order
     this._turnIdx      = 0;
     this._resultsTimer = 0;
+    this._trailSaved   = false;   // true once ghost trails saved this firing phase
 
     this._startTurn();
   }
@@ -102,6 +103,7 @@ export class GameLoop {
   }
 
   _fireAll() {
+    this._trailSaved      = false;
     this.gs.activeBullets = [];
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
@@ -129,7 +131,7 @@ export class GameLoop {
     const stepsPerFrame = this._paused ? PRINT_EVERY : PRINT_EVERY * SHOW_EVERY;
 
     for (let i = 0; i < stepsPerFrame; i++) {
-      // Physics step + trail
+      // Physics step + trail (no explosion advancement inside the inner loop)
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
@@ -143,20 +145,31 @@ export class GameLoop {
         const hit = this.physics.checkStationCollisions(bullet, allStations);
         if (hit) this._resolveStationHit(bullet, hit);
       }
+    }
 
-      // Advance explosion animations (bullets + stations)
+    // Advance explosion animations once per rAF frame (not per physics step)
+    // This keeps explosions visible for ~20–25 frames instead of < 1 frame.
+    for (const bullet of this.gs.activeBullets) {
+      if (bullet.status === BulletStatus.EXPLODING) {
+        bullet.explosionT += 0.05;
+        if (bullet.explosionT >= 1) bullet.status = BulletStatus.DEAD;
+      }
+    }
+    for (const station of allStations) {
+      if (station.status === 'exploding') {
+        station.explosionT += 0.04;
+        if (station.explosionT >= 1) station.status = 'dead';
+      }
+    }
+
+    // Save ghost trails once when all bullets have stopped flying
+    if (!this._trailSaved &&
+        this.gs.activeBullets.length > 0 &&
+        this.gs.activeBullets.every(b => b.status !== BulletStatus.ACTIVE)) {
       for (const bullet of this.gs.activeBullets) {
-        if (bullet.status === BulletStatus.EXPLODING) {
-          bullet.explosionT += 0.012;
-          if (bullet.explosionT >= 1) bullet.status = BulletStatus.DEAD;
-        }
+        if (bullet.trail.length > 1) bullet.owner.lastTrail = [...bullet.trail];
       }
-      for (const station of allStations) {
-        if (station.status === 'exploding') {
-          station.explosionT += 0.015;
-          if (station.explosionT >= 1) station.status = 'dead';
-        }
-      }
+      this._trailSaved = true;
     }
 
     // Remove dead bullets
@@ -166,7 +179,7 @@ export class GameLoop {
     if (this.gs.activeBullets.length === 0) {
       this._processHyperspace();
       this._checkWin();
-      this._resultsTimer = 120; // ~2 s at 60 fps
+      this._resultsTimer = 150; // ~2.5 s at 60 fps
       this.gs.mode = GameMode.RESULTS;
     }
   }
@@ -255,7 +268,7 @@ export class GameLoop {
     for (const station of this.gs.allStations) {
       // Finish lingering explosions
       if (station.status === 'exploding') {
-        station.explosionT += 0.02;
+        station.explosionT += 0.04;
         if (station.explosionT >= 1) station.status = 'dead';
       }
       // Advance hyperspace flash animation

@@ -52,9 +52,10 @@ export class Renderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this.width, this.height);
     this._drawStarField(ctx);
-    for (const planet of this._planets) {
-      PlanetRenderer.draw(ctx, planet, this.conv);
-    }
+    // Pass 1: coronas/bristles behind everything
+    for (const planet of this._planets) PlanetRenderer.drawCorona(ctx, planet, this.conv);
+    // Pass 2: solid bodies on top
+    for (const planet of this._planets) PlanetRenderer.draw(ctx, planet, this.conv);
   }
 
   _drawStarField(ctx) {
@@ -78,14 +79,16 @@ export class Renderer {
   }
 
   // Draw the latest trail segment — call each time a trail point is pushed.
+  // null entries in the trail array are wormhole break markers — skip that segment.
   appendTrailPoint(bullet) {
     const trail = bullet.trail;
     if (trail.length < 2) return;
+    const prev = trail[trail.length - 2];
+    const cur  = trail[trail.length - 1];
+    if (!prev || !cur) return; // wormhole break — don't draw this segment
     const ctx  = this.trailsCtx;
     const conv = this.conv;
     const [tr, tg, tb] = bullet.owner.team.colour;
-    const prev = trail[trail.length - 2];
-    const cur  = trail[trail.length - 1];
     ctx.beginPath();
     ctx.moveTo(prev.x * conv, prev.y * conv);
     ctx.lineTo(cur.x  * conv, cur.y  * conv);
@@ -115,11 +118,18 @@ export class Renderer {
       }
     }
 
-    // Bullets
+    // Ghost trail of previous shot — helps human players adjust aim
+    if (gameState.mode === 'aiming' && gameState.waitingForInput) {
+      const active = gameState.activeStation;
+      if (active?.lastTrail?.length > 1) this._drawGhostTrail(ctx, active);
+    }
+
+    // Bullets + off-screen indicators
     for (const bullet of gameState.activeBullets) {
       if (bullet.status === 'active')    this._drawBullet(ctx, bullet);
       if (bullet.status === 'exploding') this._drawExplosion(ctx, bullet);
     }
+    this._drawOffScreenIndicators(ctx, gameState.activeBullets);
 
     // Stations + station explosions + hyperspace flashes
     for (const station of gameState.allStations) {
@@ -311,10 +321,11 @@ export class Renderer {
     ctx.lineWidth   = 1;
     ctx.stroke();
 
-    // Direction line from centre to circle edge
+    // Direction line — length scales with power (min: station surface, max: boxR edge)
+    const lineLen = r + (boxR - r) * (station.power / 800);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + dx * boxR, cy + dy * boxR);
+    ctx.lineTo(cx + dx * lineLen, cy + dy * lineLen);
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth   = 2;
     ctx.stroke();
@@ -458,7 +469,87 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // Redraw all bullet trails after a canvas resize
+  // Ghost trail — previous shot, drawn dashed at low opacity during AIMING
+  // ----------------------------------------------------------------
+
+  _drawGhostTrail(ctx, station) {
+    const trail = station.lastTrail;
+    const conv  = this.conv;
+    const [tr, tg, tb] = station.colour;
+    ctx.save();
+    ctx.strokeStyle = `rgba(${tr},${tg},${tb},0.28)`;
+    ctx.lineWidth   = Math.max(1, conv * 0.5);
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    let penDown = false;
+    for (const pt of trail) {
+      if (!pt) { penDown = false; continue; } // wormhole break
+      const px = pt.x * conv, py = pt.y * conv;
+      if (!penDown) { ctx.moveTo(px, py); penDown = true; }
+      else          { ctx.lineTo(px, py); }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Off-screen bullet indicators — triangle at canvas edge + distance
+  // ----------------------------------------------------------------
+
+  _drawOffScreenIndicators(ctx, bullets) {
+    const cx = this.width / 2, cy = this.height / 2;
+    const m  = 24; // inset margin in px
+
+    for (const bullet of bullets) {
+      if (bullet.status !== 'active') continue;
+      const bx = bullet.position.x * this.conv;
+      const by = bullet.position.y * this.conv;
+      if (bx >= 0 && bx <= this.width && by >= 0 && by <= this.height) continue;
+
+      const [tr, tg, tb] = bullet.owner.team.colour;
+      const angle = Math.atan2(by - cy, bx - cx);
+      const cosA  = Math.cos(angle), sinA = Math.sin(angle);
+
+      // Find where the ray from canvas-centre hits the inset canvas boundary
+      let t = Infinity;
+      if (cosA > 0) t = Math.min(t, (this.width  - m - cx) / cosA);
+      if (cosA < 0) t = Math.min(t, (m           - cx) / cosA);
+      if (sinA > 0) t = Math.min(t, (this.height - m - cy) / sinA);
+      if (sinA < 0) t = Math.min(t, (m           - cy) / sinA);
+
+      const ex = cx + cosA * t;
+      const ey = cy + sinA * t;
+
+      // Distance from nearest screen edge in game units
+      const distPx = Math.max(0, -bx, bx - this.width, -by, by - this.height);
+      const dist   = Math.round(distPx / this.conv);
+
+      ctx.save();
+      ctx.translate(ex, ey);
+      ctx.rotate(angle);
+
+      // Filled triangle pointing toward the bullet
+      ctx.beginPath();
+      ctx.moveTo( 11,  0);
+      ctx.lineTo( -7, -5);
+      ctx.lineTo( -7,  5);
+      ctx.closePath();
+      ctx.fillStyle = `rgb(${tr},${tg},${tb})`;
+      ctx.fill();
+
+      // Distance label beside the triangle
+      ctx.font         = `bold ${Math.max(9, 11)}px monospace`;
+      ctx.fillStyle    = `rgb(${tr},${tg},${tb})`;
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(dist, 15, 0);
+
+      ctx.restore();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Redraw all bullet trails after a canvas resize (handles null breaks)
   // ----------------------------------------------------------------
 
   redrawTrails(bullets) {
@@ -471,9 +562,12 @@ export class Renderer {
       ctx.strokeStyle = `rgb(${tr},${tg},${tb})`;
       ctx.lineWidth   = Math.max(1, conv * 0.6);
       ctx.beginPath();
-      ctx.moveTo(trail[0].x * conv, trail[0].y * conv);
-      for (let i = 1; i < trail.length; i++) {
-        ctx.lineTo(trail[i].x * conv, trail[i].y * conv);
+      let penDown = false;
+      for (const pt of trail) {
+        if (!pt) { penDown = false; continue; } // wormhole break
+        const px = pt.x * conv, py = pt.y * conv;
+        if (!penDown) { ctx.moveTo(px, py); penDown = true; }
+        else          { ctx.lineTo(px, py); }
       }
       ctx.stroke();
     }

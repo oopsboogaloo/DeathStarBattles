@@ -45,6 +45,7 @@ export class Station {
     this.status          = StationStatus.ACTIVE;
     this.explosionT      = 0;            // 0→1 animation progress
     this.hyperspaceFlash = null;         // {t, oldPos, newPos} | null — hyperspace anim
+    this.lastTrail       = null;         // Vec2[] | null — ghost trail from previous shot
     this.stats           = new StationStats();
   }
 
