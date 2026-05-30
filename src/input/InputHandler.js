@@ -61,22 +61,22 @@ export class InputHandler {
     if (!station || station.status !== 'active') return;
 
     const conv = this.renderer.conv;
+    const ox   = this.renderer._ox;
+    const oy   = this.renderer._oy;
     const rect = this.canvas.getBoundingClientRect();
-    // Subtract viewport offset so coordinates are relative to the game area,
-    // not the full canvas (which may have letterbox/pillarbox black bars).
-    const vpX  = e.clientX - rect.left - this.renderer._ox;
-    const vpY  = e.clientY - rect.top  - this.renderer._oy;
+    // Mouse in canvas pixels
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
 
-    // If waiting for a move-target click, handle that first
+    // If waiting for a move-target click, convert canvas px → game units
     if (this.loop.gs.waitingForMove) {
-      this.loop.humanSetMove(vpX / conv, vpY / conv);
+      this.loop.humanSetMove((mx - ox) / conv, (my - oy) / conv);
       return;
     }
 
-    const mx = vpX;
-    const my = vpY;
-    const cx   = station.position.x * conv;
-    const cy   = station.position.y * conv;
+    // Station position in canvas pixels (viewport-relative + letterbox offset)
+    const cx   = station.position.x * conv + ox;
+    const cy   = station.position.y * conv + oy;
     const dx   = mx - cx;
     const dy   = my - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
