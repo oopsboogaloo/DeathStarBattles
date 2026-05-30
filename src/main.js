@@ -334,8 +334,14 @@ function _showDemoHint() {
       fontFamily: 'monospace',
       fontSize: 'clamp(26px, 5vw, 62px)',
       letterSpacing: '0.22em',
-      color: 'rgba(200,215,255,0.90)',
-      textShadow: '0 0 40px rgba(100,130,255,0.65), 0 0 90px rgba(80,110,255,0.30)',
+      color: '#000',
+      textShadow: [
+        '-1px -1px 0 #fff', '1px -1px 0 #fff',
+        '-1px  1px 0 #fff', '1px  1px 0 #fff',
+        '0 0 12px rgba(255,255,255,0.95)',
+        '0 0 35px rgba(220,230,255,0.70)',
+        '0 0 70px rgba(180,200,255,0.35)',
+      ].join(', '),
       marginBottom: '10px',
     });
 
@@ -345,7 +351,8 @@ function _showDemoHint() {
       fontFamily: 'monospace',
       fontSize: 'clamp(12px, 1.4vw, 18px)',
       letterSpacing: '0.18em',
-      color: 'rgba(155,170,225,0.55)',
+      color: '#000',
+      textShadow: '0 0 8px rgba(255,255,255,0.9), 0 0 20px rgba(220,230,255,0.55)',
     });
 
     titleEl.appendChild(titleLine);
