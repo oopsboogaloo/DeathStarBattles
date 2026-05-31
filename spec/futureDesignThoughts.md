@@ -1,5 +1,27 @@
 # Future Design Thoughts
 
+## TODO: AI Code Audit Findings
+
+**Status:** Analysis complete — fixes pending
+
+**Bugs fixed this session:**
+- MegaBot always targeted human player (Team 1) when scores were tied at 0 — stable sort bias. Fixed with random tiebreaker.
+- MegaBot movement broken — `SimBot` not imported, `SimBot._netGravity` threw ReferenceError 30% of the time. Fixed by using `SuperBot._netGravity`.
+
+**Remaining concerns to revisit:**
+
+1. **SimBot `_mem` map leaks dead station IDs** — entries for dead stations accumulate during a game, never pruned. Minor memory waste in long games. Fix: clear entries when a station dies, or prune the map periodically.
+
+2. **SuperBot movement has no friendly-distance check** — MegaBot suppresses movement that would cluster friendly stations, SuperBot doesn't. Stations can accidentally bunch up at level 4. Fix: port MegaBot's friendly-distance guard into SuperBot.
+
+3. **CleverBot only gets 2 simulation trials before turn 8** — `max(2, floor(8/4)) = 2` trials is barely better than guessing. Very weak for the first 8 turns. Consider whether the ramp-up is too steep or whether a floor of 4 would be better.
+
+4. **AimBot `_randomEnemy` duplicates SimBot `_selectTarget`** — identical logic in two places. Minor code smell, could be consolidated.
+
+5. **All movement bots return velocity when station movement is disabled** — unnecessary computation. Low priority.
+
+---
+
 ## TODO: Force First Game Simplicity (New Player Onboarding)
 
 **Status:** Not started
