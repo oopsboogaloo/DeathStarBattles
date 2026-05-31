@@ -107,6 +107,19 @@ export class PhysicsEngine {
       }
     }
 
+    // Trick shot: accumulate signed rotation; flag when a full 360° loop is complete
+    if (!bullet.trickShotDone) {
+      const newAngle = Math.atan2(vy, vx);
+      if (bullet._prevAngle !== null) {
+        let delta = newAngle - bullet._prevAngle;
+        if (delta >  Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        bullet._angleAccum += delta;
+        if (Math.abs(bullet._angleAccum) >= 2 * Math.PI) bullet.trickShotDone = true;
+      }
+      bullet._prevAngle = newAngle;
+    }
+
     bullet.velocity = new Vec2(vx, vy);
     bullet.position = new Vec2(
       bullet.position.x + vx * TIMESTEP,
@@ -138,6 +151,25 @@ export class PhysicsEngine {
       }
     }
     return null;
+  }
+
+  // Returns stations the bullet is newly near-missing this step (within 3× their radius but
+  // outside their hit radius, excluding the owner and already-counted stations).
+  checkNearMisses(bullet, stations) {
+    if (bullet.status !== BulletStatus.ACTIVE) return [];
+    const result = [];
+    for (const station of stations) {
+      if (station.status !== 'active') continue;
+      if (station === bullet.owner) continue;
+      if (bullet.nearMissed.has(station)) continue;
+      const dSq = bullet.position.distanceSqTo(station.position);
+      const r   = station.radius;
+      if (dSq < (r * 3) ** 2 && dSq >= r * r) {
+        bullet.nearMissed.add(station);
+        result.push(station);
+      }
+    }
+    return result;
   }
 
   // ─── fast trajectory simulation for AI ───────────────────────────────────

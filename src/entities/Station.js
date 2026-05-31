@@ -30,6 +30,10 @@ export class StationStats {
     this.longshotKills  = 0;
     this.closeshotKills = 0;
     this.vengeanceKills = 0;
+    this.wormholeKills  = 0;
+    this.trickShotKills = 0;
+    this.nearMisses     = 0;
+    this.hyperspaceCount = 0;
     this.totalPower     = 0;
   }
 }

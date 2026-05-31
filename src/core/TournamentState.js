@@ -1,12 +1,18 @@
 const ALL_AWARD_STATS = [
-  { key: 'bloodlust',  stat: 'kills'           },
-  { key: 'strategy',   stat: 'strategyKills'   },
-  { key: 'oppression', stat: 'oppressionKills' },
-  { key: 'tactics',    stat: 'tacticsKills'     },
-  { key: 'bully',      stat: 'bullyKills'       },
-  { key: 'vengeance',  stat: 'vengeanceKills'   },
-  { key: 'longshot',   stat: 'longshotKills'    },
-  { key: 'closeshot',  stat: 'closeshotKills'   },
+  { key: 'bloodlust',    stat: 'kills'            },
+  { key: 'strategy',     stat: 'strategyKills'    },
+  { key: 'oppression',   stat: 'oppressionKills'  },
+  { key: 'tactics',      stat: 'tacticsKills'      },
+  { key: 'bully',        stat: 'bullyKills'        },
+  { key: 'vengeance',    stat: 'vengeanceKills'    },
+  { key: 'longshot',     stat: 'longshotKills'     },
+  { key: 'closeshot',    stat: 'closeshotKills'    },
+  { key: 'wormhole',     stat: 'wormholeKills'     },
+  { key: 'trickshot',    stat: 'trickShotKills'    },
+  { key: 'nearmiss',     stat: 'nearMisses'        },
+  { key: 'hyperactive',  stat: 'hyperspaceCount'   },
+  { key: 'selfdestruct', stat: 'suicides'          },
+  { key: 'friendly',     stat: 'ownGoals'          },
 ];
 
 export class TournamentState {
@@ -25,6 +31,7 @@ export class TournamentState {
           wins: 0, kills: 0, ownGoals: 0, suicides: 0, score: 0, shots: 0,
           strategyKills: 0, oppressionKills: 0, tacticsKills: 0,
           bullyKills: 0, vengeanceKills: 0, longshotKills: 0, closeshotKills: 0,
+          wormholeKills: 0, trickShotKills: 0, nearMisses: 0, hyperspaceCount: 0,
         });
       }
     }
@@ -57,6 +64,10 @@ export class TournamentState {
         d.vengeanceKills  += sta.stats.vengeanceKills;
         d.longshotKills   += sta.stats.longshotKills;
         d.closeshotKills  += sta.stats.closeshotKills;
+        d.wormholeKills   += sta.stats.wormholeKills;
+        d.trickShotKills  += sta.stats.trickShotKills;
+        d.nearMisses      += sta.stats.nearMisses;
+        d.hyperspaceCount += sta.stats.hyperspaceCount;
       }
     }
 

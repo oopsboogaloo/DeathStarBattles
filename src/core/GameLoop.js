@@ -526,7 +526,12 @@ export class GameLoop {
         }
 
         const hit = this.physics.checkStationCollisions(bullet, allStations);
-        if (hit) this._resolveStationHit(bullet, hit);
+        if (hit) {
+          this._resolveStationHit(bullet, hit);
+        } else {
+          for (const _s of this.physics.checkNearMisses(bullet, allStations))
+            bullet.owner.stats.nearMisses++;
+        }
 
         // Save trail as ghost the moment a bullet leaves the active state
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
@@ -663,6 +668,8 @@ export class GameLoop {
       if (dist > this.physics.gw * 0.6)           shooter.stats.longshotKills++;
       if (dist < this.physics.gw * 0.2)           shooter.stats.closeshotKills++;
       if (shooter.team.stats.killedBy === target) shooter.stats.vengeanceKills++;
+      if (bullet.teleportCount > 0)               shooter.stats.wormholeKills++;
+      if (bullet.trickShotDone)                   shooter.stats.trickShotKills++;
 
       shooter.stats.kills++;
       shooter.team.stats.kills++;
@@ -683,8 +690,9 @@ export class GameLoop {
           p => pos.distanceSqTo(p.position) >= (p.impactRadius + station.radius + 5) ** 2,
         );
         if (clear) {
-          station.position      = pos;
+          station.position        = pos;
           station.hyperspaceFlash = { t: 0, oldPos, newPos: new Vec2(pos.x, pos.y) };
+          station.stats.hyperspaceCount++;
           break;
         }
       }

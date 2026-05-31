@@ -8,8 +8,14 @@ const AWARD_DEFS = {
   tactics:    { icon: '◉', label: 'TACTICS',     stat: 'tacticsKills',    unit: 'tac'   },
   bully:      { icon: '●', label: 'BULLY',       stat: 'bullyKills',      unit: 'bull'  },
   vengeance:  { icon: '⚡', label: 'VENGEANCE',   stat: 'vengeanceKills',  unit: 'veng'  },
-  longshot:   { icon: '→', label: 'LONGSHOT',    stat: 'longshotKills',   unit: 'lng'   },
-  closeshot:  { icon: '✦', label: 'POINT BLANK', stat: 'closeshotKills',  unit: 'cls'   },
+  longshot:     { icon: '→', label: 'LONGSHOT',      stat: 'longshotKills',   unit: 'lng'   },
+  closeshot:    { icon: '✦', label: 'POINT BLANK',   stat: 'closeshotKills',  unit: 'cls'   },
+  wormhole:     { icon: '◎', label: 'WORMHOLE',      stat: 'wormholeKills',   unit: 'wrm'   },
+  trickshot:    { icon: '↻', label: 'TRICK SHOT',    stat: 'trickShotKills',  unit: 'trk'   },
+  nearmiss:     { icon: '≈', label: 'NEAR MISS',     stat: 'nearMisses',      unit: 'miss'  },
+  hyperactive:  { icon: '⇅', label: 'HYPERACTIVE',   stat: 'hyperspaceCount', unit: 'jmps'  },
+  selfdestruct: { icon: '☠', label: 'SELF DESTRUCT', stat: 'suicides',        unit: 'self'  },
+  friendly:     { icon: '⊗', label: 'NOT FRIENDLY',  stat: 'ownGoals',        unit: 'ff'    },
 };
 
 export class GameOverScreen {
