@@ -306,22 +306,28 @@ export class PlanetRenderer {
     oc.fillStyle = `rgba(${ar},${ag},${ab},0.50)`;
     oc.fillRect(ocx - r, ocy - r, r * 2, r * 2);
 
-    // Curved colour-B bands
-    const top     = ocy - r;
-    const nStripes = Math.ceil(r * 2 / stripeH) + 2;
-    for (let i = 0; i < nStripes; i += 2) {
-      const y    = top + i * stripeH;
-      const seed = Math.sin(i * 2.3999 + planet.position.x * 0.1) * 0.5 + 0.5;
-      const amp  = stripeH * (0.15 + seed * 0.35);
+    // Curved colour-B bands — varying heights for a natural gas giant look
+    const minH     = Math.max(2, r * 0.06);
+    const maxH     = Math.max(4, r * 0.22);
+    let   bandY    = ocy - r;
+    let   drawBand = true;
 
-      oc.beginPath();
-      oc.moveTo(ocx - r, y);
-      oc.quadraticCurveTo(ocx, y + amp, ocx + r, y);
-      oc.lineTo(ocx + r, y + stripeH);
-      oc.quadraticCurveTo(ocx, y + stripeH + amp, ocx - r, y + stripeH);
-      oc.closePath();
-      oc.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
-      oc.fill();
+    while (bandY < ocy + r + maxH) {
+      const seed      = Math.sin(bandY * 0.13 + planet.position.x * 0.1) * 0.5 + 0.5;
+      const thisBandH = minH + seed * (maxH - minH);
+      if (drawBand) {
+        const amp = thisBandH * (2.8 + seed * 0.15);
+        oc.beginPath();
+        oc.moveTo(ocx - r, bandY);
+        oc.quadraticCurveTo(ocx, bandY + amp, ocx + r, bandY);
+        oc.lineTo(ocx + r, bandY + thisBandH);
+        oc.quadraticCurveTo(ocx, bandY + thisBandH + amp, ocx - r, bandY + thisBandH);
+        oc.closePath();
+        oc.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
+        oc.fill();
+      }
+      bandY += thisBandH;
+      drawBand = !drawBand;
     }
     oc.restore();
 
