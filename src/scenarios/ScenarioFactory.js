@@ -639,22 +639,25 @@ export class ScenarioFactory {
           for (let i = 2; i < nPlanets; i++)
             planets.push(makePlanet(rng, 1,0,0, 20,20,9, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
         } else {
-          // Two paired purple huge wormholes (off-screen centres)
+          // Two paired purple huge wormholes — centres fixed just outside opposite
+          // screen corners so the impact zone always clips into the playfield.
           const bigR = (rng.next()*0.2 + rng.next()*0.2)*gh + 1.5*gh;
-          const cx0 = rv(rng,3,0,-1,gw), cy0 = rv(rng,3,0,-1,gh);
+          const margin = 10 + rng.next() * 25; // 10–35 units outside the corner
+          const cx0 = rng.next() < 0.5 ? -margin : gw + margin;
+          const cy0 = rng.next() < 0.5 ? -margin : gh + margin;
           const w0 = new Planet({
             position: new Vec2(cx0, cy0), radius: bigR,
-            density: 4000/(bigR*bigR), mass: 4000,
+            density: 1200/(bigR*bigR), mass: 1200,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
-            impactRadius: 50,
+            impactRadius: 80,
           });
           const w1 = new Planet({
             position: new Vec2(gw - cx0, gh - cy0), radius: bigR,
-            density: 4000/(bigR*bigR), mass: 4000,
+            density: 1200/(bigR*bigR), mass: 1200,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
-            impactRadius: 50,
+            impactRadius: 80,
           });
           w0.partner = w1; w1.partner = w0;
           planets.push(w0, w1);
@@ -925,12 +928,16 @@ export class ScenarioFactory {
     if (!planets.length) return true;
     const minGap = 10;
 
-    // No planet-planet overlap
+    // No planet-planet overlap — use impactRadius for gameplay-relevant size,
+    // falling back to radius. This prevents huge-physics/small-capture planets
+    // (e.g. big wormholes) from failing validation due to their physics radius.
     for (let i = 0; i < planets.length; i++) {
       for (let j = i + 1; j < planets.length; j++) {
         const pi = planets[i], pj = planets[j];
+        const ri = pi.impactRadius ?? pi.radius;
+        const rj = pj.impactRadius ?? pj.radius;
         const dist = pi.position.distanceTo(pj.position);
-        if (dist < minGap + pi.radius + pj.radius) return false;
+        if (dist < minGap + ri + rj) return false;
       }
     }
 
@@ -942,7 +949,8 @@ export class ScenarioFactory {
         const py = (j / 20) * gh;
         let free = true;
         for (const p of planets) {
-          if (p.position.distanceSqTo(new Vec2(px, py)) < p.radius * p.radius) {
+          const pr = p.impactRadius ?? p.radius;
+          if (p.position.distanceSqTo(new Vec2(px, py)) < pr * pr) {
             free = false;
             break;
           }

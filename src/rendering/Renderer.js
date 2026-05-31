@@ -742,13 +742,21 @@ export class Renderer {
     const r  = Math.max(4, planet.radius * 2 * this.conv);
     const [pr, pg, pb] = planet.colour;
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.8 + planet.position.x * 0.07);
-    // Giant wormholes (display radius > 100 px) get half-thickness halo
-    const thickMul = r > 100 ? 0.5 : 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
-    ctx.lineWidth   = Math.max(1, (r * 0.12 + r * 0.08 * pulse) * thickMul);
-    ctx.stroke();
+    if (planet.radius > 100) {
+      // Giant wormhole — pulse at impactRadius so it matches the drawn ring
+      const vr = (planet.impactRadius ?? 50) * 2 * this.conv;
+      ctx.beginPath();
+      ctx.arc(cx, cy, vr * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
+      ctx.lineWidth   = Math.max(1, vr * 0.12 + vr * 0.08 * pulse);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
+      ctx.lineWidth   = Math.max(1, r * 0.12 + r * 0.08 * pulse);
+      ctx.stroke();
+    }
   }
 
   // ----------------------------------------------------------------

@@ -189,9 +189,10 @@ export class PlanetRenderer {
       const oCx = offSize / 2;
       const oCy = offSize / 2;
 
+      const isRedGiant = pr > pg * 2.5 && pb < 30;
       const coreGrad = oc.createRadialGradient(oCx, oCy, r * 0.05, oCx, oCy, r);
-      coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
-      coreGrad.addColorStop(0.7,   `rgb(255,255,${Math.min(255, pb + 50)})`);
+      coreGrad.addColorStop(0,   isRedGiant ? `rgb(255,45,0)` : `rgb(255,255,${Math.min(255, pb + 120)})`);
+      coreGrad.addColorStop(0.7, isRedGiant ? `rgb(255,${Math.floor(pg * 0.6)},0)` : `rgb(255,255,${Math.min(255, pb + 50)})`);
       coreGrad.addColorStop(0.9, `rgb(${pr},${pg},${pb})`);
       coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .55)},${Math.floor(pg * .55)},${Math.floor(pb * .3)})`);
       oc.beginPath();
@@ -238,22 +239,39 @@ export class PlanetRenderer {
     const r  = Math.max(4, planet.radius * 2 * conv);
     const [pr, pg, pb] = planet.colour;
 
-    // Dark void
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
-    ctx.fillStyle = '#000';
-    ctx.fill();
-
-    // Glowing ring
-    const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.33, cx, cy, r);
-    ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
-    ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
-    ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
-    ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = ringGrad;
-    ctx.fill();
+    if (planet.radius > 100) {
+      // Giant wormhole — draw at impactRadius so the arc appears at the screen
+      // corner where bullets are actually captured, not at the physics radius.
+      const vr = (planet.impactRadius ?? 50) * 8 * conv;
+      ctx.beginPath();
+      ctx.arc(cx, cy, vr * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+      const ringGrad = ctx.createRadialGradient(cx, cy, vr * 0.33, cx, cy, vr);
+      ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
+      ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
+      ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
+      ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, vr, 0, Math.PI * 2);
+      ctx.fillStyle = ringGrad;
+      ctx.fill();
+    } else {
+      // Normal wormhole — full gradient ring at display radius
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+      const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.33, cx, cy, r);
+      ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
+      ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
+      ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
+      ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = ringGrad;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
