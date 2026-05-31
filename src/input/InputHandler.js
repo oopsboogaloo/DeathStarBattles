@@ -82,7 +82,7 @@ export class InputHandler {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     const stationR_px = station.radius * conv;
-    const boxR_px     = Math.max(57, 3 * stationR_px);
+    const boxR_px     = Math.max(57, 3 * stationR_px) * (this.renderer._aimCircleScale ?? 1);
     const arrowMin_px = Math.max(10, 1.2 * stationR_px);
 
     // Only respond within the interactive circle and outside the station body

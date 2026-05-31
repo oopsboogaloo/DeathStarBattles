@@ -6,13 +6,14 @@ const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks
 const MAX_RATE      = 10;   // max repetitions per tick for power buttons
 const MAX_RATE_ANG  = 50;   // max repetitions per tick for angle (50 × 0.1° = 5°/tick)
-const RAMP_TICKS    = 12;   // ticks to reach max rate
+const RAMP_TICKS    = 4;    // ticks to double the rate (exponential — reaches max in ~2 s)
 
 export class AimControls {
   constructor() {
     this._loop      = null;
     this._holdTimer = null;
     this._holdCount = 0;
+    this._minimal   = false;
     this.element    = this._build();
   }
 
@@ -21,12 +22,27 @@ export class AimControls {
   show() { this.element.style.display = 'flex'; }
   hide() { this.element.style.display = 'none'; }
 
+  setMinimal(isMinimal) {
+    this._minimal = isMinimal;
+    const fs = isMinimal ? '14px' : '18px';
+    const mw = isMinimal ? '70px'  : '130px';
+    const pm = isMinimal ? '70px'  : '120px';
+    this._angleVal.style.fontSize = fs;
+    this._angleVal.style.minWidth = mw;
+    this._powerVal.style.fontSize = fs;
+    this._powerVal.style.minWidth = pm;
+  }
+
   // Call each frame while aiming so values stay in sync
   update(station) {
     if (!station) return;
-    this._angleVal.textContent = `Angle: ${station.angle.toFixed(1)}°`;
-    const p = (station.power / 8).toFixed(1);
-    this._powerVal.textContent = `Power: ${p}`;
+    if (this._minimal) {
+      this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
+      this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
+    } else {
+      this._angleVal.textContent = `Angle: ${station.angle.toFixed(1)}°`;
+      this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
+    }
   }
 
   // ── DOM ────────────────────────────────────────────────────────────────────
@@ -127,7 +143,7 @@ export class AimControls {
     this._holdTimer = setTimeout(() => {
       this._holdTimer = setInterval(() => {
         this._holdCount++;
-        const rate = Math.min(maxRate, 1 + Math.floor(this._holdCount / RAMP_TICKS));
+        const rate = Math.min(maxRate, Math.ceil(Math.pow(2, this._holdCount / RAMP_TICKS)));
         for (let i = 0; i < rate; i++) action();
       }, TICK_MS);
     }, HOLD_DELAY);

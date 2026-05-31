@@ -26,7 +26,10 @@ export class Renderer {
     this._vpH = this.height;
     this._ox  = 0; // x offset of viewport within canvas (pillarbox bars)
     this._oy  = 0; // y offset of viewport within canvas (letterbox bars)
+    this._aimCircleScale = 1;
   }
+
+  setAimCircleScale(scale) { this._aimCircleScale = scale ?? 1; }
 
   setPerformance(mode) {
     this._performance = mode ?? 'full';
@@ -269,9 +272,9 @@ export class Renderer {
       }
     }
 
-    // Aiming indicator — active station in AIMING mode
+    // Aiming indicator — active station in AIMING mode (hidden when hyperspace queued)
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && gameState.mode === 'aiming') {
+    if (active && active.status === 'active' && gameState.mode === 'aiming' && !active.hyperspaceQueued) {
       this._drawAimingIndicator(ctx, active);
     }
 
@@ -495,7 +498,7 @@ export class Renderer {
     const cx    = station.position.x * this.conv;
     const cy    = station.position.y * this.conv;
     const r     = Math.max(3, station.radius * this.conv);
-    const boxR  = Math.max(57, 3 * r);   // interactive zone radius in px
+    const boxR  = Math.max(57, 3 * r) * this._aimCircleScale;
 
     // Angle convention: 0 = up, 90 = right (clockwise), matches original Java
     // angle=0 → fires down (+y canvas), angle=180 → fires up (-y canvas)

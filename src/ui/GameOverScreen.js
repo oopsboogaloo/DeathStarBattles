@@ -1,12 +1,22 @@
 // Combined end-of-game stats + tournament standings + awards screen.
 // In tournament mode, an awards sub-section is shown every 5 games.
 
-const AWARD_DEFS = [
-  { key: 'bloodlust',  icon: '★', label: 'BLOODLUST',  stat: 'kills',           unit: 'kills' },
-  { key: 'oppression', icon: '◆', label: 'OPPRESSION', stat: 'oppressionKills', unit: 'opp'  },
-  { key: 'bully',      icon: '●', label: 'BULLY',      stat: 'bullyKills',      unit: 'bull' },
-  { key: 'vengeance',  icon: '⚡', label: 'VENGEANCE',  stat: 'vengeanceKills',  unit: 'veng' },
-];
+const AWARD_DEFS = {
+  bloodlust:  { icon: '★', label: 'BLOODLUST',   stat: 'kills',           unit: 'kills' },
+  strategy:   { icon: '▲', label: 'STRATEGY',    stat: 'strategyKills',   unit: 'str'   },
+  oppression: { icon: '◆', label: 'OPPRESSION',  stat: 'oppressionKills', unit: 'opp'   },
+  tactics:    { icon: '◉', label: 'TACTICS',     stat: 'tacticsKills',    unit: 'tac'   },
+  bully:      { icon: '●', label: 'BULLY',       stat: 'bullyKills',      unit: 'bull'  },
+  vengeance:  { icon: '⚡', label: 'VENGEANCE',   stat: 'vengeanceKills',  unit: 'veng'  },
+  longshot:     { icon: '→', label: 'LONGSHOT',      stat: 'longshotKills',   unit: 'lng'   },
+  closeshot:    { icon: '✦', label: 'POINT BLANK',   stat: 'closeshotKills',  unit: 'cls'   },
+  wormhole:     { icon: '◎', label: 'WORMHOLE',      stat: 'wormholeKills',   unit: 'wrm'   },
+  trickshot:    { icon: '↻', label: 'TRICK SHOT',    stat: 'trickShotKills',  unit: 'trk'   },
+  nearmiss:     { icon: '≈', label: 'NEAR MISS',     stat: 'nearMisses',      unit: 'miss'  },
+  hyperactive:  { icon: '⇅', label: 'HYPERACTIVE',   stat: 'hyperspaceCount', unit: 'jmps'  },
+  selfdestruct: { icon: '☠', label: 'SELF DESTRUCT', stat: 'suicides',        unit: 'self'  },
+  friendly:     { icon: '⊗', label: 'NOT FRIENDLY',  stat: 'ownGoals',        unit: 'ff'    },
+};
 
 export class GameOverScreen {
   constructor() {
@@ -158,9 +168,9 @@ export class GameOverScreen {
     const aw = tournament.awards();
     if (!aw) return wrap;
 
-    for (const def of AWARD_DEFS) {
-      const winner = aw[def.key];
-      if (!winner) continue;
+    for (const { key, winner } of aw) {
+      const def = AWARD_DEFS[key];
+      if (!def || !winner) continue;
       const [r, g, b] = winner.colour;
       const row = el('div', { display: 'flex', alignItems: 'center', marginBottom: '5px' });
       row.innerHTML =

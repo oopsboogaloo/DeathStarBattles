@@ -135,6 +135,29 @@ endTurnBtn.addEventListener('click',    e => { e.stopPropagation(); if (loop) lo
 hyperspaceBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanHyperspace(); });
 moveBtn.addEventListener('click',       e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
 
+// ─── All-humans-eliminated overlay (Fast FWD + Skip) ─────────────────────────
+
+const humanEliminatedBar = document.createElement('div');
+Object.assign(humanEliminatedBar.style, {
+  position: 'fixed', bottom: '14px', left: '50%',
+  transform: 'translateX(-50%)',
+  display: 'none', gap: '14px', zIndex: '10',
+});
+document.body.appendChild(humanEliminatedBar);
+
+const fastFwdBtn = makeBtn('Fast FWD', 'rgba(60,40,10,0.85)');
+const skipBtn    = makeBtn('Skip Round', 'rgba(60,10,10,0.85)');
+humanEliminatedBar.append(fastFwdBtn, skipBtn);
+
+fastFwdBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (loop) { loop.humanFastFwd(); fastFwdBtn.style.opacity = '0.4'; fastFwdBtn.disabled = true; }
+});
+skipBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (loop) loop.humanSkip(activeConfig.aiLevel ?? 3);
+});
+
 // ─── Game-over overlay ────────────────────────────────────────────────────────
 
 const gameOverBar = document.createElement('div');
@@ -197,13 +220,15 @@ document.body.appendChild(menuBtn);
 
 // ─── Button visibility sync ───────────────────────────────────────────────────
 
-let _prevMode = null;
+let _prevMode  = null;
+let _minimalUI = false;
 
 function updateButtons(gs) {
   if (panel.isVisible) return; // panel is open — don't show game UI on top of it
   if (!gs || isDemo) {
-    btnBar.style.display      = 'none';
-    gameOverBar.style.display = 'none';
+    btnBar.style.display             = 'none';
+    gameOverBar.style.display        = 'none';
+    humanEliminatedBar.style.display = 'none';
     aimControls.hide();
     return;
   }
@@ -211,14 +236,21 @@ function updateButtons(gs) {
   const isAiming   = gs.mode === GameMode.AIMING && gs.waitingForInput;
   const isGameOver = gs.mode === GameMode.GAMEOVER;
 
+  // All-humans-eliminated bar: show when game is ongoing but all human stations are gone
+  const allHumansGone = (gs.mode === GameMode.AIMING || gs.mode === GameMode.FIRING) &&
+    gs.teams.filter(t => t.isHuman).every(t => t.stations.every(s => s.status !== 'active')) &&
+    gs.aliveTeams.length > 1;
+  humanEliminatedBar.style.display = allHumansGone ? 'flex' : 'none';
+
   btnBar.style.display      = isAiming ? 'flex' : 'none';
   moveBtn.style.display     = (isAiming && gs.stationMovement) ? 'inline-block' : 'none';
-  moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : 'Move';
+  moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : (_minimalUI ? 'M' : 'Move');
   moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
 
-  // AimControls: shown when aiming but NOT when selecting a movement target
-  if (isAiming && !gs.waitingForMove) {
+  // AimControls: shown when aiming, not during move selection, not during hyperspace
+  const hyperspaceQueued = gs.activeStation?.hyperspaceQueued;
+  if (isAiming && !gs.waitingForMove && !hyperspaceQueued) {
     aimControls.show();
     aimControls.update(gs.activeStation);
   } else {
@@ -227,6 +259,7 @@ function updateButtons(gs) {
 
   // On first frame of GAMEOVER, trigger end-of-game flow
   if (isGameOver && _prevMode !== GameMode.GAMEOVER) {
+    humanEliminatedBar.style.display = 'none';
     _onGameOver(gs);
   }
   _prevMode = gs.mode;
@@ -266,6 +299,21 @@ function startGame(cfg) {
   renderer.resize(window.innerWidth, window.innerHeight);
   renderer.setPerformance(cfg.performance ?? 'full');
   renderer.clearTrails();
+
+  // Apply per-game UI settings
+  const AIM_SCALES = { smaller: 0.5, regular: 1, larger: 2, mammoth: 3 };
+  renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
+
+  _minimalUI = cfg.minimalUI ?? false;
+  aimControls.setMinimal(_minimalUI);
+  endTurnBtn.textContent    = _minimalUI ? 'X' : 'End Turn';
+  endTurnBtn.style.padding  = _minimalUI ? '9px 14px' : '9px 26px';
+  hyperspaceBtn.textContent = _minimalUI ? 'H' : 'Hyperspace';
+  hyperspaceBtn.style.padding = _minimalUI ? '9px 14px' : '9px 26px';
+
+  // Reset Fast FWD button state
+  fastFwdBtn.disabled      = false;
+  fastFwdBtn.style.opacity = '1';
 
   const gw  = renderer.gameWidth;
   const gh  = renderer.gameHeight;

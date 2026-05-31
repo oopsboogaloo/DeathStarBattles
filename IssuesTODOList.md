@@ -7,7 +7,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Bugs
 
-<!-- e.g. - [ ] Description -->
+- [ ] **Hyperspace overlap** — hyperspace can place a station overlapping another station. The destination should be rejected and resampled if it would cause any station-to-station overlap, using the same minimum separation check applied during initial station placement.
 
 ## Improvements
 
@@ -34,3 +34,15 @@ Resolved items have been moved to ResolvedTODOList.md.
 ## Polish
 
 <!-- e.g. - [ ] Description -->
+
+## Mobile / Usability
+
+- [ ] **Aiming circle size option** — add a config option cycling through: Smaller, Regular, Larger, Mammoth. Scales the aiming circle to 0.5×, 1×, 2×, and 3× the default radius respectively. Default is Regular (current behaviour unchanged). Applies to all stations and all game modes.
+
+- [ ] **Accelerating angle/power buttons** — when a player holds down an angle or power adjustment button, the rate of change should accelerate over time so that large adjustments can be made quickly without losing the ability to make subtle changes with a short tap. A brief tap should produce a small increment similar to today; holding should ramp up smoothly so that after a second or two of continuous hold the change rate is significantly faster. The acceleration curve should feel natural on touch (no sudden jumps).
+
+- [ ] **Minimal UI mode** — add a config option to enable a compact button layout for small screens. In minimal mode: replace button labels with single characters or icons (X = end turn, H = hyperspace, M = move station); remove any redundant text; shrink button footprint where possible. Default is off (current layout unchanged). Should be noticeably less obstructive on a Galaxy Fold-sized screen.
+
+- [ ] **Skip round when all humans eliminated** — once every human-controlled station has been destroyed, show two buttons at the bottom of the screen: **Fast FWD** and **Skip**. Fast FWD immediately switches the game to its fastest speed setting for the remainder of the round; when the next round begins, restore the speed to whatever it was before Fast FWD was activated. Skip bypasses the rest of the round entirely by simulating the outcome: repeatedly and randomly determine which station hits and destroys which enemy station until only one team (or no team — a draw) remains, using approximate per-CPU-level accuracy weights (e.g. Easy ~30%, Medium ~50%, Hard ~70%, Ace ~85%) so the simulation doesn't wildly distort overall match statistics. Apply the simulated kills/deaths to scores as if they had happened in play. Both buttons are only visible while human players are all eliminated and disappear at the start of the next round.
+
+- [ ] **Hide shot controls during hyperspace** — when a station has hyperspace selected as its action, hide the angle indicator, power indicator, and their associated buttons/labels entirely, since they are irrelevant for a hyperspace jump. The UI should update immediately when the player switches action mode and restore the controls when they switch back to firing.

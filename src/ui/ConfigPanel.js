@@ -24,6 +24,8 @@ export class ConfigPanel {
       performance:       'full',
       teamClustering:    'off',
       wildcardFrequency: 'rare',
+      aimCircleSize:     'regular',
+      minimalUI:         false,
     };
     this._onStartCb  = null;
     this._onResumeCb = null;
@@ -111,40 +113,69 @@ export class ConfigPanel {
     panel.appendChild(this._row('CPU LEVEL',
       this._cycle('aiLevel', [1, 2, 3, 4, 5], v => AI_NAMES[v - 1])));
 
-    // ── Divider ──────────────────────────────────────────────────────────────
+    // ── Advanced section (collapsible) ──────────────────────────────────────
 
-    const div = el('div', { margin: '16px 0 8px', fontSize: '11px', color: 'rgba(130,145,210,0.45)', letterSpacing: '0.08em' });
-    div.textContent = '── ADVANCED ────────────────────────────────────────';
-    panel.appendChild(div);
+    let advancedOpen = false;
 
-    // ── Advanced options ─────────────────────────────────────────────────────
+    const advancedToggle = el('div', {
+      margin: '16px 0 0', padding: '4px 0', fontSize: '11px',
+      color: 'rgba(150,165,230,0.65)', letterSpacing: '0.08em',
+      cursor: 'pointer', userSelect: 'none', display: 'flex',
+      alignItems: 'center', gap: '6px',
+    });
+    const toggleIcon = el('span', { fontSize: '14px', lineHeight: '1', transition: 'transform 0.15s' });
+    toggleIcon.textContent = '＋';
+    const toggleLabel = el('span', {});
+    toggleLabel.textContent = 'ADVANCED';
+    advancedToggle.appendChild(toggleIcon);
+    advancedToggle.appendChild(toggleLabel);
+    advancedToggle.addEventListener('mouseenter', () => { advancedToggle.style.color = 'rgba(190,205,255,0.85)'; });
+    advancedToggle.addEventListener('mouseleave', () => { advancedToggle.style.color = 'rgba(150,165,230,0.65)'; });
+    panel.appendChild(advancedToggle);
 
-    panel.appendChild(this._row('STATION SIZE',
+    const advancedSection = el('div', { overflow: 'hidden', maxHeight: '0', transition: 'max-height 0.25s ease', marginTop: '0' });
+    const advancedInner   = el('div', { paddingTop: '8px' });
+
+    advancedToggle.addEventListener('click', () => {
+      advancedOpen = !advancedOpen;
+      toggleIcon.textContent          = advancedOpen ? '－' : '＋';
+      advancedSection.style.maxHeight = advancedOpen ? '600px' : '0';
+    });
+
+    advancedInner.appendChild(this._row('STATION SIZE',
       this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase())));
     this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
-    panel.appendChild(this._row('PLANETS', this._planetsCtrl));
-    panel.appendChild(this._row('SCENARIO',
+    advancedInner.appendChild(this._row('PLANETS', this._planetsCtrl));
+    advancedInner.appendChild(this._row('SCENARIO',
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`)));
-    panel.appendChild(this._row('MODE',
+    advancedInner.appendChild(this._row('MODE',
       this._cycle('mode', ['single', 'tournament'],
         v => v === 'single' ? 'Single Game' : 'Tournament')));
-    panel.appendChild(this._row('GAME SPEED',
+    advancedInner.appendChild(this._row('GAME SPEED',
       this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
         v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v]))));
-    panel.appendChild(this._row('STATION MOVEMENT',
+    advancedInner.appendChild(this._row('STATION MOVEMENT',
       this._cycle('stationMovement', [false, true],
         v => v ? 'On' : 'Off')));
-    panel.appendChild(this._row('PERFORMANCE',
+    advancedInner.appendChild(this._row('PERFORMANCE',
       this._cycle('performance', ['full', 'simplified'],
         v => v === 'full' ? 'Full' : 'Simplified')));
-    panel.appendChild(this._row('TEAM CLUSTERING',
+    advancedInner.appendChild(this._row('TEAM CLUSTERING',
       this._cycle('teamClustering', ['off', 'tight', 'moderate', 'loose'],
         v => ({ off: 'Off', tight: 'Tight', moderate: 'Moderate', loose: 'Loose' }[v]))));
-    panel.appendChild(this._row('WILDCARD PLANETS',
+    advancedInner.appendChild(this._row('WILDCARD PLANETS',
       this._cycle('wildcardFrequency',
         ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
         v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v]))));
+    advancedInner.appendChild(this._row('AIM CIRCLE SIZE',
+      this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
+        v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v]))));
+    advancedInner.appendChild(this._row('MINIMAL UI',
+      this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off')));
+
+    advancedSection.appendChild(advancedInner);
+    panel.appendChild(advancedSection);
 
     // ── Start button ─────────────────────────────────────────────────────────
 
