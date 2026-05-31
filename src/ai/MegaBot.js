@@ -25,7 +25,7 @@ export class MegaBot extends SuperBot {
 
   _chooseMoveVelocity(station, gameState) {
     if (Math.random() >= 0.70) return null;
-    const g   = SimBot._netGravity(station.position, gameState.planets);
+    const g   = SuperBot._netGravity(station.position, gameState.planets);
     const mag = Math.sqrt(g.x * g.x + g.y * g.y);
     if (mag < 0.0001) return null;
     const speed = 0.01 + Math.random() * 0.02;
