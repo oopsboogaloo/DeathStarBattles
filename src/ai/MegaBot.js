@@ -18,7 +18,7 @@ export class MegaBot extends SuperBot {
     if (!enemies.length) return null;
 
     const ranked = [...new Set(enemies.map(e => e.team))]
-      .sort((a, b) => b.stats.score - a.stats.score);
+      .sort((a, b) => b.stats.score - a.stats.score || Math.random() - 0.5);
     const topEnemies = enemies.filter(e => e.team === ranked[0]);
     return topEnemies[Math.floor(Math.random() * topEnemies.length)];
   }
