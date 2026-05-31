@@ -89,6 +89,18 @@ function makeGasGiant(rng, A, B, C, D, E, F, gw, gh, density) {
   });
 }
 
+function makeComet(rng, position, velocity) {
+  return new Planet({
+    position,
+    radius:   4 + rng.next() * 5, // 4–9 game units
+    density:  0.1,
+    type:     PlanetType.COMET,
+    colour:   [255, 255, 200],
+    shading:  ShadingStyle.GLOWING,
+    velocity,
+  });
+}
+
 function makePulsar(rng, A, B, C, gw, gh) {
   const bigR  = rng.nextInRange(80, 160) + 140.5;
   const dispR = rng.nextInRange(7, 10);
@@ -121,7 +133,7 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng) {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare') {
     // Pre-roll sub-choice values (outside retry loop, matches Java's rnumber1-7)
     const rn = rng.roll(7); // rn[0]..rn[6]
 
@@ -136,8 +148,12 @@ export class ScenarioFactory {
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
 
-    // Bonus random feature injection (~10% chance, matches original)
-    if (rn[1] < 0.1) {
+    // Wildcard bonus injection — frequency controlled by wildcardFrequency setting
+    const WILDCARD_THRESHOLDS = {
+      off: 0, veryRare: 0.03, rare: 0.1, occasional: 0.25, common: 0.55, always: 2,
+    };
+    const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
+    if (threshold > 0 && rn[1] < threshold) {
       ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh);
       if (rn[4] < 0.35) {
         ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh);
@@ -152,7 +168,7 @@ export class ScenarioFactory {
   // ─── station placement ───────────────────────────────────────────────────
   // Called after planets are confirmed. Sets position on each Station object.
 
-  static placeStations(teams, planets, gw, gh, stationSize, rng) {
+  static placeStations(teams, planets, gw, gh, stationSize, rng, teamClustering = 'off') {
     const all = teams.flatMap(t => t.stations);
     const n   = all.length;
     const sr  = stationSize.radius;
@@ -167,12 +183,20 @@ export class ScenarioFactory {
     let valid    = false;
 
     while (!valid && attempts < 4000) {
-      // Place all stations within the safe inner margin
+      // Place all stations; clustered teams bias non-first stations toward their anchor
+      const teamAnchors = new Map();
       for (const s of all) {
-        s.position = new Vec2(
-          (0.8 * rng.next() + 0.075 * rng.next()) * gw + 0.075 * gw,
-          (0.8 * rng.next() + 0.075 * rng.next()) * gh + 0.075 * gh,
-        );
+        const hasAnchor = teamAnchors.has(s.team.index);
+        const clustered = teamClustering !== 'off' && hasAnchor && s.team.stations.length > 1;
+        if (clustered) {
+          s.position = ScenarioFactory._clusteredPos(teamAnchors.get(s.team.index), gw, gh, sr, teamClustering, rng);
+        } else {
+          s.position = new Vec2(
+            (0.8 * rng.next() + 0.075 * rng.next()) * gw + 0.075 * gw,
+            (0.8 * rng.next() + 0.075 * rng.next()) * gh + 0.075 * gh,
+          );
+          if (!hasAnchor) teamAnchors.set(s.team.index, s.position);
+        }
       }
 
       valid = true;
@@ -181,10 +205,11 @@ export class ScenarioFactory {
       outer:
       for (let i = 0; i < all.length; i++) {
         for (let j = i + 1; j < all.length; j++) {
-          const distSq  = all[i].position.distanceSqTo(all[j].position);
+          const distSq   = all[i].position.distanceSqTo(all[j].position);
           const sameTeam = all[i].team === all[j].team;
-          // Same-team: must stay ≥ half min-distance apart; different teams: full min-distance
-          const limit = sameTeam ? minDist * minDist * 0.25 : minDist * minDist;
+          // When clustering is active, same-team stations can be arbitrarily close — skip that check.
+          // Different-team stations always require the full min-distance separation.
+          const limit = (sameTeam && teamClustering !== 'off') ? 0 : (sameTeam ? minDist * minDist * 0.25 : minDist * minDist);
           if (distSq < limit) {
             valid = false;
             minDist = Math.max(60, minDist - reduction);
@@ -274,6 +299,40 @@ export class ScenarioFactory {
       }
     }
     return true;
+  }
+
+  // Generate a position near anchor respecting the clustering mode.
+  static _clusteredPos(anchor, gw, gh, sr, clustering, rng) {
+    const margin = Math.max(sr + 5, 0.075 * gw);
+    const clamp  = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (clustering === 'tight') {
+      const radius = sr * 8;
+      const angle  = rng.next() * Math.PI * 2;
+      const dist   = rng.next() * radius;
+      return new Vec2(
+        clamp(anchor.x + Math.cos(angle) * dist, margin, gw - margin),
+        clamp(anchor.y + Math.sin(angle) * dist, margin, gh - margin),
+      );
+    } else if (clustering === 'moderate') {
+      const radius = gw * 0.25;
+      const angle  = rng.next() * Math.PI * 2;
+      const dist   = rng.next() * radius;
+      return new Vec2(
+        clamp(anchor.x + Math.cos(angle) * dist, margin, gw - margin),
+        clamp(anchor.y + Math.sin(angle) * dist, margin, gh - margin),
+      );
+    } else { // loose — same quadrant
+      const qx = anchor.x < gw / 2
+        ? [margin, gw / 2 - margin]
+        : [gw / 2 + margin, gw - margin];
+      const qy = anchor.y < gh / 2
+        ? [margin, gh / 2 - margin]
+        : [gh / 2 + margin, gh - margin];
+      return new Vec2(
+        qx[0] + rng.next() * (qx[1] - qx[0]),
+        qy[0] + rng.next() * (qy[1] - qy[0]),
+      );
+    }
   }
 
   // ─── scenario cap ──────────────────────────────────────────────────────────
@@ -543,9 +602,9 @@ export class ScenarioFactory {
             all[i].partner = all[(i + 1) % all.length];
           planets.push(...all);
         } else if (wt < 0.85) {
-          // Random destination red
+          // Network red — each exits via another red wormhole on the map
           for (let i = 0; i < nPlanets; i++)
-            planets.push(makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_RANDOM));
+            planets.push(makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
         } else if (wt < 0.90) {
           // Random location green
           for (let i = 0; i < nPlanets; i++)
@@ -669,6 +728,188 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 24: Asteroid Ring ────────────────────────────────────────────────────
+      case 24: {
+        // Central gas giant: 80% centred, 20% offset so ≥25% of diameter is visible
+        let cx, cy;
+        const pairIdx = Math.floor(rng.next() * GAS_GIANT_COLOUR_PAIRS.length);
+        const [colA, colB] = GAS_GIANT_COLOUR_PAIRS[pairIdx];
+        const gasR = 45 + Math.floor(rng.next() * 40); // 45–84
+        if (rng.next() < 0.8) {
+          cx = gw * (0.3 + rng.next() * 0.4);
+          cy = gh * (0.3 + rng.next() * 0.4);
+        } else {
+          // Offset: gas giant near an edge, at least 25% diameter on screen
+          const minVis = gasR * 0.5; // half radius must be visible
+          const side   = Math.floor(rng.next() * 4);
+          if      (side === 0) { cx = -gasR * 0.75 + minVis; cy = gh * (0.15 + rng.next() * 0.7); }
+          else if (side === 1) { cx = gw + gasR * 0.75 - minVis; cy = gh * (0.15 + rng.next() * 0.7); }
+          else if (side === 2) { cx = gw * (0.15 + rng.next() * 0.7); cy = -gasR * 0.75 + minVis; }
+          else                 { cx = gw * (0.15 + rng.next() * 0.7); cy = gh + gasR * 0.75 - minVis; }
+        }
+        planets.push(new Planet({
+          position: new Vec2(cx, cy), radius: gasR, density: 0.01,
+          type: PlanetType.GAS_GIANT, colour: [...colA], colourB: [...colB],
+          shading: ShadingStyle.GAS_GIANT,
+        }));
+
+        // 1 ring (70%), 2 rings (22%), 3 rings (8%)
+        const numRings = rng.next() < 0.70 ? 1 : rng.next() < 0.73 ? 2 : 3;
+        const ringBands = [];
+        let nextMinR = gasR * 1.9 + 15;
+        for (let ri = 0; ri < numRings; ri++) {
+          const ringR    = nextMinR + 20 + rng.next() * 40;
+          const halfBand = 10 + rng.next() * 30;
+          const innerR   = ringR - halfBand;
+          const outerR   = ringR + halfBand;
+          ringBands.push({ innerR, outerR, ringR });
+          nextMinR = outerR + 15;
+
+          // Distribute asteroids proportionally by circumference; double normal density
+          const totalAsteroids = Math.max(8, nPlanets * 2);
+          const totalCircum    = ringBands.reduce((s, b) => s + b.ringR, 0);
+          const count = Math.round(totalAsteroids * ringR / totalCircum);
+
+          for (let i = 0; i < count; i++) {
+            const angle = rng.next() * Math.PI * 2;
+            const r     = innerR + rng.next() * (outerR - innerR);
+            const ax    = cx + Math.cos(angle) * r;
+            const ay    = cy + Math.sin(angle) * r;
+            // Skip asteroids fully off screen (offset scenarios)
+            if (ax < -30 || ax > gw + 30 || ay < -30 || ay > gh + 30) continue;
+            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets);
+          }
+        }
+        // Optional wildcard: one non-gas-giant body (~15%)
+        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh);
+        break;
+      }
+
+      // ── 25: Asteroid Belt ────────────────────────────────────────────────────
+      case 25: {
+        // Belt centre: 75% off-screen, 25% near map centre
+        const scx = gw / 2, scy = gh / 2;
+        let bx, by;
+        const offScreen = rng.next() < 0.75;
+        if (offScreen) {
+          const offAngle = rng.next() * Math.PI * 2;
+          const offDist  = Math.max(gw, gh) * (1.3 + rng.next() * 0.8);
+          bx = scx + Math.cos(offAngle) * offDist;
+          by = scy + Math.sin(offAngle) * offDist;
+        } else {
+          bx = gw * (0.3 + rng.next() * 0.4);
+          by = gh * (0.3 + rng.next() * 0.4);
+        }
+
+        // When off-screen, the belt radius must ≈ distance-to-map so the arc crosses the viewport.
+        const distToCenter = Math.sqrt((bx - scx) ** 2 + (by - scy) ** 2);
+        const baseR = offScreen
+          ? distToCenter * (0.70 + rng.next() * 0.20) // arc sweeps through map
+          : Math.max(gw, gh) * (0.20 + rng.next() * 0.20); // on-screen: moderate ring
+
+        // 1 belt (70%), 2 belts (22%), 3 belts (8%)
+        const numBelts = rng.next() < 0.70 ? 1 : rng.next() < 0.73 ? 2 : 3;
+        const beltBands = [];
+        let nextMinR = baseR;
+
+        for (let bi = 0; bi < numBelts; bi++) {
+          const beltR    = nextMinR + (offScreen ? distToCenter * 0.08 : 20) + rng.next() * 40;
+          const halfBand = 10 + rng.next() * 30;
+          const innerR   = beltR - halfBand;
+          const outerR   = beltR + halfBand;
+          beltBands.push({ innerR, outerR, beltR });
+          nextMinR = outerR + (offScreen ? distToCenter * 0.12 : 20);
+
+          // Pre-compute which angles produce on-screen positions, then sample from those.
+          // This guarantees asteroids appear even when only a small arc is visible.
+          const ANG_STEPS = 720;
+          const midR = (innerR + outerR) / 2;
+          const visAngles = [];
+          for (let ai = 0; ai < ANG_STEPS; ai++) {
+            const a  = (ai / ANG_STEPS) * Math.PI * 2;
+            const px = bx + Math.cos(a) * midR;
+            const py = by + Math.sin(a) * midR;
+            if (px >= -10 && px <= gw + 10 && py >= -10 && py <= gh + 10) visAngles.push(a);
+          }
+          if (visAngles.length === 0) continue; // arc misses the map — skip this belt
+
+          const totalAsteroids = Math.max(10, nPlanets * 2);
+          const totalCircum    = beltBands.reduce((s, b) => s + b.beltR, 0);
+          const count          = Math.round(totalAsteroids * beltR / totalCircum);
+          const angStep        = (2 * Math.PI / ANG_STEPS) * 3; // jitter width
+
+          for (let i = 0; i < count; i++) {
+            const baseA = visAngles[Math.floor(rng.next() * visAngles.length)];
+            const angle = baseA + (rng.next() - 0.5) * angStep;
+            const r     = innerR + rng.next() * (outerR - innerR);
+            const ax    = bx + Math.cos(angle) * r;
+            const ay    = by + Math.sin(angle) * r;
+            if (ax < -20 || ax > gw + 20 || ay < -20 || ay > gh + 20) continue;
+            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets);
+          }
+        }
+        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh);
+        break;
+      }
+
+      // ── 26: Comet ────────────────────────────────────────────────────────────
+      case 26: {
+        // Small star near centre
+        const sCol = starColour(rng);
+        const sR   = 30 + Math.floor(rng.next() * 30);
+        planets.push(new Planet({
+          position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
+          radius: sR, density: 0.015,
+          type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
+        }));
+        const numRocks = 2 + Math.floor(rng.next() * 3); // 2–4 asteroids
+        for (let i = 0; i < numRocks; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 12,4,3, gw,gh, 0.05));
+        // Single comet with a random initial velocity
+        const vAngle = rng.next() * Math.PI * 2;
+        const vSpeed = 0.03 + rng.next() * 0.07;
+        const comet = makeComet(rng,
+          new Vec2(gw * (0.1 + rng.next() * 0.8), gh * (0.1 + rng.next() * 0.8)),
+          new Vec2(Math.cos(vAngle) * vSpeed, Math.sin(vAngle) * vSpeed),
+        );
+        planets.push(comet);
+        break;
+      }
+
+      // ── 27: Oort Cloud ───────────────────────────────────────────────────────
+      case 27: {
+        // White dwarf near centre
+        const wdBigR  = 100 + Math.floor(rng.next() * 60);
+        const wdDispR = 6 + Math.floor(rng.next() * 4);
+        const wdMass  = wdBigR * wdBigR * 0.014;
+        const wd = new Planet({
+          position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
+          radius: wdDispR, density: 0.014, mass: wdMass,
+          type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
+        });
+        planets.push(wd);
+        // Comets with approximate circular orbital velocities + variance
+        const numComets = 4 + Math.floor(rng.next() * 7); // 4–10
+        const G_REDUCED = 0.2 * 0.05; // must match GameLoop.COMET_G_FACTOR
+        for (let i = 0; i < numComets; i++) {
+          const orbitR = 80 + rng.next() * 230;
+          const angle  = rng.next() * Math.PI * 2;
+          const px = wd.position.x + Math.cos(angle) * orbitR;
+          const py = wd.position.y + Math.sin(angle) * orbitR;
+          if (px < -80 || px > gw + 80 || py < -80 || py > gh + 80) continue;
+          const vCirc    = Math.sqrt(G_REDUCED * wdMass / orbitR);
+          const variance = 0.6 + rng.next() * 0.8; // 0.6–1.4× for elliptical orbits
+          const vMag     = vCirc * variance;
+          const perpAngle = angle + Math.PI / 2;
+          const comet = makeComet(rng,
+            new Vec2(px, py),
+            new Vec2(Math.cos(perpAngle) * vMag, Math.sin(perpAngle) * vMag),
+          );
+          planets.push(comet);
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -712,6 +953,44 @@ export class ScenarioFactory {
     return freeCount >= 80;
   }
 
+  // Try to place a ring/belt asteroid at (ax, ay). Returns false without mutating
+  // `planets` if it would overlap an existing body.
+  static _placeRingAsteroid(rng, ax, ay, planets) {
+    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay);
+    const minGap = 10;
+    for (const p of planets) {
+      if (p.position.distanceTo(a.position) < p.impactRadius + a.impactRadius + minGap) return false;
+    }
+    planets.push(a);
+    return true;
+  }
+
+  // Create a single asteroid at world position (ax, ay) for ring/belt scenarios.
+  static _makeRingAsteroid(rng, ax, ay) {
+    const n        = 6 + Math.floor(rng.next() * 5);
+    const vertices = [];
+    for (let i = 0; i < n; i++) {
+      const base  = (2 * Math.PI * i) / n;
+      const angle = base + (rng.next() - 0.5) * (Math.PI / n) * 1.2;
+      const r     = 0.55 + rng.next() * 0.45;
+      vertices.push(new Vec2(r * Math.cos(angle), r * Math.sin(angle)));
+    }
+    const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180;
+    const rotation = rng.next() * Math.PI * 2;
+    const radius   = rr(rng, 6, 3, 3); // slightly larger than regular asteroids
+    const planet   = new Planet({
+      position: new Vec2(ax, ay), radius, density: 0.05,
+      type: PlanetType.ASTEROID, colour: [...ASTEROID_COL],
+      shading: ShadingStyle.ROCKY, vertices, rotation, rotationSpeed: speed,
+    });
+    const cos = Math.cos(rotation), sin = Math.sin(rotation);
+    planet._rotatedVerts = vertices.map(v => new Vec2(
+      ax + radius * (v.x * cos - v.y * sin),
+      ay + radius * (v.x * sin + v.y * cos),
+    ));
+    return planet;
+  }
+
   // ─── bonus random feature injection ─────────────────────────────────────
 
   static _addBonus(planets, rng, ra, rb, gw, gh) {
@@ -747,12 +1026,20 @@ export class ScenarioFactory {
         pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
         pulsarPhase:  rng.next() * 0.9,
       })];
-    } else {
+    } else if (rb < 0.95) {
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: 3, density: 50,
         type: PlanetType.BLACK_HOLE, colour: BLACK_COL, shading: ShadingStyle.NONE,
       })];
+    } else {
+      // Wildcard comet with a random initial velocity
+      const vAngle = rng.next() * Math.PI * 2;
+      const vSpeed = 0.03 + rng.next() * 0.07;
+      candidates = [makeComet(rng,
+        new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
+        new Vec2(Math.cos(vAngle) * vSpeed, Math.sin(vAngle) * vSpeed),
+      )];
     }
 
     // Reject any candidate that overlaps an existing planet; retry position up to 20 times

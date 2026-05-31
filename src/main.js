@@ -15,7 +15,7 @@ import { Leaderboard }          from './ui/Leaderboard.js';
 import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
-import { AboutModal, InstructionsModal, EducationModal, ScoreModal } from './ui/InfoModals.js';
+import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
 import './ai/AimBot.js';
@@ -52,10 +52,12 @@ const aboutModal        = new AboutModal();
 const instructionsModal = new InstructionsModal();
 const educationModal    = new EducationModal();
 const scoreModal        = new ScoreModal();
+const optionsHelpModal  = new OptionsHelpModal();
 document.body.appendChild(aboutModal.element);
 document.body.appendChild(instructionsModal.element);
 document.body.appendChild(educationModal.element);
 document.body.appendChild(scoreModal.element);
+document.body.appendChild(optionsHelpModal.element);
 
 panel.onResume(() => {
   if (_menuPausedLoop && loop?.isPaused) { loop.togglePause(); }
@@ -67,6 +69,7 @@ panel.onInfo(which => {
   if (which === 'instructions') instructionsModal.show();
   if (which === 'education')    educationModal.show();
   if (which === 'scores')       scoreModal.show(lastGameState);
+  if (which === 'options')      optionsHelpModal.show();
 });
 
 const leaderboard    = new Leaderboard();
@@ -270,10 +273,14 @@ function startGame(cfg) {
   const rng = new RNG(RNG.randomSeed());
 
   const size       = StationSize[cfg.stationSize] ?? StationSize.LARGE;
-  const scenarioId = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
-  const nPlanets   = cfg.numPlanets  > 0 ? cfg.numPlanets  : (rng.nextInt(6) + 3);
+  const scenarioId  = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
+  const isRandom    = (cfg.numPlanets ?? -1) <= 0;
+  let   nPlanets    = isRandom ? (rng.nextInt(6) + 3) : cfg.numPlanets;
+  if (isRandom && [2, 24, 25].includes(scenarioId)) {
+    nPlanets = cfg.performance === 'simplified' ? 20 : 30;
+  }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng);
+  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -289,7 +296,7 @@ function startGame(cfg) {
       team.stations.push(new Station({ id: stationId++, team, position: new Vec2(0, 0), size }));
     }
   }
-  ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng);
+  ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off');
 
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, planets);
@@ -391,6 +398,7 @@ function _hideDemoHint() {
 const DEMO_CONFIG = {
   numPlayers: 5, numHuman: 0, stationsPerPlayer: 2,
   aiLevel: 3, stationSize: 'LARGE', numPlanets: -1, scenarioId: 9,
+  teamClustering: 'off', wildcardFrequency: 'rare',
 };
 
 function startDemo() {
@@ -416,7 +424,7 @@ function startDemo() {
 
 function getUrlScenario() {
   const s = parseInt(new URLSearchParams(location.search).get('s'));
-  return (s >= 1 && s <= 23) ? s : null;
+  return (s >= 1 && s <= 27) ? s : null;
 }
 
 // Canvas click on game-over → Play Again shortcut (same as the DOM button)

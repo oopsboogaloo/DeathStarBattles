@@ -240,6 +240,27 @@ export class PhysicsEngine {
         }
         break;
 
+      case PlanetType.WORMHOLE_NETWORK: {
+        if (bullet.teleportCount < MAX_TELEPORTS) {
+          const others = planets.filter(p => p !== planet && p.type === PlanetType.WORMHOLE_NETWORK && !p.destroyed);
+          bullet.trail.push(null);
+          if (others.length > 0) {
+            const dest = others[Math.floor(Math.random() * others.length)];
+            const a = Math.random() * Math.PI * 2;
+            bullet.position = new Vec2(
+              dest.position.x + Math.cos(a) * (dest.impactRadius + 0.5),
+              dest.position.y + Math.sin(a) * (dest.impactRadius + 0.5),
+            );
+          } else {
+            bullet.position = new Vec2(Math.random() * this.gw, Math.random() * this.gh);
+          }
+          bullet.teleportCount++;
+        } else {
+          bullet.status = BulletStatus.EXPLODING;
+        }
+        break;
+      }
+
       case PlanetType.WORMHOLE_PLANET: {
         if (bullet.teleportCount < MAX_TELEPORTS) {
           const dest = planets[Math.floor(Math.random() * planets.length)];
@@ -271,6 +292,12 @@ export class PhysicsEngine {
 
       case PlanetType.ASTEROID:
         // Mark for fragmentation — GameLoop processes children after the physics batch
+        planet.destroyed = true;
+        bullet.status = BulletStatus.EXPLODING;
+        break;
+
+      case PlanetType.COMET:
+        // Both bullet and comet are destroyed on collision
         planet.destroyed = true;
         bullet.status = BulletStatus.EXPLODING;
         break;

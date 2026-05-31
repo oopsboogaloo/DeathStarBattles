@@ -162,6 +162,225 @@ function el(tag, styles) {
   return node;
 }
 
+const OPTIONS_PAGES = [
+  {
+    title: 'Players',
+    body: `How many teams participate in the game. Range: 2–12.
+
+More players means more targets, more chaos, and longer matches. With many players it can be hard to finish first, but the spectacle is impressive.
+
+With 2 players the game is a direct duel. With 12 players it becomes a free-for-all melee.`,
+  },
+  {
+    title: 'Human / CPU',
+    body: `How many of the teams you control yourself. The remainder are computer-controlled.
+
+0 Human — fully automated CPU match (like the demo mode).
+1 Human — you versus all CPU teams.
+All Human — pass-the-keyboard local multiplayer.
+
+Human players aim and fire manually using the mouse or keyboard. CPU players aim automatically according to their CPU Level setting.`,
+  },
+  {
+    title: 'Stations / Player',
+    body: `How many Death Stars each team starts with. Range: 1–8.
+
+A team is eliminated when all its stations are destroyed. More stations means teams are harder to finish off and matches last longer.
+
+With 1 station per player the game is decided by a single hit. With 8 stations per player, teams can absorb many blows and strategy around target selection matters more.`,
+  },
+  {
+    title: 'CPU Level',
+    body: `How intelligent the computer-controlled teams are.
+
+RandBot   — fires at a completely random angle and power.
+AimBot    — aims roughly toward a target with some noise.
+CleverBot — simulates trajectories to find a good shot.
+SuperBot  — smarter targeting; wormhole-aware simulation.
+MegaBot   — leaderboard-aware; coordinates with teammates to avoid hitting the same enemy twice.
+
+Higher levels dramatically increase the kill rate. MegaBot can be genuinely difficult to beat.`,
+  },
+  {
+    title: 'Station Size',
+    body: `The physical size of each Death Star. Options: Micro, Tiny, Small, Medium, Large, Giant, Mammoth.
+
+Larger stations:
+  — Are easier to hit (bigger collision target)
+  — Have a larger aiming circle, giving more power range
+  — Show more visual detail (dome, aperture)
+
+Smaller stations are harder to hit but also harder to aim well with. Mammoth stations dominate the screen; Micro stations are nearly invisible.`,
+  },
+  {
+    title: 'Planets',
+    body: `How many planets, stars, asteroids, or other bodies appear in the scenario. Options: Random (3–8) or a specific number from 3 to 50.
+
+More planets = more gravitational obstacles for projectiles to navigate around, and more chaotic trajectories.
+
+Very high counts (30+) make the map extremely dense. Very low counts (3–4) leave open space for long clean shots.
+
+The actual bodies that appear depend on the Scenario setting.`,
+  },
+  {
+    title: 'Scenario',
+    body: `Which map layout to generate. Options: Lucky Dip or any numbered scenario (1–27).
+
+Lucky Dip picks a weighted random scenario — common ones (Planetary, Asteroids, Star System) appear more often.
+
+Notable scenarios:
+  Planetary (1)      — rocky planets, mild gravity
+  Star System (3)    — one large star dominates
+  Black Hole (15)    — strong invisible attractor
+  Wormholes (17)     — teleporting hazards
+  Asteroid Ring (24) — ring of asteroids around a gas giant
+  Comet (26)         — a moving comet that reacts to gravity
+  Oort Cloud (27)    — orbiting comets around a white dwarf`,
+  },
+  {
+    title: 'Mode',
+    body: `Single Game plays one match, then shows the result.
+
+Tournament accumulates scores across multiple games and tracks a running leaderboard. After each game the score updates and the next game starts automatically (click or press a key to advance).
+
+Tournament scoring: +1 per win, +1 per kill, +1 per surviving station, −1 per own-team kill.
+
+Every 5 games an awards screen highlights standout performers: Bloodlust, Oppression, Bully, and Vengeance.`,
+  },
+  {
+    title: 'Game Speed',
+    body: `How fast projectiles are simulated each frame. Options: ¼× Very Slow, ½× Slow, 1× Normal, 2× Fast, 4× Very Fast.
+
+Slower speeds make trajectories easier to follow and give more time to read the physics. Very Fast compresses the simulation so matches conclude quickly — useful for automated tournaments.
+
+You can also pause (P) and step frame by frame (O while paused) regardless of this setting.`,
+  },
+  {
+    title: 'Station Movement',
+    body: `When On, stations are given a velocity at the start of each firing phase and drift slowly across the map.
+
+Human players can set a movement target by clicking Move, then clicking a destination. AI stations move away from gravitational hazards automatically.
+
+Stations bounce off map boundaries and are destroyed if they collide with a planet. They also teleport through wormholes.
+
+When Off (default), stations stay fixed where they were placed.`,
+  },
+  {
+    title: 'Performance',
+    body: `Full — all visual effects enabled: star blur, planet coronas, bullet glow traces, particle explosions. Best visual quality.
+
+Simplified — effects reduced for smoother performance on slower machines. Caps at 20 planets and 4 players automatically.
+
+If the game feels sluggish (especially with many planets and stations), switch to Simplified.`,
+  },
+  {
+    title: 'Team Clustering',
+    body: `Controls how close stations on the same team start relative to each other. Has no effect on teams with only one station.
+
+Off      — stations placed randomly anywhere (default).
+Tight    — teammates start within a few station diameters.
+Moderate — teammates start within roughly ¼ of the map width.
+Loose    — teammates start in the same map quadrant.
+
+Enemy teams are never constrained relative to each other or to friendly clusters. All existing placement rules (planet clearance, map boundary margin) still apply.`,
+  },
+  {
+    title: 'Wildcard Planets',
+    body: `How often a surprise bonus body appears on top of the normal scenario. Options: Off, Very Rare, Rare, Occasional, Common, Always.
+
+Wildcards can be: paired wormholes, cyclic wormholes, a random wormhole, a white dwarf, a pulsar, a black hole, or a comet.
+
+Rare is the default (roughly 10% chance per game). Always guarantees at least one wildcard in every scenario that supports them. Off disables wildcards entirely.
+
+Wildcards can dramatically change the flow of play — a surprise black hole or wormhole pair can redirect shots that would otherwise miss.`,
+  },
+];
+
+// ── OptionsHelpModal ──────────────────────────────────────────────────────────
+
+export class OptionsHelpModal {
+  constructor() {
+    this._page    = 0;
+    this._visible = false;
+    this._wrap    = overlay();
+    const p       = panel('580px');
+    this._wrap.appendChild(p);
+
+    const close = () => this.hide();
+    p.appendChild(closeBtn(close));
+
+    this._titleEl = heading('', '15px');
+    p.appendChild(this._titleEl);
+
+    this._bodyEl = bodyText('');
+    p.appendChild(this._bodyEl);
+
+    const nav = el('div', {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      marginTop: '24px',
+    });
+    this._prevBtn    = this._navBtn('◄  Previous', () => this._go(-1));
+    this._indicator  = el('span', { fontSize: '12px', color: '#778', letterSpacing: '0.06em' });
+    this._nextBtn    = this._navBtn('Next  ►',     () => this._go(+1));
+    nav.appendChild(this._prevBtn);
+    nav.appendChild(this._indicator);
+    nav.appendChild(this._nextBtn);
+    p.appendChild(nav);
+
+    this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
+    document.addEventListener('keydown', e => {
+      if (!this._visible) return;
+      if (e.key === 'Escape')     close();
+      if (e.key === 'ArrowLeft')  this._go(-1);
+      if (e.key === 'ArrowRight') this._go(+1);
+    });
+  }
+
+  _navBtn(label, onClick) {
+    const btn = el('button', {
+      background: 'transparent',
+      border: '1px solid rgba(100,120,255,0.3)',
+      borderRadius: '4px',
+      color: 'rgba(170,185,255,0.75)',
+      fontFamily: 'monospace', fontSize: '13px',
+      padding: '4px 14px', cursor: 'pointer',
+    });
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'rgba(150,170,255,0.7)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'rgba(100,120,255,0.3)'; });
+    return btn;
+  }
+
+  _go(delta) {
+    this._page = Math.max(0, Math.min(OPTIONS_PAGES.length - 1, this._page + delta));
+    this._render();
+  }
+
+  _render() {
+    const pg = OPTIONS_PAGES[this._page];
+    this._titleEl.textContent = `✦  ${pg.title.toUpperCase()}`;
+    this._bodyEl.textContent  = pg.body;
+    this._indicator.textContent = `${this._page + 1} / ${OPTIONS_PAGES.length}`;
+    this._prevBtn.style.visibility = this._page === 0 ? 'hidden' : 'visible';
+    this._nextBtn.style.visibility = this._page === OPTIONS_PAGES.length - 1 ? 'hidden' : 'visible';
+  }
+
+  show(page = 0) {
+    this._visible = true;
+    this._page    = Math.max(0, Math.min(OPTIONS_PAGES.length - 1, page));
+    this._render();
+    this._wrap.style.display = 'flex';
+  }
+
+  hide() {
+    this._visible = false;
+    this._wrap.style.display = 'none';
+  }
+
+  get element() { return this._wrap; }
+}
+
 // ── ScoreModal ────────────────────────────────────────────────────────────────
 
 export class ScoreModal {

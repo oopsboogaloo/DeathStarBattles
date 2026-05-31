@@ -113,6 +113,66 @@ export class GameLoop {
     }
   }
 
+  // ─── Comet movement ──────────────────────────────────────────────────────────
+
+  // G used for comet self-movement is 5% of the main G, making comets weakly attracted.
+  // Their gravitational pull ON projectiles and stations uses normal G (they are in gs.planets).
+  static COMET_G_FACTOR = 0.05;
+
+  _stepComets() {
+    const G_EFF = 0.2 * GameLoop.COMET_G_FACTOR; // 0.01
+    for (const comet of this.gs.planets) {
+      if (comet.type !== PlanetType.COMET || comet.destroyed || !comet.velocity) continue;
+
+      let ax = 0, ay = 0;
+      for (const planet of this.gs.planets) {
+        if (planet === comet || planet.destroyed || planet.type === PlanetType.COMET) continue;
+        const dx  = planet.position.x - comet.position.x;
+        const dy  = planet.position.y - comet.position.y;
+        const rSq = Math.max(1, dx * dx + dy * dy);
+        const r   = Math.sqrt(rSq);
+        const a   = G_EFF * planet.mass / rSq;
+        ax += (dx / r) * a;
+        ay += (dy / r) * a;
+      }
+
+      comet.velocity = new Vec2(
+        comet.velocity.x + ax * TIMESTEP,
+        comet.velocity.y + ay * TIMESTEP,
+      );
+      comet.position = new Vec2(
+        comet.position.x + comet.velocity.x * TIMESTEP,
+        comet.position.y + comet.velocity.y * TIMESTEP,
+      );
+
+      // Check comet-planet collision (gas giants pass through)
+      for (const planet of this.gs.planets) {
+        if (planet === comet || planet.destroyed || planet.type === PlanetType.COMET) continue;
+        if (planet.type === PlanetType.GAS_GIANT) continue;
+        const d = comet.position.distanceTo(planet.position);
+        if (d < planet.impactRadius + comet.impactRadius) {
+          comet.destroyed = true;
+          break;
+        }
+      }
+
+      if (comet.destroyed) continue;
+
+      // Check comet-station collision — destroys both
+      for (const station of this.gs.allStations) {
+        if (station.status !== 'active') continue;
+        const d = comet.position.distanceTo(station.position);
+        if (d < comet.impactRadius + station.radius) {
+          comet.destroyed    = true;
+          station.status     = 'exploding';
+          station.explosionT = 0;
+          this._spawnStationExplosion(station);
+          break;
+        }
+      }
+    }
+  }
+
   // ─── Asteroid fragmentation ──────────────────────────────────────────────────
 
   // ─── Station movement ────────────────────────────────────────────────────────
@@ -142,17 +202,21 @@ export class GameLoop {
         station.velocity = new Vec2(vx, vy);
       }
     }
-    // Collision: station hits planet/asteroid
+    // Collision: station hits planet / wormhole
     for (const station of allStations) {
       if (station.status !== 'active' || !station.velocity) continue;
       for (const planet of this.gs.planets) {
-        if (planet.destroyed || planet.type === 'gasGiant') continue;
+        if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
         const d = station.position.distanceTo(planet.position);
-        if (d < planet.impactRadius + station.radius) {
+        if (d >= planet.impactRadius + station.radius) continue;
+
+        if (this._isWormhole(planet.type)) {
+          this._teleportStation(station, planet);
+        } else {
           station.status     = 'exploding';
           station.explosionT = 0;
-          break;
         }
+        break;
       }
     }
     // Collision: two moving stations occupy the same space
@@ -167,6 +231,74 @@ export class GameLoop {
         }
       }
     }
+  }
+
+  _isWormhole(type) {
+    return type === PlanetType.WORMHOLE_PAIRED
+        || type === PlanetType.WORMHOLE_CYCLIC
+        || type === PlanetType.WORMHOLE_RANDOM
+        || type === PlanetType.WORMHOLE_NETWORK
+        || type === PlanetType.WORMHOLE_PLANET
+        || type === PlanetType.WORMHOLE_SELF;
+  }
+
+  _teleportStation(station, planet) {
+    const { gw, gh } = this.physics;
+    const sr = station.radius;
+    switch (planet.type) {
+      case PlanetType.WORMHOLE_PAIRED:
+      case PlanetType.WORMHOLE_CYCLIC:
+        if (planet.partner) {
+          const dest  = planet.partner;
+          const angle = Math.atan2(
+            station.position.y - planet.position.y,
+            station.position.x - planet.position.x,
+          );
+          station.position = new Vec2(
+            dest.position.x + Math.cos(angle) * (dest.impactRadius + sr + 2),
+            dest.position.y + Math.sin(angle) * (dest.impactRadius + sr + 2),
+          );
+        }
+        break;
+      case PlanetType.WORMHOLE_SELF:
+        station.position = new Vec2(
+          planet.position.x + (station.position.x - planet.position.x) * -1,
+          planet.position.y + (station.position.y - planet.position.y) * -1,
+        );
+        break;
+      case PlanetType.WORMHOLE_PLANET: {
+        const dest  = this.gs.planets[Math.floor(Math.random() * this.gs.planets.length)];
+        const angle = Math.random() * Math.PI * 2;
+        station.position = new Vec2(
+          dest.position.x + Math.cos(angle) * (dest.impactRadius + sr + 2),
+          dest.position.y + Math.sin(angle) * (dest.impactRadius + sr + 2),
+        );
+        break;
+      }
+      case PlanetType.WORMHOLE_NETWORK: {
+        const others = this.gs.planets.filter(p => p !== planet && p.type === PlanetType.WORMHOLE_NETWORK && !p.destroyed);
+        const dest   = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
+        if (dest) {
+          const angle = Math.random() * Math.PI * 2;
+          station.position = new Vec2(
+            dest.position.x + Math.cos(angle) * (dest.impactRadius + sr + 2),
+            dest.position.y + Math.sin(angle) * (dest.impactRadius + sr + 2),
+          );
+        } else {
+          station.position = new Vec2(Math.random() * gw, Math.random() * gh);
+        }
+        break;
+      }
+      default:
+        // WORMHOLE_RANDOM: random map position
+        station.position = new Vec2(Math.random() * gw, Math.random() * gh);
+        break;
+    }
+    // Clamp to map bounds
+    station.position = new Vec2(
+      Math.max(sr, Math.min(gw - sr, station.position.x)),
+      Math.max(sr, Math.min(gh - sr, station.position.y)),
+    );
   }
 
   // Clear velocity on all stations at start of each new turn.
@@ -219,15 +351,19 @@ export class GameLoop {
     return new Vec2(-g.x / mag * speed, -g.y / mag * speed);
   }
 
-  // Remove destroyed asteroids and replace with child fragments (in-place).
+  // Remove destroyed asteroids/comets; asteroids may produce child fragments.
   _processAsteroidFragments() {
     const children = [];
     for (let i = this.gs.planets.length - 1; i >= 0; i--) {
       const p = this.gs.planets[i];
       if (!p.destroyed) continue;
       this.gs.planets.splice(i, 1);
-      children.push(...this._fragmentAsteroid(p));
-      this._spawnAsteroidExplosion(p);
+      if (p.type === PlanetType.COMET) {
+        this._spawnCometExplosion(p);
+      } else {
+        children.push(...this._fragmentAsteroid(p));
+        this._spawnAsteroidExplosion(p);
+      }
     }
     if (children.length) this.gs.planets.push(...children);
   }
@@ -235,7 +371,7 @@ export class GameLoop {
   // Return 2–4 child asteroid planets placed inside the parent bounding circle.
   // Returns [] if the parent is too small to fragment.
   _fragmentAsteroid(parent) {
-    const MIN_RADIUS = 5;
+    const MIN_RADIUS = 10;
     if (parent.radius < MIN_RADIUS) return [];
 
     const n      = 2 + Math.floor(this.rng.next() * 3); // 2, 3, or 4
@@ -400,6 +536,9 @@ export class GameLoop {
 
       // Move stations one physics step (only when feature is enabled)
       if (this.gs.stationMovement) this._stepStations(allStations);
+
+      // Move comets one physics step
+      this._stepComets();
     }
 
     // Fragment any asteroids hit this frame (mutates gs.planets in-place)
@@ -449,6 +588,17 @@ export class GameLoop {
       radius: planet.radius,
       t: 0, r, g, b,
       particles: this._makeParticles(planet.position.x, planet.position.y, r, g, b, 10),
+    });
+  }
+
+  // Spawn a bright white flash explosion for a destroyed comet.
+  _spawnCometExplosion(comet) {
+    const r = 240, g = 250, b = 255;
+    this.gs.activeExplosions.push({
+      x: comet.position.x, y: comet.position.y,
+      radius: comet.radius * 3,
+      t: 0, r, g, b,
+      particles: this._makeParticles(comet.position.x, comet.position.y, r, g, b, 12),
     });
   }
 

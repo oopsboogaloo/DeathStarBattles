@@ -1,4 +1,4 @@
-import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
+import { SCENARIO_NAMES, SCENARIO_COUNT } from '../scenarios/scenarioData.js';
 
 const AI_NAMES  = ['RandBot', 'AimBot', 'CleverBot', 'SuperBot', 'MegaBot'];
 const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT', 'MAMMOTH'];
@@ -6,7 +6,7 @@ const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT', 'MAMMOT
 const PLANET_VALS   = [-1, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50];
 const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', '20', '25', '30', '35', '40', '45', '50'];
 
-const SCENARIO_VALS = [0, ...Array.from({ length: 23 }, (_, i) => i + 1)];
+const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
 export class ConfigPanel {
   constructor() {
@@ -22,6 +22,8 @@ export class ConfigPanel {
       speed:             'normal',
       stationMovement:   false,
       performance:       'full',
+      teamClustering:    'off',
+      wildcardFrequency: 'rare',
     };
     this._onStartCb  = null;
     this._onResumeCb = null;
@@ -136,6 +138,13 @@ export class ConfigPanel {
     panel.appendChild(this._row('PERFORMANCE',
       this._cycle('performance', ['full', 'simplified'],
         v => v === 'full' ? 'Full' : 'Simplified')));
+    panel.appendChild(this._row('TEAM CLUSTERING',
+      this._cycle('teamClustering', ['off', 'tight', 'moderate', 'loose'],
+        v => ({ off: 'Off', tight: 'Tight', moderate: 'Moderate', loose: 'Loose' }[v]))));
+    panel.appendChild(this._row('WILDCARD PLANETS',
+      this._cycle('wildcardFrequency',
+        ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
+        v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v]))));
 
     // ── Start button ─────────────────────────────────────────────────────────
 
@@ -174,7 +183,7 @@ export class ConfigPanel {
       display: 'flex', justifyContent: 'center', gap: '22px',
       marginTop: '20px',
     });
-    for (const label of ['About', 'Instructions', 'Education', 'Scores']) {
+    for (const [label, key] of [['About', 'about'], ['Instructions', 'instructions'], ['Education', 'education'], ['Scores', 'scores'], ['? Options Help', 'options']]) {
       const btn = el('button', {
         background:    'transparent',
         border:        'none',
@@ -188,7 +197,7 @@ export class ConfigPanel {
       btn.textContent = label;
       btn.addEventListener('mouseenter', () => { btn.style.color = 'rgba(180,195,255,0.9)'; });
       btn.addEventListener('mouseleave', () => { btn.style.color = 'rgba(140,155,210,0.65)'; });
-      btn.addEventListener('click', () => this._onInfoBtn?.(label.toLowerCase()));
+      btn.addEventListener('click', () => this._onInfoBtn?.(key));
       infoBar.appendChild(btn);
     }
     panel.appendChild(infoBar);

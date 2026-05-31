@@ -1,18 +1,20 @@
 export const PlanetType = Object.freeze({
-  ROCKY:           'rocky',
-  ASTEROID:        'asteroid',
-  STAR:            'star',
-  JOVIAN:          'jovian',
-  GAS_GIANT:       'gasGiant',
-  WHITE_DWARF:     'whiteDwarf',
-  PULSAR:          'pulsar',
-  BLACK_HOLE:      'blackHole',
-  WHITE_HOLE:      'whiteHole',
-  WORMHOLE_PAIRED: 'wormholePaired',
-  WORMHOLE_CYCLIC: 'wormholeCyclic',
-  WORMHOLE_RANDOM: 'wormholeRandom',
-  WORMHOLE_PLANET: 'wormholePlanet',
-  WORMHOLE_SELF:   'wormholeSelf',
+  ROCKY:            'rocky',
+  ASTEROID:         'asteroid',
+  STAR:             'star',
+  JOVIAN:           'jovian',
+  GAS_GIANT:        'gasGiant',
+  WHITE_DWARF:      'whiteDwarf',
+  PULSAR:           'pulsar',
+  BLACK_HOLE:       'blackHole',
+  WHITE_HOLE:       'whiteHole',
+  WORMHOLE_PAIRED:  'wormholePaired',
+  WORMHOLE_CYCLIC:  'wormholeCyclic',
+  WORMHOLE_RANDOM:  'wormholeRandom',
+  WORMHOLE_PLANET:  'wormholePlanet',
+  WORMHOLE_SELF:    'wormholeSelf',
+  WORMHOLE_NETWORK: 'wormholeNetwork', // red network — bullet exits via another red wormhole
+  COMET:            'comet',           // dynamic body with reduced self-gravity
 });
 
 export const ShadingStyle = Object.freeze({
@@ -49,6 +51,7 @@ export class Planet {
     colourB       = null,   // secondary colour for GAS_GIANT stripes ([r,g,b] or null)
     pulsarPeriod  = 0,      // seconds between pressure pulses (PULSAR type only)
     pulsarPhase   = 0,      // current phase within period (seconds)
+    velocity      = null,   // Vec2 — used by COMET type for dynamic movement
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -68,6 +71,7 @@ export class Planet {
     this.pulsarPeriod  = pulsarPeriod;
     this.pulsarPhase   = pulsarPhase;
     this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings
+    this.velocity      = velocity;
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

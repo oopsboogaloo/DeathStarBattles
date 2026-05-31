@@ -105,14 +105,14 @@ export class Renderer {
     ctx.fillRect(0, 0, this._vpW, this._vpH);
     this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
-    // Skip asteroids (drawn live — rotating) and gas giants (drawn live — transparent)
+    // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
       PlanetRenderer.drawCorona(ctx, planet, this.conv);
     }
     // Pass 2: solid bodies on top
     for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
     }
   }
@@ -217,6 +217,11 @@ export class Renderer {
     // Gas giants — drawn live so their 50% transparency composites over the background
     for (const planet of this._planets) {
       if (planet.shading === ShadingStyle.GAS_GIANT) PlanetRenderer.draw(ctx, planet, this.conv);
+    }
+
+    // Comets — drawn live every frame (they move and are not in the static bg layer)
+    for (const planet of gameState.planets) {
+      if (planet.type === PlanetType.COMET && !planet.destroyed) this._drawComet(ctx, planet);
     }
 
     // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
@@ -357,6 +362,63 @@ export class Renderer {
       ctx.fillStyle    = 'rgba(255,255,255,0.5)';
       ctx.fillText(`Turn ${gameState.turn + 1}`, this._vpW - 10, 10);
     }
+  }
+
+  // ----------------------------------------------------------------
+  // Comet — bright nucleus with pale blue trailing tail
+  // ----------------------------------------------------------------
+
+  _drawComet(ctx, comet) {
+    const cx   = comet.position.x * this.conv;
+    const cy   = comet.position.y * this.conv;
+    const r    = Math.max(2, comet.radius * this.conv);
+    const conv = this.conv;
+
+    // Tail — drawn behind nucleus; length scales with speed
+    if (comet.velocity) {
+      const vx    = comet.velocity.x;
+      const vy    = comet.velocity.y;
+      const speed = Math.sqrt(vx * vx + vy * vy);
+      if (speed > 0.0002) {
+        const tailLen = Math.min(120, speed * 5000) * conv;
+        const nx = -vx / speed;
+        const ny = -vy / speed;
+
+        // Draw tail as a series of fading segments for a tapered look
+        const steps = 8;
+        for (let i = steps; i >= 1; i--) {
+          const t0 = (i - 1) / steps;
+          const t1 = i       / steps;
+          const alpha0 = (1 - t0) * 0.45;
+          const alpha1 = (1 - t1) * 0.45;
+          const w = Math.max(0.5, r * 0.7 * (1 - t0));
+          ctx.beginPath();
+          ctx.moveTo(cx + nx * tailLen * t0, cy + ny * tailLen * t0);
+          ctx.lineTo(cx + nx * tailLen * t1, cy + ny * tailLen * t1);
+          ctx.strokeStyle = `rgba(160,195,255,${(alpha0 + alpha1) / 2})`;
+          ctx.lineWidth   = w;
+          ctx.lineCap     = 'round';
+          ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+      }
+    }
+
+    // Soft glow halo
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.5);
+    glow.addColorStop(0,   'rgba(210,230,255,0.4)');
+    glow.addColorStop(0.5, 'rgba(170,200,255,0.15)');
+    glow.addColorStop(1,   'rgba(130,170,255,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Bright nucleus
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgb(255,255,230)';
+    ctx.fill();
   }
 
   // ----------------------------------------------------------------
