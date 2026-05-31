@@ -1,5 +1,22 @@
 # Future Design Thoughts
 
+## TODO: Force First Game Simplicity (New Player Onboarding)
+
+**Status:** Not started
+
+**Idea:** On the very first game of a fresh site load, override the Lucky Dip scenario selection to keep things simple. New players dropped straight into Black Holes or Big Wormhole have no chance to learn the basics before the game becomes chaotic.
+
+**Proposed behaviour:**
+- Track whether this is the first game of the session (a simple `let firstGame = true` flag in main.js, cleared after the first `startGame` call)
+- If `firstGame` and Lucky Dip is selected, restrict `weightedRandomId` to scenarios 1–5 (Planetary, Asteroids, Star System, Binary Star, Jovian) — the common, readable scenarios
+- Does not affect manually selected scenarios — only Lucky Dip
+- Does not persist across page reloads (session only is fine; a returning player reloading already knows the game)
+
+**Where to implement:**
+- `src/main.js` — add `let firstGame = true` flag, pass it into the scenario selection logic at line ~324
+- `src/scenarios/scenarioData.js` — optionally add a `simpleRandomId(rng)` export that picks only from 1–5, or just inline the cap in main.js
+- Also pass `wildcardFrequency: 'off'` override into `ScenarioFactory.create` when `firstGame` is true — wildcards (wormholes, black holes injected mid-scenario) are an extra layer of chaos a new player doesn't need on their first game
+
 ## Star Field — Emissive Halo Bloom
 
 **Status:** Parked — worth revisiting
