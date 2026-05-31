@@ -34,3 +34,13 @@ Resolved items have been moved to ResolvedTODOList.md.
 ## Polish
 
 <!-- e.g. - [ ] Description -->
+
+## Mobile / Usability
+
+- [ ] **Aiming circle size option** — add a config option cycling through: Smaller, Regular, Larger, Mammoth. Scales the aiming circle to 0.5×, 1×, 2×, and 3× the default radius respectively. Default is Regular (current behaviour unchanged). Applies to all stations and all game modes.
+
+- [ ] **Accelerating angle/power buttons** — when a player holds down an angle or power adjustment button, the rate of change should accelerate over time so that large adjustments can be made quickly without losing the ability to make subtle changes with a short tap. A brief tap should produce a small increment similar to today; holding should ramp up smoothly so that after a second or two of continuous hold the change rate is significantly faster. The acceleration curve should feel natural on touch (no sudden jumps).
+
+- [ ] **Minimal UI mode** — add a config option to enable a compact button layout for small screens. In minimal mode: replace button labels with single characters or icons (X = end turn, H = hyperspace, M = move station); remove any redundant text; shrink button footprint where possible. Default is off (current layout unchanged). Should be noticeably less obstructive on a Galaxy Fold-sized screen.
+
+- [ ] **Hide shot controls during hyperspace** — when a station has hyperspace selected as its action, hide the angle indicator, power indicator, and their associated buttons/labels entirely, since they are irrelevant for a hyperspace jump. The UI should update immediately when the player switches action mode and restore the controls when they switch back to firing.
