@@ -101,7 +101,7 @@ export class ConfigPanel {
       textShadow:  '0 0 20px rgba(110,130,255,0.65)',
       textAlign:   'center',
     });
-    title.textContent = '✦  D E A T H  S T A R  B A T T L E S';
+    title.textContent = 'Death Star Battles';
     panel.appendChild(title);
 
     // ── Primary options ──────────────────────────────────────────────────────

@@ -384,7 +384,7 @@ function _showDemoHint() {
     });
 
     const titleLine = document.createElement('div');
-    titleLine.textContent = 'DEATH STAR BATTLES';
+    titleLine.textContent = 'Death Star Battles';
     Object.assign(titleLine.style, {
       fontFamily: 'monospace',
       fontSize: 'clamp(26px, 5vw, 62px)',
@@ -401,7 +401,7 @@ function _showDemoHint() {
     });
 
     const authorLine = document.createElement('div');
-    authorLine.textContent = 'Chloe Bolland';
+    authorLine.textContent = 'By Chloe Bolland';
     Object.assign(authorLine.style, {
       fontFamily: 'monospace',
       fontSize: 'clamp(12px, 1.4vw, 18px)',
