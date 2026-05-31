@@ -7,7 +7,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Bugs
 
-<!-- e.g. - [ ] Description -->
+- [ ] **Hyperspace overlap** — hyperspace can place a station overlapping another station. The destination should be rejected and resampled if it would cause any station-to-station overlap, using the same minimum separation check applied during initial station placement.
 
 ## Improvements
 
