@@ -147,22 +147,24 @@ export class PlanetRenderer {
     ctx.drawImage(off, cx - oCx, cy - oCy);
     ctx.filter = 'none';
 
+    // shortest spikey bristles
     if (isStar) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
       spOff.width = spOff.height = offSize;
       const sp = spOff.getContext('2d');
-      sp.strokeStyle = `rgba(210,230,255,0.92)`;
+      sp.strokeStyle = `rgba(${pr},${pg},${pb},0.60)`;
       sp.lineWidth   = Math.max(0.5, conv * 0.45);
       sp.beginPath();
       for (let i = 0; i < nSpikes; i++) {
         const a   = Math.random() * Math.PI * 2;
-        const len = r * (0.006 + Math.random() * 0.060);
+        
+        const len = r * (0.001 + Math.random() * Math.random() * 0.20);
         sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
         sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
       }
       sp.stroke();
-      if (!_simplified) ctx.filter = 'blur(2px)';
+      if (!_simplified) ctx.filter = 'blur(4px)';
       ctx.drawImage(spOff, cx - oCx, cy - oCy);
       ctx.filter = 'none';
     }
@@ -189,14 +191,15 @@ export class PlanetRenderer {
 
       const coreGrad = oc.createRadialGradient(oCx, oCy, r * 0.05, oCx, oCy, r);
       coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
-      coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
-      coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .75)},${Math.floor(pg * .75)},${Math.floor(pb * .6)})`);
+      coreGrad.addColorStop(0.7,   `rgb(255,255,${Math.min(255, pb + 50)})`);
+      coreGrad.addColorStop(0.9, `rgb(${pr},${pg},${pb})`);
+      coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .55)},${Math.floor(pg * .55)},${Math.floor(pb * .3)})`);
       oc.beginPath();
       oc.arc(oCx, oCy, r, 0, Math.PI * 2);
       oc.fillStyle = coreGrad;
       oc.fill();
 
-      if (!_simplified) ctx.filter = 'blur(1.8px)';
+      if (!_simplified) ctx.filter = 'blur(2.8px)';
       ctx.drawImage(off, cx - oCx, cy - oCy);
       ctx.filter = 'none';
       return;

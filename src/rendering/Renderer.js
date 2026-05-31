@@ -121,26 +121,32 @@ export class Renderer {
   }
 
   _drawStarField(ctx) {
-    const off    = document.createElement('canvas');
-    off.width    = this._vpW;
-    off.height   = this._vpH;
-    const offCtx = off.getContext('2d');
-    const conv   = this.conv;
+    const conv = this.conv;
 
     for (const star of this._stars) {
       const px = star.gx * conv;
       const py = star.gy * conv;
       const pr = Math.max(0.5, star.gr * conv);
-      offCtx.beginPath();
-      offCtx.arc(px, py, pr, 0, Math.PI * 2);
-      offCtx.fillStyle = `rgba(${star.red},${star.green},${star.blue},${star.alpha ?? 1})`;
-      offCtx.fill();
-    }
+      const a  = star.alpha ?? 1;
+      const { red: r, green: g, blue: b } = star;
 
-    // Composite with a gentle blur — softens sharp dots into a nebula texture
-    if (!this._simplified) ctx.filter = 'blur(1.2px)';
-    ctx.drawImage(off, 0, 0);
-    ctx.filter = 'none';
+      // Hot core: nudge toward white for an emissive feel
+      const cr = Math.min(255, r + 60);
+      const cg = Math.min(255, g + 60);
+      const cb = Math.min(255, b + 60);
+
+      // Gradient biased toward the edge — wide bright centre, steep falloff in outer ~25%
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, pr);
+      grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${a})`);
+      grad.addColorStop(0.55, `rgba(${r},${g},${b},${a})`);
+      grad.addColorStop(0.82, `rgba(${Math.floor(r * 0.4)},${Math.floor(g * 0.4)},${Math.floor(b * 0.4)},${a * 0.4})`);
+      grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
