@@ -24,6 +24,8 @@ export class ConfigPanel {
       performance:       'full',
       teamClustering:    'off',
       wildcardFrequency: 'rare',
+      aimCircleSize:     'regular',
+      minimalUI:         false,
     };
     this._onStartCb  = null;
     this._onResumeCb = null;
@@ -145,6 +147,11 @@ export class ConfigPanel {
       this._cycle('wildcardFrequency',
         ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
         v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v]))));
+    panel.appendChild(this._row('AIM CIRCLE SIZE',
+      this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
+        v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v]))));
+    panel.appendChild(this._row('MINIMAL UI',
+      this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off')));
 
     // ── Start button ─────────────────────────────────────────────────────────
 

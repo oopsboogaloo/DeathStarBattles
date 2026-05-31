@@ -16,12 +16,13 @@ export class GameLoop {
     this.rng        = rng;
     this._speedSteps = SPEED_STEPS[speed] ?? SPEED_STEPS.normal;
 
-    this._rafId        = null;
-    this._paused       = false;
-    this._oneStep      = false;   // step one frame then re-pause (O key)
-    this._turnOrder    = [];      // active stations for this turn, in order
-    this._turnIdx      = 0;
-    this._resultsTimer = 0;
+    this._rafId           = null;
+    this._paused          = false;
+    this._oneStep         = false;   // step one frame then re-pause (O key)
+    this._turnOrder       = [];      // active stations for this turn, in order
+    this._turnIdx         = 0;
+    this._resultsTimer    = 0;
+    this._fastFwdPrevSpeed = null;   // non-null when Fast FWD is active
 
     this._startTurn();
   }
@@ -435,6 +436,10 @@ export class GameLoop {
   // ─── AIMING ─────────────────────────────────────────────────────────────────
 
   _startTurn() {
+    if (this._fastFwdPrevSpeed !== null) {
+      this._speedSteps      = this._fastFwdPrevSpeed;
+      this._fastFwdPrevSpeed = null;
+    }
     this._turnOrder = this.gs.allStations.filter(s => s.status === 'active');
     this._turnIdx   = 0;
     this.gs.waitingForInput = false;
@@ -686,10 +691,14 @@ export class GameLoop {
       const oldPos = new Vec2(station.position.x, station.position.y);
       for (let a = 0; a < 300; a++) {
         const pos = new Vec2(this.rng.next() * gw, this.rng.next() * gh);
-        const clear = this.gs.planets.every(
+        const clearOfPlanets = this.gs.planets.every(
           p => pos.distanceSqTo(p.position) >= (p.impactRadius + station.radius + 5) ** 2,
         );
-        if (clear) {
+        const clearOfStations = this.gs.allStations.every(
+          s => s === station || s.status !== 'active' ||
+               pos.distanceSqTo(s.position) >= (station.radius + s.radius + 5) ** 2,
+        );
+        if (clearOfPlanets && clearOfStations) {
           station.position        = pos;
           station.hyperspaceFlash = { t: 0, oldPos, newPos: new Vec2(pos.x, pos.y) };
           station.stats.hyperspaceCount++;
@@ -788,6 +797,46 @@ export class GameLoop {
   humanPower(delta) {
     const s = this.gs.activeStation;
     if (s) s.power = Math.max(1, Math.min(800, s.power + delta));
+  }
+
+  humanFastFwd() {
+    if (this._fastFwdPrevSpeed === null) {
+      this._fastFwdPrevSpeed = this._speedSteps;
+      this._speedSteps       = SPEED_STEPS.veryFast;
+    }
+  }
+
+  humanSkip(aiLevel) {
+    if (this.gs.mode === GameMode.GAMEOVER) return;
+    const ACC = [0, 0.25, 0.42, 0.55, 0.70, 0.85];
+    const acc = ACC[Math.min(5, Math.max(1, aiLevel ?? 3))];
+
+    this.gs.activeBullets = [];
+
+    for (let iter = 0; iter < 5000; iter++) {
+      const living     = this.gs.allStations.filter(s => s.status === 'active');
+      const aliveTeams = [...new Set(living.map(s => s.team))];
+      if (aliveTeams.length <= 1) break;
+
+      for (const attacker of living) {
+        const enemies = this.gs.allStations.filter(
+          s => s.status === 'active' && s.team !== attacker.team,
+        );
+        if (!enemies.length) continue;
+        if (Math.random() < acc) {
+          const target = enemies[Math.floor(Math.random() * enemies.length)];
+          target.status = 'dead';
+          attacker.stats.kills++;
+          attacker.team.stats.kills++;
+          attacker.team.stats.score++;
+          target.team.stats.score--;
+        }
+      }
+    }
+
+    this._checkWin();
+    this._resultsTimer = 90;
+    this.gs.mode = GameMode.RESULTS;
   }
 
   togglePause()  { this._paused = !this._paused; }
