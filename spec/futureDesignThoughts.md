@@ -39,6 +39,23 @@
 - `src/scenarios/scenarioData.js` — optionally add a `simpleRandomId(rng)` export that picks only from 1–5, or just inline the cap in main.js
 - Also pass `wildcardFrequency: 'off'` override into `ScenarioFactory.create` when `firstGame` is true — wildcards (wormholes, black holes injected mid-scenario) are an extra layer of chaos a new player doesn't need on their first game
 
+## Known Issue: Canvas Blur Broken on iPad (WebKit)
+
+**Status:** Known platform quirk — not yet fixed
+
+**Symptom:** All blur effects (star coronas, gas giant stripe softening, star body blur, starfield) are silently no-ops on iPad regardless of browser (Chrome, Safari, Firefox all use WebKit on iOS/iPadOS). Visuals still work — just crisper edges.
+
+**Root cause:** We apply `ctx.filter = 'blur(Npx)'` on the main canvas context during `drawImage` calls from offscreen canvases. WebKit has a long-standing bug with this specific pattern — filter during `drawImage` — even on iPadOS 26 where `ctx.filter` is otherwise supported.
+
+**Fix options:**
+1. Apply blur on the offscreen canvas *before* blitting (draw blur on `oc` not on `ctx`) — would require restructuring each blur site
+2. Use `CanvasRenderingContext2D.filter` only for direct draws, avoid it on `drawImage` paths
+3. Detect the broken pattern at startup and auto-enable simplified mode on iPad
+
+**Priority:** Low — game is fully playable without blur.
+
+---
+
 ## Star Field — Emissive Halo Bloom
 
 **Status:** Parked — worth revisiting
