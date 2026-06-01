@@ -418,16 +418,13 @@ export class GameLoop {
     const triggers = this.gs.activeBullets.filter(b => b._greySplitExtras);
     if (!triggers.length) return;
 
-    const simplified = this._performance === 'simplified';
-    const bulletCap  = simplified ? 6 : 12;
-    let   liveCount  = this.gs.activeBullets.length;
+    const maxExtras = this._performance === 'simplified' ? 2 : Infinity;
 
     for (const trigger of triggers) {
       const extras = trigger._greySplitExtras;
       delete trigger._greySplitExtras;
 
-      for (const exit of extras) {
-        if (liveCount >= bulletCap) break;
+      for (const exit of extras.slice(0, maxExtras)) {
         const angle = Math.random() * Math.PI * 2;
         const ir    = exit.impactRadius ?? exit.radius;
         const spawn = new Bullet({
@@ -438,14 +435,13 @@ export class GameLoop {
           ),
           velocity: new Vec2(trigger.velocity.x, trigger.velocity.y),
         });
-        spawn.teleportCount = trigger.teleportCount; // already incremented by physics
+        spawn.teleportCount = trigger.teleportCount;
         spawn._trailStart   = Math.min(
           trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2),
           BULLET_LIFE - 50,
         );
         spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
         this.gs.activeBullets.push(spawn);
-        liveCount++;
       }
     }
   }
