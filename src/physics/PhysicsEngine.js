@@ -312,6 +312,9 @@ export class PhysicsEngine {
             // Store remaining exits so GameLoop can spawn extra copies
             if (others.length > 1) bullet._greySplitExtras = others.slice(1);
           }
+          // Halve remaining lifetime on every grey wormhole pass
+          const used = bullet.trail.length + (bullet._trailStart ?? 0);
+          bullet._trailStart = (bullet._trailStart ?? 0) + Math.floor((BULLET_LIFE - used) / 2);
           bullet.teleportCount++;
         } else {
           bullet.status = BulletStatus.EXPLODING;

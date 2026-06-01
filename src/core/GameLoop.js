@@ -437,10 +437,9 @@ export class GameLoop {
           velocity: new Vec2(trigger.velocity.x, trigger.velocity.y),
         });
         spawn.teleportCount = trigger.teleportCount;
-        spawn._trailStart   = Math.min(
-          trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2),
-          BULLET_LIFE - 50,
-        );
+        // Match trigger's remaining life (physics already halved it)
+        const triggerUsed  = trigger.trail.length + (trigger._trailStart ?? 0);
+        spawn._trailStart  = Math.max(0, triggerUsed - 1);
         spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
         this.gs.activeBullets.push(spawn);
       }
