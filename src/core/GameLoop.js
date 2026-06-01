@@ -418,14 +418,13 @@ export class GameLoop {
     const triggers = this.gs.activeBullets.filter(b => b._greySplitExtras);
     if (!triggers.length) return;
 
-    const maxExtras = this._performance === 'simplified' ? 2 : Infinity;
-    const bulletCap = this._performance === 'simplified' ? 8 : 20;
+    const bulletCap = 120;
 
     for (const trigger of triggers) {
       const extras = trigger._greySplitExtras;
       delete trigger._greySplitExtras;
 
-      for (const exit of extras.slice(0, maxExtras)) {
+      for (const exit of extras) {
         if (this.gs.activeBullets.length >= bulletCap) break;
         const angle = Math.random() * Math.PI * 2;
         const ir    = exit.impactRadius ?? exit.radius;

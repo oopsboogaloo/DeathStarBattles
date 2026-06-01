@@ -133,7 +133,7 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare') {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full') {
     // Pre-roll sub-choice values (outside retry loop, matches Java's rnumber1-7)
     const rn = rng.roll(7); // rn[0]..rn[6]
 
@@ -143,7 +143,7 @@ export class ScenarioFactory {
     let attempts = 0;
 
     do {
-      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn);
+      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance);
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -344,7 +344,8 @@ export class ScenarioFactory {
 
   // ─── planet placement ──────────────────────────────────────────────────────
 
-  static _generate(id, gw, gh, nPlanets, rng, rn) {
+  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full') {
+    const simplified = performance === 'simplified';
     const planets = [];
 
     switch (id) {
@@ -601,9 +602,11 @@ export class ScenarioFactory {
           for (let i = 0; i < nPlanets; i++)
             planets.push(makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
         } else if (wt < 0.90) {
-          // Grey — splits into one copy per grey wormhole on the map
+          // Grey — splits into one copy per grey wormhole (red network in simplified)
           for (let i = 0; i < nPlanets; i++)
-            planets.push(makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
+            planets.push(simplified
+              ? makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)
+              : makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
         } else {
           // Self yellow
           for (let i = 0; i < nPlanets; i++)
@@ -681,7 +684,8 @@ export class ScenarioFactory {
           const colour   = positive
             ? [Math.floor(255 - 40*density), 255, 0]
             : [255, Math.min(255, Math.floor(255 + 50*density)), 0];
-          const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE : PlanetType.WORMHOLE_PLANET;
+          const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE
+                        : (simplified ? PlanetType.WORMHOLE_NETWORK : PlanetType.WORMHOLE_PLANET);
           const shading = useWormholeShading ? ShadingStyle.WORMHOLE : ShadingStyle.GLOWING;
           planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading));
         }

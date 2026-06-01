@@ -328,7 +328,7 @@ function startGame(cfg) {
     nPlanets = cfg.performance === 'simplified' ? 20 : 30;
   }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare');
+  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
