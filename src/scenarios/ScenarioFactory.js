@@ -154,9 +154,9 @@ export class ScenarioFactory {
     };
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
     if (threshold > 0 && rn[1] < threshold) {
-      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh);
+      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance);
       if (rn[4] < 0.35) {
-        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh);
+        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance);
       }
     }
 
@@ -764,7 +764,7 @@ export class ScenarioFactory {
           }
         }
         // Optional wildcard: one non-gas-giant body (~15%)
-        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh);
+        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
       }
 
@@ -831,7 +831,7 @@ export class ScenarioFactory {
             ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets);
           }
         }
-        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh);
+        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
       }
 
@@ -981,7 +981,8 @@ export class ScenarioFactory {
 
   // ─── bonus random feature injection ─────────────────────────────────────
 
-  static _addBonus(planets, rng, ra, rb, gw, gh) {
+  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full') {
+    const simplified = performance === 'simplified';
     if (planets.length < 2) return;
 
     let candidates;
@@ -996,6 +997,12 @@ export class ScenarioFactory {
       candidates = wc;
     } else if (rb < 0.6) {
       candidates = [makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)];
+    } else if (rb < 0.70) {
+      // Grey triple — bullet enters one, copies emerge from the other two
+      // Simplified: use red network wormholes instead
+      candidates = simplified
+        ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
+        : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
     } else if (rb < 0.75) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({
