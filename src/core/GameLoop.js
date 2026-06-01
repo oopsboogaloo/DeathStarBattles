@@ -418,8 +418,8 @@ export class GameLoop {
     if (!triggers.length) return;
 
     const simplified  = this._performance === 'simplified';
-    const maxPerSplit  = simplified ? 3 : 100;
-    const bulletCap    = simplified ? 8 : 20;
+    const maxPerSplit  = simplified ? 2 : 4;
+    const bulletCap    = simplified ? 6 : 12;
 
     const greys = this.gs.planets.filter(
       p => p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed,
@@ -442,8 +442,9 @@ export class GameLoop {
           ),
           velocity: new Vec2(trigger.velocity.x, trigger.velocity.y),
         });
-        spawn.teleportCount = trigger.teleportCount + 1;
-        spawn._trailStart   = trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2);
+        spawn.teleportCount    = trigger.teleportCount + 1;
+        spawn._trailStart      = trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2);
+        spawn._isGreySplitSpawn = true;
         spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
         this.gs.activeBullets.push(spawn);
         liveCount++;

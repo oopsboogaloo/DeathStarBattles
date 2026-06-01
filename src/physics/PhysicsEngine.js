@@ -294,9 +294,9 @@ export class PhysicsEngine {
       }
 
       case PlanetType.WORMHOLE_PLANET: {
-        if (bullet.teleportCount < MAX_TELEPORTS) {
-          // Signal GameLoop to spawn one copy out of every grey wormhole.
-          // GameLoop._processGreySplits() runs before the dead-bullet filter.
+        if (!bullet._isGreySplitSpawn && bullet.teleportCount < MAX_TELEPORTS) {
+          // Signal GameLoop to spawn copies out of every grey wormhole.
+          // _isGreySplitSpawn bullets don't cascade — they just explode.
           bullet._greySplit = true;
           bullet.status = BulletStatus.DEAD;
         } else {
