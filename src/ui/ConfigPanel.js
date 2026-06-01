@@ -20,7 +20,7 @@ export class ConfigPanel {
       scenarioId:        0,
       mode:              'single',
       speed:             'normal',
-      stationMovement:   false,
+      movementSpeed:     'off',
       performance:       'full',
       teamClustering:    'off',
       wildcardFrequency: 'rare',
@@ -155,9 +155,10 @@ export class ConfigPanel {
     advancedInner.appendChild(this._row('GAME SPEED',
       this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
         v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v]))));
-    advancedInner.appendChild(this._row('STATION MOVEMENT',
-      this._cycle('stationMovement', [false, true],
-        v => v ? 'On' : 'Off')));
+    advancedInner.appendChild(this._row('MOVEMENT SPEED',
+      this._cycle('movementSpeed',
+        ['off', 'glacial', 'slow', 'normal', 'fast', 'rocket'],
+        v => ({ off: 'Off', glacial: 'Glacial  (1×)', slow: 'Slow  (2×)', normal: 'Normal  (3×)', fast: 'Fast  (5×)', rocket: 'Rocket  (8×)' }[v]))));
     advancedInner.appendChild(this._row('PERFORMANCE',
       this._cycle('performance', ['full', 'simplified'],
         v => v === 'full' ? 'Full' : 'Simplified')));

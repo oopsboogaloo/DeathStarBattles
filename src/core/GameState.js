@@ -9,11 +9,11 @@ export const GameMode = Object.freeze({
 });
 
 export class GameState {
-  constructor({ planets = [], teams = [], config = {}, stationMovement = false } = {}) {
+  constructor({ planets = [], teams = [], config = {}, movementSpeed = 'off' } = {}) {
     this.planets          = planets;
     this.teams            = teams;
     this.config           = config;
-    this.stationMovement  = stationMovement; // feature toggle
+    this.movementSpeed    = movementSpeed;
     this.mode             = GameMode.AIMING;
     this.turn             = 0;
     this.gameIndex        = 0;
@@ -25,6 +25,8 @@ export class GameState {
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click
   }
+
+  get stationMovement() { return this.movementSpeed !== 'off'; }
 
   get activeStation() {
     return this.teams[this.currentTeamIdx]?.stations[this.currentStatIdx] ?? null;

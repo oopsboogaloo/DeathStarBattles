@@ -349,7 +349,7 @@ function startGame(cfg) {
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, planets);
 
-  const gameState = new GameState({ planets, teams, stationMovement: cfg.stationMovement ?? false });
+  const gameState = new GameState({ planets, teams, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
 
   for (const team of teams.filter(t => !t.isHuman)) {

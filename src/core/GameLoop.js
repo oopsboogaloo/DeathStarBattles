@@ -179,18 +179,45 @@ export class GameLoop {
   // ─── Station movement ────────────────────────────────────────────────────────
 
   // MAX_STATION_SPEED in game-units per timestep (well below min bullet speed ~0.16)
-  static MAX_STATION_SPEED = 0.015; // halved from 0.03 — keeps movement subtle
+  static MAX_STATION_SPEED     = 0.015;
+  static NORMAL_STATION_RADIUS = 6.4;  // LARGE — reference for movement distance scaling
+  static LETHAL_PLANET_TYPES   = new Set([
+    PlanetType.STAR, PlanetType.BLACK_HOLE, PlanetType.WHITE_DWARF,
+    PlanetType.PULSAR, PlanetType.WHITE_HOLE,
+  ]);
+
+  // Max distance (game units) a station may travel this turn, scaled for sub-normal sizes.
+  _getMaxMoveDist(station) {
+    const CAPS = { glacial: 1, slow: 2, normal: 3, fast: 5, rocket: 8 };
+    const mult = CAPS[this.gs.movementSpeed] ?? 0;
+    if (!mult) return 0;
+    const refDiam = GameLoop.NORMAL_STATION_RADIUS * 2;
+    const scale   = station.radius < GameLoop.NORMAL_STATION_RADIUS
+      ? station.radius / GameLoop.NORMAL_STATION_RADIUS : 1;
+    return mult * refDiam * scale;
+  }
 
   // Move all stations one physics step and check for collisions.
   _stepStations(allStations) {
     const { gw, gh } = this.physics;
+
+    // ── Position update + distance cap ──────────────────────────────────────
     for (const station of allStations) {
       if (station.status !== 'active' || !station.velocity) continue;
       const r  = station.radius;
-      let x  = station.position.x + station.velocity.x * TIMESTEP;
-      let y  = station.position.y + station.velocity.y * TIMESTEP;
       let vx = station.velocity.x;
       let vy = station.velocity.y;
+
+      // Consume from remaining distance budget; stop if exhausted
+      const stepDist = Math.hypot(vx, vy) * TIMESTEP;
+      const rem      = (station._moveDistRemaining ?? 0) - stepDist;
+      station._moveDistRemaining = Math.max(0, rem);
+      const fraction = rem >= 0 ? 1 : 1 + rem / stepDist; // partial last step
+
+      let x = station.position.x + vx * TIMESTEP * fraction;
+      let y = station.position.y + vy * TIMESTEP * fraction;
+
+      if (station._moveDistRemaining <= 0) station.velocity = null;
 
       // Reflect off play area boundaries
       if (x < r)      { x = r;      vx =  Math.abs(vx); }
@@ -199,28 +226,48 @@ export class GameLoop {
       if (y > gh - r) { y = gh - r; vy = -Math.abs(vy); }
 
       station.position = new Vec2(x, y);
-      if (vx !== station.velocity.x || vy !== station.velocity.y) {
+      if (station.velocity && (vx !== station.velocity.x || vy !== station.velocity.y)) {
         station.velocity = new Vec2(vx, vy);
       }
     }
-    // Collision: station hits planet / wormhole
+
+    // ── Planet collisions ────────────────────────────────────────────────────
     for (const station of allStations) {
-      if (station.status !== 'active' || !station.velocity) continue;
+      if (station.status !== 'active') continue;
       for (const planet of this.gs.planets) {
-        if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
+        if (planet.destroyed || planet.type === PlanetType.GAS_GIANT || planet.type === PlanetType.COMET) continue;
         const d = station.position.distanceTo(planet.position);
         if (d >= planet.impactRadius + station.radius) continue;
 
         if (this._isWormhole(planet.type)) {
           this._teleportStation(station, planet);
-        } else {
+        } else if (GameLoop.LETHAL_PLANET_TYPES.has(planet.type)) {
           station.status     = 'exploding';
           station.explosionT = 0;
+          this._spawnStationExplosion(station);
+        } else {
+          // Elastic bounce — reflect velocity off planet surface normal
+          const safeD = Math.max(d, 0.001);
+          const nx    = (station.position.x - planet.position.x) / safeD;
+          const ny    = (station.position.y - planet.position.y) / safeD;
+          const vel   = station.velocity ?? new Vec2(0, 0);
+          const dot   = vel.x * nx + vel.y * ny;
+          const rvx   = vel.x - 2 * dot * nx;
+          const rvy   = vel.y - 2 * dot * ny;
+          const safe  = planet.impactRadius + station.radius + 0.5;
+          station.position = new Vec2(planet.position.x + nx * safe, planet.position.y + ny * safe);
+          station.velocity = new Vec2(rvx, rvy);
+          // Asteroids are destroyed on contact
+          if (planet.type === PlanetType.ASTEROID) {
+            planet.destroyed = true;
+            this._spawnAsteroidExplosion(planet);
+          }
         }
         break;
       }
     }
-    // Collision: two moving stations occupy the same space
+
+    // ── Station-station collisions ───────────────────────────────────────────
     for (let i = 0; i < allStations.length; i++) {
       for (let j = i + 1; j < allStations.length; j++) {
         const a = allStations[i], b = allStations[j];
@@ -229,6 +276,8 @@ export class GameLoop {
         if (a.position.distanceSqTo(b.position) < (a.radius + b.radius) ** 2) {
           a.status = b.status = 'exploding';
           a.explosionT = b.explosionT = 0;
+          this._spawnStationExplosion(a);
+          this._spawnStationExplosion(b);
         }
       }
     }
@@ -304,7 +353,7 @@ export class GameLoop {
 
   // Clear velocity on all stations at start of each new turn.
   _clearStationVelocities() {
-    for (const s of this.gs.allStations) s.velocity = null;
+    for (const s of this.gs.allStations) { s.velocity = null; s._moveDistRemaining = 0; }
   }
 
   // Human API — toggle movement targeting mode
@@ -324,6 +373,7 @@ export class GameLoop {
     if (dist < 1) { station.velocity = null; this.gs.waitingForMove = false; return; }
     const speed = Math.min(GameLoop.MAX_STATION_SPEED, dist * 0.002);
     station.velocity = new Vec2(dx / dist * speed, dy / dist * speed);
+    station._moveDistRemaining = this._getMaxMoveDist(station);
     this.gs.waitingForMove = false;
   }
 
@@ -470,7 +520,9 @@ export class GameLoop {
         station.angle            = action.angle;
         station.power            = action.power;
         station.hyperspaceQueued = action.hyperspace ?? false;
-        station.velocity         = this.gs.stationMovement ? (action.velocity ?? null) : null;
+        const vel = this.gs.stationMovement ? (action.velocity ?? null) : null;
+        station.velocity = vel;
+        if (vel) station._moveDistRemaining = this._getMaxMoveDist(station);
         this._setActive(station);
         this._turnIdx++;
       } else {
@@ -574,8 +626,11 @@ export class GameLoop {
 
     this._advanceExplosionEffects();
 
-    // All resolved → RESULTS
-    if (this.gs.activeBullets.length === 0) {
+    // All resolved → RESULTS (wait for moving stations to exhaust their distance too)
+    const bulletsGone    = this.gs.activeBullets.length === 0;
+    const stationsMoving = this.gs.stationMovement &&
+      allStations.some(s => s.status === 'active' && s.velocity);
+    if (bulletsGone && !stationsMoving) {
       this._processHyperspace();
       this._checkWin();
       this._resultsTimer = 240; // ~4 s at 60 fps
