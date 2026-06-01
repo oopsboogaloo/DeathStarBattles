@@ -178,13 +178,20 @@ export class GameLoop {
 
   // ─── Station movement ────────────────────────────────────────────────────────
 
-  // MAX_STATION_SPEED in game-units per timestep (well below min bullet speed ~0.16)
+  // Base station speed (game-units/timestep). Fast and Rocket tiers multiply this.
   static MAX_STATION_SPEED     = 0.015;
+  static STATION_SPEED_MULT    = { glacial: 1, slow: 1, normal: 1, fast: 2, rocket: 3 };
   static NORMAL_STATION_RADIUS = 6.4;  // LARGE — reference for movement distance scaling
   static LETHAL_PLANET_TYPES   = new Set([
     PlanetType.STAR, PlanetType.BLACK_HOLE, PlanetType.WHITE_DWARF,
     PlanetType.PULSAR, PlanetType.WHITE_HOLE,
   ]);
+
+  // Max speed (game-units/timestep) for the current movement tier.
+  _maxSpeedForMovement() {
+    const mult = GameLoop.STATION_SPEED_MULT[this.gs.movementSpeed] ?? 1;
+    return GameLoop.MAX_STATION_SPEED * mult;
+  }
 
   // Max distance (game units) a station may travel this turn, scaled for sub-normal sizes.
   _getMaxMoveDist(station) {
@@ -371,7 +378,7 @@ export class GameLoop {
     const dy  = gameY - station.position.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) { station.velocity = null; this.gs.waitingForMove = false; return; }
-    const speed = Math.min(GameLoop.MAX_STATION_SPEED, dist * 0.002);
+    const speed = Math.min(this._maxSpeedForMovement(), dist * 0.002);
     station.velocity = new Vec2(dx / dist * speed, dy / dist * speed);
     station._moveDistRemaining = this._getMaxMoveDist(station);
     this.gs.waitingForMove = false;
@@ -398,7 +405,8 @@ export class GameLoop {
     const g    = this._gravityAt(station.position);
     const mag  = Math.sqrt(g.x * g.x + g.y * g.y);
     if (mag < 0.0001) return null;
-    const speed = 0.01 + this.rng.next() * 0.02;
+    const maxSpd = this._maxSpeedForMovement();
+    const speed  = maxSpd * (0.5 + this.rng.next());
     return new Vec2(-g.x / mag * speed, -g.y / mag * speed);
   }
 
