@@ -580,7 +580,7 @@ export class ScenarioFactory {
       // ── 17: Wormholes (all wormholes) ─────────────────────────────────────
       case 17: {
         const wt = rn[0];
-        if (wt < 0.40) {
+        if (wt < 0.25) {
           // Paired purple — ensure even count
           const count = nPlanets % 2 === 0 ? nPlanets : nPlanets - 1;
           for (let i = 0; i < count; i += 2) {
@@ -589,19 +589,19 @@ export class ScenarioFactory {
             wa.partner = wb; wb.partner = wa;
             planets.push(wa, wb);
           }
-        } else if (wt < 0.70) {
+        } else if (wt < 0.45) {
           // Cyclic blue — all chain to next, last chains to first
           const all = Array.from({length: nPlanets}, () =>
             makeWormhole(rng, gw,gh, [55,55,255], PlanetType.WORMHOLE_CYCLIC));
           for (let i = 0; i < all.length; i++)
             all[i].partner = all[(i + 1) % all.length];
           planets.push(...all);
-        } else if (wt < 0.90) {
+        } else if (wt < 0.70) {
           // Network red — each exits via another red wormhole on the map
           for (let i = 0; i < nPlanets; i++)
             planets.push(makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
-        } else if (wt < 0.95) {
-          // Changing random destination grey
+        } else if (wt < 0.90) {
+          // Grey — splits into one copy per grey wormhole on the map
           for (let i = 0; i < nPlanets; i++)
             planets.push(makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
         } else {

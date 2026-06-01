@@ -356,7 +356,7 @@ function startGame(cfg) {
     team.controller = AIController.create(cfg.aiLevel ?? 3, physics);
   }
 
-  loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal' });
+  loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   aimControls.setLoop(loop);
 
   renderer.drawFrame = gs => { _baseDrawFrame(gs); updateButtons(gs); };

@@ -295,14 +295,10 @@ export class PhysicsEngine {
 
       case PlanetType.WORMHOLE_PLANET: {
         if (bullet.teleportCount < MAX_TELEPORTS) {
-          const dest = planets[Math.floor(Math.random() * planets.length)];
-          const a    = Math.random() * Math.PI * 2;
-          bullet.trail.push(null);
-          bullet.position = new Vec2(
-            dest.position.x + Math.cos(a) * (dest.impactRadius + 0.5),
-            dest.position.y + Math.sin(a) * (dest.impactRadius + 0.5),
-          );
-          bullet.teleportCount++;
+          // Signal GameLoop to spawn one copy out of every grey wormhole.
+          // GameLoop._processGreySplits() runs before the dead-bullet filter.
+          bullet._greySplit = true;
+          bullet.status = BulletStatus.DEAD;
         } else {
           bullet.status = BulletStatus.EXPLODING;
         }

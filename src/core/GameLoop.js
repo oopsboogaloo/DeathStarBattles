@@ -9,12 +9,13 @@ import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryFast: 168 };
 
 export class GameLoop {
-  constructor({ gameState, physics, renderer, rng, speed = 'normal' }) {
-    this.gs         = gameState;
-    this.physics    = physics;
-    this.renderer   = renderer;
-    this.rng        = rng;
-    this._speedSteps = SPEED_STEPS[speed] ?? SPEED_STEPS.normal;
+  constructor({ gameState, physics, renderer, rng, speed = 'normal', performance = 'full' }) {
+    this.gs           = gameState;
+    this.physics      = physics;
+    this.renderer     = renderer;
+    this.rng          = rng;
+    this._speedSteps  = SPEED_STEPS[speed] ?? SPEED_STEPS.normal;
+    this._performance = performance;
 
     this._rafId           = null;
     this._paused          = false;
@@ -410,6 +411,45 @@ export class GameLoop {
     return new Vec2(-g.x / mag * speed, -g.y / mag * speed);
   }
 
+  // Grey wormhole split: for every bullet that entered a grey wormhole this frame,
+  // spawn one copy out of each grey wormhole on the map, up to performance limits.
+  _processGreySplits() {
+    const triggers = this.gs.activeBullets.filter(b => b._greySplit);
+    if (!triggers.length) return;
+
+    const simplified  = this._performance === 'simplified';
+    const maxPerSplit  = simplified ? 3 : 100;
+    const bulletCap    = simplified ? 8 : 20;
+
+    const greys = this.gs.planets.filter(
+      p => p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed,
+    );
+
+    // Count bullets that will survive after dead-filter (triggers are already DEAD)
+    let liveCount = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD).length;
+
+    for (const trigger of triggers) {
+      const exits = greys.slice(0, maxPerSplit);
+      for (const exit of exits) {
+        if (liveCount >= bulletCap) break;
+        const angle = Math.random() * Math.PI * 2;
+        const ir    = exit.impactRadius ?? exit.radius;
+        const spawn = new Bullet({
+          owner:    trigger.owner,
+          position: new Vec2(
+            exit.position.x + Math.cos(angle) * (ir + 0.5),
+            exit.position.y + Math.sin(angle) * (ir + 0.5),
+          ),
+          velocity: new Vec2(trigger.velocity.x, trigger.velocity.y),
+        });
+        spawn.teleportCount = trigger.teleportCount + 1;
+        spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
+        this.gs.activeBullets.push(spawn);
+        liveCount++;
+      }
+    }
+  }
+
   // Remove destroyed asteroids/comets; asteroids may produce child fragments.
   _processAsteroidFragments() {
     const children = [];
@@ -613,6 +653,9 @@ export class GameLoop {
 
     // Fragment any asteroids hit this frame (mutates gs.planets in-place)
     this._processAsteroidFragments();
+
+    // Spawn grey-wormhole split copies before the dead-bullet filter runs
+    this._processGreySplits();
 
     // Advance explosion animations once per rAF frame (not per physics step)
     // This keeps explosions visible for ~20–25 frames instead of < 1 frame.
