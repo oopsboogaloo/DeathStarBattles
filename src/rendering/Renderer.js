@@ -887,10 +887,13 @@ export class Renderer {
       const distPx = Math.max(0, -bx, bx - this._vpW, -by, by - this._vpH);
       const dist   = Math.round(distPx / this.conv);
 
-      // Draw number at inset position
+      // Draw number at inset position — keep text right-side-up on left half
+      const textAngle = (Math.abs(angle) > Math.PI / 2)
+        ? angle - Math.PI
+        : angle;
       ctx.save();
       ctx.translate(nx, ny);
-      ctx.rotate(angle);
+      ctx.rotate(textAngle);
       ctx.font         = `bold 11px monospace`;
       ctx.fillStyle    = colour;
       ctx.textAlign    = 'center';
