@@ -411,29 +411,22 @@ export class GameLoop {
     return new Vec2(-g.x / mag * speed, -g.y / mag * speed);
   }
 
-  // Grey wormhole split: bullet enters wormhole A, one copy emerges from every
-  // OTHER grey wormhole on the map. Caps are linked to performance mode.
+  // Grey wormhole split: physics already teleported the bullet to exit B.
+  // Spawn plain copies at any remaining exits (C, D...), same as if each were
+  // a separate paired wormhole. No special flags — normal wormhole rules apply.
   _processGreySplits() {
-    const triggers = this.gs.activeBullets.filter(b => b._greySplit);
+    const triggers = this.gs.activeBullets.filter(b => b._greySplitExtras);
     if (!triggers.length) return;
 
     const simplified = this._performance === 'simplified';
-    const maxExits   = simplified ? 2 : 4;  // max exits per split event
-    const bulletCap  = simplified ? 6 : 12; // global active bullet ceiling
-
-    const allGreys = this.gs.planets.filter(
-      p => p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed,
-    );
-
-    let liveCount = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD).length;
+    const bulletCap  = simplified ? 6 : 12;
+    let   liveCount  = this.gs.activeBullets.length;
 
     for (const trigger of triggers) {
-      // Exclude the wormhole the bullet entered from the exit list
-      const exits = allGreys
-        .filter(p => p !== trigger._greySplitSource)
-        .slice(0, maxExits);
+      const extras = trigger._greySplitExtras;
+      delete trigger._greySplitExtras;
 
-      for (const exit of exits) {
+      for (const exit of extras) {
         if (liveCount >= bulletCap) break;
         const angle = Math.random() * Math.PI * 2;
         const ir    = exit.impactRadius ?? exit.radius;
@@ -445,13 +438,11 @@ export class GameLoop {
           ),
           velocity: new Vec2(trigger.velocity.x, trigger.velocity.y),
         });
-        spawn.teleportCount    = trigger.teleportCount + 1;
-        // Give spawn 50% of original's remaining life by advancing its age
-        spawn._trailStart      = Math.min(
+        spawn.teleportCount = trigger.teleportCount; // already incremented by physics
+        spawn._trailStart   = Math.min(
           trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2),
-          BULLET_LIFE - 50,  // always at least 50 trail points of life
+          BULLET_LIFE - 50,
         );
-        spawn._isGreySplitSpawn = true;
         spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
         this.gs.activeBullets.push(spawn);
         liveCount++;

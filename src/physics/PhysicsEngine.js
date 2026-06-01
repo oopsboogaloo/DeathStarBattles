@@ -74,8 +74,6 @@ export class PhysicsEngine {
       // Broad-phase: skip collision if bullet is outside the bounding circle
       if (rSq >= R * R) {
         // gravity only (below)
-      } else if (planet.type === PlanetType.WORMHOLE_PLANET && bullet._isGreySplitSpawn) {
-        // Grey-split bullets pass through grey wormholes — gravity still applies below
       } else if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
         if (PhysicsEngine._satCollides(bullet.position, planet._rotatedVerts)) {
           this._handlePlanetImpact(bullet, planet, dx, dy, planets);
@@ -296,12 +294,25 @@ export class PhysicsEngine {
       }
 
       case PlanetType.WORMHOLE_PLANET: {
-        if (!bullet._isGreySplitSpawn && bullet.teleportCount < MAX_TELEPORTS) {
-          // Signal GameLoop to spawn copies from every OTHER grey wormhole.
-          // Store the entered wormhole so GameLoop can exclude it from exits.
-          bullet._greySplit        = true;
-          bullet._greySplitSource  = planet;
-          bullet.status            = BulletStatus.DEAD;
+        if (bullet.teleportCount < MAX_TELEPORTS) {
+          const others = planets.filter(
+            p => p !== planet && p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed,
+          );
+          bullet.trail.push(null);
+          if (others.length === 0) {
+            // No other grey wormholes — fall back to random position
+            bullet.position = new Vec2(Math.random() * this.gw, Math.random() * this.gh);
+          } else {
+            // Teleport bullet to first exit (same as paired wormhole behaviour)
+            const primary = others[0];
+            bullet.position = new Vec2(
+              primary.position.x + Math.cos(theta2) * (primary.impactRadius + 0.5),
+              primary.position.y + Math.sin(theta2) * (primary.impactRadius + 0.5),
+            );
+            // Store remaining exits so GameLoop can spawn extra copies
+            if (others.length > 1) bullet._greySplitExtras = others.slice(1);
+          }
+          bullet.teleportCount++;
         } else {
           bullet.status = BulletStatus.EXPLODING;
         }
