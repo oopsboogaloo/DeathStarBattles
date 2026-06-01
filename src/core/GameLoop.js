@@ -1,7 +1,7 @@
 import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
-import { PRINT_EVERY, SHOW_EVERY, TIMESTEP } from '../physics/PhysicsEngine.js';
+import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 
 // Physics steps per rAF frame for each speed setting.
@@ -443,6 +443,7 @@ export class GameLoop {
           velocity: new Vec2(trigger.velocity.x, trigger.velocity.y),
         });
         spawn.teleportCount = trigger.teleportCount + 1;
+        spawn._trailStart   = trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2);
         spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
         this.gs.activeBullets.push(spawn);
         liveCount++;
