@@ -295,10 +295,11 @@ export class PhysicsEngine {
 
       case PlanetType.WORMHOLE_PLANET: {
         if (!bullet._isGreySplitSpawn && bullet.teleportCount < MAX_TELEPORTS) {
-          // Signal GameLoop to spawn copies out of every grey wormhole.
-          // _isGreySplitSpawn bullets don't cascade — they just explode.
-          bullet._greySplit = true;
-          bullet.status = BulletStatus.DEAD;
+          // Signal GameLoop to spawn copies from every OTHER grey wormhole.
+          // Store the entered wormhole so GameLoop can exclude it from exits.
+          bullet._greySplit        = true;
+          bullet._greySplitSource  = planet;
+          bullet.status            = BulletStatus.DEAD;
         } else {
           bullet.status = BulletStatus.EXPLODING;
         }
