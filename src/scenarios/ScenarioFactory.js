@@ -1003,7 +1003,7 @@ export class ScenarioFactory {
       candidates = simplified
         ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
         : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
-    } else if (rb < 0.75) {
+    } else if (rb < 0.85) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
@@ -1018,7 +1018,7 @@ export class ScenarioFactory {
         type:         PlanetType.PULSAR,
         colour:       [...WHITE_COL],
         shading:      ShadingStyle.GLOWING,
-        pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
+        pulsarPeriod: 0.1 + rng.next() * 0.9,
         pulsarPhase:  rng.next() * 0.9,
       })];
     } else if (rb < 0.95) {
