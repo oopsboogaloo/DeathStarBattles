@@ -73,18 +73,34 @@ export class PlanetRenderer {
     const cg = Math.floor(pg * 0.38);
     const cb = Math.floor(pb * 0.15);
 
-    // Offscreen canvas sized to fit the full corona (max extent 3.2×r)
-    const margin  = 4;
-    const offSize = Math.ceil(r * 3.2 * 2) + margin * 2;
-    const off     = document.createElement('canvas');
-    off.width = off.height = offSize;
-    const oc  = off.getContext('2d');
-    const oCx = offSize / 2;
-    const oCy = offSize / 2;
+    // Clip the corona bounding box to the bgCanvas viewport.  For off-screen
+    // supergiants the full corona bounding box can be many times the screen
+    // size; blurring a canvas that large is very expensive.
+    const vpW    = ctx.canvas.width;
+    const vpH    = ctx.canvas.height;
+    const margin = 4;
+    const bx0 = Math.max(0,   Math.floor(cx - r * 3.2) - margin);
+    const by0 = Math.max(0,   Math.floor(cy - r * 3.2) - margin);
+    const bx1 = Math.min(vpW, Math.ceil(cx  + r * 3.2) + margin);
+    const by1 = Math.min(vpH, Math.ceil(cy  + r * 3.2) + margin);
+    if (bx1 <= bx0 || by1 <= by0) return; // corona entirely off-screen
+
+    const clipW = bx1 - bx0;
+    const clipH = by1 - by0;
+
+    // Star centre expressed in off-canvas coordinates (may be negative for
+    // off-screen supergiants whose corona only partially overlaps the viewport).
+    const oCx = cx - bx0;
+    const oCy = cy - by0;
 
     // Chromosphere inner ring + surface bristles — STAR type only.
     // White holes, white dwarfs, and pulsars keep the plain corona.
     const isStar = planet.type === PlanetType.STAR;
+
+    const off = document.createElement('canvas');
+    off.width  = clipW;
+    off.height = clipH;
+    const oc = off.getContext('2d');
 
     if (isStar) {
       const ringGrad = oc.createRadialGradient(oCx, oCy, r * 0.85, oCx, oCy, r * 1.45);
@@ -116,56 +132,64 @@ export class PlanetRenderer {
       oc.fill();
     }
 
-    // Bristles at reduced opacity for texture
+    // Bristles — skip any whose outer tip falls outside the clip canvas since
+    // those would be culled by the canvas anyway and add path overhead.
     const count = Math.max(200, Math.floor(r * 3.5));
     oc.lineWidth = Math.max(1, conv * 0.7);
 
     oc.strokeStyle = `rgba(${cr},${cg},${cb},0.60)`;
     oc.beginPath();
     for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = r * (0.87 + Math.random() * 0.13);
-      const e = r * (1.10 + Math.random() * 0.50);
-      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
-      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
+      const a  = Math.random() * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const e  = r * (1.10 + Math.random() * 0.50);
+      const ex = oCx + ca * e, ey = oCy + sa * e;
+      if (ex < 0 || ex > clipW || ey < 0 || ey > clipH) continue;
+      oc.moveTo(oCx + ca * r * (0.87 + Math.random() * 0.13), oCy + sa * r * (0.87 + Math.random() * 0.13));
+      oc.lineTo(ex, ey);
     }
     oc.stroke();
 
     oc.strokeStyle = `rgba(${cr},${cg},${cb},0.90)`;
     oc.beginPath();
     for (let i = 0, n = Math.floor(count * 0.55); i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = r * (0.92 + Math.random() * 0.08);
-      const e = r * (1.04 + Math.random() * 0.20);
-      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
-      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
+      const a  = Math.random() * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const e  = r * (1.04 + Math.random() * 0.20);
+      const ex = oCx + ca * e, ey = oCy + sa * e;
+      if (ex < 0 || ex > clipW || ey < 0 || ey > clipH) continue;
+      oc.moveTo(oCx + ca * r * (0.92 + Math.random() * 0.08), oCy + sa * r * (0.92 + Math.random() * 0.08));
+      oc.lineTo(ex, ey);
     }
     oc.stroke();
 
     // Composite offscreen canvas — blur disabled in simplified performance mode
     if (!_simplified) ctx.filter = 'blur(4px)';
-    ctx.drawImage(off, cx - oCx, cy - oCy);
+    ctx.drawImage(off, bx0, by0);
     ctx.filter = 'none';
 
-    // shortest spikey bristles
+    // Short spikey bristles on the star surface
     if (isStar) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
-      spOff.width = spOff.height = offSize;
+      spOff.width  = clipW;
+      spOff.height = clipH;
       const sp = spOff.getContext('2d');
       sp.strokeStyle = `rgba(${pr},${pg},${pb},0.60)`;
       sp.lineWidth   = Math.max(0.5, conv * 0.45);
       sp.beginPath();
       for (let i = 0; i < nSpikes; i++) {
         const a   = Math.random() * Math.PI * 2;
-        
-        const len = r * (0.001 + Math.random() * Math.random() * 0.20);
-        sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
-        sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
+        const ca  = Math.cos(a), sa = Math.sin(a);
+        const tip = r + r * (0.001 + Math.random() * Math.random() * 0.20);
+        const tx  = oCx + ca * tip, ty = oCy + sa * tip;
+        if (tx < 0 || tx > clipW || ty < 0 || ty > clipH) continue;
+        sp.moveTo(oCx + ca * r * 0.97, oCy + sa * r * 0.97);
+        sp.lineTo(tx, ty);
       }
       sp.stroke();
       if (!_simplified) ctx.filter = 'blur(4px)';
-      ctx.drawImage(spOff, cx - oCx, cy - oCy);
+      ctx.drawImage(spOff, bx0, by0);
       ctx.filter = 'none';
     }
   }

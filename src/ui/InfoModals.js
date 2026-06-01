@@ -470,7 +470,8 @@ export class AboutModal {
     const content = el('div', { lineHeight: '2', fontSize: '14px', color: '#ccd', textAlign: 'center', marginTop: '18px' });
     content.innerHTML = `<div style="font-size:18px;letter-spacing:0.1em;color:#aac;margin-bottom:12px;">Death Star Battles</div>
 <div style="color:#99a;">© Chloe Bolland 2026</div>
-<div style="margin-top:14px;color:#889;font-size:12px;">A turn based artillery game of space combat, gravity and chaos.</div>`;
+<div style="margin-top:14px;color:#889;font-size:12px;">A turn based artillery game of space combat, gravity and chaos.</div>
+<div style="margin-top:18px;font-size:12px;color:#778;"><a href="mailto:chloe@mammoththoughts.com" style="color:#99b;text-decoration:none;">chloe@mammoththoughts.com</a></div>`;
     p.appendChild(content);
 
     this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
