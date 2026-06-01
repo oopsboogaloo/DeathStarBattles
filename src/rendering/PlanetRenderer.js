@@ -34,15 +34,54 @@ export class PlanetRenderer {
     const [pr, pg, pb] = planet.colour;
 
     if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
-      ctx.beginPath();
       const verts = planet._rotatedVerts;
-      ctx.moveTo(verts[0].x * conv, verts[0].y * conv);
-      for (let i = 1; i < verts.length; i++) {
-        ctx.lineTo(verts[i].x * conv, verts[i].y * conv);
+      const n = verts.length;
+
+      // Outer polygon in screen coords
+      const outer = verts.map(v => ({ x: v.x * conv, y: v.y * conv }));
+
+      // Inner polygon — scale each vertex toward the centroid
+      const INNER = 0.52;
+      const inner = outer.map(v => ({
+        x: cx + (v.x - cx) * INNER,
+        y: cy + (v.y - cy) * INNER,
+      }));
+
+      // Light direction: upper-left (canvas y points down, so ldy < 0 = up)
+      const ldx = -0.62, ldy = -0.78;
+
+      // Facet panels: one quad per outer edge, shaded by outward face normal
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const edx = outer[j].x - outer[i].x;
+        const edy = outer[j].y - outer[i].y;
+        const len = Math.hypot(edx, edy) || 1;
+        let nx = -edy / len, ny = edx / len;
+        // Ensure normal points outward (away from centroid)
+        const mx = (outer[i].x + outer[j].x) / 2;
+        const my = (outer[i].y + outer[j].y) / 2;
+        if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
+
+        const ndotl = Math.max(0, nx * ldx + ny * ldy);
+        const f     = 0.35 + ndotl * 0.85; // 0.35 (shadow) → 1.20 (highlight)
+        ctx.beginPath();
+        ctx.moveTo(outer[i].x, outer[i].y);
+        ctx.lineTo(outer[j].x, outer[j].y);
+        ctx.lineTo(inner[j].x, inner[j].y);
+        ctx.lineTo(inner[i].x, inner[i].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgb(${Math.min(255, Math.round(pr * f))},${Math.min(255, Math.round(pg * f))},${Math.min(255, Math.round(pb * f))})`;
+        ctx.fill();
       }
+
+      // Inner (top) face — ambient mid-tone
+      ctx.beginPath();
+      ctx.moveTo(inner[0].x, inner[0].y);
+      for (let i = 1; i < n; i++) ctx.lineTo(inner[i].x, inner[i].y);
       ctx.closePath();
-      ctx.fillStyle = `rgb(${pr},${pg},${pb})`;
+      ctx.fillStyle = `rgb(${Math.min(255, Math.round(pr * 0.80))},${Math.min(255, Math.round(pg * 0.80))},${Math.min(255, Math.round(pb * 0.80))})`;
       ctx.fill();
+
       return;
     }
 
