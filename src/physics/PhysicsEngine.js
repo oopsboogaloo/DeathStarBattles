@@ -74,6 +74,8 @@ export class PhysicsEngine {
       // Broad-phase: skip collision if bullet is outside the bounding circle
       if (rSq >= R * R) {
         // gravity only (below)
+      } else if (planet.type === PlanetType.WORMHOLE_PLANET && bullet._isGreySplitSpawn) {
+        // Grey-split bullets pass through grey wormholes — gravity still applies below
       } else if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
         if (PhysicsEngine._satCollides(bullet.position, planet._rotatedVerts)) {
           this._handlePlanetImpact(bullet, planet, dx, dy, planets);

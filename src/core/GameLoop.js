@@ -447,8 +447,10 @@ export class GameLoop {
         });
         spawn.teleportCount    = trigger.teleportCount + 1;
         // Give spawn 50% of original's remaining life by advancing its age
-        spawn._trailStart      = trigger.trail.length +
-          Math.floor((BULLET_LIFE - trigger.trail.length) / 2);
+        spawn._trailStart      = Math.min(
+          trigger.trail.length + Math.floor((BULLET_LIFE - trigger.trail.length) / 2),
+          BULLET_LIFE - 50,  // always at least 50 trail points of life
+        );
         spawn._isGreySplitSpawn = true;
         spawn.trail.push(new Vec2(spawn.position.x, spawn.position.y));
         this.gs.activeBullets.push(spawn);
