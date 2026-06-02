@@ -726,6 +726,422 @@ Full per-kill-type breakdown. Awards badges for: Bloodlust / Oppression / Bully 
 
 ---
 
+## 13. Special Weapons & Collectables
+
+This section covers the design of weapon selection, the Triple Cannon, space crystals, and their VFX. It augments the existing sections where noted.
+
+---
+
+### 13.1 Weapon Model
+
+#### 13.1.1 `WeaponId` enum
+
+```js
+const WeaponId = Object.freeze({
+  CANNON:        'cannon',        // default fire; infinite uses
+  HYPERSPACE:    'hyperspace',    // teleport; infinite uses
+  TRIPLE_CANNON: 'tripleCannon',  // 3 bullets ±5°; collectable; limited uses
+});
+```
+
+The enum is the single authoritative list of weapons. Adding a new collectable weapon in the future means adding one entry here and one entry to the stock map.
+
+#### 13.1.2 Weapon stock on `Team`
+
+```js
+// added to Team
+weaponStock = new Map()  // WeaponId → int (omitted key = 0 uses)
+
+// helpers
+getStock(weaponId)          // returns 0 if key absent
+spendStock(weaponId)        // decrements by 1; throws if 0
+addStock(weaponId, n)       // increments by n; creates entry if absent
+```
+
+Stock is **shared across all stations on the team**. In tournament mode stock carries over between games (it is not reset on `newGame()`).
+
+#### 13.1.3 Per-turn weapon selection on `Station`
+
+```js
+// added/changed on Station
+selectedWeapon = WeaponId.CANNON   // reset to CANNON at start of each AIMING phase
+                                   // for this station
+
+// hyperspaceQueued becomes a computed getter (no longer a plain bool):
+get hyperspaceQueued() {
+  return this.selectedWeapon === WeaponId.HYPERSPACE;
+}
+```
+
+All existing code that reads `station.hyperspaceQueued` continues to work. The setter is removed; callers that previously wrote `station.hyperspaceQueued = true` are updated to `station.selectedWeapon = WeaponId.HYPERSPACE`.
+
+#### 13.1.4 Action object (updated)
+
+`AIController.chooseAction()` and all human-input finalisation now return:
+
+```js
+{ angle: int, power: int, weapon: WeaponId }
+```
+
+The old `hyperspace: bool` field is dropped. All AI bots are updated to return `weapon` instead.
+
+---
+
+### 13.2 Triple Cannon Firing
+
+When a station fires with `weapon === WeaponId.TRIPLE_CANNON`:
+
+1. **Consume one use** from `station.team.weaponStock` before any bullets spawn. If stock is somehow 0 (should not happen in normal play), fall back to `WeaponId.CANNON`.
+2. **Spawn three bullets** at angles `[angle − 5, angle, angle + 5]` (degrees, wrapped mod 360). All three share the same `power` value. Each bullet is a normal `Bullet` instance with `owner = station`.
+3. Add all three to `gameState.activeBullets`. Physics applies independently to each.
+4. Each bullet gets its own trail drawn on Layer 1 in the team colour — visually identical to three normal bullets from the same station.
+5. Any of the three can independently hit stations, planets, or crystals.
+
+The spawning logic lives in `GameState._spawnBullets(station, action)`, which already handles the single-bullet cannon case. Triple Cannon is an additional branch in that method:
+
+```js
+_spawnBullets(station, action) {
+  if (action.weapon === WeaponId.TRIPLE_CANNON) {
+    station.team.spendStock(WeaponId.TRIPLE_CANNON);
+    for (const dAngle of [-5, 0, 5]) {
+      const bullet = this._makeBullet(station, (action.angle + dAngle + 360) % 360, action.power);
+      this.activeBullets.push(bullet);
+    }
+  } else {
+    this.activeBullets.push(this._makeBullet(station, action.angle, action.power));
+  }
+}
+```
+
+**Muzzle VFX**: A brief triple-arc flash is drawn on Layer 2 at the station position just before the bullets begin moving. This is a short-lived `ActiveVFX` of type `'tripleCannonMuzzle'` (lifetime ~0.2s) that draws three radiating arcs at ±5° around the firing direction in the team colour, fading out quickly.
+
+---
+
+### 13.3 `Crystal` Entity
+
+```js
+class Crystal {
+  position    // Vec2 — stationary; never changes after spawn
+  rotation    // float (radians) — increases each frame for spin animation
+  alive       // bool
+  radius      // float (game units) — collision radius; also governs draw size
+              // fixed value: ~5 game units (roughly Tiny station size)
+}
+```
+
+Crystals are **not** planets. They do not exert gravity. They are not in the `planets` array. They live in `gameState.crystals: Crystal[]`.
+
+The `Crystal` entity has no physics state — it is purely a collision target and a rendering entity. The `rotation` field is advanced by the `Renderer` each frame (not by `GameLoop`/`PhysicsEngine`) since it is purely cosmetic.
+
+---
+
+### 13.4 Crystal Rendering
+
+#### Layer assignment
+
+Crystals rotate continuously, so they cannot be baked onto Layer 0 (background). They are drawn on **Layer 2** (live layer) every frame, after bullets and before HUD. This means they sit above planet backgrounds and trail lines visually, which is fine — crystals are foreground objects that need to be easily spotted.
+
+#### Draw procedure
+
+```
+For each alive crystal:
+  1. Save ctx
+  2. Translate to crystal pixel position; rotate by crystal.rotation
+  3. Draw outer ring: thin circle stroke in icy blue-white (#B8E8FF), alpha 0.6
+  4. Draw 6 crystal facets: lines from centre to outer points (like a gem cross-section),
+     alternating long (0.9r) and short (0.5r) spokes
+  5. Draw inner hexagon connecting the spoke tips, stroke only
+  6. Draw a soft radial gradient glow: centre white, outer fully transparent,
+     radius 1.5× crystal radius — gives icy luminescence against the dark field
+  7. Restore ctx
+```
+
+Colour palette: core lines `#FFFFFF`, structure lines `#B8E8FF`, glow `rgba(184,232,255,0.15)`.
+
+The rotation speed is a fixed constant (~0.02 radians per frame at 30fps → ~one full rotation per ~10 seconds).
+
+---
+
+### 13.5 Crystal Spawning
+
+Crystals spawn at turn end, during the `RESULTS → AIMING` transition, after hyperspace teleports are executed.
+
+```js
+_trySpawnCrystal(config, rng, planets, teams) {
+  if (config.collectables === 'off') return;
+  if (this.crystals.length >= 3) return;  // cap
+
+  const prob = { rare: 0.20, normal: 0.40, common: 0.75, continuous: 1.0 }[config.collectables];
+  if (rng.next() > prob) return;
+
+  const pos = this._findCrystalSpawnPos(rng, planets, teams);
+  if (pos) this.crystals.push(new Crystal(pos, rng.next() * Math.PI * 2));
+}
+```
+
+**Placement rules** (same RNG as everything else → reproducible):
+- Not inside any planet's radius (checked against `planet.radius + crystal.radius`)
+- Not within `3 × crystal.radius` of any alive station (avoids spawning on top of a player)
+- Retry up to 200 times before giving up (cap still applies, so a failed spawn is silent)
+- Does not spawn in the Hyperspace scenario (`scenarioId === 21`)
+
+The placement retry loop is deliberately lighter than the station placement algorithm — a failed spawn is harmless.
+
+---
+
+### 13.6 Bullet–Crystal Collision
+
+Crystal collision is **not** handled inside `checkCollisions()` — that method handles interactions that stop or redirect the bullet. Crystals do not stop bullets. Instead a separate method is called for each active bullet each physics step:
+
+```js
+// PhysicsEngine
+checkCrystalCollision(bullet, crystals) {
+  // Returns the first crystal hit, or null.
+  for (const crystal of crystals) {
+    if (!crystal.alive) continue;
+    if (bullet.position.distanceSqTo(crystal.position) < crystal.radius ** 2) {
+      return crystal;
+    }
+  }
+  return null;
+}
+```
+
+Call site in `GameLoop._firingTick()`:
+
+```js
+const hitCrystal = physicsEngine.checkCrystalCollision(bullet, gameState.crystals);
+if (hitCrystal) {
+  hitCrystal.alive = false;
+  bullet.owner.team.addStock(WeaponId.TRIPLE_CANNON, 3);
+  gameState.vfxList.push(new CrystalShatterVFX(hitCrystal.position));
+  gameState.vfxList.push(new CollectableGrantVFX(
+    hitCrystal.position, 'TRIPLE CANNON', bullet.owner.team.colour
+  ));
+  // bullet continues — no status change
+}
+```
+
+Dead crystals (`alive === false`) are pruned from `gameState.crystals` at the end of the FIRING phase, alongside the bullet cleanup pass.
+
+---
+
+### 13.7 VFX System
+
+A new lightweight VFX list on `GameState`:
+
+```js
+vfxList = []   // ActiveVFX[]  — drawn on Layer 2, pruned when t >= 1
+```
+
+The `GameLoop` advances `t` each frame:
+```js
+for (const vfx of gameState.vfxList) vfx.t += deltaSeconds / vfx.duration;
+gameState.vfxList = gameState.vfxList.filter(v => v.t < 1);
+```
+
+Two concrete VFX types:
+
+#### `CrystalShatterVFX`
+
+```js
+class CrystalShatterVFX {
+  type = 'crystalShatter'
+  position   // Vec2
+  duration = 0.6   // seconds
+  t = 0
+
+  // 10 shards, initialised at construction:
+  shards = Array(10).fill(null).map(() => ({
+    angle:  random(0, 2π),
+    speed:  random(2, 8),     // game units/sec
+    length: random(1, 3),     // game units
+  }))
+}
+```
+
+Draw: each shard is a short line segment starting at `position + velocity*t` in direction `angle`, colour `#B8E8FF`, alpha `1 - t` (fades out). The shard moves outward along its angle over the duration.
+
+#### `CollectableGrantVFX`
+
+```js
+class CollectableGrantVFX {
+  type = 'collectableGrant'
+  position   // Vec2 (crystal location at time of collection)
+  text       // string e.g. 'TRIPLE CANNON'
+  colour     // CSS colour (team colour)
+  duration = 2.0
+  t = 0
+}
+```
+
+Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity follows a pulse: `sin(t * π)` (fade in from 0, peak at t=0.5, fade out to 0). Font matches HUD font (monospace bold), size ~14px screen.
+
+#### `TripleCannonMuzzleVFX`
+
+```js
+class TripleCannonMuzzleVFX {
+  type = 'tripleCannonMuzzle'
+  position   // Vec2 (station position at fire time)
+  angle      // int (firing angle in degrees)
+  colour     // CSS colour (team colour)
+  duration = 0.2
+  t = 0
+}
+```
+
+Draw: three short arc strokes at angles `[angle − 5, angle, angle + 5]` from the station, length proportional to `1 − t`, colour fading from team colour to transparent. Gives a brief visual cue that a special weapon was used.
+
+---
+
+### 13.8 Weapon Selector UI
+
+The Hyperspace button in the bottom toolbar is replaced by a **weapon button**:
+
+```
+[ CANNON  ▲ ]
+```
+
+The label always reflects `station.selectedWeapon`. For limited weapons it appends the team's stock count: `TRIPLE CANNON [3]`. For infinite weapons no count is shown.
+
+#### Popup trigger
+
+- **H key** or **click on weapon button**: if the team has ≤ 2 available weapons (only Cannon + Hyperspace, no collectables), toggle directly without opening a popup. This preserves the original H-to-hyperspace feel when no collectables are in play.
+- If ≥ 3 options: open the popup.
+
+#### Popup DOM structure
+
+The popup is a DOM element (not canvas) positioned above the weapon button using CSS `position: absolute`. It contains one row per available weapon:
+
+```
+┌────────────────────────┐
+│  ▶ CANNON         (∞)  │
+│    HYPERSPACE     (∞)  │
+│    TRIPLE CANNON  [3]  │
+└────────────────────────┘
+   [ CANNON           ▲ ]
+```
+
+The currently selected weapon has a `▶` marker. Weapons with 0 stock are shown greyed out and are not selectable (they remain visible so the player knows the weapon exists).
+
+The popup is managed by a new `WeaponSelector` UI class:
+
+```js
+class WeaponSelector {
+  constructor(buttonEl, gameState, onWeaponChosen)
+
+  refresh(station)        // rebuild popup rows from station.team.weaponStock
+  open()
+  close()
+  toggle()
+  isOpen()
+}
+```
+
+`onWeaponChosen(weaponId)` is the callback wired to `station.selectedWeapon = weaponId` and the HUD update. The popup closes automatically on selection or on click-outside (standard DOM blur/click-outside pattern).
+
+#### HUD update
+
+The existing `"HYPERSPACING..."` full-canvas text replacement (§5.6) is triggered by `station.selectedWeapon === WeaponId.HYPERSPACE`, replacing the `hyperspaceQueued` check. No other HUD change is needed: angle/power remain visible for all weapons including Triple Cannon (the player still sets angle and power normally).
+
+---
+
+### 13.9 Config Panel Addition
+
+A new cycle-button row in the Environment panel:
+
+```
+│  Collectables   [ Off            ▲▼]│
+```
+
+Options in order: `Off → Rare → Normal → Common → Continuous → Off`.
+
+The value is stored in `GameConfig.collectables` (string, default `'off'`). It is passed to `_trySpawnCrystal()` each turn end.
+
+---
+
+### 13.10 AI Changes
+
+#### Using collected weapons (all levels)
+
+The base `AIController.chooseAction()` gains a post-selection step: if the team's `TRIPLE_CANNON` stock is > 0, apply a probability threshold to promote the weapon choice to `WeaponId.TRIPLE_CANNON`:
+
+| Bot level | Triple Cannon use probability (if stock > 0) |
+|---|---|
+| RandBot | 40% |
+| AimBot | 35% |
+| CleverBot | 30% |
+| SuperBot | 25% (prefers to save for strategic shots) |
+| MegaBot | 25% |
+
+This is applied after the angle/power decision — the bot uses its normal targeting logic and simply fires three bullets at that angle instead of one.
+
+#### Crystal targeting (SuperBot + MegaBot only)
+
+After computing `bestShot` for the primary enemy target, SuperBot and MegaBot run a quick secondary pass over all live crystals:
+
+```
+for each live crystal:
+  simulate(bestShot.angle, bestShot.power, station, crystalAsTarget, planets)
+  if closestApproach < crystal.radius * 2:
+    // this shot already collects the crystal — no change needed
+    note the crystal collection as a side-effect
+  else if team.getStock(TRIPLE_CANNON) < 2:
+    // stock is low; try to find a shot that hits this crystal
+    simulate with crystalAsTarget to find crystalShot
+    if crystalShot.closestApproach < crystal.radius:
+      // weigh crystal shot vs primary: choose crystal shot only if
+      // primary shot closestApproach is > threshold (unlikely to score)
+      if bestShot.closestApproach > CRYSTAL_CHASE_THRESHOLD:
+        choose crystalShot
+```
+
+`CRYSTAL_CHASE_THRESHOLD` = 15 game units (roughly half a Large station radius). If the primary shot is already a good one, the bot ignores the crystal. It only diverts to crystal-hunting when its primary shot is poor.
+
+This does not require any new simulation infrastructure — it reuses `PhysicsEngine.simulate()` with the crystal's position treated as a zero-radius target station.
+
+---
+
+### 13.11 Updated File Structure
+
+```
+src/
+├── entities/
+│   ├── Crystal.js          ← NEW: Crystal entity (position, rotation, alive, radius)
+│   └── Team.js             ← UPDATED: weaponStock map + getStock/spendStock/addStock
+│   └── Station.js          ← UPDATED: selectedWeapon field; hyperspaceQueued → getter
+│   └── Bullet.js           ← minor: weapon field on bullet (for future per-weapon VFX)
+├── rendering/
+│   ├── Renderer.js         ← UPDATED: drawCrystals(), drawVFX() on Layer 2
+│   └── CrystalRenderer.js  ← NEW: crystal draw procedure + VFX draw procedures
+├── physics/
+│   └── PhysicsEngine.js    ← UPDATED: checkCrystalCollision() separate from checkCollisions()
+├── core/
+│   └── GameState.js        ← UPDATED: crystals[], vfxList[], _trySpawnCrystal(), _spawnBullets()
+├── ai/
+│   └── (all bots)          ← UPDATED: return weapon in action; crystal opportunism in SimBot
+├── ui/
+│   ├── WeaponSelector.js   ← NEW: DOM popup weapon selector
+│   └── ConfigPanel.js      ← UPDATED: Collectables cycle-button row
+└── input/
+    └── InputHandler.js     ← UPDATED: H key uses WeaponSelector.toggle() not direct hyperspace set
+```
+
+---
+
+### 13.12 Invariants & Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Player selects Triple Cannon but stock reaches 0 before their turn | Weapon selector greys out the option; station falls back to Cannon if stock drops to 0 mid-turn (e.g. teammate fired last use on the same team's turn) |
+| All three Triple Cannon bullets hit the same station | Station destroyed on first hit; remaining two bullets hit a dead/exploding station — treated as normal hits with no additional scoring |
+| Triple Cannon bullet hits a crystal | Crystal destroyed, 3 uses awarded, bullet continues — same as any other bullet |
+| Crystal spawns on top of another crystal | Placement validation checks other crystals' positions as well as planets/stations |
+| All 3 simultaneous crystals destroyed in one turn | All three grant text VFX play concurrently; each awards 3 uses to the owning bullet's team independently |
+| Crystal persists into a new game (tournament) | Crystals do **not** persist across games — `gameState.crystals` is cleared on `newGame()`. Weapon stocks persist; crystals do not |
+
+---
+
 ## 12. Open Implementation Decisions
 
 These were not resolved in requirements and need a call before implementation:
