@@ -274,6 +274,16 @@ The original shows a **white circle** around the active station with a **single 
 - Fonts: modern sans-serif for UI panels; for in-canvas text (Angle/Power/Team name) use a bold, slightly retro-feeling font — the original used large Courier/Serif; something like `monospace` or a Google Font like `Orbitron` fits the aesthetic
 - Colour palette: dark space background (#000 or near-black), vivid team colours, warm star yellows and reds
 
+### 11.8 Config Panel — Responsive Layout Constraint
+
+The config panel automatically switches to a compact 3-page paged layout on small viewports (phones, tablets in landscape). **Adding a new config option must not cause the compact paged layout to overflow its viewport.**
+
+Rules for new options:
+- Assign the new row to whichever of the three pages (SETUP / WORLD / OPTIONS) has the most headroom. Current row counts: SETUP 4, WORLD 6, OPTIONS 6.
+- If all three pages are full (i.e. adding to any page would overflow a ~375 px viewport), add a fourth page rather than growing an existing one.
+- Never rely on the panel's `overflow-y: auto` safety net as the primary solution — it is a last resort for extreme edge cases only.
+- The compact row budget is approximately **6–7 rows per page** at current font/spacing settings. Verify fit by checking `panel.scrollHeight ≤ window.innerHeight × 0.92` on a 375 × 667 viewport (iPhone SE) before shipping.
+
 ### 11.4 Keyboard Shortcuts (unchanged from original)
 | Key | Action |
 |---|---|
