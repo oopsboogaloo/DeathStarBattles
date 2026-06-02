@@ -253,7 +253,7 @@ export class Renderer {
       }
       if (bullet.status === 'exploding') this._drawExplosion(ctx, bullet);
     }
-    this._drawOffScreenIndicators(ctx, gameState.activeBullets);
+    this._drawOffScreenIndicators(ctx, gameState.activeBullets, gameState.rockets);
 
     // Asteroid freestanding explosions (drawn before stations so they sit behind)
     for (const ex of gameState.activeExplosions) {
@@ -278,6 +278,12 @@ export class Renderer {
         }
       }
     }
+
+    // Rocket smoke (drawn behind everything else)
+    if (gameState.rocketSmoke?.length) this._drawRocketSmoke(ctx, gameState.rocketSmoke);
+
+    // Rocket blast zones (drawn behind rockets and shields)
+    if (gameState.rocketBlasts?.length) this._drawRocketBlasts(ctx, gameState.rocketBlasts);
 
     // Force shields
     if (gameState.shields?.length) this._drawShields(ctx, gameState.shields);
@@ -872,16 +878,24 @@ export class Renderer {
   // Off-screen bullet indicators — triangle at canvas edge + distance
   // ----------------------------------------------------------------
 
-  _drawOffScreenIndicators(ctx, bullets) {
+  _drawOffScreenIndicators(ctx, bullets, rockets = []) {
     const cx = this._vpW / 2, cy = this._vpH / 2;
 
-    for (const bullet of bullets) {
-      if (bullet.status !== 'active') continue;
-      const bx = bullet.position.x * this.conv;
-      const by = bullet.position.y * this.conv;
+    const entities = [
+      ...bullets.filter(b => b.status === 'active').map(b => ({
+        x: b.position.x, y: b.position.y, colour: b.owner.team.colour,
+      })),
+      ...(rockets ?? []).filter(r => r.status === 'active').map(r => ({
+        x: r.position.x, y: r.position.y, colour: r.owner.team.colour,
+      })),
+    ];
+
+    for (const entity of entities) {
+      const bx = entity.x * this.conv;
+      const by = entity.y * this.conv;
       if (bx >= 0 && bx <= this._vpW && by >= 0 && by <= this._vpH) continue;
 
-      const [tr, tg, tb] = bullet.owner.team.colour;
+      const [tr, tg, tb] = entity.colour;
       const colour = `rgb(${tr},${tg},${tb})`;
       const angle  = Math.atan2(by - cy, bx - cx);
       const cosA   = Math.cos(angle), sinA = Math.sin(angle);
@@ -1028,6 +1042,67 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // Rocket smoke trail — expand quickly then contract + fade slowly
+  // ----------------------------------------------------------------
+
+  _drawRocketSmoke(ctx, smoke) {
+    const conv = this.conv;
+    for (const s of smoke) {
+      let radius, alpha;
+      if (s.t < 0.18) {
+        // Quick expand phase
+        radius = s.maxR * (s.t / 0.18) * conv;
+        alpha  = 0.5;
+      } else {
+        // Contract + fade phase — last 25% of life runs at 1/5 speed
+        let frac;
+        if (s.t < 0.75) {
+          frac = (s.t - 0.18) / 0.82;
+        } else {
+          const fracAt75 = (0.75 - 0.18) / 0.82;          // progress at 75% mark
+          frac = fracAt75 + (s.t - 0.75) / 0.82 / 4;      // 5× slower from here
+        }
+        radius = s.maxR * Math.max(0, 1.0 - frac * 0.5) * conv;
+        alpha  = Math.max(0, 0.5 * (1 - frac));
+      }
+      if (radius <= 0) continue;
+      ctx.beginPath();
+      ctx.arc(s.x * conv, s.y * conv, radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha.toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Rocket blast zones — solid expanding circle, visual = collision boundary
+  // ----------------------------------------------------------------
+
+  _drawRocketBlasts(ctx, blasts) {
+    const conv = this.conv;
+    for (const blast of blasts) {
+      const cx = blast.x * conv;
+      const cy = blast.y * conv;
+      const r  = blast.currentRadius * conv;
+      const t  = blast.currentRadius / blast.maxRadius; // 0 → 1
+      const [cr, cg, cb] = blast.owner.team.colour;
+
+      // Solid fill — stays opaque while lethal, fades only in last 20%
+      const fillAlpha = t < 0.8 ? 0.55 : 0.55 * (1 - (t - 0.8) / 0.2);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${fillAlpha.toFixed(3)})`;
+      ctx.fill();
+
+      // Bright hard edge showing the exact kill boundary
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,255,255,${(0.9 - t * 0.6).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(2, conv * 0.7);
+      ctx.stroke();
+    }
+  }
+
   // ----------------------------------------------------------------
   // Force Shields
   // ----------------------------------------------------------------

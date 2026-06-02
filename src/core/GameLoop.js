@@ -507,13 +507,15 @@ export class GameLoop {
       ? ({ off: 0, rare: 0.01, normal: 0.05, common: 0.10, abundant: 0.25, overwhelming: 1.0 }[this.gs.config?.richAsteroids] ?? 0.05)
       : 0;
 
-    if (parent.rich && collectablesOn && centers.length > 0) {
+    const spawnedCollectable = parent.rich && collectablesOn && centers.length > 0;
+    if (spawnedCollectable) {
       const col = new Collectable(new Vec2(centers[0].x, centers[0].y));
       col.radius = this._collectableRadius();
       this.gs.collectables.push(col);
     }
 
-    return centers.map(c => {
+    // Skip centers[0] if a collectable replaced that fragment slot
+    return centers.slice(spawnedCollectable ? 1 : 0).map(c => {
       const isRich = richProb > 0 && this.rng.next() < richProb;
       return this._makeChildAsteroid(new Vec2(c.x, c.y), childR, parent.density, isRich);
     });
@@ -669,6 +671,8 @@ export class GameLoop {
     this.gs.activeBullets = [];
     this.gs.rockets       = [];
     this.gs.shields       = [];
+    this.gs.rocketBlasts  = [];
+    this.gs.rocketSmoke   = [];
     this.gs.burstQueue    = [];
     this.gs.pendingLasers = [];
     this.gs.firingStep    = 0;
@@ -856,11 +860,16 @@ export class GameLoop {
         }
         if (detonated) continue;
 
-        // Planet collision → detonate
+        // Planet collision → teleport through wormhole or detonate (gas giants passed through)
         for (const planet of this.gs.planets) {
-          if (planet.destroyed) continue;
+          if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
           if (rocket.position.distanceSqTo(planet.position) < planet.impactRadius ** 2) {
-            this._detonateRocket(rocket); detonated = true; break;
+            if (this._isWormhole(planet.type)) {
+              this._teleportRocket(rocket, planet);
+            } else {
+              this._detonateRocket(rocket); detonated = true;
+            }
+            break;
           }
         }
         if (detonated) continue;
@@ -972,6 +981,67 @@ export class GameLoop {
       }
     }
 
+    // Advance expanding rocket blasts (once per rAF frame, not per physics step)
+    for (let i = this.gs.rocketBlasts.length - 1; i >= 0; i--) {
+      const blast = this.gs.rocketBlasts[i];
+      blast.currentRadius += blast.maxRadius / 22; // expand over ~22 frames
+
+      const r2    = blast.currentRadius * blast.currentRadius;
+      const proxy = { owner: blast.owner, status: 'active', teleportCount: 0, trickShotDone: false };
+
+      for (const s of allStations) {
+        if (s.status !== 'active' || blast.hitSet.has(s)) continue;
+        const dx = s.position.x - blast.x, dy = s.position.y - blast.y;
+        if (dx * dx + dy * dy < r2) { blast.hitSet.add(s); this._resolveStationHit(proxy, s); }
+      }
+      for (const b of this.gs.activeBullets) {
+        if (b.status !== BulletStatus.ACTIVE || blast.hitSet.has(b)) continue;
+        const dx = b.position.x - blast.x, dy = b.position.y - blast.y;
+        if (dx * dx + dy * dy < r2) { blast.hitSet.add(b); b.status = BulletStatus.DEAD; }
+      }
+      for (const p of this.gs.planets) {
+        if (p.destroyed || blast.hitSet.has(p)) continue;
+        if (p.type !== PlanetType.ASTEROID && p.type !== PlanetType.CRYSTAL) continue;
+        const dx = p.position.x - blast.x, dy = p.position.y - blast.y;
+        if (dx * dx + dy * dy < r2) { blast.hitSet.add(p); p.destroyed = true; }
+      }
+      for (const c of this.gs.collectables) {
+        if (!c.alive || blast.hitSet.has(c)) continue;
+        const dx = c.position.x - blast.x, dy = c.position.y - blast.y;
+        if (dx * dx + dy * dy < r2) {
+          blast.hitSet.add(c);
+          c.alive = false;
+          const grant = WEAPON_GRANTS[Math.floor(this.rng.next() * WEAPON_GRANTS.length)];
+          blast.owner.addStock(grant.id, grant.charges);
+          this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+          const [cr, cg, cb] = blast.owner.colour;
+          this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+        }
+      }
+
+      if (blast.currentRadius >= blast.maxRadius) this.gs.rocketBlasts.splice(i, 1);
+    }
+
+    // Emit smoke from active rockets and advance all smoke puffs (once per rAF frame)
+    for (const rocket of this.gs.rockets) {
+      if (rocket.status !== RocketStatus.ACTIVE) continue;
+      const speed  = Math.sqrt(rocket.velocity.x ** 2 + rocket.velocity.y ** 2) || 1;
+      const angle  = Math.atan2(rocket.velocity.y, rocket.velocity.x) + Math.PI; // behind rocket
+      const dist   = 2 + this.rng.next() * 2;
+      const jitter = (this.rng.next() - 0.5) * 3;
+      const [sr, sg, sb] = rocket.owner.team.colour;
+      this.gs.rocketSmoke.push({
+        x: rocket.position.x + Math.cos(angle) * dist + Math.cos(angle + Math.PI / 2) * jitter,
+        y: rocket.position.y + Math.sin(angle) * dist + Math.sin(angle + Math.PI / 2) * jitter,
+        maxR: 3 + this.rng.next() * 4,
+        t: 0, r: sr, g: sg, b: sb,
+      });
+    }
+    for (let i = this.gs.rocketSmoke.length - 1; i >= 0; i--) {
+      this.gs.rocketSmoke[i].t += 1 / (400+ Math.random() * 800);
+      if (this.gs.rocketSmoke[i].t >= 1) this.gs.rocketSmoke.splice(i, 1);
+    }
+
     // Advance rocket explosion timers; remove dead
     for (const rocket of this.gs.rockets) {
       if (rocket.status === RocketStatus.EXPLODING) {
@@ -993,12 +1063,14 @@ export class GameLoop {
     // All resolved → RESULTS (wait for moving stations, burst queue, pending lasers, and rockets)
     const bulletsGone    = this.gs.activeBullets.length === 0;
     const rocketsGone    = this.gs.rockets.length === 0;
+    const blastsGone     = this.gs.rocketBlasts.length === 0;
     const burstsGone     = this.gs.burstQueue.length === 0;
     const lasersGone     = this.gs.pendingLasers.length === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && rocketsGone && burstsGone && lasersGone && !stationsMoving) {
-      this.gs.shields = [];  // clear shields at end of firing phase
+    if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && !stationsMoving) {
+      this.gs.shields = [];
+      this.gs.rocketBlasts = [];
       this._processHyperspace();
       this._checkWin();
       this._resultsTimer = 240; // ~4 s at 60 fps
@@ -1121,33 +1193,77 @@ export class GameLoop {
   }
 
   // Explode a rocket at its current position, applying blast damage.
+  _isWormhole(type) {
+    return type === PlanetType.WORMHOLE_PAIRED || type === PlanetType.WORMHOLE_CYCLIC ||
+           type === PlanetType.WORMHOLE_RANDOM || type === PlanetType.WORMHOLE_NETWORK ||
+           type === PlanetType.WORMHOLE_PLANET || type === PlanetType.WORMHOLE_SELF;
+  }
+
+  _teleportRocket(rocket, planet) {
+    if (rocket.teleportCount >= 100) { this._detonateRocket(rocket); return; }
+    const dx    = planet.position.x - rocket.position.x;
+    const dy    = planet.position.y - rocket.position.y;
+    const sign  = dx < 0 ? -1 : 1;
+    const theta = Math.atan(dy / dx);
+    const theta2 = sign < 0 ? theta + Math.PI : theta;
+    const { gw, gh } = this.physics;
+
+    switch (planet.type) {
+      case PlanetType.WORMHOLE_PAIRED:
+      case PlanetType.WORMHOLE_CYCLIC: {
+        if (!planet.partner) { this._detonateRocket(rocket); return; }
+        const d = planet.partner;
+        rocket.position = new Vec2(
+          d.position.x + Math.cos(theta2) * (d.impactRadius + 0.5),
+          d.position.y + Math.sin(theta2) * (d.impactRadius + 0.5),
+        );
+        break;
+      }
+      case PlanetType.WORMHOLE_RANDOM:
+        rocket.position = new Vec2(Math.random() * gw, Math.random() * gh);
+        break;
+      case PlanetType.WORMHOLE_NETWORK: {
+        const others = this.gs.planets.filter(p => p !== planet && p.type === PlanetType.WORMHOLE_NETWORK && !p.destroyed);
+        if (others.length > 0) {
+          const dest = others[Math.floor(Math.random() * others.length)];
+          const a = Math.random() * Math.PI * 2;
+          rocket.position = new Vec2(dest.position.x + Math.cos(a) * (dest.impactRadius + 0.5), dest.position.y + Math.sin(a) * (dest.impactRadius + 0.5));
+        } else {
+          rocket.position = new Vec2(Math.random() * gw, Math.random() * gh);
+        }
+        break;
+      }
+      case PlanetType.WORMHOLE_PLANET: {
+        const others = this.gs.planets.filter(p => p !== planet && p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed);
+        const dest = others.length > 0 ? others[0] : null;
+        rocket.position = dest
+          ? new Vec2(dest.position.x + Math.cos(theta2) * (dest.impactRadius + 0.5), dest.position.y + Math.sin(theta2) * (dest.impactRadius + 0.5))
+          : new Vec2(Math.random() * gw, Math.random() * gh);
+        break;
+      }
+      case PlanetType.WORMHOLE_SELF:
+        rocket.position = new Vec2(
+          planet.position.x + Math.cos(theta2) * (planet.impactRadius + 0.5),
+          planet.position.y + Math.sin(theta2) * (planet.impactRadius + 0.5),
+        );
+        break;
+      default:
+        this._detonateRocket(rocket); return;
+    }
+    rocket.teleportCount++;
+  }
+
   _detonateRocket(rocket) {
     if (rocket.status !== RocketStatus.ACTIVE) return;
     rocket.status = RocketStatus.EXPLODING;
-    const [rr, rg, rb] = rocket.owner.team.colour;
-    this.gs.activeExplosions.push({
+    // Spawn an expanding blast zone — damage is applied progressively as it grows.
+    this.gs.rocketBlasts.push({
       x: rocket.position.x, y: rocket.position.y,
-      radius: ROCKET_BLAST_RADIUS,
-      t: 0, r: rr, g: rg, b: rb,
-      particles: this._makeParticles(rocket.position.x, rocket.position.y, rr, rg, rb, 20),
+      maxRadius:     ROCKET_BLAST_RADIUS,
+      currentRadius: 1,
+      owner:         rocket.owner,
+      hitSet:        new Set(),
     });
-    const blastR2 = ROCKET_BLAST_RADIUS * ROCKET_BLAST_RADIUS;
-    const proxy   = { owner: rocket.owner, status: 'active', teleportCount: 0, trickShotDone: false };
-    for (const s of this.gs.allStations) {
-      if (s.status !== 'active') continue;
-      if (rocket.position.distanceSqTo(s.position) < blastR2)
-        this._resolveStationHit(proxy, s);
-    }
-    for (const b of this.gs.activeBullets) {
-      if (b.status === BulletStatus.ACTIVE && rocket.position.distanceSqTo(b.position) < blastR2)
-        b.status = BulletStatus.DEAD;
-    }
-    for (const planet of this.gs.planets) {
-      if (!planet.destroyed && (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL)) {
-        if (rocket.position.distanceSqTo(planet.position) < blastR2)
-          planet.destroyed = true;
-      }
-    }
   }
 
   // Spawn a bright blue sparkle explosion for a destroyed crystal.
