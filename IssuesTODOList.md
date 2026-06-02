@@ -7,7 +7,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Bugs
 
-- [ ] Collectable special weapons: if a team has only 1 of a special weapon and a station uses it, it remains selectable by the next station — should be greyed out / disabled once the team's supply hits 0.
+- [x] Collectable special weapons: if a team has only 1 of a special weapon and a station uses it, it remains selectable by the next station — should be greyed out / disabled once the team's supply hits 0.
 
 ## Improvements
 

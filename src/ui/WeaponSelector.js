@@ -96,8 +96,13 @@ export class WeaponSelector {
 
     for (const weaponId of allWeapons) {
       const isLimited  = LIMITED.has(weaponId);
-      const stock      = isLimited ? team.getStock(weaponId) : Infinity;
-      if (isLimited && stock <= 0) continue; // hide empty weapons
+      const rawStock   = isLimited ? team.getStock(weaponId) : Infinity;
+      // Subtract uses already reserved by other active team stations this turn
+      const reserved   = isLimited ? station.team.stations.filter(
+        s => s !== station && s.status === 'active' && s.selectedWeapon === weaponId
+      ).length : 0;
+      const stock      = isLimited ? Math.max(0, rawStock - reserved) : Infinity;
+      if (isLimited && stock <= 0) continue; // hide weapons with no effective stock
       const isSelected = station.selectedWeapon === weaponId;
       const lbl        = LABELS[weaponId];
       const suffix     = isLimited ? ` [${stock}]` : ' (∞)';

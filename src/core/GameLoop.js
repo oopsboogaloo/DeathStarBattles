@@ -1499,7 +1499,12 @@ export class GameLoop {
   humanSelectWeapon(weaponId) {
     const s = this.gs.activeStation;
     if (!s) return;
-    if (weaponId === WeaponId.TRIPLE_CANNON && s.team.getStock(WeaponId.TRIPLE_CANNON) <= 0) return;
+    if (weaponId !== WeaponId.CANNON && weaponId !== WeaponId.HYPERSPACE) {
+      const reserved = s.team.stations.filter(
+        t => t !== s && t.status === 'active' && t.selectedWeapon === weaponId
+      ).length;
+      if (s.team.getStock(weaponId) - reserved <= 0) return;
+    }
     s.selectedWeapon = weaponId;
   }
 
