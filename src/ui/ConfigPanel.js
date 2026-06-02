@@ -103,6 +103,7 @@ export class ConfigPanel {
     this._flatPrimary     = null;
     this._advancedInner   = null;
     this._collectSubRows  = null; // rows greyed out when collectables === 'off'
+    this._devRows         = null; // rows hidden unless dev mode is active
     this._flatSection     = null;
     this._pagedSection    = null;
     this.element          = this._build();
@@ -299,6 +300,19 @@ export class ConfigPanel {
       textAlign:     'center',
     });
     this._title.textContent = 'Death Star Battles';
+    this._devBadge = el('span', {
+      display:       'none',
+      marginLeft:    '8px',
+      fontSize:      '10px',
+      letterSpacing: '0.12em',
+      color:         'rgba(255,180,50,0.9)',
+      border:        '1px solid rgba(255,180,50,0.5)',
+      borderRadius:  '3px',
+      padding:       '1px 5px',
+      verticalAlign: 'middle',
+    });
+    this._devBadge.textContent = 'DEV';
+    this._title.appendChild(this._devBadge);
     panel.appendChild(this._title);
 
     // ── Build all row elements once ──────────────────────────────────────────
@@ -366,6 +380,8 @@ export class ConfigPanel {
         v => ({ none: 'None', one: 'One at Random', minor: 'Minor  (2 Cannons)', oneOfEach: 'One of Each', lots: 'Lots  (3 of Each)', tooMany: 'Too Many  (7 of Each)' }[v])));
 
     this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
+    this._devRows        = [rowStartWep];
+    rowStartWep.style.display = 'none'; // hidden until dev mode enabled
     this._updateCollectableGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
@@ -631,6 +647,13 @@ export class ConfigPanel {
       if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
     }
     if (key === 'collectables') this._updateCollectableGrey();
+  }
+
+  setDevMode(enabled) {
+    this._devBadge.style.display = enabled ? 'inline' : 'none';
+    for (const row of this._devRows ?? []) {
+      row.style.display = enabled ? '' : 'none';
+    }
   }
 
   _updateCollectableGrey() {

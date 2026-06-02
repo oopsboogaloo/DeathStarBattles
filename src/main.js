@@ -41,6 +41,7 @@ let activeConfig      = panel.config; // last config used to start a real game
 let isDemo            = false;
 let tournament        = null;          // TournamentState | null
 let lastGameState     = null;          // game state from most recently completed game (for Scores modal)
+let _prevWeaponStocks = null;          // Map<teamIndex, Map<weaponId, count>> — carries over between tournament games
 let _menuPausedLoop   = false;         // true when ⚙ paused a running game (resume can unpause it)
 
 // ─── Leaderboard & game-over screen ──────────────────────────────────────────
@@ -98,7 +99,8 @@ gameOverScreen.onNewGame(() => {
 panel.onStart(cfg => {
   isDemo       = false;
   activeConfig = cfg;
-  tournament   = null;   // fresh tournament on each new config start
+  tournament        = null;   // fresh tournament on each new config start
+  _prevWeaponStocks = null;
   startGame(cfg);
 });
 
@@ -298,6 +300,8 @@ function _onGameOver(gs) {
   if (isTournament) {
     if (!tournament) tournament = new TournamentState();
     tournament.recordGame(gs);
+    // Snapshot weapon stocks so they carry into the next game
+    _prevWeaponStocks = new Map(gs.teams.map(t => [t.index, new Map(t.weaponStock)]));
     gameOverScreen.show(gs, tournament);
   } else {
     gameOverScreen.show(gs, null);
@@ -365,6 +369,19 @@ function startGame(cfg) {
     }
   }
   ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off');
+
+  // Restore weapon stocks carried over from the previous tournament game
+  if (_prevWeaponStocks) {
+    for (const team of teams) {
+      const prev = _prevWeaponStocks.get(team.index);
+      if (prev) {
+        for (const [weaponId, count] of prev) {
+          if (count > 0) team.addStock(weaponId, count);
+        }
+      }
+    }
+  }
+
   _applyStartingWeapons(teams, cfg, rng);
 
   const stars = Renderer.generateStarField(gw, gh);
@@ -540,7 +557,16 @@ canvas.addEventListener('click', e => {
 
 // ─── Global keyboard shortcuts ────────────────────────────────────────────────
 
+let _devMode = false;
+
 window.addEventListener('keydown', e => {
+  // Ctrl+Shift+D — toggle developer mode (reveals debug options in config panel)
+  if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+    e.preventDefault();
+    _devMode = !_devMode;
+    panel.setDevMode(_devMode);
+    return;
+  }
   if (!loop || isDemo) return;
   if (e.key === 'p' || e.key === 'P') loop.togglePause();
   if (e.key === 'o' || e.key === 'O') loop.stepOne();
