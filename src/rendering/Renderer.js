@@ -279,7 +279,8 @@ export class Renderer {
       }
     }
 
-    // Rocket smoke (drawn behind everything else)
+    // Comet + rocket smoke (drawn behind everything else)
+    if (gameState.cometSmoke?.length) this._drawCometSmoke(ctx, gameState.cometSmoke);
     if (gameState.rocketSmoke?.length) this._drawRocketSmoke(ctx, gameState.rocketSmoke);
 
     // Rocket blast zones (drawn behind rockets and shields)
@@ -398,44 +399,13 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // Comet — bright nucleus with pale blue trailing tail
+  // Comet — bright nucleus with soft glow (tail handled by cometSmoke particles)
   // ----------------------------------------------------------------
 
   _drawComet(ctx, comet) {
     const cx   = comet.position.x * this.conv;
     const cy   = comet.position.y * this.conv;
     const r    = Math.max(2, comet.radius * this.conv);
-    const conv = this.conv;
-
-    // Tail — drawn behind nucleus; length scales with speed
-    if (comet.velocity) {
-      const vx    = comet.velocity.x;
-      const vy    = comet.velocity.y;
-      const speed = Math.sqrt(vx * vx + vy * vy);
-      if (speed > 0.0002) {
-        const tailLen = Math.min(120, speed * 5000) * conv;
-        const nx = -vx / speed;
-        const ny = -vy / speed;
-
-        // Draw tail as a series of fading segments for a tapered look
-        const steps = 8;
-        for (let i = steps; i >= 1; i--) {
-          const t0 = (i - 1) / steps;
-          const t1 = i       / steps;
-          const alpha0 = (1 - t0) * 0.45;
-          const alpha1 = (1 - t1) * 0.45;
-          const w = Math.max(0.5, r * 0.7 * (1 - t0));
-          ctx.beginPath();
-          ctx.moveTo(cx + nx * tailLen * t0, cy + ny * tailLen * t0);
-          ctx.lineTo(cx + nx * tailLen * t1, cy + ny * tailLen * t1);
-          ctx.strokeStyle = `rgba(160,195,255,${(alpha0 + alpha1) / 2})`;
-          ctx.lineWidth   = w;
-          ctx.lineCap     = 'round';
-          ctx.stroke();
-        }
-        ctx.lineCap = 'butt';
-      }
-    }
 
     // Soft glow halo
     const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.5);
@@ -1042,6 +1012,37 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // Comet smoke trail — white puffs, same lifecycle as rocket smoke
+  // ----------------------------------------------------------------
+
+  _drawCometSmoke(ctx, smoke) {
+    const conv = this.conv;
+    for (const s of smoke) {
+      let radius, alpha;
+      const shrink = s.fast ? 1.0 : 0.95; // fast = collapses quickly; slow = barely shrinks
+      if (s.t < 0.18) {
+        radius = s.maxR * (s.t / 0.18) * conv;
+        alpha  = s.fast ? 0.45 : 0.6;
+      } else {
+        let frac;
+        if (s.t < 0.75) {
+          frac = (s.t - 0.18) / 0.82;
+        } else {
+          const fracAt75 = (0.75 - 0.18) / 0.82;
+          frac = fracAt75 + (s.t - 0.75) / 0.82 / (s.fast ? 3 : 5);
+        }
+        radius = s.maxR * Math.max(0, 1.0 - frac * shrink) * conv;
+        alpha  = Math.max(0, (s.fast ? 0.45 : 0.6) * (1 - frac));
+      }
+      if (radius <= 0) continue;
+      ctx.beginPath();
+      ctx.arc(s.x * conv, s.y * conv, radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(220,235,255,${alpha.toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+
   // ----------------------------------------------------------------
   // Rocket smoke trail — expand quickly then contract + fade slowly
   // ----------------------------------------------------------------

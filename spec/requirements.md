@@ -56,7 +56,7 @@ A bullet is destroyed (or teleported) when it:
 ### 4.1 Configuration
 - 2–12 stations total, divided into teams
 - Each team can have 1 or more stations (up to `floor(12 / num_teams)`)
-- Station size is configurable: Micro / Tiny / Small / Medium / Large / Giant (affects hit radius and visual size)
+- Station size is configurable: Micro / Tiny / Small / Medium / Large / Giant / Mammoth (affects hit radius and visual size)
 - Station colours are fixed per team: green, cyan, yellow, red, purple, blue, orange, grey, white, black, pink, brown
 
 ### 4.2 Per-turn Actions

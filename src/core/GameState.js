@@ -26,7 +26,8 @@ export class GameState {
     this.vfxList          = [];         // VFX objects (collectable shatter, collectable grant, muzzle)
     this.rockets          = [];         // Rocket[]
     this.rocketBlasts     = [];         // {x,y,maxRadius,currentRadius,owner,hitSet}[]
-    this.rocketSmoke      = [];         // {x,y,maxR,t,r,g,b}[] — smoke puff particles — active rockets in flight
+    this.rocketSmoke      = [];         // {x,y,maxR,t,r,g,b}[] — smoke puff particles
+    this.cometSmoke       = [];         // {x,y,maxR,t}[] — white comet tail puffs — active rockets in flight
     this.shields          = [];         // {station, radius, alive}[] — active Force Shields
     this.burstQueue       = [];         // burst-fire entries: {station,weapon,shotsRemaining,intervalSteps,nextFireStep,angle,power}
     this.pendingLasers    = [];         // {station, angle, delaySteps}[] — lasers waiting to fire

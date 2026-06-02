@@ -1042,6 +1042,40 @@ export class GameLoop {
       if (this.gs.rocketSmoke[i].t >= 1) this.gs.rocketSmoke.splice(i, 1);
     }
 
+    // Comet smoke — two layers: fast surface haze + slow central tail
+    for (const planet of this.gs.planets) {
+      if (planet.type !== PlanetType.COMET || planet.destroyed) continue;
+
+      // Layer 1: fast-shrinking surface puffs (hazy coma)
+      for (let p = 0; p < 3; p++) {
+        const a = this.rng.next() * Math.PI * 2;
+        this.gs.cometSmoke.push({
+          x: planet.position.x + Math.cos(a) * (planet.radius + 0.5),
+          y: planet.position.y + Math.sin(a) * (planet.radius + 0.5),
+          maxR: 2 + this.rng.next() * 4, dt: 1 / 110, fast: true, t: 0,
+        });
+      }
+
+      // Layer 2: slow central tail puffs (sharp defined trail)
+      if (planet.velocity) {
+        const speed = Math.sqrt(planet.velocity.x ** 2 + planet.velocity.y ** 2);
+        if (speed > 0.0002) {
+          const tailAngle = Math.atan2(planet.velocity.y, planet.velocity.x) + Math.PI;
+          const dist   = planet.radius + 2 + this.rng.next() * 4;
+          const jitter = (this.rng.next() - 0.5) * planet.radius * 0.4;
+          this.gs.cometSmoke.push({
+            x: planet.position.x + Math.cos(tailAngle) * dist + Math.cos(tailAngle + Math.PI / 2) * jitter,
+            y: planet.position.y + Math.sin(tailAngle) * dist + Math.sin(tailAngle + Math.PI / 2) * jitter,
+            maxR: 5 + this.rng.next() * 6, dt: 1 / 400, fast: false, t: 0,
+          });
+        }
+      }
+    }
+    for (let i = this.gs.cometSmoke.length - 1; i >= 0; i--) {
+      this.gs.cometSmoke[i].t += this.gs.cometSmoke[i].dt;
+      if (this.gs.cometSmoke[i].t >= 1) this.gs.cometSmoke.splice(i, 1);
+    }
+
     // Advance rocket explosion timers; remove dead
     for (const rocket of this.gs.rockets) {
       if (rocket.status === RocketStatus.EXPLODING) {
