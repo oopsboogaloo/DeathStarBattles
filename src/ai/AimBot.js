@@ -22,10 +22,8 @@ export class AimBot extends AIController {
 
     const moveAngle = Math.random() * Math.PI * 2;
     const moveSpeed = 0.005 + Math.random() * 0.015;
-    const tcStock = Math.random() < 0.35 ? station.team?.getStock(WeaponId.TRIPLE_CANNON) ?? 0 : 0;
     const weapon  = Math.random() < 0.14 ? WeaponId.HYPERSPACE
-                  : tcStock > 0          ? WeaponId.TRIPLE_CANNON
-                  : WeaponId.CANNON;
+                  : this._pickWeapon(station, 0.35);
     return {
       angle:   Math.round((baseAngle + noise + 360) % 360),
       power:   Math.floor(Math.random() * 600) + 200,
@@ -34,6 +32,18 @@ export class AimBot extends AIController {
         ? { x: Math.cos(moveAngle) * moveSpeed, y: Math.sin(moveAngle) * moveSpeed }
         : null,
     };
+  }
+
+  _pickWeapon(station, prob) {
+    if (Math.random() >= prob) return WeaponId.CANNON;
+    const priority = [
+      WeaponId.LASER, WeaponId.ROCKET, WeaponId.MINIGUN, WeaponId.TRIPLE_CANNON,
+      WeaponId.BLUNDERBUSS, WeaponId.BLASTER, WeaponId.FORCE_SHIELD,
+    ];
+    for (const w of priority) {
+      if ((station.team?.getStock(w) ?? 0) > 0) return w;
+    }
+    return WeaponId.CANNON;
   }
 
   _randomEnemy(station, gameState) {

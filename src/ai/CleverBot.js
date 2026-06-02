@@ -15,7 +15,7 @@ export class SimBot extends AIController {
   get simSteps()   { return 400; }  // iterations per trajectory trace
   get times()      { return 4; }    // trajectories sampled per shot
   get hyperProb()    { return 0.11; } // base hyperspace probability
-  get _tripleCProb() { return 0.30; } // probability of using Triple Cannon if stocked
+  get _specialProb() { return 0.30; } // probability of spending a special weapon this turn
 
   // Override in SuperBot/MegaBot to enable wormhole-aware simulation
   _useWormholes(gameState) { return false; } // eslint-disable-line no-unused-vars
@@ -31,10 +31,7 @@ export class SimBot extends AIController {
     this._mem.set(`${station.id}-${target.id}`, { angle, power });
 
     const shouldHyperspace = this._shouldHyperspace(station, target, gameState, closestDist);
-    const tcStock = Math.random() < this._tripleCProb ? station.team?.getStock(WeaponId.TRIPLE_CANNON) ?? 0 : 0;
-    const weapon  = shouldHyperspace   ? WeaponId.HYPERSPACE
-                  : tcStock > 0        ? WeaponId.TRIPLE_CANNON
-                  : WeaponId.CANNON;
+    const weapon = shouldHyperspace ? WeaponId.HYPERSPACE : this._pickWeapon(station);
     return {
       angle,
       power,
@@ -44,6 +41,18 @@ export class SimBot extends AIController {
   }
 
   _chooseMoveVelocity(_station, _gameState) { return null; } // overridden in sub-bots
+
+  _pickWeapon(station) {
+    if (Math.random() >= this._specialProb) return WeaponId.CANNON;
+    const priority = [
+      WeaponId.LASER, WeaponId.ROCKET, WeaponId.MINIGUN, WeaponId.TRIPLE_CANNON,
+      WeaponId.BLUNDERBUSS, WeaponId.BLASTER, WeaponId.FORCE_SHIELD,
+    ];
+    for (const w of priority) {
+      if ((station.team?.getStock(w) ?? 0) > 0) return w;
+    }
+    return WeaponId.CANNON;
+  }
 
   // Compute net gravity acceleration vector at position from all planets (G=0.2)
   static _netGravity(position, planets) {

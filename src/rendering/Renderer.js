@@ -182,8 +182,9 @@ export class Renderer {
     ctx.beginPath();
     ctx.moveTo(prev.x * conv, prev.y * conv);
     ctx.lineTo(cur.x  * conv, cur.y  * conv);
-    ctx.strokeStyle = `rgb(${tr},${tg},${tb})`;
-    ctx.lineWidth   = Math.max(1, conv * 0.6);
+    const alpha = bullet.thinTrail ? 0.28 : 1;
+    ctx.strokeStyle = `rgba(${tr},${tg},${tb},${alpha})`;
+    ctx.lineWidth   = bullet.thinTrail ? Math.max(0.5, conv * 0.3) : Math.max(1, conv * 0.6);
     ctx.stroke();
   }
 
@@ -278,15 +279,21 @@ export class Renderer {
       }
     }
 
+    // Force shields
+    if (gameState.shields?.length) this._drawShields(ctx, gameState.shields);
+
+    // Rockets + trails
+    if (gameState.rockets?.length) this._drawRockets(ctx, gameState.rockets);
+
     // Collectables
     if (gameState.collectables?.length) this._drawCollectables(ctx, gameState.collectables);
 
-    // VFX overlays (collectable shatter, collectable grants, muzzle flashes)
+    // VFX overlays (collectable shatter, collectable grants, muzzle flashes, laser paths)
     if (gameState.vfxList?.length) this._drawVFX(ctx, gameState.vfxList);
 
     // Aiming indicator — active station in AIMING mode (hidden when hyperspace queued)
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && gameState.mode === 'aiming' && !active.hyperspaceQueued) {
+    if (active && active.status === 'active' && gameState.mode === 'aiming' && !active.hyperspaceQueued && active.selectedWeapon !== 'forceShield') {
       this._drawAimingIndicator(ctx, active);
     }
 
@@ -337,6 +344,11 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
       ctx.fillText('H Y P E R S P A C I N G . . .', this._vpW / 2, this._vpH - 60);
+    } else if (station.selectedWeapon === 'forceShield') {
+      const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 200);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
+      ctx.fillText('S H I E L D I N G . . .', this._vpW / 2, this._vpH - 60);
     }
     // Angle / Power values are now rendered by AimControls DOM buttons
     ctx.restore();
@@ -1014,15 +1026,86 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // VFX — collectable shatter, collectable grant text, triple-cannon muzzle
+  // ----------------------------------------------------------------
+  // Force Shields
+  // ----------------------------------------------------------------
+
+  _drawShields(ctx, shields) {
+    const conv = this.conv;
+    const now  = Date.now() / 1000;
+    for (const shield of shields) {
+      if (!shield.alive) continue;
+      const cx = shield.station.position.x * conv;
+      const cy = shield.station.position.y * conv;
+      const r  = shield.radius * conv + Math.sin(now * 4 * Math.PI) * 2;
+      const [cr, cg, cb] = shield.station.team.colour;
+
+      // Faint fill
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},0.07)`;
+      ctx.fill();
+
+      // Pulsing ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.7)`;
+      ctx.lineWidth   = Math.max(1.5, conv * 0.5);
+      ctx.stroke();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Rockets
+  // ----------------------------------------------------------------
+
+  _drawRockets(ctx, rockets) {
+    const conv = this.conv;
+    for (const rocket of rockets) {
+      if (rocket.status === 'dead') continue;
+
+      // Particle trail
+      const trail = rocket.trail;
+      if (trail.length > 1) {
+        const [cr, cg, cb] = rocket.owner.team.colour;
+        for (let i = Math.max(0, trail.length - 20); i < trail.length - 1; i++) {
+          const alpha = ((i - (trail.length - 21)) / 20) * 0.5;
+          ctx.beginPath();
+          ctx.moveTo(trail[i].x * conv, trail[i].y * conv);
+          ctx.lineTo(trail[i + 1].x * conv, trail[i + 1].y * conv);
+          ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
+          ctx.lineWidth   = Math.max(1.5, conv * 0.8);
+          ctx.stroke();
+        }
+      }
+
+      // Rocket body — small glowing circle
+      if (rocket.status !== 'exploding') {
+        const px = rocket.position.x * conv;
+        const py = rocket.position.y * conv;
+        const [cr, cg, cb] = rocket.owner.team.colour;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(2, conv * 1.2), 0, Math.PI * 2);
+        ctx.fillStyle   = `rgb(${cr},${cg},${cb})`;
+        ctx.shadowColor = `rgba(${cr},${cg},${cb},0.8)`;
+        ctx.shadowBlur  = 6;
+        ctx.fill();
+        ctx.shadowBlur  = 0;
+      }
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // VFX — collectable shatter, collectable grant text, triple-cannon muzzle, laser path
   // ----------------------------------------------------------------
 
   _drawVFX(ctx, vfxList) {
     for (const vfx of vfxList) {
       switch (vfx.type) {
         case 'collectableShatter':     this._drawCollectableShatter(ctx, vfx);      break;
-        case 'collectableGrant':   this._drawCollectableGrant(ctx, vfx);    break;
-        case 'tripleCannonMuzzle': this._drawTripleCannonMuzzle(ctx, vfx);  break;
+        case 'collectableGrant':       this._drawCollectableGrant(ctx, vfx);        break;
+        case 'tripleCannonMuzzle':     this._drawTripleCannonMuzzle(ctx, vfx);      break;
+        case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
       }
     }
   }
@@ -1092,6 +1175,35 @@ export class Renderer {
       ctx.lineWidth   = Math.max(1, (1 - t) * 3.5);
       ctx.stroke();
     }
+  }
+
+  _drawLaserPath(ctx, vfx) {
+    if (!vfx.path?.length) return;
+    const conv  = this.conv;
+    const alpha = Math.sin(vfx.t * Math.PI);
+    const [cr, cg, cb] = vfx.colour;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++)
+      ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+
+    // Wide team-colour glow
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(alpha * 0.5).toFixed(3)})`;
+    ctx.lineWidth   = 6;
+    ctx.stroke();
+
+    // Narrow white core
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++)
+      ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------

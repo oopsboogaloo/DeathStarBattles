@@ -18,5 +18,6 @@ export class Bullet {
     this._prevAngle     = null;        // previous velocity angle for rotation tracking
     this._angleAccum    = 0;           // accumulated signed rotation (radians)
     this.nearMissed     = new Set();   // stations already counted as near-missed
+    this.thinTrail      = false;       // true for spread/burst weapons (lower trail opacity)
   }
 }

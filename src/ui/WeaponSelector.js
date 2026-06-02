@@ -4,7 +4,19 @@ const LABELS = {
   [WeaponId.CANNON]:        'CANNON',
   [WeaponId.HYPERSPACE]:    'HYPERSPACE',
   [WeaponId.TRIPLE_CANNON]: 'TRIPLE CANNON',
+  [WeaponId.BLUNDERBUSS]:   'BLUNDERBUSS',
+  [WeaponId.LASER]:         'LASER',
+  [WeaponId.ROCKET]:        'ROCKET',
+  [WeaponId.BLASTER]:       'BLASTER',
+  [WeaponId.MINIGUN]:       'MINIGUN',
+  [WeaponId.FORCE_SHIELD]:  'FORCE SHIELD',
 };
+
+// Weapons that use stock (shown with [n] count)
+const LIMITED = new Set([
+  WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER, WeaponId.ROCKET,
+  WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+]);
 
 export class WeaponSelector {
   constructor() {
@@ -17,12 +29,11 @@ export class WeaponSelector {
   setOnSelect(cb) { this._onSelect = cb; }
   get isOpen()    { return this._isOpen; }
 
-  // Refresh the weapon button label to match the station's current weapon.
   updateBtn(btn, station) {
     if (!station) return;
     const w   = station.selectedWeapon;
     const lbl = LABELS[w] ?? w;
-    const n   = w === WeaponId.TRIPLE_CANNON ? station.team.getStock(WeaponId.TRIPLE_CANNON) : null;
+    const n   = LIMITED.has(w) ? station.team.getStock(w) : null;
     btn.textContent = n !== null ? `${lbl} [${n}] ▲` : `${lbl} ▲`;
   }
 
@@ -62,22 +73,36 @@ export class WeaponSelector {
       fontSize:     '14px',
       zIndex:       '20',
       boxShadow:    '0 0 20px rgba(50,70,200,0.3)',
-      minWidth:     '170px',
+      minWidth:     '190px',
     });
     return popup;
   }
 
   _rebuildRows(station) {
     this.popup.innerHTML = '';
-    const weapons = [WeaponId.CANNON, WeaponId.HYPERSPACE];
-    const tcStock = station.team.getStock(WeaponId.TRIPLE_CANNON);
-    if (tcStock > 0) weapons.splice(1, 0, WeaponId.TRIPLE_CANNON);
+    const team = station.team;
 
-    for (const weaponId of weapons) {
+    const allWeapons = [
+      WeaponId.CANNON,
+      WeaponId.HYPERSPACE,
+      WeaponId.TRIPLE_CANNON,
+      WeaponId.BLUNDERBUSS,
+      WeaponId.LASER,
+      WeaponId.ROCKET,
+      WeaponId.BLASTER,
+      WeaponId.MINIGUN,
+      WeaponId.FORCE_SHIELD,
+    ];
+
+    for (const weaponId of allWeapons) {
+      const isLimited  = LIMITED.has(weaponId);
+      const stock      = isLimited ? team.getStock(weaponId) : Infinity;
+      if (isLimited && stock <= 0) continue; // hide empty weapons
       const isSelected = station.selectedWeapon === weaponId;
+      const lbl        = LABELS[weaponId];
+      const suffix     = isLimited ? ` [${stock}]` : ' (∞)';
+
       const row = document.createElement('div');
-      const lbl = LABELS[weaponId];
-      const suffix = weaponId === WeaponId.TRIPLE_CANNON ? ` [${tcStock}]` : ' (∞)';
       row.textContent = (isSelected ? '▶ ' : '   ') + lbl + suffix;
       Object.assign(row.style, {
         padding:    '8px 16px',

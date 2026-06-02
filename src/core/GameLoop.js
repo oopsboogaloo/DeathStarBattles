@@ -1,9 +1,12 @@
 import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
-import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE } from '../physics/PhysicsEngine.js';
+import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
-import { Collectable, WeaponId } from '../entities/Collectable.js';
+import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
+import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
+         ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED,
+         ROCKET_BLAST_RADIUS, ROCKET_HITBOX_RADIUS } from '../entities/Rocket.js';
 
 // Physics steps per rAF frame for each speed setting.
 // Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
@@ -657,36 +660,68 @@ export class GameLoop {
 
   _fireAll() {
     this.gs.activeBullets = [];
+    this.gs.rockets       = [];
+    this.gs.shields       = [];
+    this.gs.burstQueue    = [];
+    this.gs.pendingLasers = [];
+    this.gs.firingStep    = 0;
+
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
-      if (station.hyperspaceQueued) continue; // will teleport after firing phase
+      const w = station.selectedWeapon;
 
-      const isTriple = station.selectedWeapon === WeaponId.TRIPLE_CANNON &&
-                       station.team.spendStock(WeaponId.TRIPLE_CANNON);
+      if (w === WeaponId.HYPERSPACE) continue; // teleports after firing phase
+      if (w === WeaponId.FORCE_SHIELD && station.team.spendStock(WeaponId.FORCE_SHIELD)) {
+        this.gs.shields.push({ station, radius: station.radius * 1.6, alive: true });
+        station.stats.turns++;
+        continue;
+      }
 
-      if (isTriple) {
-        // Muzzle flash VFX
+      if (w === WeaponId.TRIPLE_CANNON && station.team.spendStock(WeaponId.TRIPLE_CANNON)) {
         this.gs.vfxList.push({
-          type: 'tripleCannonMuzzle',
-          x: station.position.x, y: station.position.y,
-          angle: station.angle, colour: station.team.colour,
-          t: 0, duration: 0.25,
+          type: 'tripleCannonMuzzle', x: station.position.x, y: station.position.y,
+          angle: station.angle, colour: station.team.colour, t: 0, duration: 0.25,
         });
-        // Three bullets at angle -5, 0, +5
         for (const dAngle of [-5, 0, 5]) {
-          const a = ((station.angle + dAngle) % 360 + 360) % 360;
-          const { position, velocity } = this.physics.initialState(a, station.power, station);
-          const bullet = new Bullet({ owner: station, position, velocity });
-          bullet.trail.push(new Vec2(position.x, position.y));
-          this.gs.activeBullets.push(bullet);
+          this.gs.activeBullets.push(this._makeBullet(station, station.angle + dAngle, station.power));
         }
-      } else {
-        const { position, velocity } = this.physics.initialState(
-          station.angle, station.power, station,
+      } else if (w === WeaponId.BLUNDERBUSS && station.team.spendStock(WeaponId.BLUNDERBUSS)) {
+        const MAX_V = (800 / 1000 + 0.2) * 0.8;
+        for (let i = 0; i < 11; i++) {
+          const spread  = (this.rng.next() * 2 - 1) * 15;
+          const vFrac   = 0.25 + this.rng.next() * 0.05;
+          const b = this._makeBulletVelocity(station, station.angle + spread, MAX_V * vFrac);
+          b.thinTrail = true;
+          this.gs.activeBullets.push(b);
+        }
+      } else if (w === WeaponId.LASER && station.team.spendStock(WeaponId.LASER)) {
+        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 500 });
+      } else if (w === WeaponId.ROCKET && station.team.spendStock(WeaponId.ROCKET)) {
+        const fuel  = ROCKET_MIN_FUEL + (station.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+        const rad   = (station.angle * Math.PI) / 180;
+        const pos   = new Vec2(
+          station.position.x + (station.radius + 1) * Math.sin(rad),
+          station.position.y + (station.radius + 1) * Math.cos(rad),
         );
-        const bullet = new Bullet({ owner: station, position, velocity });
-        bullet.trail.push(new Vec2(position.x, position.y));
-        this.gs.activeBullets.push(bullet);
+        const vel   = new Vec2(ROCKET_LAUNCH_SPEED * Math.sin(rad), ROCKET_LAUNCH_SPEED * Math.cos(rad));
+        const rocket = new Rocket({ owner: station, position: pos, velocity: vel });
+        rocket.fuel  = fuel;
+        this.gs.rockets.push(rocket);
+      } else if (w === WeaponId.BLASTER && station.team.spendStock(WeaponId.BLASTER)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.BLASTER, shotsRemaining: 5,
+          intervalSteps: 600, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
+      } else if (w === WeaponId.MINIGUN && station.team.spendStock(WeaponId.MINIGUN)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.MINIGUN, shotsRemaining: 13,
+          intervalSteps: 200, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
+      } else {
+        // Cannon (or fallback)
+        this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
       }
 
       station.lastAngle = station.angle;
@@ -698,6 +733,27 @@ export class GameLoop {
     this.gs.mode = GameMode.FIRING;
   }
 
+  _makeBullet(station, angleDeg, power) {
+    const { position, velocity } = this.physics.initialState(
+      ((angleDeg % 360) + 360) % 360, power, station,
+    );
+    const b = new Bullet({ owner: station, position, velocity });
+    b.trail.push(new Vec2(position.x, position.y));
+    return b;
+  }
+
+  _makeBulletVelocity(station, angleDeg, speed) {
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    const pos = new Vec2(
+      station.position.x + (station.radius + 1) * Math.sin(rad),
+      station.position.y + (station.radius + 1) * Math.cos(rad),
+    );
+    const vel = new Vec2(speed * Math.sin(rad), speed * Math.cos(rad));
+    const b   = new Bullet({ owner: station, position: pos, velocity: vel });
+    b.trail.push(new Vec2(pos.x, pos.y));
+    return b;
+  }
+
   // ─── FIRING ─────────────────────────────────────────────────────────────────
 
   _advanceFiring() {
@@ -705,7 +761,134 @@ export class GameLoop {
     const stepsPerFrame = this._paused ? PRINT_EVERY : this._speedSteps;
 
     for (let i = 0; i < stepsPerFrame; i++) {
-      // Physics step + trail (no explosion advancement inside the inner loop)
+      this.gs.firingStep++;
+
+      // ── Burst queue ───────────────────────────────────────────────────────────
+      for (const burst of this.gs.burstQueue) {
+        if (this.gs.firingStep >= burst.nextFireStep) {
+          const isBlaster = burst.weapon === WeaponId.BLASTER;
+          const spread    = isBlaster ? (this.rng.next() * 2 - 1) * 0.5 : (this.rng.next() * 2 - 1) * 2.0;
+          const MAX_V     = (800 / 1000 + 0.2) * 0.8;
+          const speed     = isBlaster ? MAX_V * 0.5 : MAX_V * 1.5;
+          const b         = this._makeBulletVelocity(burst.station, burst.angle + spread, speed);
+          b.thinTrail     = true;
+          this.gs.activeBullets.push(b);
+          burst.shotsRemaining--;
+          burst.nextFireStep = this.gs.firingStep + burst.intervalSteps;
+        }
+      }
+      this.gs.burstQueue = this.gs.burstQueue.filter(b => b.shotsRemaining > 0);
+
+      // ── Pending lasers ────────────────────────────────────────────────────────
+      for (const pl of this.gs.pendingLasers) {
+        pl.delaySteps--;
+        if (pl.delaySteps <= 0) {
+          const path = this._simulateLaserPath(pl.station, pl.angle);
+          this.gs.vfxList.push({ type: 'laserPath', path, colour: pl.station.team.colour, t: 0, duration: 1.5 });
+        }
+      }
+      this.gs.pendingLasers = this.gs.pendingLasers.filter(pl => pl.delaySteps > 0);
+
+      // ── Rocket physics ────────────────────────────────────────────────────────
+      for (const rocket of this.gs.rockets) {
+        if (rocket.status !== RocketStatus.ACTIVE) continue;
+
+        // Thrust
+        if (rocket.fuel > 0) {
+          const speed = Math.sqrt(rocket.velocity.x ** 2 + rocket.velocity.y ** 2) || 1;
+          const ax    = (rocket.velocity.x / speed) * ROCKET_THRUST / (ROCKET_BASE_MASS + rocket.fuel) * TIMESTEP;
+          const ay    = (rocket.velocity.y / speed) * ROCKET_THRUST / (ROCKET_BASE_MASS + rocket.fuel) * TIMESTEP;
+          rocket.velocity = new Vec2(rocket.velocity.x + ax, rocket.velocity.y + ay);
+          rocket.fuel    -= ROCKET_FUEL_BURN_RATE * TIMESTEP;
+        }
+
+        // Gravity
+        for (const planet of this.gs.planets) {
+          if (planet.destroyed) continue;
+          const dx  = planet.position.x - rocket.position.x;
+          const dy  = planet.position.y - rocket.position.y;
+          const rSq = dx * dx + dy * dy;
+          if (rSq < 0.01) continue;
+          const sign  = dx < 0 ? -1 : 1;
+          const theta = Math.atan(dy / dx);
+          const accel = sign * G * planet.mass / rSq;
+          rocket.velocity = new Vec2(
+            rocket.velocity.x + Math.cos(theta) * accel * TIMESTEP,
+            rocket.velocity.y + Math.sin(theta) * accel * TIMESTEP,
+          );
+        }
+
+        rocket.position = new Vec2(
+          rocket.position.x + rocket.velocity.x * TIMESTEP,
+          rocket.position.y + rocket.velocity.y * TIMESTEP,
+        );
+
+        // Record trail point
+        if (this.gs.firingStep % PRINT_EVERY === 0) rocket.trail.push(new Vec2(rocket.position.x, rocket.position.y));
+
+        // Boundary
+        const { gw, gh } = this.physics;
+        const { x, y }   = rocket.position;
+        if (x < -gw || x > 2 * gw || y < -gw || y > gh + gw) { rocket.status = RocketStatus.DEAD; continue; }
+
+        // Shield collision → detonate
+        let detonated = false;
+        for (const shield of this.gs.shields) {
+          if (!shield.alive) continue;
+          if (rocket.position.distanceSqTo(shield.station.position) < shield.radius ** 2) {
+            this._detonateRocket(rocket); detonated = true; break;
+          }
+        }
+        if (detonated) continue;
+
+        // Planet collision → detonate
+        for (const planet of this.gs.planets) {
+          if (planet.destroyed) continue;
+          if (rocket.position.distanceSqTo(planet.position) < planet.impactRadius ** 2) {
+            this._detonateRocket(rocket); detonated = true; break;
+          }
+        }
+        if (detonated) continue;
+
+        // Station collision → detonate
+        for (const station of allStations) {
+          if (station.status !== 'active') continue;
+          if (rocket.position.distanceSqTo(station.position) < station.radius ** 2) {
+            this._detonateRocket(rocket); break;
+          }
+        }
+
+        // Shoot-down: bullets hitting the rocket
+        for (const bullet of this.gs.activeBullets) {
+          if (bullet.status !== BulletStatus.ACTIVE) continue;
+          if (bullet.position.distanceSqTo(rocket.position) < ROCKET_HITBOX_RADIUS ** 2) {
+            bullet.status = BulletStatus.EXPLODING;
+            this._detonateRocket(rocket);
+            break;
+          }
+        }
+      }
+
+      // ── Bullet-shield reflection ──────────────────────────────────────────────
+      for (const bullet of this.gs.activeBullets) {
+        if (bullet.status !== BulletStatus.ACTIVE) continue;
+        for (const shield of this.gs.shields) {
+          if (!shield.alive) continue;
+          if (bullet.position.distanceSqTo(shield.station.position) < shield.radius ** 2) {
+            const nx = (bullet.position.x - shield.station.position.x) / shield.radius;
+            const ny = (bullet.position.y - shield.station.position.y) / shield.radius;
+            const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+            bullet.velocity = new Vec2(bullet.velocity.x - 2 * dot * nx, bullet.velocity.y - 2 * dot * ny);
+            bullet.position = new Vec2(
+              shield.station.position.x + nx * (shield.radius + 0.5),
+              shield.station.position.y + ny * (shield.radius + 0.5),
+            );
+            break;
+          }
+        }
+      }
+
+      // ── Normal bullet physics ─────────────────────────────────────────────────
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
@@ -728,13 +911,14 @@ export class GameLoop {
         const hitCollectable = this.physics.checkCollectableCollision(bullet, this.gs.collectables);
         if (hitCollectable) {
           hitCollectable.alive = false;
-          bullet.owner.team.addStock(WeaponId.TRIPLE_CANNON, 3);
+          const grant = WEAPON_GRANTS[Math.floor(this.rng.next() * WEAPON_GRANTS.length)];
+          bullet.owner.team.addStock(grant.id, grant.charges);
           this.gs.vfxList.push(this._makeCollectableShatterVFX(hitCollectable));
           const [r, g, b] = bullet.owner.team.colour;
           this.gs.vfxList.push({
             type: 'collectableGrant',
             x: hitCollectable.position.x, y: hitCollectable.position.y,
-            text: 'TRIPLE CANNON', colour: `rgb(${r},${g},${b})`,
+            text: grant.label, colour: `rgb(${r},${g},${b})`,
             t: 0, duration: 2.0,
           });
         }
@@ -773,6 +957,15 @@ export class GameLoop {
       }
     }
 
+    // Advance rocket explosion timers; remove dead
+    for (const rocket of this.gs.rockets) {
+      if (rocket.status === RocketStatus.EXPLODING) {
+        rocket.explosionT += 0.025;
+        if (rocket.explosionT >= 1) rocket.status = RocketStatus.DEAD;
+      }
+    }
+    this.gs.rockets = this.gs.rockets.filter(r => r.status !== RocketStatus.DEAD);
+
     // Remove dead bullets
     this.gs.activeBullets = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD);
 
@@ -782,11 +975,15 @@ export class GameLoop {
 
     this._advanceExplosionEffects();
 
-    // All resolved → RESULTS (wait for moving stations to exhaust their distance too)
+    // All resolved → RESULTS (wait for moving stations, burst queue, pending lasers, and rockets)
     const bulletsGone    = this.gs.activeBullets.length === 0;
+    const rocketsGone    = this.gs.rockets.length === 0;
+    const burstsGone     = this.gs.burstQueue.length === 0;
+    const lasersGone     = this.gs.pendingLasers.length === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && !stationsMoving) {
+    if (bulletsGone && rocketsGone && burstsGone && lasersGone && !stationsMoving) {
+      this.gs.shields = [];  // clear shields at end of firing phase
       this._processHyperspace();
       this._checkWin();
       this._resultsTimer = 240; // ~4 s at 60 fps
@@ -821,6 +1018,121 @@ export class GameLoop {
       t: 0, r, g, b,
       particles: this._makeParticles(comet.position.x, comet.position.y, r, g, b, 12),
     });
+  }
+
+  // Simulate laser path from station at angle. Pierces stations/asteroids, reflects off shields.
+  _simulateLaserPath(station, angleDeg) {
+    const LASER_SPEED    = 160;
+    const LASER_GRAVITY  = 0.1;
+    const MAX_STEPS      = 200;
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    let px = station.position.x + (station.radius + 1) * Math.sin(rad);
+    let py = station.position.y + (station.radius + 1) * Math.cos(rad);
+    let vx = LASER_SPEED * Math.sin(rad);
+    let vy = LASER_SPEED * Math.cos(rad);
+    const path    = [new Vec2(px, py)];
+    const proxy   = { owner: station, status: 'active', teleportCount: 0, trickShotDone: false };
+    const { gw, gh } = this.physics;
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      // Reduced gravity
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const dx  = planet.position.x - px;
+        const dy  = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        const accel = sign * LASER_GRAVITY * G * planet.mass / rSq;
+        vx += Math.cos(theta) * accel * TIMESTEP;
+        vy += Math.sin(theta) * accel * TIMESTEP;
+      }
+      px += vx * TIMESTEP;
+      py += vy * TIMESTEP;
+      path.push(new Vec2(px, py));
+
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      // Shield reflection
+      let reflected = false;
+      for (const shield of this.gs.shields) {
+        if (!shield.alive) continue;
+        const dx = px - shield.station.position.x;
+        const dy = py - shield.station.position.y;
+        if (dx * dx + dy * dy < shield.radius ** 2) {
+          const d    = Math.sqrt(dx * dx + dy * dy) || 1;
+          const nx   = dx / d, ny = dy / d;
+          const dot  = vx * nx + vy * ny;
+          vx -= 2 * dot * nx;
+          vy -= 2 * dot * ny;
+          px = shield.station.position.x + nx * (shield.radius + 0.5);
+          py = shield.station.position.y + ny * (shield.radius + 0.5);
+          path.push(new Vec2(px, py));
+          reflected = true;
+          break;
+        }
+      }
+      if (reflected) continue;
+
+      // Station hit — kill and keep going
+      for (const s of this.gs.allStations) {
+        if (s.status !== 'active' || s === station) continue;
+        if ((px - s.position.x) ** 2 + (py - s.position.y) ** 2 < s.radius ** 2) {
+          this._resolveStationHit(proxy, s);
+        }
+      }
+
+      // Planet hit — asteroids shatter, solid planets stop laser
+      let blocked = false;
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const R  = planet.impactRadius;
+        const dx = planet.position.x - px;
+        const dy = planet.position.y - py;
+        if (dx * dx + dy * dy < R * R) {
+          if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
+            planet.destroyed = true;
+            this._spawnAsteroidExplosion(planet);
+          } else if (planet.type !== PlanetType.GAS_GIANT) {
+            blocked = true;
+          }
+          break;
+        }
+      }
+      if (blocked) break;
+    }
+    return path;
+  }
+
+  // Explode a rocket at its current position, applying blast damage.
+  _detonateRocket(rocket) {
+    if (rocket.status !== RocketStatus.ACTIVE) return;
+    rocket.status = RocketStatus.EXPLODING;
+    const [rr, rg, rb] = rocket.owner.team.colour;
+    this.gs.activeExplosions.push({
+      x: rocket.position.x, y: rocket.position.y,
+      radius: ROCKET_BLAST_RADIUS,
+      t: 0, r: rr, g: rg, b: rb,
+      particles: this._makeParticles(rocket.position.x, rocket.position.y, rr, rg, rb, 20),
+    });
+    const blastR2 = ROCKET_BLAST_RADIUS * ROCKET_BLAST_RADIUS;
+    const proxy   = { owner: rocket.owner, status: 'active', teleportCount: 0, trickShotDone: false };
+    for (const s of this.gs.allStations) {
+      if (s.status !== 'active') continue;
+      if (rocket.position.distanceSqTo(s.position) < blastR2)
+        this._resolveStationHit(proxy, s);
+    }
+    for (const b of this.gs.activeBullets) {
+      if (b.status === BulletStatus.ACTIVE && rocket.position.distanceSqTo(b.position) < blastR2)
+        b.status = BulletStatus.DEAD;
+    }
+    for (const planet of this.gs.planets) {
+      if (!planet.destroyed && (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL)) {
+        if (rocket.position.distanceSqTo(planet.position) < blastR2)
+          planet.destroyed = true;
+      }
+    }
   }
 
   // Spawn a bright blue sparkle explosion for a destroyed crystal.

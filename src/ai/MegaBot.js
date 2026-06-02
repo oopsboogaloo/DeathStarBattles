@@ -11,7 +11,7 @@ export class MegaBot extends SuperBot {
 
   _useWormholes(_gs) { return true; }
 
-  get _tripleCProb() { return 0.25; }
+  get _specialProb() { return 0.25; }
 
   // Target the highest-scoring enemy team
   _selectTarget(station, gameState) {

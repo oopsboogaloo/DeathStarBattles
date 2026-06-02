@@ -5,12 +5,11 @@ export class RandBot extends AIController {
   constructor(physics) { super(1, physics); }
 
   chooseAction(_station, _gameState) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 0.005 + Math.random() * 0.015;
-    const tcStock = Math.random() < 0.40 ? _station.team?.getStock(WeaponId.TRIPLE_CANNON) ?? 0 : 0;
-    const weapon  = Math.random() < 0.18 ? WeaponId.HYPERSPACE
-                  : tcStock > 0          ? WeaponId.TRIPLE_CANNON
-                  : WeaponId.CANNON;
+    const angle  = Math.random() * Math.PI * 2;
+    const speed  = 0.005 + Math.random() * 0.015;
+    const weapon = Math.random() < 0.18
+      ? WeaponId.HYPERSPACE
+      : this._pickWeapon(_station, 0.40);
     return {
       angle:   Math.floor(Math.random() * 360),
       power:   Math.floor(Math.random() * 700) + 100,
@@ -19,6 +18,18 @@ export class RandBot extends AIController {
         ? { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }
         : null,
     };
+  }
+
+  _pickWeapon(station, prob) {
+    if (Math.random() >= prob) return WeaponId.CANNON;
+    const priority = [
+      WeaponId.LASER, WeaponId.ROCKET, WeaponId.MINIGUN, WeaponId.TRIPLE_CANNON,
+      WeaponId.BLUNDERBUSS, WeaponId.BLASTER, WeaponId.FORCE_SHIELD,
+    ];
+    for (const w of priority) {
+      if ((station.team?.getStock(w) ?? 0) > 0) return w;
+    }
+    return WeaponId.CANNON;
   }
 }
 

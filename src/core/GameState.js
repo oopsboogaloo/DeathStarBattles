@@ -22,8 +22,13 @@ export class GameState {
     this.winner           = undefined;  // undefined=ongoing, null=draw, Team=winner
     this.activeBullets    = [];
     this.activeExplosions = [];         // asteroid/debris explosions: [{x,y,t,radius,colour,particles}]
-    this.collectables         = [];         // Collectable[] — collectables on the map
+    this.collectables     = [];         // Collectable[] — collectables on the map
     this.vfxList          = [];         // VFX objects (collectable shatter, collectable grant, muzzle)
+    this.rockets          = [];         // Rocket[] — active rockets in flight
+    this.shields          = [];         // {station, radius, alive}[] — active Force Shields
+    this.burstQueue       = [];         // burst-fire entries: {station,weapon,shotsRemaining,intervalSteps,nextFireStep,angle,power}
+    this.pendingLasers    = [];         // {station, angle, delaySteps}[] — lasers waiting to fire
+    this.firingStep       = 0;          // physics step counter within the current firing phase
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click
   }
