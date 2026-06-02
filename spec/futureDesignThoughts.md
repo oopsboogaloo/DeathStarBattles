@@ -1,5 +1,149 @@
 # Future Design Thoughts
 
+---
+
+## FEATURE: Special Weapons & Collectables
+
+**Status:** Spec draft — open questions pending (see end of section)
+
+---
+
+### 1. Overview
+
+Replace the single Hyperspace button with a **weapon selector**. During the aiming phase each station picks a weapon. Two default weapons exist with infinite uses; collectable weapons have limited uses and are acquired by destroying space crystals scattered around the map.
+
+---
+
+### 2. Weapon Selector UI
+
+The current "Hyperspace" button becomes the **active weapon button**:
+
+- The button label always shows the currently selected weapon (e.g. "CANNON", "HYPERSPACE", "TRIPLE CANNON [3]")
+- Clicking the button (or pressing **H**) opens a **vertical popup list** appearing above the button (like a context menu)
+- The selector lists every available weapon. Limited-use weapons show remaining uses in brackets. Example:
+
+  ```
+  ┌──────────────────────┐
+  │  TRIPLE CANNON  [3]  │
+  │  HYPERSPACE     (∞)  │
+  │  CANNON         (∞)  │  ← popup
+  └──────────────────────┘
+    [ CANNON          ▲ ]  ← button
+  ```
+
+- Selecting a weapon closes the popup and updates the button label
+- The selected weapon applies to this station's turn only; it does not persist to the next turn (resets to Cannon)
+- If only Cannon and Hyperspace are available (no collectables), H toggles directly between them as before — no popup needed
+
+---
+
+### 3. Default Weapons (always available, infinite uses)
+
+| Weapon | Behaviour |
+|---|---|
+| **Cannon** | Standard single bullet. Existing fire behaviour unchanged. |
+| **Hyperspace** | Teleport station to random valid location. Existing hyperspace behaviour unchanged. |
+
+---
+
+### 4. Special Weapon: Triple Cannon
+
+- Fires **3 bullets simultaneously**, each on the same power but at angles: `[selected − 5°, selected, selected + 5°]`
+- Each bullet is an independent physics entity with its own trail in the team colour
+- All three obey standard gravity; each can independently hit stations, planets, or exit bounds
+- One use is consumed per firing (not per bullet)
+- Usually only available as a collectable (not in the default loadout)
+- All AI levels use collectables they happen to possess (RandBot fires randomly; SimBots treat it as three independent shots)
+- **SuperBot and MegaBot** will opportunistically aim for crystals: when selecting a target, they factor in proximity to a crystal and may choose a shot that passes near one
+
+---
+
+### 5. Space Crystals
+
+#### 5.1 Entity
+
+- New entity: `Crystal`
+- Stationary — not affected by gravity, does not move
+- Does **not** stop bullets — a bullet passes straight through and the crystal is destroyed
+- Persists on the map until destroyed; does not expire naturally
+- Belongs to no team
+
+#### 5.2 Appearance
+
+- Rotating geometric crystal shape (multi-pointed, faceted — like a gemstone or snowflake outline)
+- **Colour: icy blue-white** — cold crystalline look, high contrast against the dark star field
+- Subtly glows or pulses to remain visible against the star field
+- Rotation is continuous and purely visual (no gameplay effect)
+- Size: small — roughly comparable to a Tiny station icon
+
+#### 5.3 Spawn Rules
+
+- Spawn timing: **end of each turn**, after all bullets have resolved and explosions are complete
+- Spawn probability: controlled by the Collectables config option (see §6)
+- Spawn location: random valid position — not inside any planet radius, not within ~2× station hit radius of any station
+- **Maximum 3 crystals on the map simultaneously** — if already at the cap, no new crystal spawns that turn
+- Crystals **do not** spawn in the Hyperspace scenario (no planets but also chaos enough)
+
+#### 5.4 Destruction & Reward
+
+When a bullet destroys a crystal:
+
+1. **Crystal shatter VFX**: particle/shard burst from the crystal position (shards fly outward, fade quickly)
+2. **Collectable grant text**: the name of the collectable (e.g. "TRIPLE CANNON") fades in then out at the crystal position, drawn in the **team colour of the bullet's owner**. Text rises slightly while fading.
+3. The **bullet continues** on its original trajectory — unaffected
+4. The bullet owner's team gains **3 uses** of Triple Cannon
+5. Special weapon stocks are **shared across all stations on a team** — any station can spend them
+6. Stocks **carry over between tournament games** — a team can accumulate a stockpile across the tournament
+
+---
+
+### 6. Collectables Config Option
+
+New entry in the Environment config panel:
+
+| Label | Spawn probability per turn end |
+|---|---|
+| Off *(default)* | 0% — crystals disabled entirely |
+| Rare | 20% |
+| Normal | 40% |
+| Common | 75% |
+| Continuous | 100% — one crystal always spawns each turn |
+
+"Probability" means: at end of turn, roll once; on success, spawn one crystal at a random valid location.
+
+---
+
+### 7. New / Modified Files
+
+| File | Change |
+|---|---|
+| `src/entities/Crystal.js` | New entity: position, rotation angle, alive flag |
+| `src/rendering/CrystalRenderer.js` | Rotation animation, shatter VFX, collectable grant text |
+| `src/ui/WeaponSelector.js` | Popup selector UI; manages selected weapon per station turn |
+| `src/core/GameState.js` | Track active crystals array; team weapon stocks |
+| `src/entities/Team.js` | `weaponStock: Map<WeaponId, number>` — team-shared collectable counts |
+| `src/physics/PhysicsEngine.js` | Bullet–crystal collision: destroy crystal, award team, bullet continues |
+| `src/scenarios/ScenarioFactory.js` | No crystals at game start; spawn logic called from GameLoop turn-end |
+| `src/ui/ConfigPanel.js` | Add Collectables option |
+| `src/input/InputHandler.js` | H key: toggle or open selector based on weapon count |
+
+---
+
+### 8. Resolved Decisions
+
+| Question | Decision |
+|---|---|
+| Crystal colour | Icy blue-white |
+| Uses per crystal | 3 Triple Cannon shots |
+| Max crystals on map | 3 simultaneously |
+| Weapon selector popup style | Vertical list above button (DOM context menu) |
+| AI and crystals | SuperBot + MegaBot aim opportunistically; lower bots use passively |
+| Triple Cannon muzzle VFX | Brief triple-arc flash on station before bullets launch |
+| Tournament persistence | Weapon stocks **carry over** between tournament games |
+| Excluded scenarios | Hyperspace scenario only — no crystal spawns |
+
+---
+
 ## TODO: AI Code Audit Findings
 
 **Status:** Analysis complete — fixes pending
