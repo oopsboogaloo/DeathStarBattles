@@ -60,9 +60,10 @@ A bullet is destroyed (or teleported) when it:
 - Station colours are fixed per team: green, cyan, yellow, red, purple, blue, orange, grey, white, black, pink, brown
 
 ### 4.2 Per-turn Actions
-Each station chooses one action per turn:
-- **Fire** — launch a bullet at the configured angle and power
-- **Hyperspace** — teleport to a random valid location on the map instead of firing. The player sacrifices their shot for a repositioning gamble.
+Each station selects a weapon, then either fires or hyperspaces:
+- **Cannon** — standard single bullet at the configured angle and power. Default weapon, infinite uses.
+- **Hyperspace** — teleport to a random valid location instead of firing. The player sacrifices their shot for a repositioning gamble. Infinite uses.
+- **Triple Cannon** — fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`, each at the same power. Limited uses; acquired by shooting space crystals (see §4.6).
 
 ### 4.3 Aiming Controls
 Human players control angle and power via:
@@ -71,10 +72,42 @@ Human players control angle and power via:
 - **UI sliders** — angle slider (0–360), power slider (1–800) shown in the control panel
 
 ### 4.4 Hyperspace
-- Toggled with H key or Hyperspace button
+- Available via the weapon selector (H key or weapon button)
 - Station is teleported to a random free position at start of next turn (before firing)
 - Cannot be used if the station is already destroyed
 - Forced every turn in the Hyperspace scenario (§6.21)
+
+### 4.5 Station Movement
+- When Movement Speed is set to anything other than Off, stations drift slowly around the map each turn
+- Speed tiers: Glacial (1×), Slow (2×), Normal (3×), Fast (5×), Rocket (8×)
+- Movement is purely positional drift — it does not affect the station's angle or power settings
+
+### 4.6 Special Weapons & Collectables
+
+#### Weapon Selector
+The Hyperspace button is replaced by a **weapon selector** showing the currently selected weapon. Clicking the button (or pressing H) opens a vertical popup listing all available weapons with remaining use counts. If only Cannon and Hyperspace are available, H toggles directly between them without a popup.
+
+Selected weapon resets to Cannon at the start of each turn.
+
+#### Triple Cannon
+- Fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`
+- Each bullet is an independent physics entity with its own trail in the team colour
+- Consumes one use per firing (not per bullet); brief triple-arc muzzle-flash VFX plays on the station before the bullets launch
+- Not in the default loadout — acquired by shooting space crystals
+
+#### Space Crystals
+- Rotating geometric crystal entities that spawn at random valid map positions
+- Not affected by gravity; do not stop bullets — a bullet passes straight through and the crystal is destroyed
+- Spawn probability is configurable (see §10); maximum 3 crystals on the map simultaneously
+- Do not spawn in the Hyperspace scenario
+- When a bullet destroys a crystal: the bullet continues on its trajectory; the bullet owner's team gains **3 uses** of Triple Cannon; a crystal shatter VFX plays at the crystal position; the collectable name fades in/out in the bullet owner's team colour
+- Weapon stocks are **shared across all stations on a team** and **carry over between tournament games**
+
+#### AI Behaviour with Collectables
+- All AI levels use Triple Cannon when they have stock (they spend it opportunistically)
+- Randbot and Aimbot use a random probability check before spending stock
+- Cleverbot, Superbot, and Megabot factor stock use into their existing shot-selection logic
+- Superbot and Megabot opportunistically aim for crystals when selecting targets
 
 ---
 
@@ -132,8 +165,8 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 | 20 | White Holes | Multiple white holes |
 | 21 | Hyperspace | No planets; hyperspace is forced every turn |
 
-### 6.1 Random Features
-In any scenario, a small random chance (~10%) adds a bonus special object to the map: an extra wormhole pair, wormhole triple, random-wormhole, white dwarf, or black hole.
+### 6.1 Wildcard Features
+A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, or black hole. Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
 
 ### 6.2 Planet Placement Rules
 - Planets may not overlap each other (checked on generation with retry)
@@ -209,21 +242,35 @@ Play a series of games on a fixed configuration. A cumulative leaderboard tracks
 
 ## 10. Configuration Options
 
-### Panel 1 — Players
+The config panel has a primary section always visible and an Advanced section (collapsible on large screens; split across pages 2 and 3 on small screens — see §11.8).
+
+### Primary Options
 | Option | Values |
 |---|---|
 | Number of players (teams) | 2–12 |
 | Human / CPU split | 0 human up to all human |
-| Stations per player | 1 up to `floor(12 / num_teams)` |
+| Stations per player | 1–8 |
 | CPU difficulty | Randbot / Aimbot / Cleverbot / Superbot / Megabot |
 
-### Panel 2 — Environment
+### Advanced — World
 | Option | Values |
 |---|---|
-| Station size | Micro / Tiny / Small / Medium / Large / Giant / Random |
-| Number of planets | 0–16 / Random (max 8) / Random (max 16) |
+| Station size | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
+| Number of planets | Random / 3–50 |
 | Scenario | 1–21 / Lucky Dip |
 | Game mode | Single game / Tournament |
+| Game speed | ¼× / ½× / 1× (default) / 2× / 4× |
+| Movement speed | Off (default) / Glacial / Slow / Normal / Fast / Rocket |
+
+### Advanced — Options
+| Option | Values | Notes |
+|---|---|---|
+| Performance | Full / Simplified | Simplified caps planets at 20 and players at 4 |
+| Team clustering | Off / Tight / Moderate / Loose | Controls how close same-team stations are placed |
+| Wildcard planets | Off / Very Rare / Rare (default) / Occasional / Common / Always | See §6.1 |
+| Collectables | Off (default) / Rare / Normal / Common / Continuous | Crystal spawn probability; see §4.6 |
+| Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
+| Minimal UI | Off / On | Reduces HUD text size for smaller screens |
 
 ---
 
@@ -243,7 +290,7 @@ The original game draws everything on-canvas with a Java AWT toolbar above and b
 - **Full-screen canvas** — no external chrome during play
 - **Collapsible config panel** — shown before game start, slides away or minimises during play
 - **In-canvas HUD** (keep from original): current team/station name drawn top-centre; Angle bottom-left; Power bottom-right — large, readable white/team-colour text drawn directly on the canvas, not in DOM panels
-- **In-canvas control buttons** (redesigned from bottom toolbar): End Turn and Hyperspace rendered as styled canvas buttons or minimal floating DOM buttons at the bottom edge
+- **In-canvas control buttons** (redesigned from bottom toolbar): End Turn and **weapon selector** (replaces Hyperspace button) rendered as minimal floating DOM buttons at the bottom edge
 - **Floating score panel** — compact, expandable leaderboard
 
 ### 11.3 In-Game Aiming Visualisation (from screenshots)
@@ -284,16 +331,17 @@ Rules for new options:
 - Never rely on the panel's `overflow-y: auto` safety net as the primary solution — it is a last resort for extreme edge cases only.
 - The compact row budget is approximately **6–7 rows per page** at current font/spacing settings. Verify fit by checking `panel.scrollHeight ≤ window.innerHeight × 0.92` on a 375 × 667 viewport (iPhone SE) before shipping.
 
-### 11.4 Keyboard Shortcuts (unchanged from original)
+### 11.9 Keyboard Shortcuts
 | Key | Action |
 |---|---|
 | Z / X | Angle ±1° |
 | A / S | Angle ±5° |
 | K / M | Power ±1 |
 | J / N | Power ±10 |
-| H | Toggle hyperspace |
+| H | Cycle weapons (Cannon → Triple Cannon if stocked → Hyperspace → Cannon); opens weapon selector popup if more than 2 options available |
 | Enter | End turn / advance |
 | P | Pause |
+| O | Slow-motion step-through (hold while paused) |
 
 ---
 
