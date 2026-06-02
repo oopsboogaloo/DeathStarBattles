@@ -555,8 +555,10 @@ export class Renderer {
     ctx.lineWidth   = 1;
     ctx.stroke();
 
-    // Direction line — length scales with power (min: station surface, max: boxR edge)
-    const lineLen = r + (boxR - r) * (station.power / 800);
+    // Direction line — full length for weapons where power is irrelevant
+    const noPowerWeapons = new Set(['blunderbuss', 'blaster', 'laser', 'forceShield']);
+    const displayPower   = noPowerWeapons.has(station.selectedWeapon) ? 800 : station.power;
+    const lineLen        = r + (boxR - r) * (displayPower / 800);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + dx * lineLen, cy + dy * lineLen);

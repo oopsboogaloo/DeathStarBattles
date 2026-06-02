@@ -16,6 +16,7 @@ import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
 import { WeaponSelector }       from './ui/WeaponSelector.js';
+import { WeaponId }             from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
@@ -347,7 +348,7 @@ function startGame(cfg) {
     nPlanets = cfg.performance === 'simplified' ? 20 : 30;
   }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off');
+  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -364,6 +365,7 @@ function startGame(cfg) {
     }
   }
   ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off');
+  _applyStartingWeapons(teams, cfg, rng);
 
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, planets);
@@ -384,6 +386,39 @@ function startGame(cfg) {
   loop.start();
 
   updateButtons(gameState);
+}
+
+// ─── Starting weapons ────────────────────────────────────────────────────────
+
+const _ALL_SPECIAL = [
+  WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER,
+  WeaponId.ROCKET, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+];
+
+function _applyStartingWeapons(teams, cfg, rng) {
+  const sw = cfg.startingWeapons ?? 'none';
+  if (sw === 'none') return;
+
+  // Minimum stock per weapon (null = not specified)
+  const minimums = sw === 'minor'    ? { [WeaponId.TRIPLE_CANNON]: 2 }
+                 : sw === 'oneOfEach' ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 1]))
+                 : sw === 'lots'      ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 3]))
+                 : sw === 'tooMany'   ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 7]))
+                 : null; // 'one' handled separately
+
+  for (const team of teams) {
+    if (sw === 'one') {
+      // Always add one random weapon regardless of existing stock
+      const w = _ALL_SPECIAL[Math.floor(rng.next() * _ALL_SPECIAL.length)];
+      team.addStock(w, 1);
+    } else if (minimums) {
+      // Top up to minimum — if already at or above minimum, add nothing
+      for (const [w, min] of Object.entries(minimums)) {
+        const have = team.getStock(w);
+        if (have < min) team.addStock(w, min - have);
+      }
+    }
+  }
 }
 
 // ─── Demo title + hint overlay ───────────────────────────────────────────────

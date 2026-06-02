@@ -8,7 +8,8 @@ const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', 
 
 const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
-const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS'];
+const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS', 'COLLECTABLES'];
+const NUM_PAGES   = 4;
 
 // Style tokens — normal vs compact (paged mobile) mode
 const S = {
@@ -79,6 +80,9 @@ export class ConfigPanel {
       teamClustering:    'off',
       wildcardFrequency: 'rare',
       collectables:      'off',
+      richAsteroids:     'normal',
+      collectableSize:   'medium',
+      startingWeapons:   'none',
       aimCircleSize:     'regular',
       minimalUI:         false,
     };
@@ -98,6 +102,7 @@ export class ConfigPanel {
     this._navBar          = null;
     this._flatPrimary     = null;
     this._advancedInner   = null;
+    this._collectSubRows  = null; // rows greyed out when collectables === 'off'
     this._flatSection     = null;
     this._pagedSection    = null;
     this.element          = this._build();
@@ -125,7 +130,10 @@ export class ConfigPanel {
 
   _checkFit() {
     if (!this._panel) return;
-    const wasPaged = this._pagedMode;
+    // Always use the compact paged layout regardless of screen size.
+    if (!this._pagedMode) this._applyLayout(true);
+    return;
+    const wasPaged = this._pagedMode; // dead code kept for reference
 
     // Always measure in flat/non-compact state for accuracy.
     // If currently paged, temporarily restore flat layout (synchronous forced
@@ -135,6 +143,7 @@ export class ConfigPanel {
       for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
       for (const row of this._page2Rows) this._advancedInner.appendChild(row);
       for (const row of this._page3Rows) this._advancedInner.appendChild(row);
+      for (const row of this._page4Rows) this._advancedInner.appendChild(row);
       this._flatSection.style.display  = 'block';
       this._pagedSection.style.display = 'none';
       this._panel.style.minWidth  = S.norm.panelMinW;
@@ -154,6 +163,7 @@ export class ConfigPanel {
       for (const row of this._page1Rows) this._pageEls[0].appendChild(row);
       for (const row of this._page2Rows) this._pageEls[1].appendChild(row);
       for (const row of this._page3Rows) this._pageEls[2].appendChild(row);
+      for (const row of this._page4Rows) this._pageEls[3].appendChild(row);
       this._flatSection.style.display  = 'none';
       this._pagedSection.style.display = 'block';
       this._panel.style.minWidth  = S.compact.panelMinW;
@@ -166,6 +176,7 @@ export class ConfigPanel {
       for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
       for (const row of this._page2Rows) this._advancedInner.appendChild(row);
       for (const row of this._page3Rows) this._advancedInner.appendChild(row);
+      for (const row of this._page4Rows) this._advancedInner.appendChild(row);
       this._flatSection.style.display  = 'block';
       this._pagedSection.style.display = 'none';
       this._panel.style.minWidth  = S.norm.panelMinW;
@@ -186,7 +197,7 @@ export class ConfigPanel {
     this._resumeBtn.style.padding      = t.resumePad;
     this._resumeBtn.style.fontSize     = t.resumeFont;
 
-    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows]) {
+    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows, ...this._page4Rows]) {
       row.style.marginBottom = t.rowMarginB;
       row.style.minHeight    = t.rowMinH;
       const lbl  = row.children[0];
@@ -219,17 +230,17 @@ export class ConfigPanel {
 
   _showPage(n) {
     this._currentPage = n;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < NUM_PAGES; i++) {
       this._pageEls[i].style.display = i === n ? 'block' : 'none';
       this._dotEls[i].textContent    = i === n ? '●' : '○';
       this._dotEls[i].style.opacity  = i === n ? '1' : '0.45';
     }
     this._prevBtn.disabled      = n === 0;
-    this._nextBtn.disabled      = n === 2;
+    this._nextBtn.disabled      = n === NUM_PAGES - 1;
     this._prevBtn.style.opacity = n === 0 ? '0.25' : '1';
-    this._nextBtn.style.opacity = n === 2 ? '0.25' : '1';
+    this._nextBtn.style.opacity = n === NUM_PAGES - 1 ? '0.25' : '1';
     this._prevBtn.style.cursor  = n === 0 ? 'default' : 'pointer';
-    this._nextBtn.style.cursor  = n === 2 ? 'default' : 'pointer';
+    this._nextBtn.style.cursor  = n === NUM_PAGES - 1 ? 'default' : 'pointer';
   }
 
   // ── DOM construction ─────────────────────────────────────────────────────────
@@ -330,19 +341,37 @@ export class ConfigPanel {
       this._cycle('wildcardFrequency',
         ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
         v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v])));
-    const rowCollect     = this._row('COLLECTABLES',
-      this._cycle('collectables',
-        ['off', 'rare', 'normal', 'common', 'continuous'],
-        (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i])));
     const rowAimCircle   = this._row('AIM CIRCLE SIZE',
       this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
         v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
 
+    // Page 4 — Collectables
+    const rowCollect     = this._row('COLLECTABLES',
+      this._cycle('collectables',
+        ['off', 'rare', 'normal', 'common', 'continuous'],
+        (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i])));
+    const rowRichAst     = this._row('RICH ASTEROIDS',
+      this._cycle('richAsteroids',
+        ['off', 'rare', 'normal', 'common', 'abundant', 'overwhelming'],
+        v => ({ off: 'Off', rare: 'Rare  (1%)', normal: 'Normal  (5%)', common: 'Common  (10%)', abundant: 'Abundant  (25%)', overwhelming: 'Overwhelming' }[v])));
+    const rowColSize     = this._row('COLLECTABLE SIZE',
+      this._cycle('collectableSize',
+        ['tiny', 'medium', 'large', 'huge', 'mammoth', 'varied'],
+        v => ({ tiny: 'Tiny  (½×)', medium: 'Medium', large: 'Large  (1.5×)', huge: 'Huge  (2×)', mammoth: 'Mammoth  (3×)', varied: 'Varied' }[v])));
+    const rowStartWep    = this._row('STARTING WEAPONS',
+      this._cycle('startingWeapons',
+        ['none', 'one', 'minor', 'oneOfEach', 'lots', 'tooMany'],
+        v => ({ none: 'None', one: 'One at Random', minor: 'Minor  (2 Cannons)', oneOfEach: 'One of Each', lots: 'Lots  (3 of Each)', tooMany: 'Too Many  (7 of Each)' }[v])));
+
+    this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
+    this._updateCollectableGrey();
+
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowStationSize, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
-    this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowCollect, rowAimCircle, rowMinimalUI];
+    this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowMinimalUI];
+    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
 
     // ── Flat section ─────────────────────────────────────────────────────────
     this._flatSection = el('div', {});
@@ -369,7 +398,7 @@ export class ConfigPanel {
 
     const advancedSection = el('div', { overflow: 'hidden', maxHeight: '0', transition: 'max-height 0.25s ease', marginTop: '0' });
     this._advancedInner   = el('div', { paddingTop: '8px' });
-    for (const row of [...this._page2Rows, ...this._page3Rows]) this._advancedInner.appendChild(row);
+    for (const row of [...this._page2Rows, ...this._page3Rows, ...this._page4Rows]) this._advancedInner.appendChild(row);
 
     advancedToggle.addEventListener('click', () => {
       advancedOpen = !advancedOpen;
@@ -386,7 +415,7 @@ export class ConfigPanel {
     // ── Paged section ────────────────────────────────────────────────────────
     this._pagedSection = el('div', { display: 'none' });
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < NUM_PAGES; i++) {
       const pageEl = el('div', { display: 'none' });
       const lbl = el('div', {
         fontSize: '10px', letterSpacing: '0.13em',
@@ -409,7 +438,7 @@ export class ConfigPanel {
     this._navBar.appendChild(this._prevBtn);
 
     const dotsWrap = el('div', { display: 'flex', gap: '10px', alignItems: 'center' });
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < NUM_PAGES; i++) {
       const dot = el('span', {
         fontSize: '16px', cursor: 'pointer',
         color: 'rgba(170,185,255,0.8)', userSelect: 'none',
@@ -421,7 +450,7 @@ export class ConfigPanel {
     }
     this._navBar.appendChild(dotsWrap);
 
-    this._nextBtn = this._navBtn('►', () => { if (this._currentPage < 2) this._showPage(this._currentPage + 1); });
+    this._nextBtn = this._navBtn('►', () => { if (this._currentPage < NUM_PAGES - 1) this._showPage(this._currentPage + 1); });
     this._navBar.appendChild(this._nextBtn);
 
     this._pagedSection.appendChild(this._navBar);
@@ -600,6 +629,15 @@ export class ConfigPanel {
     if (key === 'performance' && this._d.performance === 'simplified') {
       if (this._d.numPlanets > 20)  { this._d.numPlanets = 20;  this._planetsCtrl?._refresh(); }
       if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
+    }
+    if (key === 'collectables') this._updateCollectableGrey();
+  }
+
+  _updateCollectableGrey() {
+    const off = this._d.collectables === 'off';
+    for (const row of this._collectSubRows ?? []) {
+      row.style.opacity       = off ? '0.35' : '1';
+      row.style.pointerEvents = off ? 'none' : '';
     }
   }
 }

@@ -5,7 +5,7 @@ export const RocketStatus = Object.freeze({
 });
 
 export const ROCKET_BASE_MASS      = 1.0;
-export const ROCKET_THRUST         = 0.5;   // acceleration applied each step while fuel > 0
+export const ROCKET_THRUST         = 0.15;  // acceleration applied each step while fuel > 0
 export const ROCKET_FUEL_BURN_RATE = 0.5;   // fuel units consumed per game-time unit
 export const ROCKET_MIN_FUEL       = 1.0;   // fuel at power 1
 export const ROCKET_MAX_FUEL       = 6.0;   // fuel at power 800

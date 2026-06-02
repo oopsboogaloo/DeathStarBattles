@@ -19,5 +19,6 @@ export class Bullet {
     this._angleAccum    = 0;           // accumulated signed rotation (radians)
     this.nearMissed     = new Set();   // stations already counted as near-missed
     this.thinTrail      = false;       // true for spread/burst weapons (lower trail opacity)
+    this.maxLifetime    = null;        // null = use BULLET_LIFE; set shorter for blunderbuss
   }
 }

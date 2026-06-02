@@ -134,7 +134,8 @@ export class PhysicsEngine {
     }
 
     // Lifetime cap — trail full → start explosion (spawned splits carry a _trailStart offset)
-    if (bullet.trail.length + (bullet._trailStart ?? 0) >= BULLET_LIFE) {
+    const life = bullet.maxLifetime ?? BULLET_LIFE;
+    if (bullet.trail.length + (bullet._trailStart ?? 0) >= life) {
       bullet.status = BulletStatus.EXPLODING;
     }
   }

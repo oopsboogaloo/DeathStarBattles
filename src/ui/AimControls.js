@@ -2,6 +2,8 @@
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
 
+const NO_POWER_WEAPONS = new Set(['blunderbuss', 'blaster', 'laser', 'forceShield']);
+
 const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks
 const MAX_RATE      = 10;   // max repetitions per tick for power buttons
@@ -36,6 +38,8 @@ export class AimControls {
   // Call each frame while aiming so values stay in sync
   update(station) {
     if (!station) return;
+    const noPower = NO_POWER_WEAPONS.has(station.selectedWeapon);
+    this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
       this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
@@ -88,6 +92,7 @@ export class AimControls {
     powerGroup.appendChild(this._powerVal);
     powerGroup.appendChild(this._makeBtn('►', () => this._loop?.humanPower(+1)));
 
+    this._powerGroup = powerGroup;
     bar.appendChild(angleGroup);
     bar.appendChild(powerGroup);
     return bar;

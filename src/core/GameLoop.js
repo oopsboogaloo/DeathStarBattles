@@ -503,11 +503,18 @@ export class GameLoop {
     }
 
     const collectablesOn = this.gs.config?.collectables !== 'off';
-    if (parent.rich && collectablesOn && centers.length > 0)
-      this.gs.collectables.push(new Collectable(new Vec2(centers[0].x, centers[0].y)));
+    const richProb = collectablesOn
+      ? ({ off: 0, rare: 0.01, normal: 0.05, common: 0.10, abundant: 0.25, overwhelming: 1.0 }[this.gs.config?.richAsteroids] ?? 0.05)
+      : 0;
+
+    if (parent.rich && collectablesOn && centers.length > 0) {
+      const col = new Collectable(new Vec2(centers[0].x, centers[0].y));
+      col.radius = this._collectableRadius();
+      this.gs.collectables.push(col);
+    }
 
     return centers.map(c => {
-      const isRich = collectablesOn && this.rng.next() < 0.05;
+      const isRich = richProb > 0 && this.rng.next() < richProb;
       return this._makeChildAsteroid(new Vec2(c.x, c.y), childR, parent.density, isRich);
     });
   }
@@ -691,11 +698,12 @@ export class GameLoop {
           const spread  = (this.rng.next() * 2 - 1) * 15;
           const vFrac   = 0.25 + this.rng.next() * 0.05;
           const b = this._makeBulletVelocity(station, station.angle + spread, MAX_V * vFrac);
-          b.thinTrail = true;
+          b.thinTrail   = true;
+          b.maxLifetime = Math.floor(BULLET_LIFE * (0.17 + this.rng.next() * 0.06)); // 17–23% lifespan
           this.gs.activeBullets.push(b);
         }
       } else if (w === WeaponId.LASER && station.team.spendStock(WeaponId.LASER)) {
-        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 500 });
+        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400) });
       } else if (w === WeaponId.ROCKET && station.team.spendStock(WeaponId.ROCKET)) {
         const fuel  = ROCKET_MIN_FUEL + (station.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
         const rad   = (station.angle * Math.PI) / 180;
@@ -709,7 +717,7 @@ export class GameLoop {
         this.gs.rockets.push(rocket);
       } else if (w === WeaponId.BLASTER && station.team.spendStock(WeaponId.BLASTER)) {
         this.gs.burstQueue.push({
-          station, weapon: WeaponId.BLASTER, shotsRemaining: 5,
+          station, weapon: WeaponId.BLASTER, shotsRemaining: 5, totalShots: 5,
           intervalSteps: 600, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
@@ -766,12 +774,19 @@ export class GameLoop {
       // ── Burst queue ───────────────────────────────────────────────────────────
       for (const burst of this.gs.burstQueue) {
         if (this.gs.firingStep >= burst.nextFireStep) {
-          const isBlaster = burst.weapon === WeaponId.BLASTER;
-          const spread    = isBlaster ? (this.rng.next() * 2 - 1) * 0.5 : (this.rng.next() * 2 - 1) * 2.0;
-          const MAX_V     = (800 / 1000 + 0.2) * 0.8;
-          const speed     = isBlaster ? MAX_V * 0.5 : MAX_V * 1.5;
-          const b         = this._makeBulletVelocity(burst.station, burst.angle + spread, speed);
-          b.thinTrail     = true;
+          const MAX_V = (800 / 1000 + 0.2) * 0.8;
+          let spread, speed;
+          if (burst.weapon === WeaponId.BLASTER) {
+            // Progressive: -10°, -5°, 0°, +5°, +10°
+            const shotIdx = (burst.totalShots ?? 5) - burst.shotsRemaining;
+            spread = -10 + shotIdx * 5;
+            speed  = MAX_V * 0.55;
+          } else {
+            spread = (this.rng.next() * 2 - 1) * 2.0;
+            speed  = MAX_V * 1.5;
+          }
+          const b = this._makeBulletVelocity(burst.station, burst.angle + spread, speed);
+          b.thinTrail = true;
           this.gs.activeBullets.push(b);
           burst.shotsRemaining--;
           burst.nextFireStep = this.gs.firingStep + burst.intervalSteps;
@@ -1023,7 +1038,7 @@ export class GameLoop {
   // Simulate laser path from station at angle. Pierces stations/asteroids, reflects off shields.
   _simulateLaserPath(station, angleDeg) {
     const LASER_SPEED    = 160;
-    const LASER_GRAVITY  = 0.1;
+    const LASER_GRAVITY  = 1.0;
     const MAX_STEPS      = 200;
     const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
     let px = station.position.x + (station.radius + 1) * Math.sin(rad);
@@ -1402,7 +1417,21 @@ export class GameLoop {
     if (this.rng.next() > prob) return;
 
     const pos = this._findCollectableSpawnPos();
-    if (pos) this.gs.collectables.push(new Collectable(pos));
+    if (pos) {
+      const c    = new Collectable(pos);
+      c.radius   = this._collectableRadius();
+      this.gs.collectables.push(c);
+    }
+  }
+
+  _collectableRadius() {
+    const s = this.gs.config?.collectableSize ?? 'medium';
+    const sizes = { tiny: 2.5, medium: 5, large: 7.5, huge: 10, mammoth: 15 };
+    if (s === 'varied') {
+      const opts = [2.5, 5, 7.5, 10, 15];
+      return opts[Math.floor(this.rng.next() * opts.length)];
+    }
+    return sizes[s] ?? 5;
   }
 
   _findCollectableSpawnPos() {

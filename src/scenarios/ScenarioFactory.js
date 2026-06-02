@@ -51,12 +51,12 @@ function makePlanet(rng, A, B, C, D, E, F, gw, gh, density, type, colour, shadin
   });
 }
 
-function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density, allowRich = false) {
+function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density, richProb = 0) {
   const n        = 6 + Math.floor(rng.next() * 5); // 6–10 vertices
   const vertices = asteroidVertices(rng, n);
   const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180; // biased toward slow
   const rotation = rng.next() * Math.PI * 2;
-  const isRich   = allowRich && rng.next() < 0.05;
+  const isRich   = richProb > 0 && rng.next() < richProb;
   const planet   = new Planet({
     position:      new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
     radius:        rr(rng, D, E, F),
@@ -162,8 +162,10 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off') {
-    const allowRich = collectables !== 'off';
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal') {
+    const richProb = collectables === 'off' ? 0 : (
+      { off: 0, rare: 0.01, normal: 0.05, common: 0.10, abundant: 0.25, overwhelming: 1.0 }[richAsteroids] ?? 0.05
+    );
     // Pre-roll sub-choice values (outside retry loop, matches Java's rnumber1-7)
     const rn = rng.roll(7); // rn[0]..rn[6]
 
@@ -173,7 +175,7 @@ export class ScenarioFactory {
     let attempts = 0;
 
     do {
-      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, allowRich);
+      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb);
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -374,7 +376,7 @@ export class ScenarioFactory {
 
   // ─── planet placement ──────────────────────────────────────────────────────
 
-  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', allowRich = false) {
+  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', richProb = 0) {
     const simplified = performance === 'simplified';
     const planets = [];
 
@@ -390,7 +392,7 @@ export class ScenarioFactory {
       // ── 2: Asteroids ──────────────────────────────────────────────────────
       case 2: {
         for (let i = 0; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05, richProb));
         break;
       }
 
@@ -420,7 +422,7 @@ export class ScenarioFactory {
           }));
         }
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08, richProb));
         break;
       }
 
@@ -452,7 +454,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 30,5,9, gw,gh, 0.05, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 30,5,9, gw,gh, 0.05, richProb));
         break;
       }
 
@@ -468,7 +470,7 @@ export class ScenarioFactory {
           }));
         }
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05, richProb));
         break;
       }
 
@@ -491,7 +493,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: s2Col, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05, richProb));
         break;
       }
 
@@ -505,7 +507,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: rgCol, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065, richProb));
         break;
       }
 
@@ -527,7 +529,7 @@ export class ScenarioFactory {
           planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
         }
         for (let i = initial; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1, richProb));
         break;
       }
 
@@ -571,7 +573,7 @@ export class ScenarioFactory {
           // Yellow self-teleport
           planets.push(makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF));
           for (let i = 1; i < nPlanets; i++)
-            planets.push(makeAsteroid(rng, 1,0,0, 18,18,3, gw,gh, 0.03, allowRich));
+            planets.push(makeAsteroid(rng, 1,0,0, 18,18,3, gw,gh, 0.03, richProb));
         }
         break;
       }
@@ -734,7 +736,7 @@ export class ScenarioFactory {
         planets.push(makePulsar(rng, 0.1, 0.1, 0.4, gw, gh));
         for (let i = 1; i < nPlanets; i++) {
           if (i % 3 === 1)
-            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, allowRich));
+            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
           else
             planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
         }
@@ -790,7 +792,7 @@ export class ScenarioFactory {
             const ay    = cy + Math.sin(angle) * r;
             // Skip asteroids fully off screen (offset scenarios)
             if (ax < -30 || ax > gw + 30 || ay < -30 || ay > gh + 30) continue;
-            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, allowRich);
+            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, richProb);
           }
         }
         // Optional wildcard: one non-gas-giant body (~15%)
@@ -858,7 +860,7 @@ export class ScenarioFactory {
             const ax    = bx + Math.cos(angle) * r;
             const ay    = by + Math.sin(angle) * r;
             if (ax < -20 || ax > gw + 20 || ay < -20 || ay > gh + 20) continue;
-            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, allowRich);
+            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, richProb);
           }
         }
         if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
@@ -877,7 +879,7 @@ export class ScenarioFactory {
         }));
         const numRocks = 2 + Math.floor(rng.next() * 3); // 2–4 asteroids
         for (let i = 0; i < numRocks; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 12,4,3, gw,gh, 0.05, allowRich));
+          planets.push(makeAsteroid(rng, 1,0,0, 12,4,3, gw,gh, 0.05, richProb));
         // Single comet with a random initial velocity
         const vAngle = rng.next() * Math.PI * 2;
         const vSpeed = 0.03 + rng.next() * 0.07;
@@ -980,8 +982,8 @@ export class ScenarioFactory {
 
   // Try to place a ring/belt asteroid at (ax, ay). Returns false without mutating
   // `planets` if it would overlap an existing body.
-  static _placeRingAsteroid(rng, ax, ay, planets, allowRich = false) {
-    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay, allowRich);
+  static _placeRingAsteroid(rng, ax, ay, planets, richProb = false) {
+    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay, richProb);
     const minGap = 10;
     for (const p of planets) {
       if (p.position.distanceTo(a.position) < p.impactRadius + a.impactRadius + minGap) return false;
@@ -991,7 +993,7 @@ export class ScenarioFactory {
   }
 
   // Create a single asteroid at world position (ax, ay) for ring/belt scenarios.
-  static _makeRingAsteroid(rng, ax, ay, allowRich = false) {
+  static _makeRingAsteroid(rng, ax, ay, richProb = false) {
     const n        = 6 + Math.floor(rng.next() * 5);
     const vertices = [];
     for (let i = 0; i < n; i++) {
@@ -1003,7 +1005,7 @@ export class ScenarioFactory {
     const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180;
     const rotation = rng.next() * Math.PI * 2;
     const radius   = rr(rng, 6, 3, 3); // slightly larger than regular asteroids
-    const isRich   = allowRich && rng.next() < 0.05;
+    const isRich   = richProb && rng.next() < 0.05;
     const planet   = new Planet({
       position: new Vec2(ax, ay), radius, density: 0.05,
       type: PlanetType.ASTEROID, colour: isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
