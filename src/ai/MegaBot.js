@@ -1,6 +1,6 @@
 import { SuperBot }     from './SuperBot.js';
 import { AIController } from './AIController.js';
-import { WeaponId } from '../entities/Crystal.js';
+import { WeaponId } from '../entities/Collectable.js';
 
 export class MegaBot extends SuperBot {
   constructor(physics) { super(physics, 5); }

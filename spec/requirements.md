@@ -63,7 +63,7 @@ A bullet is destroyed (or teleported) when it:
 Each station selects a weapon, then either fires or hyperspaces:
 - **Cannon** — standard single bullet at the configured angle and power. Default weapon, infinite uses.
 - **Hyperspace** — teleport to a random valid location instead of firing. The player sacrifices their shot for a repositioning gamble. Infinite uses.
-- **Triple Cannon** — fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`, each at the same power. Limited uses; acquired by shooting space crystals (see §4.6).
+- **Triple Cannon** — fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`, each at the same power. Limited uses; acquired by shooting collectables (see §4.6).
 
 ### 4.3 Aiming Controls
 Human players control angle and power via:
@@ -93,21 +93,23 @@ Selected weapon resets to Cannon at the start of each turn.
 - Fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`
 - Each bullet is an independent physics entity with its own trail in the team colour
 - Consumes one use per firing (not per bullet); brief triple-arc muzzle-flash VFX plays on the station before the bullets launch
-- Not in the default loadout — acquired by shooting space crystals
+- Not in the default loadout — acquired by shooting collectables
 
-#### Space Crystals
-- Rotating geometric crystal entities that spawn at random valid map positions
-- Not affected by gravity; do not stop bullets — a bullet passes straight through and the crystal is destroyed
-- Spawn probability is configurable (see §10); maximum 3 crystals on the map simultaneously
+#### Collectables
+- Rotating geometric gem-shaped entities (visually crystal-shaped) that spawn at random valid map positions
+- Not affected by gravity; do not stop bullets — a bullet passes straight through and the collectable is destroyed
+- Spawn probability is configurable (see §10); maximum 3 collectables on the map simultaneously
 - Do not spawn in the Hyperspace scenario
-- When a bullet destroys a crystal: the bullet continues on its trajectory; the bullet owner's team gains **3 uses** of Triple Cannon; a crystal shatter VFX plays at the crystal position; the collectable name fades in/out in the bullet owner's team colour
+- When a bullet destroys a collectable: the bullet continues on its trajectory; the bullet owner's team gains **3 uses** of Triple Cannon; a shatter VFX plays at the collectable position; the collectable name fades in/out in the bullet owner's team colour
 - Weapon stocks are **shared across all stations on a team** and **carry over between tournament games**
+
+> **Naming note:** In code and design documents, these entities are called `Collectable` / `collectables` throughout. The name `Crystal` / `crystal` is **reserved** for a separate future entity type and must not be used for collectables.
 
 #### AI Behaviour with Collectables
 - All AI levels use Triple Cannon when they have stock (they spend it opportunistically)
 - Randbot and Aimbot use a random probability check before spending stock
 - Cleverbot, Superbot, and Megabot factor stock use into their existing shot-selection logic
-- Superbot and Megabot opportunistically aim for crystals when selecting targets
+- Superbot and Megabot opportunistically aim for collectables when selecting targets
 
 ---
 
@@ -268,7 +270,7 @@ The config panel has a primary section always visible and an Advanced section (c
 | Performance | Full / Simplified | Simplified caps planets at 20 and players at 4 |
 | Team clustering | Off / Tight / Moderate / Loose | Controls how close same-team stations are placed |
 | Wildcard planets | Off / Very Rare / Rare (default) / Occasional / Common / Always | See §6.1 |
-| Collectables | Off (default) / Rare / Normal / Common / Continuous | Crystal spawn probability; see §4.6 |
+| Collectables | Off (default) / Rare / Normal / Common / Continuous | Collectable spawn probability per turn end; see §4.6 |
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
 | Minimal UI | Off / On | Reduces HUD text size for smaller screens |
 

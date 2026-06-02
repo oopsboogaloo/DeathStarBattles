@@ -278,10 +278,10 @@ export class Renderer {
       }
     }
 
-    // Space crystals
-    if (gameState.crystals?.length) this._drawCrystals(ctx, gameState.crystals);
+    // Collectables
+    if (gameState.collectables?.length) this._drawCollectables(ctx, gameState.collectables);
 
-    // VFX overlays (crystal shatter, collectable grants, muzzle flashes)
+    // VFX overlays (collectable shatter, collectable grants, muzzle flashes)
     if (gameState.vfxList?.length) this._drawVFX(ctx, gameState.vfxList);
 
     // Aiming indicator — active station in AIMING mode (hidden when hyperspace queued)
@@ -948,26 +948,26 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // Space crystals — rotating icy gems drawn live (rotation animated each frame)
+  // Collectables — rotating icy gems drawn live (rotation animated each frame)
   // ----------------------------------------------------------------
 
-  _drawCrystals(ctx, crystals) {
-    for (const crystal of crystals) {
-      if (!crystal.alive) continue;
-      this._drawCrystal(ctx, crystal);
+  _drawCollectables(ctx, collectables) {
+    for (const collectable of collectables) {
+      if (!collectable.alive) continue;
+      this._drawCollectable(ctx, collectable);
     }
   }
 
-  _drawCrystal(ctx, crystal) {
-    const cx = crystal.position.x * this.conv;
-    const cy = crystal.position.y * this.conv;
-    const r  = Math.max(3, crystal.radius * this.conv);
+  _drawCollectable(ctx, collectable) {
+    const cx = collectable.position.x * this.conv;
+    const cy = collectable.position.y * this.conv;
+    const r  = Math.max(3, collectable.radius * this.conv);
 
-    crystal.rotation = ((crystal.rotation ?? 0) + 0.018) % (Math.PI * 2);
+    collectable.rotation = ((collectable.rotation ?? 0) + 0.018) % (Math.PI * 2);
 
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(crystal.rotation);
+    ctx.rotate(collectable.rotation);
 
     // Soft icy glow
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.8);
@@ -1014,20 +1014,20 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // VFX — crystal shatter, collectable grant text, triple-cannon muzzle
+  // VFX — collectable shatter, collectable grant text, triple-cannon muzzle
   // ----------------------------------------------------------------
 
   _drawVFX(ctx, vfxList) {
     for (const vfx of vfxList) {
       switch (vfx.type) {
-        case 'crystalShatter':     this._drawCrystalShatter(ctx, vfx);      break;
+        case 'collectableShatter':     this._drawCollectableShatter(ctx, vfx);      break;
         case 'collectableGrant':   this._drawCollectableGrant(ctx, vfx);    break;
         case 'tripleCannonMuzzle': this._drawTripleCannonMuzzle(ctx, vfx);  break;
       }
     }
   }
 
-  _drawCrystalShatter(ctx, vfx) {
+  _drawCollectableShatter(ctx, vfx) {
     const cx   = vfx.x * this.conv;
     const cy   = vfx.y * this.conv;
     const t    = vfx.t;

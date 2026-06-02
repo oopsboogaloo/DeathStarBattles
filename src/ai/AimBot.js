@@ -1,5 +1,5 @@
 import { AIController } from './AIController.js';
-import { WeaponId } from '../entities/Crystal.js';
+import { WeaponId } from '../entities/Collectable.js';
 
 // Direct-aim with Gaussian-style noise scaled by total planet mass.
 // More mass = more gravitational deflection = harder to aim straight.

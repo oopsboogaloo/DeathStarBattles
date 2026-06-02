@@ -1,4 +1,4 @@
-import { WeaponId } from './Crystal.js';
+import { WeaponId } from './Collectable.js';
 
 export const StationSize = Object.freeze({
   MICRO:  { name: 'Micro',  radius: 2,   bulletRadius: 0.4  },

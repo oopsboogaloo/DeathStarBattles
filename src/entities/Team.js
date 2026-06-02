@@ -1,4 +1,4 @@
-import { WeaponId } from './Crystal.js';
+import { WeaponId } from './Collectable.js';
 
 export const TEAM_COLOURS = [
   [  0, 220,   0],  // 0  green

@@ -1,6 +1,6 @@
 import { SimBot }       from './CleverBot.js';
 import { AIController } from './AIController.js';
-import { WeaponId } from '../entities/Crystal.js';
+import { WeaponId } from '../entities/Collectable.js';
 // SimBot imported for _netGravity helper
 
 export class SuperBot extends SimBot {

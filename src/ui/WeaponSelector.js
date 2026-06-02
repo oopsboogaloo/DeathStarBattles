@@ -1,4 +1,4 @@
-import { WeaponId } from '../entities/Crystal.js';
+import { WeaponId } from '../entities/Collectable.js';
 
 const LABELS = {
   [WeaponId.CANNON]:        'CANNON',

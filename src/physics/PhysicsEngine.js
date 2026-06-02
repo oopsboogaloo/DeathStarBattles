@@ -172,14 +172,14 @@ export class PhysicsEngine {
     return result;
   }
 
-  // Returns the first alive crystal hit by this bullet, or null.
-  // Crystal collision does NOT stop the bullet — call site handles award + destruction.
-  checkCrystalCollision(bullet, crystals) {
-    if (bullet.status !== BulletStatus.ACTIVE || !crystals?.length) return null;
-    for (const crystal of crystals) {
-      if (!crystal.alive) continue;
-      if (bullet.position.distanceSqTo(crystal.position) < crystal.radius * crystal.radius) {
-        return crystal;
+  // Returns the first alive collectable hit by this bullet, or null.
+  // Collectable collision does NOT stop the bullet — call site handles award + destruction.
+  checkCollectableCollision(bullet, collectables) {
+    if (bullet.status !== BulletStatus.ACTIVE || !collectables?.length) return null;
+    for (const collectable of collectables) {
+      if (!collectable.alive) continue;
+      if (bullet.position.distanceSqTo(collectable.position) < collectable.radius * collectable.radius) {
+        return collectable;
       }
     }
     return null;

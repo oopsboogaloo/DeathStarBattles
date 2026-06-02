@@ -1,5 +1,5 @@
 import { AIController } from './AIController.js';
-import { WeaponId } from '../entities/Crystal.js';
+import { WeaponId } from '../entities/Collectable.js';
 
 export class RandBot extends AIController {
   constructor(physics) { super(1, physics); }

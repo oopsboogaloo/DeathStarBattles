@@ -5,13 +5,15 @@ export const WeaponId = Object.freeze({
 });
 
 // Game-unit radius for collision and rendering.
-export const CRYSTAL_RADIUS = 5;
+// Note: collectables are visually crystal-shaped gems; "crystal" is reserved as a
+// separate future entity name. In code they are called Collectable throughout.
+export const COLLECTABLE_RADIUS = 5;
 
-export class Crystal {
+export class Collectable {
   constructor(position) {
     this.position = position;  // Vec2
     this.rotation = 0;         // radians — advanced by Renderer each frame
     this.alive    = true;
-    this.radius   = CRYSTAL_RADIUS;
+    this.radius   = COLLECTABLE_RADIUS;
   }
 }

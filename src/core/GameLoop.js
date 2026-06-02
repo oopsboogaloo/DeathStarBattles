@@ -3,7 +3,7 @@ import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
-import { Crystal, WeaponId } from '../entities/Crystal.js';
+import { Collectable, WeaponId } from '../entities/Collectable.js';
 
 // Physics steps per rAF frame for each speed setting.
 // Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
@@ -662,16 +662,16 @@ export class GameLoop {
             bullet.owner.stats.nearMisses++;
         }
 
-        // Crystal collision — bullet passes through, crystal destroyed
-        const hitCrystal = this.physics.checkCrystalCollision(bullet, this.gs.crystals);
-        if (hitCrystal) {
-          hitCrystal.alive = false;
+        // Collectable collision — bullet passes through, collectable destroyed
+        const hitCollectable = this.physics.checkCollectableCollision(bullet, this.gs.collectables);
+        if (hitCollectable) {
+          hitCollectable.alive = false;
           bullet.owner.team.addStock(WeaponId.TRIPLE_CANNON, 3);
-          this.gs.vfxList.push(this._makeCrystalShatterVFX(hitCrystal));
+          this.gs.vfxList.push(this._makeCollectableShatterVFX(hitCollectable));
           const [r, g, b] = bullet.owner.team.colour;
           this.gs.vfxList.push({
             type: 'collectableGrant',
-            x: hitCrystal.position.x, y: hitCrystal.position.y,
+            x: hitCollectable.position.x, y: hitCollectable.position.y,
             text: 'TRIPLE CANNON', colour: `rgb(${r},${g},${b})`,
             t: 0, duration: 2.0,
           });
@@ -714,8 +714,8 @@ export class GameLoop {
     // Remove dead bullets
     this.gs.activeBullets = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD);
 
-    // Clean up destroyed crystals and advance VFX
-    this.gs.crystals = this.gs.crystals.filter(c => c.alive);
+    // Clean up destroyed collectables and advance VFX
+    this.gs.collectables = this.gs.collectables.filter(c => c.alive);
     this._advanceVFX();
 
     this._advanceExplosionEffects();
@@ -920,7 +920,7 @@ export class GameLoop {
       } else {
         this.gs.turn++;
         this.renderer.clearTrails();
-        this._trySpawnCrystal();
+        this._trySpawnCollectable();
         this._startTurn();
       }
     }
@@ -1003,26 +1003,26 @@ export class GameLoop {
     this.gs.mode = GameMode.RESULTS;
   }
 
-  // ─── Crystal spawning ─────────────────────────────────────────────────────────
+  // ─── Collectable spawning ─────────────────────────────────────────────────────────
 
-  _trySpawnCrystal() {
+  _trySpawnCollectable() {
     const collectables = this.gs.config?.collectables ?? 'off';
     if (collectables === 'off') return;
-    if (this.gs.crystals.length >= 3) return;
-    // No crystals in Hyperspace scenario (id 21)
+    if (this.gs.collectables.length >= 3) return;
+    // No collectables in Hyperspace scenario (id 21)
     if (this.gs.config?.scenarioId === 21) return;
 
     const probMap = { rare: 0.20, normal: 0.40, common: 0.75, continuous: 1.0 };
     const prob = probMap[collectables] ?? 0;
     if (this.rng.next() > prob) return;
 
-    const pos = this._findCrystalSpawnPos();
-    if (pos) this.gs.crystals.push(new Crystal(pos));
+    const pos = this._findCollectableSpawnPos();
+    if (pos) this.gs.collectables.push(new Collectable(pos));
   }
 
-  _findCrystalSpawnPos() {
+  _findCollectableSpawnPos() {
     const { gw, gh } = this.physics;
-    const R = 5; // CRYSTAL_RADIUS
+    const R = 5; // COLLECTABLE_RADIUS
     for (let i = 0; i < 200; i++) {
       const x = R + this.rng.next() * (gw - 2 * R);
       const y = R + this.rng.next() * (gh - 2 * R);
@@ -1042,9 +1042,9 @@ export class GameLoop {
       }
       if (!ok) continue;
 
-      for (const crystal of this.gs.crystals) {
-        if (!crystal.alive) continue;
-        const d = Math.hypot(x - crystal.position.x, y - crystal.position.y);
+      for (const collectable of this.gs.collectables) {
+        if (!collectable.alive) continue;
+        const d = Math.hypot(x - collectable.position.x, y - collectable.position.y);
         if (d < R * 4) { ok = false; break; }
       }
       if (!ok) continue;
@@ -1054,10 +1054,10 @@ export class GameLoop {
     return null;
   }
 
-  _makeCrystalShatterVFX(crystal) {
+  _makeCollectableShatterVFX(collectable) {
     return {
-      type: 'crystalShatter',
-      x: crystal.position.x, y: crystal.position.y,
+      type: 'collectableShatter',
+      x: collectable.position.x, y: collectable.position.y,
       t: 0, duration: 0.6,
       shards: Array.from({ length: 10 }, () => ({
         angle: Math.random() * Math.PI * 2,

@@ -1,5 +1,5 @@
 import { AIController } from './AIController.js';
-import { WeaponId } from '../entities/Crystal.js';
+import { WeaponId } from '../entities/Collectable.js';
 
 // ── SimBot ─────────────────────────────────────────────────────────────────────
 // Abstract base for all simulation-based bots.

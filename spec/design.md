@@ -33,11 +33,11 @@ DeathStarBattles/
 │   │   ├── Station.js      ← player station
 │   │   ├── Bullet.js       ← projectile in flight
 │   │   ├── Team.js         ← team + cumulative stats + weapon stock
-│   │   └── Crystal.js      ← collectable crystal entity + WeaponId enum
+│   │   └── Collectable.js  ← collectable gem entity + WeaponId enum
 │   ├── physics/
 │   │   └── PhysicsEngine.js
 │   ├── rendering/
-│   │   ├── Renderer.js     ← composites the three layers; crystal + VFX drawing
+│   │   ├── Renderer.js     ← composites the three layers; collectable + VFX drawing
 │   │   └── PlanetRenderer.js
 │   ├── ai/
 │   │   ├── AIController.js ← base class + factory
@@ -247,7 +247,7 @@ class GameState {
 
   // Active turn data
   activeBullets  // Bullet[]
-  crystals       // Crystal[]  — alive crystals on the map (max 3 at once)
+  collectables   // Collectable[]  — alive collectables on the map (max 3 at once)
   vfxList        // ActiveVFX[] — short-lived visual effects (shatter, grant text, muzzle)
 
   // Derived helpers
@@ -680,16 +680,16 @@ Within `AIMING` mode, the station pointer advances through stations in order:
 `FIRING` runs the physics loop. Each tick:
 1. For each active bullet: `physicsEngine.step(bullet, planets)`
 2. `physicsEngine.checkCollisions(bullet, planets, stations)` — handles planet/station hits
-3. `physicsEngine.checkCrystalCollision(bullet, gameState.crystals)` — crystal hit check (bullet continues; see §13.6)
+3. `physicsEngine.checkCollectableCollision(bullet, gameState.collectables)` — collectable hit check (bullet continues; see §13.6)
 4. Advance `vfxList` timers; prune completed VFX
 5. Record trail points every `PRINT_EVERY` steps
 6. Repaint every `PRINT_EVERY × SHOW_EVERY` steps
 7. When all bullets are `DEAD` or `EXPLODING==done`:
-   - Remove dead crystals from `gameState.crystals`
+   - Remove dead collectables from `gameState.collectables`
    - Process hyperspace queues (stations with `selectedWeapon === WeaponId.HYPERSPACE` teleport now)
    - Update leaderboard
    - Check win condition → RESULTS
-   - Call `_trySpawnCrystal()` (see §13.5) before advancing to AIMING
+   - Call `_trySpawnCollectable()` (see §13.5) before advancing to AIMING
 
 ### 9.3 Win Condition
 ```
@@ -774,7 +774,7 @@ Full per-kill-type breakdown. Awards badges for: Bloodlust / Oppression / Bully 
 
 ## 13. Special Weapons & Collectables
 
-This section covers the design of weapon selection, the Triple Cannon, space crystals, and their VFX. It augments the existing sections where noted.
+This section covers the design of weapon selection, the Triple Cannon, collectables, and their VFX. It augments the existing sections where noted.
 
 ---
 
@@ -786,11 +786,11 @@ This section covers the design of weapon selection, the Triple Cannon, space cry
 const WeaponId = Object.freeze({
   CANNON:        'cannon',        // default fire; infinite uses
   HYPERSPACE:    'hyperspace',    // teleport; infinite uses
-  TRIPLE_CANNON: 'tripleCannon',  // 3 bullets ±5°; collectable; limited uses
+  TRIPLE_CANNON: 'tripleCannon',  // 3 bullets ±5°; acquired from collectables; limited uses
 });
 ```
 
-The enum is the single authoritative list of weapons. Adding a new collectable weapon in the future means adding one entry here and one entry to the stock map.
+The enum is the single authoritative list of weapons. Adding a new weapon in the future means adding one entry here and one entry to the stock map.
 
 #### 13.1.2 Weapon stock on `Team`
 
@@ -841,7 +841,7 @@ When a station fires with `weapon === WeaponId.TRIPLE_CANNON`:
 2. **Spawn three bullets** at angles `[angle − 5, angle, angle + 5]` (degrees, wrapped mod 360). All three share the same `power` value. Each bullet is a normal `Bullet` instance with `owner = station`.
 3. Add all three to `gameState.activeBullets`. Physics applies independently to each.
 4. Each bullet gets its own trail drawn on Layer 1 in the team colour — visually identical to three normal bullets from the same station.
-5. Any of the three can independently hit stations, planets, or crystals.
+5. Any of the three can independently hit stations, planets, or collectables.
 
 The spawning logic lives in `GameState._spawnBullets(station, action)`, which already handles the single-bullet cannon case. Triple Cannon is an additional branch in that method:
 
@@ -863,10 +863,10 @@ _spawnBullets(station, action) {
 
 ---
 
-### 13.3 `Crystal` Entity
+### 13.3 `Collectable` Entity
 
 ```js
-class Crystal {
+class Collectable {
   position    // Vec2 — stationary; never changes after spawn
   rotation    // float (radians) — increases each frame for spin animation
   alive       // bool
@@ -875,30 +875,32 @@ class Crystal {
 }
 ```
 
-Crystals are **not** planets. They do not exert gravity. They are not in the `planets` array. They live in `gameState.crystals: Crystal[]`.
+> **Naming note:** These entities are called `Collectable` / `collectables` in all code and docs. The name `Crystal` / `crystal` is **reserved** for a separate future entity type.
 
-The `Crystal` entity has no physics state — it is purely a collision target and a rendering entity. The `rotation` field is advanced by the `Renderer` each frame (not by `GameLoop`/`PhysicsEngine`) since it is purely cosmetic.
+Collectables are **not** planets. They do not exert gravity. They are not in the `planets` array. They live in `gameState.collectables: Collectable[]`.
+
+The `Collectable` entity has no physics state — it is purely a collision target and a rendering entity. The `rotation` field is advanced by the `Renderer` each frame (not by `GameLoop`/`PhysicsEngine`) since it is purely cosmetic.
 
 ---
 
-### 13.4 Crystal Rendering
+### 13.4 Collectable Rendering
 
 #### Layer assignment
 
-Crystals rotate continuously, so they cannot be baked onto Layer 0 (background). They are drawn on **Layer 2** (live layer) every frame, after bullets and before HUD. This means they sit above planet backgrounds and trail lines visually, which is fine — crystals are foreground objects that need to be easily spotted.
+Collectables rotate continuously, so they cannot be baked onto Layer 0 (background). They are drawn on **Layer 2** (live layer) every frame, after bullets and before HUD. This means they sit above planet backgrounds and trail lines visually, which is fine — collectables are foreground objects that need to be easily spotted.
 
 #### Draw procedure
 
 ```
-For each alive crystal:
+For each alive collectable:
   1. Save ctx
-  2. Translate to crystal pixel position; rotate by crystal.rotation
+  2. Translate to collectable pixel position; rotate by collectable.rotation
   3. Draw outer ring: thin circle stroke in icy blue-white (#B8E8FF), alpha 0.6
-  4. Draw 6 crystal facets: lines from centre to outer points (like a gem cross-section),
+  4. Draw 6 gem facets: lines from centre to outer points (like a gem cross-section),
      alternating long (0.9r) and short (0.5r) spokes
   5. Draw inner hexagon connecting the spoke tips, stroke only
   6. Draw a soft radial gradient glow: centre white, outer fully transparent,
-     radius 1.5× crystal radius — gives icy luminescence against the dark field
+     radius 1.5× collectable radius — gives icy luminescence against the dark field
   7. Restore ctx
 ```
 
@@ -908,26 +910,26 @@ The rotation speed is a fixed constant (~0.02 radians per frame at 30fps → ~on
 
 ---
 
-### 13.5 Crystal Spawning
+### 13.5 Collectable Spawning
 
-Crystals spawn at turn end, during the `RESULTS → AIMING` transition, after hyperspace teleports are executed.
+Collectables spawn at turn end, during the `RESULTS → AIMING` transition, after hyperspace teleports are executed.
 
 ```js
-_trySpawnCrystal(config, rng, planets, teams) {
+_trySpawnCollectable(config, rng, planets, teams) {
   if (config.collectables === 'off') return;
-  if (this.crystals.length >= 3) return;  // cap
+  if (this.collectables.length >= 3) return;  // cap
 
   const prob = { rare: 0.20, normal: 0.40, common: 0.75, continuous: 1.0 }[config.collectables];
   if (rng.next() > prob) return;
 
-  const pos = this._findCrystalSpawnPos(rng, planets, teams);
-  if (pos) this.crystals.push(new Crystal(pos, rng.next() * Math.PI * 2));
+  const pos = this._findCollectableSpawnPos(rng, planets, teams);
+  if (pos) this.collectables.push(new Collectable(pos, rng.next() * Math.PI * 2));
 }
 ```
 
 **Placement rules** (same RNG as everything else → reproducible):
-- Not inside any planet's radius (checked against `planet.radius + crystal.radius`)
-- Not within `3 × crystal.radius` of any alive station (avoids spawning on top of a player)
+- Not inside any planet's radius (checked against `planet.radius + collectable.radius`)
+- Not within `3 × collectable.radius` of any alive station (avoids spawning on top of a player)
 - Retry up to 200 times before giving up (cap still applies, so a failed spawn is silent)
 - Does not spawn in the Hyperspace scenario (`scenarioId === 21`)
 
@@ -935,18 +937,18 @@ The placement retry loop is deliberately lighter than the station placement algo
 
 ---
 
-### 13.6 Bullet–Crystal Collision
+### 13.6 Bullet–Collectable Collision
 
-Crystal collision is **not** handled inside `checkCollisions()` — that method handles interactions that stop or redirect the bullet. Crystals do not stop bullets. Instead a separate method is called for each active bullet each physics step:
+Collectable collision is **not** handled inside `checkCollisions()` — that method handles interactions that stop or redirect the bullet. Collectables do not stop bullets. Instead a separate method is called for each active bullet each physics step:
 
 ```js
 // PhysicsEngine
-checkCrystalCollision(bullet, crystals) {
-  // Returns the first crystal hit, or null.
-  for (const crystal of crystals) {
-    if (!crystal.alive) continue;
-    if (bullet.position.distanceSqTo(crystal.position) < crystal.radius ** 2) {
-      return crystal;
+checkCollectableCollision(bullet, collectables) {
+  // Returns the first collectable hit, or null.
+  for (const collectable of collectables) {
+    if (!collectable.alive) continue;
+    if (bullet.position.distanceSqTo(collectable.position) < collectable.radius ** 2) {
+      return collectable;
     }
   }
   return null;
@@ -956,19 +958,19 @@ checkCrystalCollision(bullet, crystals) {
 Call site in `GameLoop._firingTick()`:
 
 ```js
-const hitCrystal = physicsEngine.checkCrystalCollision(bullet, gameState.crystals);
-if (hitCrystal) {
-  hitCrystal.alive = false;
+const hitCollectable = physicsEngine.checkCollectableCollision(bullet, gameState.collectables);
+if (hitCollectable) {
+  hitCollectable.alive = false;
   bullet.owner.team.addStock(WeaponId.TRIPLE_CANNON, 3);
-  gameState.vfxList.push(new CrystalShatterVFX(hitCrystal.position));
+  gameState.vfxList.push(new CollectableShatterVFX(hitCollectable.position));
   gameState.vfxList.push(new CollectableGrantVFX(
-    hitCrystal.position, 'TRIPLE CANNON', bullet.owner.team.colour
+    hitCollectable.position, 'TRIPLE CANNON', bullet.owner.team.colour
   ));
   // bullet continues — no status change
 }
 ```
 
-Dead crystals (`alive === false`) are pruned from `gameState.crystals` at the end of the FIRING phase, alongside the bullet cleanup pass.
+Dead collectables (`alive === false`) are pruned from `gameState.collectables` at the end of the FIRING phase, alongside the bullet cleanup pass.
 
 ---
 
@@ -988,11 +990,11 @@ gameState.vfxList = gameState.vfxList.filter(v => v.t < 1);
 
 Two concrete VFX types:
 
-#### `CrystalShatterVFX`
+#### `CollectableShatterVFX`
 
 ```js
-class CrystalShatterVFX {
-  type = 'crystalShatter'
+class CollectableShatterVFX {
+  type = 'collectableShatter'
   position   // Vec2
   duration = 0.6   // seconds
   t = 0
@@ -1013,7 +1015,7 @@ Draw: each shard is a short line segment starting at `position + velocity*t` in 
 ```js
 class CollectableGrantVFX {
   type = 'collectableGrant'
-  position   // Vec2 (crystal location at time of collection)
+  position   // Vec2 (collectable location at time of collection)
   text       // string e.g. 'TRIPLE CANNON'
   colour     // CSS colour (team colour)
   duration = 2.0
@@ -1102,7 +1104,7 @@ A new cycle-button row in the Environment panel:
 
 Options in order: `Off → Rare → Normal → Common → Continuous → Off`.
 
-The value is stored in `GameConfig.collectables` (string, default `'off'`). It is passed to `_trySpawnCrystal()` each turn end.
+The value is stored in `GameConfig.collectables` (string, default `'off'`). It is passed to `_trySpawnCollectable()` each turn end.
 
 ---
 
@@ -1122,29 +1124,29 @@ The base `AIController.chooseAction()` gains a post-selection step: if the team'
 
 This is applied after the angle/power decision — the bot uses its normal targeting logic and simply fires three bullets at that angle instead of one.
 
-#### Crystal targeting (SuperBot + MegaBot only)
+#### Collectable targeting (SuperBot + MegaBot only)
 
-After computing `bestShot` for the primary enemy target, SuperBot and MegaBot run a quick secondary pass over all live crystals:
+After computing `bestShot` for the primary enemy target, SuperBot and MegaBot run a quick secondary pass over all live collectables:
 
 ```
-for each live crystal:
-  simulate(bestShot.angle, bestShot.power, station, crystalAsTarget, planets)
-  if closestApproach < crystal.radius * 2:
-    // this shot already collects the crystal — no change needed
-    note the crystal collection as a side-effect
+for each live collectable:
+  simulate(bestShot.angle, bestShot.power, station, collectableAsTarget, planets)
+  if closestApproach < collectable.radius * 2:
+    // this shot already collects the collectable — no change needed
+    note the collection as a side-effect
   else if team.getStock(TRIPLE_CANNON) < 2:
-    // stock is low; try to find a shot that hits this crystal
-    simulate with crystalAsTarget to find crystalShot
-    if crystalShot.closestApproach < crystal.radius:
-      // weigh crystal shot vs primary: choose crystal shot only if
+    // stock is low; try to find a shot that hits this collectable
+    simulate with collectableAsTarget to find collectableShot
+    if collectableShot.closestApproach < collectable.radius:
+      // weigh collectable shot vs primary: choose collectable shot only if
       // primary shot closestApproach is > threshold (unlikely to score)
-      if bestShot.closestApproach > CRYSTAL_CHASE_THRESHOLD:
-        choose crystalShot
+      if bestShot.closestApproach > COLLECTABLE_CHASE_THRESHOLD:
+        choose collectableShot
 ```
 
-`CRYSTAL_CHASE_THRESHOLD` = 15 game units (roughly half a Large station radius). If the primary shot is already a good one, the bot ignores the crystal. It only diverts to crystal-hunting when its primary shot is poor.
+`COLLECTABLE_CHASE_THRESHOLD` = 15 game units (roughly half a Large station radius). If the primary shot is already a good one, the bot ignores the collectable. It only diverts to collectable-hunting when its primary shot is poor.
 
-This does not require any new simulation infrastructure — it reuses `PhysicsEngine.simulate()` with the crystal's position treated as a zero-radius target station.
+This does not require any new simulation infrastructure — it reuses `PhysicsEngine.simulate()` with the collectable's position treated as a zero-radius target station.
 
 ---
 
@@ -1152,21 +1154,21 @@ This does not require any new simulation infrastructure — it reuses `PhysicsEn
 
 | File | Change |
 |---|---|
-| `src/entities/Crystal.js` | **NEW** — Crystal entity + WeaponId enum |
+| `src/entities/Collectable.js` | **NEW** — Collectable entity + WeaponId enum |
 | `src/entities/Team.js` | UPDATED — `weaponStock` map + `getStock` / `spendStock` / `addStock` |
 | `src/entities/Station.js` | UPDATED — `selectedWeapon` field; `hyperspaceQueued` → computed getter |
-| `src/physics/PhysicsEngine.js` | UPDATED — `checkCrystalCollision()` (separate from `checkCollisions()`) |
-| `src/core/GameState.js` | UPDATED — `crystals[]`, `vfxList[]`, `_trySpawnCrystal()` |
-| `src/core/GameLoop.js` | UPDATED — crystal collision call site, VFX advancement, `_fireAll` Triple Cannon path |
-| `src/rendering/Renderer.js` | UPDATED — `_drawCrystals()`, `_drawVFX()` on Layer 2; crystal rotation advanced here |
+| `src/physics/PhysicsEngine.js` | UPDATED — `checkCollectableCollision()` (separate from `checkCollisions()`) |
+| `src/core/GameState.js` | UPDATED — `collectables[]`, `vfxList[]`, `_trySpawnCollectable()` |
+| `src/core/GameLoop.js` | UPDATED — collectable collision call site, VFX advancement, `_fireAll` Triple Cannon path |
+| `src/rendering/Renderer.js` | UPDATED — `_drawCollectables()`, `_drawVFX()` on Layer 2; collectable rotation advanced here |
 | `src/ui/WeaponSelector.js` | **NEW** — DOM popup weapon selector |
 | `src/ui/ConfigPanel.js` | UPDATED — Collectables cycle-button row |
 | `src/ai/AIController.js` | UPDATED — `chooseAction` returns `weapon: WeaponId` not `hyperspace: bool` |
 | `src/ai/RandBot.js` | UPDATED — weapon selection logic |
 | `src/ai/AimBot.js` | UPDATED — weapon selection logic |
 | `src/ai/CleverBot.js` | UPDATED — weapon selection logic |
-| `src/ai/SuperBot.js` | UPDATED — weapon selection + crystal opportunism |
-| `src/ai/MegaBot.js` | UPDATED — weapon selection + crystal opportunism |
+| `src/ai/SuperBot.js` | UPDATED — weapon selection + collectable opportunism |
+| `src/ai/MegaBot.js` | UPDATED — weapon selection + collectable opportunism |
 | `src/main.js` | UPDATED — weapon button wires to WeaponSelector; GameState receives config |
 
 ---
@@ -1177,10 +1179,10 @@ This does not require any new simulation infrastructure — it reuses `PhysicsEn
 |---|---|
 | Player selects Triple Cannon but stock reaches 0 before their turn | Weapon selector greys out the option; station falls back to Cannon if stock drops to 0 mid-turn (e.g. teammate fired last use on the same team's turn) |
 | All three Triple Cannon bullets hit the same station | Station destroyed on first hit; remaining two bullets hit a dead/exploding station — treated as normal hits with no additional scoring |
-| Triple Cannon bullet hits a crystal | Crystal destroyed, 3 uses awarded, bullet continues — same as any other bullet |
-| Crystal spawns on top of another crystal | Placement validation checks other crystals' positions as well as planets/stations |
-| All 3 simultaneous crystals destroyed in one turn | All three grant text VFX play concurrently; each awards 3 uses to the owning bullet's team independently |
-| Crystal persists into a new game (tournament) | Crystals do **not** persist across games — `gameState.crystals` is cleared on `newGame()`. Weapon stocks persist; crystals do not |
+| Triple Cannon bullet hits a collectable | Collectable destroyed, 3 uses awarded, bullet continues — same as any other bullet |
+| Collectable spawns on top of another collectable | Placement validation checks other collectables' positions as well as planets/stations |
+| All 3 simultaneous collectables destroyed in one turn | All three grant text VFX play concurrently; each awards 3 uses to the owning bullet's team independently |
+| Collectable persists into a new game (tournament) | Collectables do **not** persist across games — `gameState.collectables` is cleared on `newGame()`. Weapon stocks persist; collectables do not |
 
 ---
 
