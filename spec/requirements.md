@@ -60,10 +60,16 @@ A bullet is destroyed (or teleported) when it:
 - Station colours are fixed per team: green, cyan, yellow, red, purple, blue, orange, grey, white, black, pink, brown
 
 ### 4.2 Per-turn Actions
-Each station selects a weapon, then either fires or hyperspaces:
+Each station selects a weapon, then either fires or takes its weapon's action:
 - **Cannon** — standard single bullet at the configured angle and power. Default weapon, infinite uses.
-- **Hyperspace** — teleport to a random valid location instead of firing. The player sacrifices their shot for a repositioning gamble. Infinite uses.
-- **Triple Cannon** — fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`, each at the same power. Limited uses; acquired by shooting collectables (see §4.6).
+- **Hyperspace** — teleport to a random valid location instead of firing. Infinite uses.
+- **Triple Cannon** — fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`, each at the same power. 3 charges per collectable.
+- **Plasma Blunderbuss** — fires 11 bullets simultaneously with random spread across ±15° (not evenly spaced). Each bullet is assigned a random velocity of 25–30% of max cannon speed. Velocity is not adjustable. Trails are thin and semi-transparent in the team colour. 2 charges per collectable.
+- **Laser** — fires a beam after a brief delay at the start of the firing phase. The path is simulated as an extremely fast bullet under 10% normal gravity, then rendered as a bright glowing line (white core, team-colour glow). The laser pierces all targets along its path — destroying asteroids and killing stations without stopping. Reflected elastically by Force Shields. 1 charge per collectable.
+- **Rocket** — fires a rocket that starts slow and accelerates under thrust using a fuel model. Power sets fuel load: more fuel = heavier start but longer burn. When fuel is exhausted the rocket becomes a normal ballistic projectile. On impact, explodes with a fixed blast radius (~3× Large station radius) destroying any bullets, asteroids, or stations caught in it. Can be shot down mid-flight — any bullet that hits the rocket detonates it in place. Leaves a semi-transparent particle trail in the team colour. Detonates immediately on contact with a Force Shield. 1 charge per collectable.
+- **Blaster** — fires 5 shots in succession, one approximately every second of real time (at normal game speed), each with a small independent random angle variation of ±0.5°, at 50% of max cannon speed. Velocity not adjustable. Thin transparent trails. 3 charges per collectable.
+- **Minigun** — fires 13 shots in rapid succession at 3× the Blaster rate, each with ±2° random angle variation, at 150% of max cannon speed. Velocity not adjustable. Thin semi-transparent trails. 1 charge per collectable.
+- **Force Shield** — deploys a protective shield for the remainder of the turn instead of firing, analogous to Hyperspace. All incoming bullets and lasers are reflected elastically off the shield boundary. Rockets detonate on contact. The shield is displayed as a pulsing ring slightly larger than the station in the team colour. UI indicates the shielded state in the same way as Hyperspace. 2 charges per collectable.
 
 ### 4.3 Aiming Controls
 Human players control angle and power via:
@@ -100,8 +106,19 @@ Selected weapon resets to Cannon at the start of each turn.
 - Not affected by gravity; do not stop bullets — a bullet passes straight through and the collectable is destroyed
 - Spawn probability is configurable (see §10); maximum 3 collectables on the map simultaneously
 - Do not spawn in the Hyperspace scenario
-- When a bullet destroys a collectable: the bullet continues on its trajectory; the bullet owner's team gains **3 uses** of Triple Cannon; a shatter VFX plays at the collectable position; the collectable name fades in/out in the bullet owner's team colour
+- When a bullet destroys a collectable: the bullet continues on its trajectory; the collecting team receives charges of a **randomly chosen weapon** (equal probability across all special weapons); a shatter VFX plays at the collectable position; the weapon name fades in/out in the bullet owner's team colour
+- The weapon type is decided at collection time, not at spawn
 - Weapon stocks are **shared across all stations on a team** and **carry over between tournament games**
+
+| Weapon | Charges per collectable |
+|---|---|
+| Triple Cannon | 3 |
+| Plasma Blunderbuss | 2 |
+| Laser | 1 |
+| Rocket | 1 |
+| Blaster | 3 |
+| Minigun | 1 |
+| Force Shield | 2 |
 
 > **Naming note:** In code and design documents, these entities are called `Collectable` / `collectables` throughout. The name `Crystal` / `crystal` is **reserved** for a separate future entity type and must not be used for collectables.
 

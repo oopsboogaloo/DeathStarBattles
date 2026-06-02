@@ -794,11 +794,17 @@ This section covers the design of weapon selection, the Triple Cannon, collectab
 const WeaponId = Object.freeze({
   CANNON:        'cannon',        // default fire; infinite uses
   HYPERSPACE:    'hyperspace',    // teleport; infinite uses
-  TRIPLE_CANNON: 'tripleCannon',  // 3 bullets ±5°; acquired from collectables; limited uses
+  TRIPLE_CANNON: 'tripleCannon',  // 3 bullets ±5°; 3 charges per collectable
+  BLUNDERBUSS:   'blunderbuss',   // 11 random-spread bullets; 2 charges per collectable
+  LASER:         'laser',         // piercing beam, 10% gravity; 1 charge per collectable
+  ROCKET:        'rocket',        // fuel-burning self-propelled projectile; 1 charge per collectable
+  BLASTER:       'blaster',       // 5 successive shots; 3 charges per collectable
+  MINIGUN:       'minigun',       // 13 rapid shots; 1 charge per collectable
+  FORCE_SHIELD:  'forceShield',   // deflects all incoming; 2 charges per collectable
 });
 ```
 
-The enum is the single authoritative list of weapons. Adding a new weapon in the future means adding one entry here and one entry to the stock map.
+The enum is the single authoritative list of weapons. Adding a new weapon means adding one entry here and one entry to the stock map.
 
 #### 13.1.2 Weapon stock on `Team`
 
@@ -966,13 +972,24 @@ checkCollectableCollision(bullet, collectables) {
 Call site in `GameLoop._firingTick()`:
 
 ```js
+const WEAPON_GRANTS = [
+  { id: WeaponId.TRIPLE_CANNON, charges: 3,  label: 'TRIPLE CANNON'  },
+  { id: WeaponId.BLUNDERBUSS,   charges: 2,  label: 'BLUNDERBUSS'    },
+  { id: WeaponId.LASER,         charges: 1,  label: 'LASER'          },
+  { id: WeaponId.ROCKET,        charges: 1,  label: 'ROCKET'         },
+  { id: WeaponId.BLASTER,       charges: 3,  label: 'BLASTER'        },
+  { id: WeaponId.MINIGUN,       charges: 1,  label: 'MINIGUN'        },
+  { id: WeaponId.FORCE_SHIELD,  charges: 2,  label: 'FORCE SHIELD'   },
+];
+
 const hitCollectable = physicsEngine.checkCollectableCollision(bullet, gameState.collectables);
 if (hitCollectable) {
   hitCollectable.alive = false;
-  bullet.owner.team.addStock(WeaponId.TRIPLE_CANNON, 3);
+  const grant = WEAPON_GRANTS[Math.floor(rng.next() * WEAPON_GRANTS.length)];
+  bullet.owner.team.addStock(grant.id, grant.charges);
   gameState.vfxList.push(new CollectableShatterVFX(hitCollectable.position));
   gameState.vfxList.push(new CollectableGrantVFX(
-    hitCollectable.position, 'TRIPLE CANNON', bullet.owner.team.colour
+    hitCollectable.position, grant.label, bullet.owner.team.colour
   ));
   // bullet continues — no status change
 }
@@ -1191,6 +1208,218 @@ This does not require any new simulation infrastructure — it reuses `PhysicsEn
 | Collectable spawns on top of another collectable | Placement validation checks other collectables' positions as well as planets/stations |
 | All 3 simultaneous collectables destroyed in one turn | All three grant text VFX play concurrently; each awards 3 uses to the owning bullet's team independently |
 | Collectable persists into a new game (tournament) | Collectables do **not** persist across games — `gameState.collectables` is cleared on `newGame()`. Weapon stocks persist; collectables do not |
+
+---
+
+## 14. Extended Weapons
+
+This section covers the six additional special weapons beyond Triple Cannon. Each follows the same acquisition model (random weapon from collectable pickup) and the same WeaponSelector UI. Only implementation specifics are documented here.
+
+---
+
+### 14.1 Plasma Blunderbuss
+
+**Charges per collectable:** 2
+
+#### Firing
+
+Spawns 11 bullets simultaneously at the start of the fire phase. For each bullet:
+- Angle offset is sampled from a uniform distribution over `[−15°, +15°]` independently (not evenly spaced)
+- Speed is sampled from `[0.25 × maxCannonSpeed, 0.30 × maxCannonSpeed]` independently
+- `maxCannonSpeed` = the speed a Cannon shot would have at power 800
+
+All 11 bullets are normal `Bullet` instances. Standard gravity applies. They share the firing station as `owner`.
+
+#### Rendering
+Trail lines are drawn at 30% opacity in the team colour (vs 100% for Cannon). Trail point sampling rate (`PRINT_EVERY`) is the same as normal bullets.
+
+---
+
+### 14.2 Laser
+
+**Charges per collectable:** 1
+
+#### Firing delay
+The laser does not fire at the start of the fire phase. A `pendingLaser` entry is queued on `GameState` at the moment of firing:
+```js
+{ station, angle, power, delaySteps: 500 }
+```
+`GameLoop._firingTick()` decrements `delaySteps` each step. When it reaches 0, the laser simulation runs and the path is committed to the VFX list.
+
+#### Path simulation
+A fast internal simulation is run (not the normal physics loop):
+- Initial speed: `200 × maxCannonSpeed` (effectively instantaneous relative to normal bullets)
+- Gravity factor: `0.10` (10% of normal `G`)
+- Terminates when: boundary exceeded, or `MAX_LASER_STEPS = 3000` steps elapsed
+- Simulation records a path as `Vec2[]` sampled every step
+
+During path simulation, collision is checked against:
+- **Stations**: station is marked destroyed; simulation continues past it
+- **Asteroids/Crystals**: planet is marked destroyed; simulation continues past it
+- **Force Shields**: velocity is reflected elastically off the shield boundary; simulation continues with new direction
+- **Planets (non-destructible)**: simulation terminates (laser absorbed)
+
+Kill attribution: all station kills credit `laser.owner`.
+
+#### Rendering
+The committed path is added as a `LaserVFX` to `vfxList`:
+```js
+{
+  type: 'laser',
+  path: Vec2[],          // in game units
+  colour: teamColour,
+  t: 0, duration: 1.5,   // fades over 1.5 seconds
+}
+```
+Draw procedure each frame:
+1. Draw the full path as a wide stroke (`lineWidth = 6px`) in the team colour at `alpha = sin(t × π) × 0.5` — glows in then fades out
+2. Draw the same path as a narrow white stroke (`lineWidth = 2px`) at `alpha = sin(t × π)` — bright white core
+The path persists as a VFX; it is not drawn on the trails canvas.
+
+---
+
+### 14.3 Rocket
+
+**Charges per collectable:** 1
+
+#### Entity
+Rocket is a separate class (not `Bullet`) stored in `gameState.rockets: Rocket[]`:
+
+```js
+class Rocket {
+  owner         // Station
+  position      // Vec2
+  velocity      // Vec2
+  fuel          // float — decrements each step; 0 = ballistic
+  angle         // int — initial firing angle (used for thrust direction)
+  status        // 'active' | 'exploding' | 'dead'
+  trailParticles // particle array for rendering
+}
+```
+
+**Fuel model**: `power` maps linearly to fuel mass (power 1 → `ROCKET_MIN_FUEL`, power 800 → `ROCKET_MAX_FUEL`). Each step while `fuel > 0`:
+```
+thrustAccel = ROCKET_THRUST / (ROCKET_BASE_MASS + fuel)
+velocity += direction(velocity) × thrustAccel × TIMESTEP
+fuel -= ROCKET_FUEL_BURN_RATE × TIMESTEP
+```
+When `fuel ≤ 0`: rocket becomes ballistic — normal gravity applies, no thrust.
+
+**Suggested constants (tune during implementation):**
+```
+ROCKET_BASE_MASS    = 1.0
+ROCKET_MIN_FUEL     = 0.5   // power 1
+ROCKET_MAX_FUEL     = 8.0   // power 800
+ROCKET_THRUST       = 3.0
+ROCKET_FUEL_BURN_RATE = 1.0
+```
+
+#### Explosion
+`ROCKET_BLAST_RADIUS = 48` game units (fixed, does not scale with station size).
+
+When a rocket detonates (impact or shoot-down):
+- Any `Station` within blast radius: destroyed
+- Any `Bullet` or `Rocket` within blast radius: destroyed
+- Any `Planet` of type `ASTEROID` or `CRYSTAL` within blast radius: destroyed (fragmented)
+- A large explosion VFX is spawned at the detonation point
+
+#### Shoot-down
+Each active bullet is checked against each active rocket every step. If `distanceSq(bullet.position, rocket.position) < ROCKET_HITBOX_RADIUS²`, the rocket detonates at its current position. `ROCKET_HITBOX_RADIUS = 8` game units.
+
+#### Force Shield interaction
+If a rocket's position enters a Force Shield boundary, it detonates immediately (no reflection).
+
+#### Trail
+A particle is emitted at the rocket's current position each `PRINT_EVERY` steps. Each particle:
+- Initial position = rocket position
+- Velocity = small random dispersion
+- Lifetime = 30 frames
+- Colour = team colour at 40% opacity, fading to 0
+
+---
+
+### 14.4 Blaster
+
+**Charges per collectable:** 3
+
+#### Burst firing
+At the start of the fire phase, a burst queue entry is created:
+```js
+{ station, weapon: WeaponId.BLASTER, shotsRemaining: 5,
+  intervalSteps: 600, nextFireStep: 0 }
+```
+Stored on `GameState.burstQueue`. Each `_firingTick()`:
+- For each burst entry, when `currentStep >= nextFireStep`:
+  - Spawn one bullet with `±0.5°` random offset and `0.5 × maxCannonSpeed`
+  - Decrement `shotsRemaining`; advance `nextFireStep += intervalSteps`
+  - When `shotsRemaining === 0`, remove from queue
+
+**Interval**: `600` simulation steps ≈ 1 real-time second at normal game speed.
+
+Trail opacity: 30% (same as Blunderbuss).
+
+---
+
+### 14.5 Minigun
+
+**Charges per collectable:** 1
+
+Identical to Blaster except:
+- 13 shots total
+- `intervalSteps: 200` (3× faster than Blaster)
+- `±2.0°` random angle offset per shot
+- Speed: `1.5 × maxCannonSpeed`
+
+Trail opacity: 50% semi-transparent.
+
+---
+
+### 14.6 Force Shield
+
+**Charges per collectable:** 2
+
+#### Activation
+When a station selects Force Shield, no bullet is spawned. At the start of the fire phase:
+- A `ForceShield` is added to `gameState.shields: ForceShield[]`:
+```js
+class ForceShield {
+  station       // Station reference
+  radius        // station.radius × 1.6
+  alive         // bool — set false at turn end
+}
+```
+- The station's HUD reads `"SHIELDED..."` replacing angle/power (same pattern as `"HYPERSPACING..."`), rendered in the team colour
+
+#### Bullet reflection
+Each active bullet is checked against each active shield each step. If `distance(bullet.position, shield.station.position) < shield.radius`:
+```
+normal = normalise(bullet.position − shield.station.position)
+bullet.velocity = bullet.velocity − 2 × dot(bullet.velocity, normal) × normal
+// push bullet just outside shield boundary to avoid re-triggering
+bullet.position = shield.station.position + normal × (shield.radius + 0.1)
+```
+The bullet continues with the reflected velocity. It can kill any station it subsequently hits, including the original shooter.
+
+#### Laser reflection
+The laser path simulation (§14.2) checks shield boundaries during its step loop using the same reflection formula. The reflected path continues from the shield boundary.
+
+#### Rocket interaction
+Rockets that enter the shield boundary detonate immediately (§14.3).
+
+#### Rendering
+Drawn on Layer 2 every frame while `shield.alive`:
+1. Pulsing outer ring: `radius + sin(t × 4π) × 3px` screen pixels, team colour at 60% opacity, `lineWidth = 2px`
+2. Inner fill: team colour at 8% opacity (faint translucent dome)
+
+Shields are removed from `gameState.shields` at the end of the firing phase (same cleanup pass as dead bullets).
+
+---
+
+### 14.7 AI Behaviour — New Weapons
+
+All bots spend new weapon stocks with the same probability thresholds as Triple Cannon (§13.10), applied weapon-by-weapon based on stock availability. Priority order when multiple weapons are stocked: Laser > Rocket > Minigun > Triple Cannon > Blunderbuss > Blaster > Force Shield.
+
+Force Shield: bots activate Force Shield when they have stock **and** the previous turn's incoming fire hit or nearly hit them (closest-approach distance < 2 × station radius for any enemy bullet last turn). Otherwise they save it.
 
 ---
 
