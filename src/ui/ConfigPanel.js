@@ -8,6 +8,9 @@ const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', 
 
 const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
+// Page row groupings for paged layout
+const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS'];
+
 export class ConfigPanel {
   constructor() {
     this._d = {
@@ -28,14 +31,27 @@ export class ConfigPanel {
       aimCircleSize:     'regular',
       minimalUI:         false,
     };
-    this._onStartCb  = null;
-    this._onResumeCb = null;
-    this._canResume  = false;
-    this._humanCtrl  = null; // updated when numPlayers changes
-    this.element     = this._build();
+    this._onStartCb       = null;
+    this._onResumeCb      = null;
+    this._canResume       = false;
+    this._pagedMode       = false;
+    this._currentPage     = 0;
+    this._pageEls         = [];   // 3 page content divs
+    this._dotEls          = [];   // 3 dot spans
+    this._prevBtn         = null;
+    this._nextBtn         = null;
+    this._panel           = null;
+    this._flatPrimary     = null; // holds page-1 rows in flat mode
+    this._advancedInner   = null; // holds page-2 + page-3 rows in flat mode
+    this._flatSection     = null;
+    this._pagedSection    = null;
+    this.element          = this._build();
   }
 
-  show() { this.element.style.display = 'flex'; }
+  show() {
+    this.element.style.display = 'flex';
+    requestAnimationFrame(() => this._checkFit());
+  }
   hide() { this.element.style.display = 'none'; }
   get isVisible() { return this.element.style.display !== 'none'; }
 
@@ -50,12 +66,92 @@ export class ConfigPanel {
 
   get config() { return { ...this._d }; }
 
-  // ── DOM construction ────────────────────────────────────────────────────────
+  // ── Fit detection ────────────────────────────────────────────────────────────
+
+  _checkFit() {
+    if (!this._panel) return;
+
+    // To measure flat height even when in paged mode, temporarily expose the
+    // flat section (synchronous forced reflow — no paint, no flicker).
+    const inPaged = this._pagedMode;
+    if (inPaged) {
+      this._flatSection.style.display = 'block';
+      this._pagedSection.style.display = 'none';
+      this._panel.style.minWidth  = '460px';
+      this._panel.style.maxHeight = '';
+      this._panel.style.overflowY = '';
+      this._panel.style.padding   = '30px 40px 36px';
+    }
+
+    const flatH     = this._panel.scrollHeight;
+    const needsPaged = flatH > window.innerHeight * 0.92;
+
+    if (inPaged) {
+      this._flatSection.style.display  = 'none';
+      this._pagedSection.style.display = 'block';
+      this._panel.style.minWidth  = '320px';
+      this._panel.style.maxHeight = '92vh';
+      this._panel.style.overflowY = 'auto';
+      this._panel.style.padding   = '18px 24px 20px';
+    }
+
+    if (needsPaged !== this._pagedMode) this._applyLayout(needsPaged);
+  }
+
+  _applyLayout(paged) {
+    this._pagedMode = paged;
+    if (paged) {
+      // Move rows into page divs
+      for (const row of this._page1Rows) this._pageEls[0].appendChild(row);
+      for (const row of this._page2Rows) this._pageEls[1].appendChild(row);
+      for (const row of this._page3Rows) this._pageEls[2].appendChild(row);
+
+      this._flatSection.style.display  = 'none';
+      this._pagedSection.style.display = 'block';
+
+      this._panel.style.minWidth  = '320px';
+      this._panel.style.maxHeight = '92vh';
+      this._panel.style.overflowY = 'auto';
+      this._panel.style.padding   = '18px 24px 20px';
+
+      this._showPage(this._currentPage);
+    } else {
+      // Move rows back to flat layout
+      for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
+      for (const row of this._page2Rows) this._advancedInner.appendChild(row);
+      for (const row of this._page3Rows) this._advancedInner.appendChild(row);
+
+      this._flatSection.style.display  = 'block';
+      this._pagedSection.style.display = 'none';
+
+      this._panel.style.minWidth  = '460px';
+      this._panel.style.maxHeight = '';
+      this._panel.style.overflowY = '';
+      this._panel.style.padding   = '30px 40px 36px';
+    }
+  }
+
+  _showPage(n) {
+    this._currentPage = n;
+    for (let i = 0; i < 3; i++) {
+      this._pageEls[i].style.display = i === n ? 'block' : 'none';
+      this._dotEls[i].textContent    = i === n ? '●' : '○';
+      this._dotEls[i].style.opacity  = i === n ? '1' : '0.45';
+    }
+    this._prevBtn.disabled      = n === 0;
+    this._nextBtn.disabled      = n === 2;
+    this._prevBtn.style.opacity = n === 0 ? '0.25' : '1';
+    this._nextBtn.style.opacity = n === 2 ? '0.25' : '1';
+    this._prevBtn.style.cursor  = n === 0 ? 'default' : 'pointer';
+    this._nextBtn.style.cursor  = n === 2 ? 'default' : 'pointer';
+  }
+
+  // ── DOM construction ─────────────────────────────────────────────────────────
 
   _build() {
     const overlay = el('div', {
       position: 'fixed', inset: '0', zIndex: '100',
-      display: 'none',              // hidden until show() called
+      display: 'none',
       alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,8,0.82)',
     });
@@ -71,9 +167,13 @@ export class ConfigPanel {
       fontFamily:   'monospace',
       boxShadow:    '0 0 50px rgba(50,70,200,0.25), inset 0 0 30px rgba(40,60,180,0.04)',
     });
+    this._panel = panel;
     overlay.appendChild(panel);
 
-    // Resume button — only shown when there is a paused game to return to
+    // Recheck fit on viewport resize
+    window.addEventListener('resize', () => this._checkFit());
+
+    // ── Resume button ────────────────────────────────────────────────────────
     this._resumeBtn = el('button', {
       display:       'none',
       margin:        '0 auto 18px',
@@ -93,38 +193,89 @@ export class ConfigPanel {
     this._resumeBtn.addEventListener('click', () => { this.hide(); this._onResumeCb?.(); });
     panel.appendChild(this._resumeBtn);
 
-    // Title
+    // ── Title ────────────────────────────────────────────────────────────────
     const title = el('div', {
-      margin:      '0 0 26px',
-      fontSize:    '17px',
+      margin:        '0 0 26px',
+      fontSize:      '17px',
       letterSpacing: '0.2em',
-      color:       '#aac',
-      textShadow:  '0 0 20px rgba(110,130,255,0.65)',
-      textAlign:   'center',
+      color:         '#aac',
+      textShadow:    '0 0 20px rgba(110,130,255,0.65)',
+      textAlign:     'center',
     });
     title.textContent = 'Death Star Battles';
     panel.appendChild(title);
 
-    // ── Primary options ──────────────────────────────────────────────────────
+    // ── Build all row elements once ──────────────────────────────────────────
 
-    panel.appendChild(this._playerRow());
-    panel.appendChild(this._humanRow());
-    panel.appendChild(this._row('STATIONS / PLAYER',
-      this._cycle('stationsPerPlayer', [1, 2, 3, 4, 5, 6, 7, 8], v => String(v))));
-    panel.appendChild(this._row('CPU LEVEL',
-      this._cycle('aiLevel', [1, 2, 3, 4, 5], v => AI_NAMES[v - 1])));
+    // Page 1 — Setup
+    const rowPlayers  = this._playerRow();
+    const rowHuman    = this._humanRow();
+    const rowStations = this._row('STATIONS / PLAYER',
+      this._cycle('stationsPerPlayer', [1, 2, 3, 4, 5, 6, 7, 8], v => String(v)));
+    const rowCpuLevel = this._row('CPU LEVEL',
+      this._cycle('aiLevel', [1, 2, 3, 4, 5], v => AI_NAMES[v - 1]));
 
-    // ── Advanced section (collapsible) ──────────────────────────────────────
+    // Page 2 — World
+    const rowStationSize = this._row('STATION SIZE',
+      this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase()));
+    this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
+    const rowPlanets     = this._row('PLANETS', this._planetsCtrl);
+    const rowScenario    = this._row('SCENARIO',
+      this._cycle('scenarioId', SCENARIO_VALS,
+        v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`));
+    const rowMode        = this._row('MODE',
+      this._cycle('mode', ['single', 'tournament'],
+        v => v === 'single' ? 'Single Game' : 'Tournament'));
+    const rowGameSpeed   = this._row('GAME SPEED',
+      this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
+        v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v])));
+    const rowMovement    = this._row('MOVEMENT SPEED',
+      this._cycle('movementSpeed',
+        ['off', 'glacial', 'slow', 'normal', 'fast', 'rocket'],
+        v => ({ off: 'Off', glacial: 'Glacial  (1×)', slow: 'Slow  (2×)', normal: 'Normal  (3×)', fast: 'Fast  (5×)', rocket: 'Rocket  (8×)' }[v])));
 
+    // Page 3 — Options
+    const rowPerformance = this._row('PERFORMANCE',
+      this._cycle('performance', ['full', 'simplified'],
+        v => v === 'full' ? 'Full' : 'Simplified'));
+    const rowClustering  = this._row('TEAM CLUSTERING',
+      this._cycle('teamClustering', ['off', 'tight', 'moderate', 'loose'],
+        v => ({ off: 'Off', tight: 'Tight', moderate: 'Moderate', loose: 'Loose' }[v])));
+    const rowWildcard    = this._row('WILDCARD PLANETS',
+      this._cycle('wildcardFrequency',
+        ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
+        v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v])));
+    const rowCollect     = this._row('COLLECTABLES',
+      this._cycle('collectables',
+        ['off', 'rare', 'normal', 'common', 'continuous'],
+        (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i])));
+    const rowAimCircle   = this._row('AIM CIRCLE SIZE',
+      this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
+        v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v])));
+    const rowMinimalUI   = this._row('MINIMAL UI',
+      this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
+
+    // Store page groups for layout switching
+    this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
+    this._page2Rows = [rowStationSize, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
+    this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowCollect, rowAimCircle, rowMinimalUI];
+
+    // ── Flat section ─────────────────────────────────────────────────────────
+    this._flatSection = el('div', {});
+
+    this._flatPrimary = el('div', {});
+    for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
+    this._flatSection.appendChild(this._flatPrimary);
+
+    // Collapsible advanced
     let advancedOpen = false;
-
     const advancedToggle = el('div', {
       margin: '16px 0 0', padding: '4px 0', fontSize: '11px',
       color: 'rgba(150,165,230,0.65)', letterSpacing: '0.08em',
       cursor: 'pointer', userSelect: 'none', display: 'flex',
       alignItems: 'center', gap: '6px',
     });
-    const toggleIcon = el('span', { fontSize: '14px', lineHeight: '1', transition: 'transform 0.15s' });
+    const toggleIcon  = el('span', { fontSize: '14px', lineHeight: '1', transition: 'transform 0.15s' });
     toggleIcon.textContent = '＋';
     const toggleLabel = el('span', {});
     toggleLabel.textContent = 'ADVANCED';
@@ -132,59 +283,68 @@ export class ConfigPanel {
     advancedToggle.appendChild(toggleLabel);
     advancedToggle.addEventListener('mouseenter', () => { advancedToggle.style.color = 'rgba(190,205,255,0.85)'; });
     advancedToggle.addEventListener('mouseleave', () => { advancedToggle.style.color = 'rgba(150,165,230,0.65)'; });
-    panel.appendChild(advancedToggle);
 
     const advancedSection = el('div', { overflow: 'hidden', maxHeight: '0', transition: 'max-height 0.25s ease', marginTop: '0' });
-    const advancedInner   = el('div', { paddingTop: '8px' });
+    this._advancedInner   = el('div', { paddingTop: '8px' });
+    for (const row of [...this._page2Rows, ...this._page3Rows]) this._advancedInner.appendChild(row);
 
     advancedToggle.addEventListener('click', () => {
       advancedOpen = !advancedOpen;
       toggleIcon.textContent          = advancedOpen ? '－' : '＋';
       advancedSection.style.maxHeight = advancedOpen ? '600px' : '0';
+      if (advancedOpen) requestAnimationFrame(() => this._checkFit());
     });
 
-    advancedInner.appendChild(this._row('STATION SIZE',
-      this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase())));
-    this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
-    advancedInner.appendChild(this._row('PLANETS', this._planetsCtrl));
-    advancedInner.appendChild(this._row('SCENARIO',
-      this._cycle('scenarioId', SCENARIO_VALS,
-        v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`)));
-    advancedInner.appendChild(this._row('MODE',
-      this._cycle('mode', ['single', 'tournament'],
-        v => v === 'single' ? 'Single Game' : 'Tournament')));
-    advancedInner.appendChild(this._row('GAME SPEED',
-      this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
-        v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v]))));
-    advancedInner.appendChild(this._row('MOVEMENT SPEED',
-      this._cycle('movementSpeed',
-        ['off', 'glacial', 'slow', 'normal', 'fast', 'rocket'],
-        v => ({ off: 'Off', glacial: 'Glacial  (1×)', slow: 'Slow  (2×)', normal: 'Normal  (3×)', fast: 'Fast  (5×)', rocket: 'Rocket  (8×)' }[v]))));
-    advancedInner.appendChild(this._row('PERFORMANCE',
-      this._cycle('performance', ['full', 'simplified'],
-        v => v === 'full' ? 'Full' : 'Simplified')));
-    advancedInner.appendChild(this._row('TEAM CLUSTERING',
-      this._cycle('teamClustering', ['off', 'tight', 'moderate', 'loose'],
-        v => ({ off: 'Off', tight: 'Tight', moderate: 'Moderate', loose: 'Loose' }[v]))));
-    advancedInner.appendChild(this._row('WILDCARD PLANETS',
-      this._cycle('wildcardFrequency',
-        ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
-        v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v]))));
-    advancedInner.appendChild(this._row('COLLECTABLES',
-      this._cycle('collectables',
-        ['off', 'rare', 'normal', 'common', 'continuous'],
-        (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i]))));
-    advancedInner.appendChild(this._row('AIM CIRCLE SIZE',
-      this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
-        v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v]))));
-    advancedInner.appendChild(this._row('MINIMAL UI',
-      this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off')));
+    advancedSection.appendChild(this._advancedInner);
+    this._flatSection.appendChild(advancedToggle);
+    this._flatSection.appendChild(advancedSection);
+    panel.appendChild(this._flatSection);
 
-    advancedSection.appendChild(advancedInner);
-    panel.appendChild(advancedSection);
+    // ── Paged section ────────────────────────────────────────────────────────
+    this._pagedSection = el('div', { display: 'none' });
+
+    for (let i = 0; i < 3; i++) {
+      const pageEl = el('div', { display: 'none' });
+      const lbl = el('div', {
+        fontSize: '10px', letterSpacing: '0.13em',
+        color: 'rgba(130,145,210,0.55)', marginBottom: '10px',
+      });
+      lbl.textContent = PAGE_TITLES[i];
+      pageEl.appendChild(lbl);
+      this._pageEls.push(pageEl);
+      this._pagedSection.appendChild(pageEl);
+    }
+
+    // Nav bar: ◄  ● ○ ○  ►
+    const navBar = el('div', {
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      gap: '14px', marginTop: '14px', paddingTop: '12px',
+      borderTop: '1px solid rgba(80,110,255,0.18)',
+    });
+
+    this._prevBtn = this._navBtn('◄', () => { if (this._currentPage > 0) this._showPage(this._currentPage - 1); });
+    navBar.appendChild(this._prevBtn);
+
+    const dotsWrap = el('div', { display: 'flex', gap: '10px', alignItems: 'center' });
+    for (let i = 0; i < 3; i++) {
+      const dot = el('span', {
+        fontSize: '16px', cursor: 'pointer',
+        color: 'rgba(170,185,255,0.8)', userSelect: 'none',
+      });
+      dot.textContent = '○';
+      dot.addEventListener('click', () => this._showPage(i));
+      this._dotEls.push(dot);
+      dotsWrap.appendChild(dot);
+    }
+    navBar.appendChild(dotsWrap);
+
+    this._nextBtn = this._navBtn('►', () => { if (this._currentPage < 2) this._showPage(this._currentPage + 1); });
+    navBar.appendChild(this._nextBtn);
+
+    this._pagedSection.appendChild(navBar);
+    panel.appendChild(this._pagedSection);
 
     // ── Start button ─────────────────────────────────────────────────────────
-
     const startBtn = el('button', {
       display:       'block',
       margin:        '28px auto 0',
@@ -215,10 +375,9 @@ export class ConfigPanel {
     panel.appendChild(startBtn);
 
     // ── Info links ───────────────────────────────────────────────────────────
-
     const infoBar = el('div', {
-      display: 'flex', justifyContent: 'center', gap: '22px',
-      marginTop: '20px',
+      display: 'flex', justifyContent: 'center', flexWrap: 'wrap',
+      gap: '14px', rowGap: '6px', marginTop: '20px',
     });
     for (const [label, key] of [['About', 'about'], ['Instructions', 'instructions'], ['Education', 'education'], ['Scores', 'scores'], ['? Options Help', 'options']]) {
       const btn = el('button', {
@@ -242,7 +401,25 @@ export class ConfigPanel {
     return overlay;
   }
 
-  // ── Option rows ─────────────────────────────────────────────────────────────
+  _navBtn(label, onClick) {
+    const btn = el('button', {
+      background:   'rgba(10,10,25,0.82)',
+      border:       '1px solid rgba(255,255,255,0.22)',
+      borderRadius: '4px',
+      color:        '#dde',
+      fontFamily:   'monospace',
+      fontSize:     '13px',
+      padding:      '4px 14px',
+      cursor:       'pointer',
+    });
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    btn.addEventListener('mouseenter', () => { if (!btn.disabled) btn.style.background = 'rgba(40,45,90,0.95)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(10,10,25,0.82)'; });
+    return btn;
+  }
+
+  // ── Option rows ──────────────────────────────────────────────────────────────
 
   _row(label, ctrl) {
     const row = el('div', {
@@ -256,7 +433,6 @@ export class ConfigPanel {
     return row;
   }
 
-  // Generic cycle control — cycles through `values`, displays via `toLabel(value, index)`
   _cycle(key, values, toLabel) {
     let idx = Math.max(0, values.indexOf(this._d[key]));
 
@@ -268,14 +444,13 @@ export class ConfigPanel {
     refresh();
 
     const ctrl = this._cycleCtrl(display,
-      () => { idx = (idx + 1) % values.length;         this._d[key] = values[idx]; refresh(); this._onChange(key); },
-      () => { idx = (idx - 1 + values.length) % values.length; this._d[key] = values[idx]; refresh(); this._onChange(key); },
+      () => { idx = (idx + 1) % values.length;                    this._d[key] = values[idx]; refresh(); this._onChange(key); },
+      () => { idx = (idx - 1 + values.length) % values.length;   this._d[key] = values[idx]; refresh(); this._onChange(key); },
     );
     ctrl._refresh = () => { idx = Math.max(0, values.indexOf(this._d[key])); refresh(); };
     return ctrl;
   }
 
-  // Players row — feeds into the human/cpu row
   _playerRow() {
     const vals = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     const ctrl = this._cycle('numPlayers', vals, v => `${v} players`);
@@ -283,7 +458,6 @@ export class ConfigPanel {
     return this._row('PLAYERS', ctrl);
   }
 
-  // Human/CPU row — options depend on numPlayers
   _humanRow() {
     const display = el('span', {
       display: 'inline-block', minWidth: '160px', textAlign: 'center',
@@ -306,7 +480,6 @@ export class ConfigPanel {
     return this._row('HUMAN / CPU', ctrl);
   }
 
-  // Builds ◄  value  ► control
   _cycleCtrl(display, onNext, onPrev) {
     const wrap = el('div', { display: 'flex', alignItems: 'center', gap: '6px' });
     wrap.appendChild(this._arrow('◄', onPrev));
@@ -339,14 +512,12 @@ export class ConfigPanel {
       this._humanCtrlRefresh?.();
     }
     if (key === 'performance' && this._d.performance === 'simplified') {
-      // Simplified mode: cap planets at 20, players at 4
       if (this._d.numPlanets > 20)  { this._d.numPlanets = 20;  this._planetsCtrl?._refresh(); }
       if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
     }
   }
 }
 
-// Minimal helper — create an element with style properties applied
 function el(tag, styles) {
   const node = document.createElement(tag);
   Object.assign(node.style, styles);
