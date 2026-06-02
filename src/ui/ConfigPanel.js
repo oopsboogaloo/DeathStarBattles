@@ -8,8 +8,59 @@ const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', 
 
 const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
-// Page row groupings for paged layout
 const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS'];
+
+// Style tokens — normal vs compact (paged mobile) mode
+const S = {
+  norm: {
+    panelPad:      '30px 40px 36px',
+    panelMinW:     '460px',
+    titleFont:     '17px',
+    titleMargin:   '0 0 26px',
+    resumePad:     '9px 36px',
+    resumeFont:    '14px',
+    resumeMarginB: '18px',
+    rowMarginB:    '9px',
+    rowMinH:       '30px',
+    lblFont:       '12px',
+    lblMinW:       '190px',
+    valFont:       '13px',
+    valMinW:       '160px',
+    arrowFont:     '13px',
+    arrowPad:      '2px 9px',
+    startMarginT:  '28px',
+    startPad:      '12px 52px',
+    startFont:     '16px',
+    infoMarginT:   '20px',
+    infoGap:       '14px',
+    navMarginT:    '14px',
+    navPadT:       '12px',
+  },
+  compact: {
+    panelPad:      '18px 24px 20px',
+    panelMinW:     '320px',
+    titleFont:     '13px',
+    titleMargin:   '0 0 10px',
+    resumePad:     '5px 18px',
+    resumeFont:    '11px',
+    resumeMarginB: '10px',
+    rowMarginB:    '4px',
+    rowMinH:       '22px',
+    lblFont:       '10px',
+    lblMinW:       '145px',
+    valFont:       '11px',
+    valMinW:       '120px',
+    arrowFont:     '11px',
+    arrowPad:      '1px 6px',
+    startMarginT:  '12px',
+    startPad:      '8px 32px',
+    startFont:     '13px',
+    infoMarginT:   '8px',
+    infoGap:       '8px',
+    navMarginT:    '8px',
+    navPadT:       '8px',
+  },
+};
 
 export class ConfigPanel {
   constructor() {
@@ -36,13 +87,17 @@ export class ConfigPanel {
     this._canResume       = false;
     this._pagedMode       = false;
     this._currentPage     = 0;
-    this._pageEls         = [];   // 3 page content divs
-    this._dotEls          = [];   // 3 dot spans
+    this._pageEls         = [];
+    this._dotEls          = [];
     this._prevBtn         = null;
     this._nextBtn         = null;
     this._panel           = null;
-    this._flatPrimary     = null; // holds page-1 rows in flat mode
-    this._advancedInner   = null; // holds page-2 + page-3 rows in flat mode
+    this._title           = null;
+    this._startBtn        = null;
+    this._infoBar         = null;
+    this._navBar          = null;
+    this._flatPrimary     = null;
+    this._advancedInner   = null;
     this._flatSection     = null;
     this._pagedSection    = null;
     this.element          = this._build();
@@ -70,65 +125,96 @@ export class ConfigPanel {
 
   _checkFit() {
     if (!this._panel) return;
+    const wasPaged = this._pagedMode;
 
-    // To measure flat height even when in paged mode, temporarily expose the
-    // flat section (synchronous forced reflow — no paint, no flicker).
-    const inPaged = this._pagedMode;
-    if (inPaged) {
-      this._flatSection.style.display = 'block';
+    // Always measure in flat/non-compact state for accuracy.
+    // If currently paged, temporarily restore flat layout (synchronous forced
+    // reflow — rows move back, styles restored, then measured before next paint).
+    if (wasPaged) {
+      this._pagedMode = false;
+      for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
+      for (const row of this._page2Rows) this._advancedInner.appendChild(row);
+      for (const row of this._page3Rows) this._advancedInner.appendChild(row);
+      this._flatSection.style.display  = 'block';
       this._pagedSection.style.display = 'none';
-      this._panel.style.minWidth  = '460px';
+      this._panel.style.minWidth  = S.norm.panelMinW;
       this._panel.style.maxHeight = '';
       this._panel.style.overflowY = '';
-      this._panel.style.padding   = '30px 40px 36px';
+      this._panel.style.padding   = S.norm.panelPad;
+      this._setCompact(false);
     }
 
-    const flatH     = this._panel.scrollHeight;
-    const needsPaged = flatH > window.innerHeight * 0.92;
-
-    if (inPaged) {
-      this._flatSection.style.display  = 'none';
-      this._pagedSection.style.display = 'block';
-      this._panel.style.minWidth  = '320px';
-      this._panel.style.maxHeight = '92vh';
-      this._panel.style.overflowY = 'auto';
-      this._panel.style.padding   = '18px 24px 20px';
-    }
-
+    const needsPaged = this._panel.scrollHeight > window.innerHeight * 0.92;
     if (needsPaged !== this._pagedMode) this._applyLayout(needsPaged);
   }
 
   _applyLayout(paged) {
     this._pagedMode = paged;
     if (paged) {
-      // Move rows into page divs
       for (const row of this._page1Rows) this._pageEls[0].appendChild(row);
       for (const row of this._page2Rows) this._pageEls[1].appendChild(row);
       for (const row of this._page3Rows) this._pageEls[2].appendChild(row);
-
       this._flatSection.style.display  = 'none';
       this._pagedSection.style.display = 'block';
-
-      this._panel.style.minWidth  = '320px';
+      this._panel.style.minWidth  = S.compact.panelMinW;
       this._panel.style.maxHeight = '92vh';
       this._panel.style.overflowY = 'auto';
-      this._panel.style.padding   = '18px 24px 20px';
-
+      this._panel.style.padding   = S.compact.panelPad;
+      this._setCompact(true);
       this._showPage(this._currentPage);
     } else {
-      // Move rows back to flat layout
       for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
       for (const row of this._page2Rows) this._advancedInner.appendChild(row);
       for (const row of this._page3Rows) this._advancedInner.appendChild(row);
-
       this._flatSection.style.display  = 'block';
       this._pagedSection.style.display = 'none';
-
-      this._panel.style.minWidth  = '460px';
+      this._panel.style.minWidth  = S.norm.panelMinW;
       this._panel.style.maxHeight = '';
       this._panel.style.overflowY = '';
-      this._panel.style.padding   = '30px 40px 36px';
+      this._panel.style.padding   = S.norm.panelPad;
+      this._setCompact(false);
     }
+  }
+
+  _setCompact(c) {
+    const t = c ? S.compact : S.norm;
+
+    this._title.style.fontSize  = t.titleFont;
+    this._title.style.margin    = t.titleMargin;
+
+    this._resumeBtn.style.marginBottom = t.resumeMarginB;
+    this._resumeBtn.style.padding      = t.resumePad;
+    this._resumeBtn.style.fontSize     = t.resumeFont;
+
+    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows]) {
+      row.style.marginBottom = t.rowMarginB;
+      row.style.minHeight    = t.rowMinH;
+      const lbl  = row.children[0];
+      const ctrl = row.children[1];
+      if (lbl) {
+        lbl.style.fontSize = t.lblFont;
+        lbl.style.minWidth = t.lblMinW;
+      }
+      if (ctrl) {
+        const btnL   = ctrl.children[0];
+        const valSpan = ctrl.children[1];
+        const btnR   = ctrl.children[2];
+        if (valSpan) { valSpan.style.fontSize = t.valFont; valSpan.style.minWidth = t.valMinW; }
+        for (const btn of [btnL, btnR]) {
+          if (btn) { btn.style.fontSize = t.arrowFont; btn.style.padding = t.arrowPad; }
+        }
+      }
+    }
+
+    this._startBtn.style.marginTop = t.startMarginT;
+    this._startBtn.style.padding   = t.startPad;
+    this._startBtn.style.fontSize  = t.startFont;
+
+    this._infoBar.style.marginTop = t.infoMarginT;
+    this._infoBar.style.gap       = t.infoGap;
+
+    this._navBar.style.marginTop  = t.navMarginT;
+    this._navBar.style.paddingTop = t.navPadT;
   }
 
   _showPage(n) {
@@ -160,8 +246,8 @@ export class ConfigPanel {
       background:   'rgba(3,3,18,0.97)',
       border:       '1px solid rgba(80,110,255,0.4)',
       borderRadius: '8px',
-      padding:      '30px 40px 36px',
-      minWidth:     '460px',
+      padding:      S.norm.panelPad,
+      minWidth:     S.norm.panelMinW,
       maxWidth:     '95vw',
       color:        '#ccd',
       fontFamily:   'monospace',
@@ -170,20 +256,19 @@ export class ConfigPanel {
     this._panel = panel;
     overlay.appendChild(panel);
 
-    // Recheck fit on viewport resize
     window.addEventListener('resize', () => this._checkFit());
 
     // ── Resume button ────────────────────────────────────────────────────────
     this._resumeBtn = el('button', {
       display:       'none',
-      margin:        '0 auto 18px',
-      padding:       '9px 36px',
+      margin:        `0 auto ${S.norm.resumeMarginB}`,
+      padding:       S.norm.resumePad,
       background:    'rgba(20,80,30,0.75)',
       border:        '1px solid rgba(80,210,100,0.5)',
       borderRadius:  '5px',
       color:         '#cec',
       fontFamily:    'monospace',
-      fontSize:      '14px',
+      fontSize:      S.norm.resumeFont,
       letterSpacing: '0.1em',
       cursor:        'pointer',
     });
@@ -194,16 +279,16 @@ export class ConfigPanel {
     panel.appendChild(this._resumeBtn);
 
     // ── Title ────────────────────────────────────────────────────────────────
-    const title = el('div', {
-      margin:        '0 0 26px',
-      fontSize:      '17px',
+    this._title = el('div', {
+      margin:        S.norm.titleMargin,
+      fontSize:      S.norm.titleFont,
       letterSpacing: '0.2em',
       color:         '#aac',
       textShadow:    '0 0 20px rgba(110,130,255,0.65)',
       textAlign:     'center',
     });
-    title.textContent = 'Death Star Battles';
-    panel.appendChild(title);
+    this._title.textContent = 'Death Star Battles';
+    panel.appendChild(this._title);
 
     // ── Build all row elements once ──────────────────────────────────────────
 
@@ -255,7 +340,6 @@ export class ConfigPanel {
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
 
-    // Store page groups for layout switching
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowStationSize, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowCollect, rowAimCircle, rowMinimalUI];
@@ -267,7 +351,6 @@ export class ConfigPanel {
     for (const row of this._page1Rows) this._flatPrimary.appendChild(row);
     this._flatSection.appendChild(this._flatPrimary);
 
-    // Collapsible advanced
     let advancedOpen = false;
     const advancedToggle = el('div', {
       margin: '16px 0 0', padding: '4px 0', fontSize: '11px',
@@ -316,14 +399,14 @@ export class ConfigPanel {
     }
 
     // Nav bar: ◄  ● ○ ○  ►
-    const navBar = el('div', {
+    this._navBar = el('div', {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      gap: '14px', marginTop: '14px', paddingTop: '12px',
+      gap: '14px', marginTop: S.norm.navMarginT, paddingTop: S.norm.navPadT,
       borderTop: '1px solid rgba(80,110,255,0.18)',
     });
 
     this._prevBtn = this._navBtn('◄', () => { if (this._currentPage > 0) this._showPage(this._currentPage - 1); });
-    navBar.appendChild(this._prevBtn);
+    this._navBar.appendChild(this._prevBtn);
 
     const dotsWrap = el('div', { display: 'flex', gap: '10px', alignItems: 'center' });
     for (let i = 0; i < 3; i++) {
@@ -336,48 +419,48 @@ export class ConfigPanel {
       this._dotEls.push(dot);
       dotsWrap.appendChild(dot);
     }
-    navBar.appendChild(dotsWrap);
+    this._navBar.appendChild(dotsWrap);
 
     this._nextBtn = this._navBtn('►', () => { if (this._currentPage < 2) this._showPage(this._currentPage + 1); });
-    navBar.appendChild(this._nextBtn);
+    this._navBar.appendChild(this._nextBtn);
 
-    this._pagedSection.appendChild(navBar);
+    this._pagedSection.appendChild(this._navBar);
     panel.appendChild(this._pagedSection);
 
     // ── Start button ─────────────────────────────────────────────────────────
-    const startBtn = el('button', {
+    this._startBtn = el('button', {
       display:       'block',
-      margin:        '28px auto 0',
-      padding:       '12px 52px',
+      margin:        `${S.norm.startMarginT} auto 0`,
+      padding:       S.norm.startPad,
       background:    'rgba(35,55,175,0.7)',
       border:        '1px solid rgba(110,140,255,0.55)',
       borderRadius:  '5px',
       color:         '#eef',
       fontFamily:    'monospace',
-      fontSize:      '16px',
+      fontSize:      S.norm.startFont,
       letterSpacing: '0.12em',
       cursor:        'pointer',
       boxShadow:     '0 0 18px rgba(70,95,255,0.35)',
     });
-    startBtn.textContent = 'START GAME';
-    startBtn.addEventListener('mouseenter', () => {
-      startBtn.style.background = 'rgba(55,85,210,0.9)';
-      startBtn.style.boxShadow  = '0 0 28px rgba(90,120,255,0.6)';
+    this._startBtn.textContent = 'START GAME';
+    this._startBtn.addEventListener('mouseenter', () => {
+      this._startBtn.style.background = 'rgba(55,85,210,0.9)';
+      this._startBtn.style.boxShadow  = '0 0 28px rgba(90,120,255,0.6)';
     });
-    startBtn.addEventListener('mouseleave', () => {
-      startBtn.style.background = 'rgba(35,55,175,0.7)';
-      startBtn.style.boxShadow  = '0 0 18px rgba(70,95,255,0.35)';
+    this._startBtn.addEventListener('mouseleave', () => {
+      this._startBtn.style.background = 'rgba(35,55,175,0.7)';
+      this._startBtn.style.boxShadow  = '0 0 18px rgba(70,95,255,0.35)';
     });
-    startBtn.addEventListener('click', () => {
+    this._startBtn.addEventListener('click', () => {
       this.hide();
       this._onStartCb?.(this.config);
     });
-    panel.appendChild(startBtn);
+    panel.appendChild(this._startBtn);
 
     // ── Info links ───────────────────────────────────────────────────────────
-    const infoBar = el('div', {
+    this._infoBar = el('div', {
       display: 'flex', justifyContent: 'center', flexWrap: 'wrap',
-      gap: '14px', rowGap: '6px', marginTop: '20px',
+      gap: S.norm.infoGap, rowGap: '6px', marginTop: S.norm.infoMarginT,
     });
     for (const [label, key] of [['About', 'about'], ['Instructions', 'instructions'], ['Education', 'education'], ['Scores', 'scores'], ['? Options Help', 'options']]) {
       const btn = el('button', {
@@ -394,9 +477,9 @@ export class ConfigPanel {
       btn.addEventListener('mouseenter', () => { btn.style.color = 'rgba(180,195,255,0.9)'; });
       btn.addEventListener('mouseleave', () => { btn.style.color = 'rgba(140,155,210,0.65)'; });
       btn.addEventListener('click', () => this._onInfoBtn?.(key));
-      infoBar.appendChild(btn);
+      this._infoBar.appendChild(btn);
     }
-    panel.appendChild(infoBar);
+    panel.appendChild(this._infoBar);
 
     return overlay;
   }
@@ -424,9 +507,12 @@ export class ConfigPanel {
   _row(label, ctrl) {
     const row = el('div', {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      marginBottom: '9px', minHeight: '30px',
+      marginBottom: S.norm.rowMarginB, minHeight: S.norm.rowMinH,
     });
-    const lbl = el('span', { fontSize: '12px', letterSpacing: '0.07em', color: 'rgba(185,195,235,0.8)', minWidth: '190px' });
+    const lbl = el('span', {
+      fontSize: S.norm.lblFont, letterSpacing: '0.07em',
+      color: 'rgba(185,195,235,0.8)', minWidth: S.norm.lblMinW,
+    });
     lbl.textContent = label;
     row.appendChild(lbl);
     row.appendChild(ctrl);
@@ -437,8 +523,8 @@ export class ConfigPanel {
     let idx = Math.max(0, values.indexOf(this._d[key]));
 
     const display = el('span', {
-      display: 'inline-block', minWidth: '160px', textAlign: 'center',
-      fontSize: '13px', color: '#eee',
+      display: 'inline-block', minWidth: S.norm.valMinW, textAlign: 'center',
+      fontSize: S.norm.valFont, color: '#eee',
     });
     const refresh = () => { display.textContent = toLabel(values[idx], idx); };
     refresh();
@@ -460,8 +546,8 @@ export class ConfigPanel {
 
   _humanRow() {
     const display = el('span', {
-      display: 'inline-block', minWidth: '160px', textAlign: 'center',
-      fontSize: '13px', color: '#eee',
+      display: 'inline-block', minWidth: S.norm.valMinW, textAlign: 'center',
+      fontSize: S.norm.valFont, color: '#eee',
     });
     const humanLabel = () => {
       const np = this._d.numPlayers, nh = this._d.numHuman, nc = np - nh;
@@ -495,8 +581,8 @@ export class ConfigPanel {
       borderRadius: '3px',
       color:        'rgba(170,185,255,0.75)',
       fontFamily:   'monospace',
-      fontSize:     '13px',
-      padding:      '2px 9px',
+      fontSize:     S.norm.arrowFont,
+      padding:      S.norm.arrowPad,
       cursor:       'pointer',
     });
     btn.textContent = ch;
