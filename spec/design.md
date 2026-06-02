@@ -739,6 +739,7 @@ The pre-game config panel is a DOM overlay (not canvas) styled to match the dark
 | STATION SIZE | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
 | PLANETS | Random / 3–50 |
 | SCENARIO | 1–28 / Lucky Dip |
+
 | MODE | Single Game / Tournament |
 | GAME SPEED | ¼× / ½× / 1× / 2× / 4× |
 | MOVEMENT SPEED | Off / Glacial / Slow / Normal / Fast / Rocket |
@@ -749,19 +750,18 @@ The pre-game config panel is a DOM overlay (not canvas) styled to match the dark
 | AIM CIRCLE SIZE | 0.5× / 1× / 2× / 3× |
 | MINIMAL UI | Off / On |
 
-### 10.2 Responsive Paged Layout
+### 10.2 Paged Layout
 
-On small viewports (`panel.scrollHeight > window.innerHeight × 0.92`) the panel switches to a **3-page paged layout**:
+The config panel **always** uses the compact 4-page paged layout — no viewport detection, no flat mode.
 
 - Page 1 **SETUP**: Players, Human/CPU, Stations/Player, CPU Level
 - Page 2 **WORLD**: Station Size, Planets, Scenario, Mode, Game Speed, Movement Speed
-- Page 3 **OPTIONS**: Performance, Team Clustering, Wildcard Planets, Collectables, Aim Circle, Minimal UI
+- Page 3 **OPTIONS**: Performance, Team Clustering, Wildcard Planets, Aim Circle, Minimal UI
+- Page 4 **COLLECTABLES**: Collectables (spawn frequency), Rich Asteroids, Collectable Size, Starting Weapons
 
-Navigation: `◄  ● ○ ○  ►` dot bar + Prev/Next buttons. Start button pinned and visible on all pages.
+Navigation: `◄  ● ○ ○ ○  ►` dot bar + Prev/Next buttons. Start button visible on all pages.
 
-Compact mode reduces font sizes and row spacing so the full panel fits within ~310px — comfortable for iPhone SE landscape (375px viewport height).
-
-Fit is detected on every `show()` call and on `window resize`. The panel switches bidirectionally between flat and paged modes by physically moving row DOM nodes between containers (no duplication — state bindings remain intact).
+Page 4 sub-options (Rich Asteroids, Collectable Size, Starting Weapons) are greyed out (`opacity: 0.35`, `pointer-events: none`) when Collectables is set to Off. They update reactively whenever Collectables changes.
 
 ---
 
@@ -796,7 +796,7 @@ const WeaponId = Object.freeze({
   HYPERSPACE:    'hyperspace',    // teleport; infinite uses
   TRIPLE_CANNON: 'tripleCannon',  // 3 bullets ±5°; 3 charges per collectable
   BLUNDERBUSS:   'blunderbuss',   // 11 random-spread bullets; 2 charges per collectable
-  LASER:         'laser',         // piercing beam, 10% gravity; 1 charge per collectable
+  LASER:         'laser',         // piercing beam, 100% gravity; 1 charge per collectable
   ROCKET:        'rocket',        // fuel-burning self-propelled projectile; 1 charge per collectable
   BLASTER:       'blaster',       // 5 successive shots; 3 charges per collectable
   MINIGUN:       'minigun',       // 13 rapid shots; 1 charge per collectable
@@ -948,6 +948,8 @@ _trySpawnCollectable(config, rng, planets, teams) {
 - Does not spawn in the Hyperspace scenario (`scenarioId === 26`)
 
 The placement retry loop is deliberately lighter than the station placement algorithm — a failed spawn is harmless.
+
+**Rich Asteroid collectable**: when a Rich Asteroid fragments, the collectable is placed at the position of `centers[0]` and that child slot is skipped — the collectable replaces one fragment rather than spawning alongside a full set of children.
 
 ---
 
@@ -1242,15 +1244,15 @@ Trail lines are drawn at 30% opacity in the team colour (vs 100% for Cannon). Tr
 #### Firing delay
 The laser does not fire at the start of the fire phase. A `pendingLaser` entry is queued on `GameState` at the moment of firing:
 ```js
-{ station, angle, power, delaySteps: 500 }
+{ station, angle, delaySteps: 400 + Math.floor(rng.next() * 400) }  // 400–800 steps
 ```
-`GameLoop._firingTick()` decrements `delaySteps` each step. When it reaches 0, the laser simulation runs and the path is committed to the VFX list.
+The delay is randomised per station so multiple lasers firing in the same turn appear to fire at staggered intervals, creating visual interest. `GameLoop._firingTick()` decrements `delaySteps` each step. When it reaches 0, the laser simulation runs and the path is committed to the VFX list.
 
 #### Path simulation
 A fast internal simulation is run (not the normal physics loop):
 - Initial speed: `200 × maxCannonSpeed` (effectively instantaneous relative to normal bullets)
-- Gravity factor: `0.10` (10% of normal `G`)
-- Terminates when: boundary exceeded, or `MAX_LASER_STEPS = 3000` steps elapsed
+- Gravity factor: `1.0` (100% of normal `G`) — visibly bends around neutron stars and black holes
+- Terminates when: boundary exceeded, or `MAX_LASER_STEPS = 200` steps elapsed
 - Simulation records a path as `Vec2[]` sampled every step
 
 During path simulation, collision is checked against:
@@ -1287,13 +1289,13 @@ Rocket is a separate class (not `Bullet`) stored in `gameState.rockets: Rocket[]
 
 ```js
 class Rocket {
-  owner         // Station
-  position      // Vec2
-  velocity      // Vec2
-  fuel          // float — decrements each step; 0 = ballistic
-  angle         // int — initial firing angle (used for thrust direction)
-  status        // 'active' | 'exploding' | 'dead'
-  trailParticles // particle array for rendering
+  owner          // Station
+  position       // Vec2
+  velocity       // Vec2
+  fuel           // float — decrements each step; 0 = ballistic
+  status         // 'active' | 'exploding' | 'dead'
+  trail          // Vec2[] — positions for particle trail rendering
+  teleportCount  // int — wormhole traversal count (max 100)
 }
 ```
 
@@ -1305,36 +1307,51 @@ fuel -= ROCKET_FUEL_BURN_RATE × TIMESTEP
 ```
 When `fuel ≤ 0`: rocket becomes ballistic — normal gravity applies, no thrust.
 
-**Suggested constants (tune during implementation):**
+**Tuned constants:**
 ```
-ROCKET_BASE_MASS    = 1.0
-ROCKET_MIN_FUEL     = 0.5   // power 1
-ROCKET_MAX_FUEL     = 8.0   // power 800
-ROCKET_THRUST       = 3.0
-ROCKET_FUEL_BURN_RATE = 1.0
+ROCKET_BASE_MASS      = 1.0
+ROCKET_MIN_FUEL       = 1.0   // power 1
+ROCKET_MAX_FUEL       = 6.0   // power 800
+ROCKET_THRUST         = 0.15  // slow build-up
+ROCKET_FUEL_BURN_RATE = 0.5
+ROCKET_LAUNCH_SPEED   = 0.15  // very slow initial speed
 ```
 
-#### Explosion
-`ROCKET_BLAST_RADIUS = 48` game units (fixed, does not scale with station size).
+#### Planet interaction
+- **Wormholes**: rocket teleports through all wormhole types (PAIRED, CYCLIC, NETWORK, PLANET, SELF, RANDOM) using the same teleport logic as bullets. Max 100 wormhole hops.
+- **Gas giants**: rocket passes through without detonating (same as bullets).
+- **All other planets**: rocket detonates on contact.
 
-When a rocket detonates (impact or shoot-down):
-- Any `Station` within blast radius: destroyed
-- Any `Bullet` or `Rocket` within blast radius: destroyed
-- Any `Planet` of type `ASTEROID` or `CRYSTAL` within blast radius: destroyed (fragmented)
-- A large explosion VFX is spawned at the detonation point
+#### Expanding blast zone
+When a rocket detonates, an expanding blast entry is created in `gameState.rocketBlasts`:
+```js
+{ x, y, maxRadius: ROCKET_BLAST_RADIUS, currentRadius: 1, owner, hitSet: Set() }
+```
+`ROCKET_BLAST_RADIUS = 46` game units (fixed, does not scale with station size).
+
+Each rAF frame the blast expands by `maxRadius / 22` units (~22 frames to full size). Damage is applied progressively as the circle reaches each entity — not instantly. Any entity not yet in `hitSet` that falls within `currentRadius` is affected:
+- Station: destroyed (kill credited to rocket owner)
+- Bullet: destroyed
+- Asteroid/Crystal: destroyed
+- Collectable: destroyed; weapon granted to rocket owner's team (same as bullet collection)
+
+The visual circle exactly matches `currentRadius` at all times — what you see is the true kill boundary.
 
 #### Shoot-down
 Each active bullet is checked against each active rocket every step. If `distanceSq(bullet.position, rocket.position) < ROCKET_HITBOX_RADIUS²`, the rocket detonates at its current position. `ROCKET_HITBOX_RADIUS = 8` game units.
 
 #### Force Shield interaction
-If a rocket's position enters a Force Shield boundary, it detonates immediately (no reflection).
+If a rocket's position enters a Force Shield boundary, it detonates immediately.
 
-#### Trail
-A particle is emitted at the rocket's current position each `PRINT_EVERY` steps. Each particle:
-- Initial position = rocket position
-- Velocity = small random dispersion
-- Lifetime = 30 frames
-- Colour = team colour at 40% opacity, fading to 0
+#### Off-screen indicator
+Rockets show the same edge triangle + distance indicator as bullets when off-screen.
+
+#### Smoke trail
+Each rAF frame while active, one smoke puff is emitted just behind the rocket (offset along reverse velocity direction with small lateral jitter):
+- **Phase 1** (first 18% of lifetime): radius expands quickly from 0 to `maxR` (3–7 game units, randomised); alpha holds at 0.5
+- **Phase 2** (18–75% of lifetime): radius and alpha contract/fade at normal rate
+- **Phase 3** (last 25% of lifetime): rate slows to 1/5× — puffs linger at ~65% of maxR at ~15% opacity, leaving a visible trail
+- Total lifetime: ~160 rAF frames (~2.6 seconds at 60fps)
 
 ---
 
@@ -1348,9 +1365,11 @@ At the start of the fire phase, a burst queue entry is created:
 { station, weapon: WeaponId.BLASTER, shotsRemaining: 5,
   intervalSteps: 600, nextFireStep: 0 }
 ```
-Stored on `GameState.burstQueue`. Each `_firingTick()`:
+Stored on `GameState.burstQueue` with `totalShots: 5`. Each `_firingTick()`:
 - For each burst entry, when `currentStep >= nextFireStep`:
-  - Spawn one bullet with `±0.5°` random offset and `0.5 × maxCannonSpeed`
+  - Compute shot index: `shotIdx = totalShots - shotsRemaining` (0–4)
+  - Spawn one bullet at progressive angle offset: `angle + (-10 + shotIdx × 5)°` → −10°, −5°, 0°, +5°, +10°
+  - Speed: `0.55 × maxCannonSpeed`
   - Decrement `shotsRemaining`; advance `nextFireStep += intervalSteps`
   - When `shotsRemaining === 0`, remove from queue
 

@@ -64,10 +64,10 @@ Each station selects a weapon, then either fires or takes its weapon's action:
 - **Cannon** — standard single bullet at the configured angle and power. Default weapon, infinite uses.
 - **Hyperspace** — teleport to a random valid location instead of firing. Infinite uses.
 - **Triple Cannon** — fires 3 bullets simultaneously at `[angle − 5°, angle, angle + 5°]`, each at the same power. 3 charges per collectable.
-- **Plasma Blunderbuss** — fires 11 bullets simultaneously with random spread across ±15° (not evenly spaced). Each bullet is assigned a random velocity of 25–30% of max cannon speed. Velocity is not adjustable. Trails are thin and semi-transparent in the team colour. 2 charges per collectable.
-- **Laser** — fires a beam after a brief delay at the start of the firing phase. The path is simulated as an extremely fast bullet under 10% normal gravity, then rendered as a bright glowing line (white core, team-colour glow). The laser pierces all targets along its path — destroying asteroids and killing stations without stopping. Reflected elastically by Force Shields. 1 charge per collectable.
-- **Rocket** — fires a rocket that starts slow and accelerates under thrust using a fuel model. Power sets fuel load: more fuel = heavier start but longer burn. When fuel is exhausted the rocket becomes a normal ballistic projectile. On impact, explodes with a fixed blast radius (~3× Large station radius) destroying any bullets, asteroids, or stations caught in it. Can be shot down mid-flight — any bullet that hits the rocket detonates it in place. Leaves a semi-transparent particle trail in the team colour. Detonates immediately on contact with a Force Shield. 1 charge per collectable.
-- **Blaster** — fires 5 shots in succession, one approximately every second of real time (at normal game speed), each with a small independent random angle variation of ±0.5°, at 50% of max cannon speed. Velocity not adjustable. Thin transparent trails. 3 charges per collectable.
+- **Plasma Blunderbuss** — fires 11 bullets simultaneously with random spread across ±15° (not evenly spaced). Each bullet is assigned a random velocity of 25–30% of max cannon speed and a random short lifetime (17–23% of normal) so shots fizzle out nearby. Velocity is not adjustable. Trails are thin and semi-transparent. 2 charges per collectable.
+- **Laser** — fires a beam after a randomised brief delay (varies per station so simultaneous lasers stagger visually). The path is simulated as an extremely fast bullet under 100% normal gravity (enough to visibly bend around neutron stars and black holes), then rendered as a bright glowing line (white core, team-colour glow). The laser pierces all targets — destroying asteroids and killing stations without stopping. Reflected elastically by Force Shields. Power controls are hidden (angle only). 1 charge per collectable.
+- **Rocket** — fires a self-propelled rocket that starts slow and accelerates under thrust using a fuel model. Power sets fuel load: more fuel = heavier start but longer burn. When fuel is exhausted the rocket becomes a ballistic projectile. Travels through wormholes (teleports like a bullet) and passes through gas giants. On impact or shoot-down, an expanding blast circle grows to its maximum radius over ~0.4 seconds — any station, bullet, asteroid, or collectable inside the circle when the blast reaches it is destroyed; collectables grant their weapon to the rocket owner. Leaves a team-coloured smoke trail of expanding-then-contracting puffs that linger as a visible trail. Off-screen edge indicators shown like bullets. 1 charge per collectable.
+- **Blaster** — fires 5 shots in succession, one approximately every second of real time (at normal game speed). Shots are spread progressively: −10°, −5°, 0°, +5°, +10° from the aimed angle, at 55% of max cannon speed. Velocity not adjustable. Thin transparent trails. 3 charges per collectable.
 - **Minigun** — fires 13 shots in rapid succession at 3× the Blaster rate, each with ±2° random angle variation, at 150% of max cannon speed. Velocity not adjustable. Thin semi-transparent trails. 1 charge per collectable.
 - **Force Shield** — deploys a protective shield for the remainder of the turn instead of firing, analogous to Hyperspace. All incoming bullets and lasers are reflected elastically off the shield boundary. Rockets detonate on contact. The shield is displayed as a pulsing ring slightly larger than the station in the team colour. UI indicates the shielded state in the same way as Hyperspace. 2 charges per collectable.
 
@@ -107,7 +107,9 @@ Selected weapon resets to Cannon at the start of each turn.
 - Spawn probability is configurable (see §10); maximum 3 collectables on the map simultaneously
 - Do not spawn in the Hyperspace scenario
 - When a bullet destroys a collectable: the bullet continues on its trajectory; the collecting team receives charges of a **randomly chosen weapon** (equal probability across all special weapons); a shatter VFX plays at the collectable position; the weapon name fades in/out in the bullet owner's team colour
+- A rocket blast also destroys collectables within its blast radius, granting the weapon to the rocket owner's team
 - The weapon type is decided at collection time, not at spawn
+- When a Rich Asteroid fragments, the collectable **replaces** one child fragment — it does not spawn on top of a child
 - Weapon stocks are **shared across all stations on a team** and **carry over between tournament games**
 
 | Weapon | Charges per collectable |
@@ -273,9 +275,9 @@ Play a series of games on a fixed configuration. A cumulative leaderboard tracks
 
 ## 10. Configuration Options
 
-The config panel has a primary section always visible and an Advanced section (collapsible on large screens; split across pages 2 and 3 on small screens — see §11.8).
+The config panel always uses a compact 4-page paged layout. Page 1 is always visible; pages 2–4 are accessed via navigation dots.
 
-### Primary Options
+### Page 1 — Setup
 | Option | Values |
 |---|---|
 | Number of players (teams) | 2–12 |
@@ -283,7 +285,7 @@ The config panel has a primary section always visible and an Advanced section (c
 | Stations per player | 1–8 |
 | CPU difficulty | Randbot / Aimbot / Cleverbot / Superbot / Megabot |
 
-### Advanced — World
+### Page 2 — World
 | Option | Values |
 |---|---|
 | Station size | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
@@ -293,15 +295,24 @@ The config panel has a primary section always visible and an Advanced section (c
 | Game speed | ¼× / ½× / 1× (default) / 2× / 4× |
 | Movement speed | Off (default) / Glacial / Slow / Normal / Fast / Rocket |
 
-### Advanced — Options
+### Page 3 — Options
 | Option | Values | Notes |
 |---|---|---|
 | Performance | Full / Simplified | Simplified caps planets at 20 and players at 4 |
 | Team clustering | Off / Tight / Moderate / Loose | Controls how close same-team stations are placed |
 | Wildcard planets | Off / Very Rare / Rare (default) / Occasional / Common / Always | See §6.1 |
-| Collectables | Off (default) / Rare / Normal / Common / Continuous | Collectable spawn probability per turn end; see §4.6 |
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
 | Minimal UI | Off / On | Reduces HUD text size for smaller screens |
+
+### Page 4 — Collectables
+All sub-options are greyed out and unclickable when Collectables is Off.
+
+| Option | Values | Notes |
+|---|---|---|
+| Collectables | Off (default) / Rare / Normal / Common / Continuous | Spawn probability per turn end; see §4.6 |
+| Rich Asteroids | Off / Rare (1%) / Normal (5%) / Common (10%) / Abundant (25%) / Overwhelming (100%) | Only active when Collectables ≠ Off |
+| Collectable Size | Tiny (½×) / Medium / Large (1.5×) / Huge (2×) / Mammoth (3×) / Varied | Varied picks a random size each spawn |
+| Starting Weapons | None / One at Random / Minor (2 Triple Cannons) / One of Each / Lots (3 of each) / Too Many (7 of each) | Topped up to minimum each game; One at Random always adds one |
 
 ---
 
