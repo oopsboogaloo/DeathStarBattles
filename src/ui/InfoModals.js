@@ -224,18 +224,19 @@ The actual bodies that appear depend on the Scenario setting.`,
   },
   {
     title: 'Scenario',
-    body: `Which map layout to generate. Options: Lucky Dip or any numbered scenario (1–27).
+    body: `Which map layout to generate. Options: Lucky Dip or any numbered scenario (1–28).
 
 Lucky Dip picks a weighted random scenario — common ones (Planetary, Asteroids, Star System) appear more often.
 
 Notable scenarios:
-  Planetary (1)      — rocky planets, mild gravity
-  Star System (3)    — one large star dominates
-  Black Hole (15)    — strong invisible attractor
-  Wormholes (17)     — teleporting hazards
-  Asteroid Ring (24) — ring of asteroids around a gas giant
-  Comet (26)         — a moving comet that reacts to gravity
-  Oort Cloud (27)    — orbiting comets around a white dwarf`,
+  Planetary (1)           — rocky planets, mild gravity
+  Crystal Asteroids (3)   — bullets pass through asteroids instead of being blocked
+  Star System (4)         — one large star dominates
+  Black Hole (22)         — strong invisible attractor
+  Wormholes (20)          — teleporting hazards
+  Asteroid Ring (16)      — ring of asteroids around a gas giant
+  Comet (15)              — a moving comet that reacts to gravity
+  Oort Cloud (18)         — orbiting comets around a white dwarf`,
   },
   {
     title: 'Mode',

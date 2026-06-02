@@ -343,11 +343,11 @@ function startGame(cfg) {
   const scenarioId  = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
   const isRandom    = (cfg.numPlanets ?? -1) <= 0;
   let   nPlanets    = isRandom ? (rng.nextInt(6) + 3) : cfg.numPlanets;
-  if (isRandom && [2, 24, 25].includes(scenarioId)) {
+  if (isRandom && [2, 3, 16, 17].includes(scenarioId)) {
     nPlanets = cfg.performance === 'simplified' ? 20 : 30;
   }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full');
+  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -464,7 +464,7 @@ function _hideDemoHint() {
 
 const DEMO_CONFIG = {
   numPlayers: 5, numHuman: 0, stationsPerPlayer: 2,
-  aiLevel: 3, stationSize: 'LARGE', numPlanets: -1, scenarioId: 9,
+  aiLevel: 3, stationSize: 'LARGE', numPlanets: -1, scenarioId: 10,
   teamClustering: 'off', wildcardFrequency: 'rare',
 };
 

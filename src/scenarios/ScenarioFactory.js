@@ -15,8 +15,10 @@ function asteroidVertices(rng, n) {
   return verts;
 }
 
-const ROCKY_COL    = [150, 120,  80];
-const ASTEROID_COL = [120,  80,  10];
+const ROCKY_COL             = [150, 120,  80];
+const ASTEROID_COL          = [120,  80,  10];
+const RICH_ASTEROID_COL     = [ 75,  90, 120]; // blue-brown tint for rich asteroids
+const CRYSTAL_ASTEROID_COL  = [160, 210, 255]; // icy blue-white for crystal asteroids
 const MOON_COL     = [120, 100,  70];
 const WHITE_COL    = [255, 255, 255];
 const BLACK_COL    = [  0,   0,   0];
@@ -49,23 +51,50 @@ function makePlanet(rng, A, B, C, D, E, F, gw, gh, density, type, colour, shadin
   });
 }
 
-function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density) {
+function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density, allowRich = false) {
   const n        = 6 + Math.floor(rng.next() * 5); // 6–10 vertices
   const vertices = asteroidVertices(rng, n);
   const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180; // biased toward slow
   const rotation = rng.next() * Math.PI * 2;
+  const isRich   = allowRich && rng.next() < 0.05;
   const planet   = new Planet({
     position:      new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
     radius:        rr(rng, D, E, F),
     density,
     type:          PlanetType.ASTEROID,
-    colour:        [...ASTEROID_COL],
+    colour:        isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
+    shading:       ShadingStyle.ROCKY,
+    vertices,
+    rotation,
+    rotationSpeed: speed,
+    rich:          isRich,
+  });
+  // Pre-compute rotated verts so background rendering has them immediately
+  const cos = Math.cos(rotation), sin = Math.sin(rotation);
+  const px = planet.position.x, py = planet.position.y, r = planet.radius;
+  planet._rotatedVerts = vertices.map(v => new Vec2(
+    px + r * (v.x * cos - v.y * sin),
+    py + r * (v.x * sin + v.y * cos),
+  ));
+  return planet;
+}
+
+function makeCrystalAsteroid(rng, A, B, C, D, E, F, gw, gh, density) {
+  const n        = 6 + Math.floor(rng.next() * 5);
+  const vertices = asteroidVertices(rng, n);
+  const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180;
+  const rotation = rng.next() * Math.PI * 2;
+  const planet   = new Planet({
+    position:      new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
+    radius:        rr(rng, D, E, F),
+    density,
+    type:          PlanetType.CRYSTAL,
+    colour:        [...CRYSTAL_ASTEROID_COL],
     shading:       ShadingStyle.ROCKY,
     vertices,
     rotation,
     rotationSpeed: speed,
   });
-  // Pre-compute rotated verts so background rendering has them immediately
   const cos = Math.cos(rotation), sin = Math.sin(rotation);
   const px = planet.position.x, py = planet.position.y, r = planet.radius;
   planet._rotatedVerts = vertices.map(v => new Vec2(
@@ -133,7 +162,8 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full') {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off') {
+    const allowRich = collectables !== 'off';
     // Pre-roll sub-choice values (outside retry loop, matches Java's rnumber1-7)
     const rn = rng.roll(7); // rn[0]..rn[6]
 
@@ -143,7 +173,7 @@ export class ScenarioFactory {
     let attempts = 0;
 
     do {
-      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance);
+      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, allowRich);
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -344,7 +374,7 @@ export class ScenarioFactory {
 
   // ─── planet placement ──────────────────────────────────────────────────────
 
-  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full') {
+  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', allowRich = false) {
     const simplified = performance === 'simplified';
     const planets = [];
 
@@ -360,12 +390,12 @@ export class ScenarioFactory {
       // ── 2: Asteroids ──────────────────────────────────────────────────────
       case 2: {
         for (let i = 0; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05, allowRich));
         break;
       }
 
-      // ── 3: Star System ────────────────────────────────────────────────────
-      case 3: {
+      // ── 4: Star System ────────────────────────────────────────────────────
+      case 4: {
         const col = starColour(rng);
         const bigR = rng.nextInRange(80, 160) + 80;
         planets.push(new Planet({
@@ -378,8 +408,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 4: Binary Star ────────────────────────────────────────────────────
-      case 4: {
+      // ── 5: Binary Star ────────────────────────────────────────────────────
+      case 5: {
         for (let s = 0; s < 2; s++) {
           const col = starColour(rng);
           const bigR = rng.nextInRange(80, 160) + 40;
@@ -390,12 +420,12 @@ export class ScenarioFactory {
           }));
         }
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08, allowRich));
         break;
       }
 
-      // ── 5: Jovian ─────────────────────────────────────────────────────────
-      case 5: {
+      // ── 6: Jovian ─────────────────────────────────────────────────────────
+      case 6: {
         const bigR = rng.nextInRange(80, 160) + 40;
         // Central body is now a gas giant of equivalent Jovian mass
         const pairIdx = Math.floor(rng.next() * GAS_GIANT_COLOUR_PAIRS.length);
@@ -411,8 +441,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 6: Super Giant ────────────────────────────────────────────────────
-      case 6: {
+      // ── 7: Super Giant ────────────────────────────────────────────────────
+      case 7: {
         const sCol = [Math.floor(rng.next()*10)+245, Math.floor(rng.next()*245)+10, Math.floor(rng.next()*45)];
         const bigR = (rng.next()*0.2 + rng.next()*0.2) * gh + 1.5*gh;
         const bigM = 4000;
@@ -422,12 +452,12 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 30,5,9, gw,gh, 0.05));
+          planets.push(makeAsteroid(rng, 1,0,0, 30,5,9, gw,gh, 0.05, allowRich));
         break;
       }
 
-      // ── 7: Super Giant Binary ─────────────────────────────────────────────
-      case 7: {
+      // ── 8: Super Giant Binary ─────────────────────────────────────────────
+      case 8: {
         for (let s = 0; s < 2; s++) {
           const sCol = [Math.floor(rng.next()*10)+245, Math.floor(rng.next()*245), Math.floor(rng.next()*45)];
           const bigR = (rng.next()*0.2 + rng.next()*0.2) * gh + 1.5*gh;
@@ -438,12 +468,12 @@ export class ScenarioFactory {
           }));
         }
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05));
+          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05, allowRich));
         break;
       }
 
-      // ── 8: Uneven Binary ──────────────────────────────────────────────────
-      case 8: {
+      // ── 9: Uneven Binary ──────────────────────────────────────────────────
+      case 9: {
         // Supergiant (off-screen)
         const sg1R = (rng.next()*0.2 + rng.next()*0.2) * gh + 1.5*gh;
         const sg1Col = [Math.floor(rng.next()*10)+245, Math.floor(rng.next()*245), Math.floor(rng.next()*45)];
@@ -461,12 +491,12 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: s2Col, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 2; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05));
+          planets.push(makeAsteroid(rng, 1,0,0, 10,10,9, gw,gh, 0.05, allowRich));
         break;
       }
 
-      // ── 9: Red Giant ──────────────────────────────────────────────────────
-      case 9: {
+      // ── 10: Red Giant ──────────────────────────────────────────────────────
+      case 10: {
         const rgCol = [Math.floor(rng.next()*10)+245, Math.floor(rng.next()*115), Math.floor(rng.next()*25)];
         const rgR   = rng.nextInRange(80, 160) + 140;
         planets.push(new Planet({
@@ -475,12 +505,12 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: rgCol, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065, allowRich));
         break;
       }
 
-      // ── 10: Star Cluster ──────────────────────────────────────────────────
-      case 10: {
+      // ── 11: Star Cluster ──────────────────────────────────────────────────
+      case 11: {
         for (let i = 0; i < nPlanets; i++) {
           const col = [Math.floor(rng.next()*30)+215, Math.floor(rng.next()*30)+205, Math.floor(rng.next()*190)+15];
           planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
@@ -488,8 +518,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 11: Mixture ───────────────────────────────────────────────────────
-      case 11: {
+      // ── 13: Mixture ───────────────────────────────────────────────────────
+      case 13: {
         let initial = Math.floor(nPlanets * (0.6*rng.next() + 0.6*rng.next()));
         initial = Math.max(1, Math.min(7, initial));
         for (let i = 0; i < initial; i++) {
@@ -497,12 +527,12 @@ export class ScenarioFactory {
           planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
         }
         for (let i = initial; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1));
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1, allowRich));
         break;
       }
 
-      // ── 12: White Dwarf ───────────────────────────────────────────────────
-      case 12: {
+      // ── 14: White Dwarf ───────────────────────────────────────────────────
+      case 14: {
         const bigR  = rng.nextInRange(80, 160) + 140.5;
         const dispR = rng.nextInRange(7, 10);   // game units (originally pixel-sized)
         planets.push(new Planet({
@@ -519,8 +549,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 13: Wormhole (single scenario, one wormhole type) ─────────────────
-      case 13: {
+      // ── 19: Wormhole (single scenario, one wormhole type) ─────────────────
+      case 19: {
         const wType = rn[0];
         if (wType < 0.75 && nPlanets > 1) {
           // Purple paired
@@ -541,20 +571,20 @@ export class ScenarioFactory {
           // Yellow self-teleport
           planets.push(makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF));
           for (let i = 1; i < nPlanets; i++)
-            planets.push(makeAsteroid(rng, 1,0,0, 18,18,3, gw,gh, 0.03));
+            planets.push(makeAsteroid(rng, 1,0,0, 18,18,3, gw,gh, 0.03, allowRich));
         }
         break;
       }
 
-      // ── 14: White Dwarfs ──────────────────────────────────────────────────
-      case 14: {
+      // ── 21: White Dwarfs ──────────────────────────────────────────────────
+      case 21: {
         for (let i = 0; i < nPlanets; i++)
           planets.push(makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, 3, PlanetType.WHITE_DWARF, WHITE_COL, ShadingStyle.GLOWING));
         break;
       }
 
-      // ── 15: Black Hole ────────────────────────────────────────────────────
-      case 15: {
+      // ── 22: Black Hole ────────────────────────────────────────────────────
+      case 22: {
         const bhBigR = rng.nextInRange(80, 160) + 140;
         const bhDispR = 3; // game units (tiny)
         planets.push(new Planet({
@@ -571,15 +601,15 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 16: Black Holes ───────────────────────────────────────────────────
-      case 16: {
+      // ── 27: Black Holes ───────────────────────────────────────────────────
+      case 27: {
         for (let i = 0; i < nPlanets; i++)
           planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,3, gw,gh, 50, PlanetType.BLACK_HOLE, BLACK_COL, ShadingStyle.NONE));
         break;
       }
 
-      // ── 17: Wormholes (all wormholes) ─────────────────────────────────────
-      case 17: {
+      // ── 20: Wormholes (all wormholes) ─────────────────────────────────────
+      case 20: {
         const wt = rn[0];
         if (wt < 0.25) {
           // Paired purple — ensure even count
@@ -615,8 +645,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 18: Big Wormhole Pair ─────────────────────────────────────────────
-      case 18: {
+      // ── 28: Big Wormhole Pair ─────────────────────────────────────────────
+      case 28: {
         {
           // Two paired purple huge wormholes — centres fixed just outside opposite
           // screen corners so the impact zone always clips into the playfield.
@@ -646,8 +676,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 19: White Hole ────────────────────────────────────────────────────
-      case 19: {
+      // ── 24: White Hole ────────────────────────────────────────────────────
+      case 24: {
         const whDispR = 6; // game units
         const whBigR  = rng.nextInRange(80, 160) + 140;
         planets.push(new Planet({
@@ -665,8 +695,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 20: White Holes ───────────────────────────────────────────────────
-      case 20: {
+      // ── 25: White Holes ───────────────────────────────────────────────────
+      case 25: {
         for (let i = 0; i < nPlanets; i++) {
           const p = makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, -0.2, PlanetType.WHITE_HOLE, WHITE_COL, ShadingStyle.GLOWING);
           p.halo = 15.0;
@@ -675,8 +705,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 21: Hyperspace ────────────────────────────────────────────────────
-      case 21: {
+      // ── 26: Hyperspace ────────────────────────────────────────────────────
+      case 26: {
         const useWormholeShading = rn[0] >= 0.8;
         for (let i = 0; i < nPlanets; i++) {
           const density  = rng.next() < 0.5 ?  6 * rng.next() : -5 * rng.next();
@@ -692,8 +722,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 22: Gas Giants ────────────────────────────────────────────────────
-      case 22: {
+      // ── 12: Gas Giants ────────────────────────────────────────────────────
+      case 12: {
         for (let i = 0; i < nPlanets; i++)
           planets.push(makeGasGiant(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03));
         break;
@@ -704,15 +734,15 @@ export class ScenarioFactory {
         planets.push(makePulsar(rng, 0.1, 0.1, 0.4, gw, gh));
         for (let i = 1; i < nPlanets; i++) {
           if (i % 3 === 1)
-            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065));
+            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, allowRich));
           else
             planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
         }
         break;
       }
 
-      // ── 24: Asteroid Ring ────────────────────────────────────────────────────
-      case 24: {
+      // ── 16: Asteroid Ring ────────────────────────────────────────────────────
+      case 16: {
         // Central gas giant: 80% centred, 20% offset so ≥25% of diameter is visible
         let cx, cy;
         const pairIdx = Math.floor(rng.next() * GAS_GIANT_COLOUR_PAIRS.length);
@@ -760,7 +790,7 @@ export class ScenarioFactory {
             const ay    = cy + Math.sin(angle) * r;
             // Skip asteroids fully off screen (offset scenarios)
             if (ax < -30 || ax > gw + 30 || ay < -30 || ay > gh + 30) continue;
-            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets);
+            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, allowRich);
           }
         }
         // Optional wildcard: one non-gas-giant body (~15%)
@@ -768,8 +798,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 25: Asteroid Belt ────────────────────────────────────────────────────
-      case 25: {
+      // ── 17: Asteroid Belt ────────────────────────────────────────────────────
+      case 17: {
         // Belt centre: 75% off-screen, 25% near map centre
         const scx = gw / 2, scy = gh / 2;
         let bx, by;
@@ -828,15 +858,15 @@ export class ScenarioFactory {
             const ax    = bx + Math.cos(angle) * r;
             const ay    = by + Math.sin(angle) * r;
             if (ax < -20 || ax > gw + 20 || ay < -20 || ay > gh + 20) continue;
-            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets);
+            ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, allowRich);
           }
         }
         if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
       }
 
-      // ── 26: Comet ────────────────────────────────────────────────────────────
-      case 26: {
+      // ── 15: Comet ────────────────────────────────────────────────────────────
+      case 15: {
         // Small star near centre
         const sCol = starColour(rng);
         const sR   = 30 + Math.floor(rng.next() * 30);
@@ -847,7 +877,7 @@ export class ScenarioFactory {
         }));
         const numRocks = 2 + Math.floor(rng.next() * 3); // 2–4 asteroids
         for (let i = 0; i < numRocks; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 12,4,3, gw,gh, 0.05));
+          planets.push(makeAsteroid(rng, 1,0,0, 12,4,3, gw,gh, 0.05, allowRich));
         // Single comet with a random initial velocity
         const vAngle = rng.next() * Math.PI * 2;
         const vSpeed = 0.03 + rng.next() * 0.07;
@@ -859,8 +889,8 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 27: Oort Cloud ───────────────────────────────────────────────────────
-      case 27: {
+      // ── 18: Oort Cloud ───────────────────────────────────────────────────────
+      case 18: {
         // White dwarf near centre
         const wdBigR  = 100 + Math.floor(rng.next() * 60);
         const wdDispR = 6 + Math.floor(rng.next() * 4);
@@ -890,6 +920,13 @@ export class ScenarioFactory {
           );
           planets.push(comet);
         }
+        break;
+      }
+
+      // ── 3: Crystal Asteroids ─────────────────────────────────────────────
+      case 3: {
+        for (let i = 0; i < nPlanets; i++)
+          planets.push(makeCrystalAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
         break;
       }
 
@@ -943,8 +980,8 @@ export class ScenarioFactory {
 
   // Try to place a ring/belt asteroid at (ax, ay). Returns false without mutating
   // `planets` if it would overlap an existing body.
-  static _placeRingAsteroid(rng, ax, ay, planets) {
-    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay);
+  static _placeRingAsteroid(rng, ax, ay, planets, allowRich = false) {
+    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay, allowRich);
     const minGap = 10;
     for (const p of planets) {
       if (p.position.distanceTo(a.position) < p.impactRadius + a.impactRadius + minGap) return false;
@@ -954,7 +991,7 @@ export class ScenarioFactory {
   }
 
   // Create a single asteroid at world position (ax, ay) for ring/belt scenarios.
-  static _makeRingAsteroid(rng, ax, ay) {
+  static _makeRingAsteroid(rng, ax, ay, allowRich = false) {
     const n        = 6 + Math.floor(rng.next() * 5);
     const vertices = [];
     for (let i = 0; i < n; i++) {
@@ -966,10 +1003,11 @@ export class ScenarioFactory {
     const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180;
     const rotation = rng.next() * Math.PI * 2;
     const radius   = rr(rng, 6, 3, 3); // slightly larger than regular asteroids
+    const isRich   = allowRich && rng.next() < 0.05;
     const planet   = new Planet({
       position: new Vec2(ax, ay), radius, density: 0.05,
-      type: PlanetType.ASTEROID, colour: [...ASTEROID_COL],
-      shading: ShadingStyle.ROCKY, vertices, rotation, rotationSpeed: speed,
+      type: PlanetType.ASTEROID, colour: isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
+      shading: ShadingStyle.ROCKY, vertices, rotation, rotationSpeed: speed, rich: isRich,
     });
     const cos = Math.cos(rotation), sin = Math.sin(rotation);
     planet._rotatedVerts = vertices.map(v => new Vec2(

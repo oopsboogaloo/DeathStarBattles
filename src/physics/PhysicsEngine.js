@@ -349,9 +349,13 @@ export class PhysicsEngine {
         break;
 
       case PlanetType.ASTEROID:
-        // Mark for fragmentation — GameLoop processes children after the physics batch
         planet.destroyed = true;
         bullet.status = BulletStatus.EXPLODING;
+        break;
+
+      case PlanetType.CRYSTAL:
+        // Bullet passes through — asteroid shatters but bullet continues
+        planet.destroyed = true;
         break;
 
       case PlanetType.COMET:

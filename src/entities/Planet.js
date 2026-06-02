@@ -1,6 +1,7 @@
 export const PlanetType = Object.freeze({
   ROCKY:            'rocky',
   ASTEROID:         'asteroid',
+  CRYSTAL:          'crystal',
   STAR:             'star',
   JOVIAN:           'jovian',
   GAS_GIANT:        'gasGiant',
@@ -52,6 +53,7 @@ export class Planet {
     pulsarPeriod  = 0,      // seconds between pressure pulses (PULSAR type only)
     pulsarPhase   = 0,      // current phase within period (seconds)
     velocity      = null,   // Vec2 — used by COMET type for dynamic movement
+    rich          = false,  // true for Rich Asteroid (blue-brown, yields crystal on break)
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -72,6 +74,7 @@ export class Planet {
     this.pulsarPhase   = pulsarPhase;
     this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings
     this.velocity      = velocity;
+    this.rich          = rich;
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }
