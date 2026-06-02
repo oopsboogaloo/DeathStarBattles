@@ -70,6 +70,29 @@ All items here are complete. Moved from IssuesTODOList.md.
 
 - [x] **Performance mode** — Full / Simplified toggle in config. Simplified disables all `ctx.filter` blurs, bullet glow, and particles; caps selectable planets at 20 and players at 4.
 
+## Bugs (continued)
+
+- [x] **Hyperspace overlap** — hyperspace destination resampled if it would cause station-to-station overlap, using the same minimum separation check applied during initial placement.
+
+## Features (continued)
+
+- [x] **Stations pass through wormholes** — station position overlapping a wormhole during movement teleports it to the paired/cyclic/random exit using the same logic as bullets; emerges just outside exit surface preserving velocity direction.
+- [x] **Red wormhole network** — red wormholes form a random-destination network among themselves; a bullet entering any red wormhole exits from a randomly chosen other red wormhole on the map; falls back to random-position if only one exists.
+- [x] **Team Clustering** — config option cycling Off / Tight / Moderate / Loose; stations on the same team placed near each other at the selected radius; enemy teams unconstrained; all existing placement constraints still apply.
+- [x] **Asteroid Ring scenario** — central gas giant surrounded by one (occasionally two or three) concentric ring(s) of asteroids placed at random positions within a band; multiple rings do not overlap; asteroid count approximately double normal range.
+- [x] **Asteroid Belt scenario** — no central body; belt centre off screen by default; one to three concentric belts; asteroids placed randomly within band; no gravitational body at centre.
+- [x] **Game Options Explained** — "?" button on config panel opens popup overlay explaining each option; dismissible by clicking outside or pressing Escape; styled with dark space aesthetic.
+- [x] **Wildcard Frequency menu option** — config option cycling Off / Very Rare / Rare / Occasional / Common / Always; controls probability of wildcard planet placement in supporting scenarios.
+- [x] **Comets** — dynamic entity with random initial velocity, reduced-G self-movement, normal gravity influence on projectiles; bright nucleus + pale blue trailing tail; destroyed on collision with bullet or planet; two new scenarios: Comet and Oort Cloud.
+
+## Mobile / Usability
+
+- [x] **Aiming circle size option** — config option cycling Smaller / Regular / Larger / Mammoth; scales aiming circle to 0.5×, 1×, 2×, 3× default radius.
+- [x] **Accelerating angle/power buttons** — hold-to-ramp acceleration: brief tap = small increment, holding ramps up smoothly over ~1–2 s to significantly faster rate.
+- [x] **Minimal UI mode** — config option for compact single-char/icon button layout (X = end turn, H = hyperspace, M = move); reduces screen footprint on small displays.
+- [x] **Skip round when all humans eliminated** — Fast FWD and Skip buttons appear when all human stations are destroyed; Fast FWD switches to fastest speed for remainder of round; Skip simulates outcome using per-AI-level accuracy weights and applies kills/deaths to scores.
+- [x] **Hide shot controls during hyperspace** — angle indicator, power indicator, and associated buttons hidden when station has hyperspace selected; restored when player switches back to firing.
+
 ## Polish
 
 - [x] **Score display moved to modal** — live leaderboard removed from game screen. "Scores" link in config panel opens a modal showing the last game's team scores, kills, and station status.

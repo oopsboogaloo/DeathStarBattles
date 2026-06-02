@@ -26,7 +26,10 @@ export class Renderer {
     this._vpH = this.height;
     this._ox  = 0; // x offset of viewport within canvas (pillarbox bars)
     this._oy  = 0; // y offset of viewport within canvas (letterbox bars)
+    this._aimCircleScale = 1;
   }
+
+  setAimCircleScale(scale) { this._aimCircleScale = scale ?? 1; }
 
   setPerformance(mode) {
     this._performance = mode ?? 'full';
@@ -118,26 +121,32 @@ export class Renderer {
   }
 
   _drawStarField(ctx) {
-    const off    = document.createElement('canvas');
-    off.width    = this._vpW;
-    off.height   = this._vpH;
-    const offCtx = off.getContext('2d');
-    const conv   = this.conv;
+    const conv = this.conv;
 
     for (const star of this._stars) {
       const px = star.gx * conv;
       const py = star.gy * conv;
       const pr = Math.max(0.5, star.gr * conv);
-      offCtx.beginPath();
-      offCtx.arc(px, py, pr, 0, Math.PI * 2);
-      offCtx.fillStyle = `rgba(${star.red},${star.green},${star.blue},${star.alpha ?? 1})`;
-      offCtx.fill();
-    }
+      const a  = star.alpha ?? 1;
+      const { red: r, green: g, blue: b } = star;
 
-    // Composite with a gentle blur — softens sharp dots into a nebula texture
-    if (!this._simplified) ctx.filter = 'blur(1.2px)';
-    ctx.drawImage(off, 0, 0);
-    ctx.filter = 'none';
+      // Hot core: nudge toward white for an emissive feel
+      const cr = Math.min(255, r + 60);
+      const cg = Math.min(255, g + 60);
+      const cb = Math.min(255, b + 60);
+
+      // Gradient biased toward the edge — wide bright centre, steep falloff in outer ~25%
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, pr);
+      grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${a})`);
+      grad.addColorStop(0.55, `rgba(${r},${g},${b},${a})`);
+      grad.addColorStop(0.82, `rgba(${Math.floor(r * 0.4)},${Math.floor(g * 0.4)},${Math.floor(b * 0.4)},${a * 0.4})`);
+      grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
@@ -269,9 +278,15 @@ export class Renderer {
       }
     }
 
-    // Aiming indicator — active station in AIMING mode
+    // Space crystals
+    if (gameState.crystals?.length) this._drawCrystals(ctx, gameState.crystals);
+
+    // VFX overlays (crystal shatter, collectable grants, muzzle flashes)
+    if (gameState.vfxList?.length) this._drawVFX(ctx, gameState.vfxList);
+
+    // Aiming indicator — active station in AIMING mode (hidden when hyperspace queued)
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && gameState.mode === 'aiming') {
+    if (active && active.status === 'active' && gameState.mode === 'aiming' && !active.hyperspaceQueued) {
       this._drawAimingIndicator(ctx, active);
     }
 
@@ -495,7 +510,7 @@ export class Renderer {
     const cx    = station.position.x * this.conv;
     const cy    = station.position.y * this.conv;
     const r     = Math.max(3, station.radius * this.conv);
-    const boxR  = Math.max(57, 3 * r);   // interactive zone radius in px
+    const boxR  = Math.max(57, 3 * r) * this._aimCircleScale;
 
     // Angle convention: 0 = up, 90 = right (clockwise), matches original Java
     // angle=0 → fires down (+y canvas), angle=180 → fires up (-y canvas)
@@ -733,13 +748,21 @@ export class Renderer {
     const r  = Math.max(4, planet.radius * 2 * this.conv);
     const [pr, pg, pb] = planet.colour;
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.8 + planet.position.x * 0.07);
-    // Giant wormholes (display radius > 100 px) get half-thickness halo
-    const thickMul = r > 100 ? 0.5 : 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
-    ctx.lineWidth   = Math.max(1, (r * 0.12 + r * 0.08 * pulse) * thickMul);
-    ctx.stroke();
+    if (planet.radius > 100) {
+      // Giant wormhole — pulse at impactRadius so it matches the drawn ring
+      const vr = (planet.impactRadius ?? 50) * 2 * this.conv;
+      ctx.beginPath();
+      ctx.arc(cx, cy, vr * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
+      ctx.lineWidth   = Math.max(1, vr * 0.12 + vr * 0.08 * pulse);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
+      ctx.lineWidth   = Math.max(1, r * 0.12 + r * 0.08 * pulse);
+      ctx.stroke();
+    }
   }
 
   // ----------------------------------------------------------------
@@ -870,10 +893,13 @@ export class Renderer {
       const distPx = Math.max(0, -bx, bx - this._vpW, -by, by - this._vpH);
       const dist   = Math.round(distPx / this.conv);
 
-      // Draw number at inset position
+      // Draw number at inset position — keep text right-side-up on left half
+      const textAngle = (Math.abs(angle) > Math.PI / 2)
+        ? angle - Math.PI
+        : angle;
       ctx.save();
       ctx.translate(nx, ny);
-      ctx.rotate(angle);
+      ctx.rotate(textAngle);
       ctx.font         = `bold 11px monospace`;
       ctx.fillStyle    = colour;
       ctx.textAlign    = 'center';
@@ -917,6 +943,153 @@ export class Renderer {
         if (!penDown) { ctx.moveTo(px, py); penDown = true; }
         else          { ctx.lineTo(px, py); }
       }
+      ctx.stroke();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Space crystals — rotating icy gems drawn live (rotation animated each frame)
+  // ----------------------------------------------------------------
+
+  _drawCrystals(ctx, crystals) {
+    for (const crystal of crystals) {
+      if (!crystal.alive) continue;
+      this._drawCrystal(ctx, crystal);
+    }
+  }
+
+  _drawCrystal(ctx, crystal) {
+    const cx = crystal.position.x * this.conv;
+    const cy = crystal.position.y * this.conv;
+    const r  = Math.max(3, crystal.radius * this.conv);
+
+    crystal.rotation = ((crystal.rotation ?? 0) + 0.018) % (Math.PI * 2);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(crystal.rotation);
+
+    // Soft icy glow
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.8);
+    glow.addColorStop(0,   'rgba(184,232,255,0.22)');
+    glow.addColorStop(0.5, 'rgba(184,232,255,0.10)');
+    glow.addColorStop(1,   'rgba(184,232,255,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Six spokes — alternating long (even) and short (odd)
+    const spokeLen = [r * 0.9, r * 0.55, r * 0.9, r * 0.55, r * 0.9, r * 0.55];
+    ctx.strokeStyle = '#B8E8FF';
+    ctx.lineWidth   = Math.max(1, r * 0.12);
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 * i) / 6;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * spokeLen[i], Math.sin(a) * spokeLen[i]);
+      ctx.stroke();
+    }
+
+    // Hexagon connecting spoke tips
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 * i) / 6;
+      const x = Math.cos(a) * spokeLen[i];
+      const y = Math.sin(a) * spokeLen[i];
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(184,232,255,0.6)';
+    ctx.lineWidth   = Math.max(0.5, r * 0.08);
+    ctx.stroke();
+
+    // Bright centre dot
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(1, r * 0.18), 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // VFX — crystal shatter, collectable grant text, triple-cannon muzzle
+  // ----------------------------------------------------------------
+
+  _drawVFX(ctx, vfxList) {
+    for (const vfx of vfxList) {
+      switch (vfx.type) {
+        case 'crystalShatter':     this._drawCrystalShatter(ctx, vfx);      break;
+        case 'collectableGrant':   this._drawCollectableGrant(ctx, vfx);    break;
+        case 'tripleCannonMuzzle': this._drawTripleCannonMuzzle(ctx, vfx);  break;
+      }
+    }
+  }
+
+  _drawCrystalShatter(ctx, vfx) {
+    const cx   = vfx.x * this.conv;
+    const cy   = vfx.y * this.conv;
+    const t    = vfx.t;
+    const conv = this.conv;
+
+    for (const shard of vfx.shards) {
+      const dist  = shard.speed * t * conv * 20;
+      const sx    = cx + Math.cos(shard.angle) * dist;
+      const sy    = cy + Math.sin(shard.angle) * dist;
+      const len   = Math.max(1, shard.length * conv);
+      const alpha = Math.max(0, 1 - t);
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(shard.angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(len, 0);
+      ctx.strokeStyle = `rgba(184,232,255,${alpha})`;
+      ctx.lineWidth   = Math.max(1, conv * 0.3);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  _drawCollectableGrant(ctx, vfx) {
+    const cx   = vfx.x * this.conv;
+    const cy   = vfx.y * this.conv;
+    const t    = vfx.t;
+    const rise = t * 20 * this.conv;
+    const alpha = Math.max(0, Math.sin(t * Math.PI));
+
+    ctx.save();
+    ctx.font         = `bold ${Math.max(10, Math.floor(this._vpW / 55))}px monospace`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.globalAlpha  = alpha;
+    ctx.fillStyle    = vfx.colour;
+    ctx.shadowColor  = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur   = 4;
+    ctx.fillText(vfx.text, cx, cy - rise);
+    ctx.restore();
+  }
+
+  _drawTripleCannonMuzzle(ctx, vfx) {
+    const cx    = vfx.x * this.conv;
+    const cy    = vfx.y * this.conv;
+    const t     = vfx.t;
+    const alpha = Math.max(0, 1 - t);
+    const len   = (1 - t) * 18 * this.conv;
+    const [cr, cg, cb] = vfx.colour;
+
+    for (const dDeg of [-5, 0, 5]) {
+      const rad = (((vfx.angle + dDeg) % 360 + 360) % 360 * Math.PI) / 180;
+      const dx  = Math.sin(rad);
+      const dy  = Math.cos(rad);
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + dx * len, cy + dy * len);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+      ctx.lineWidth   = Math.max(1, (1 - t) * 3.5);
       ctx.stroke();
     }
   }

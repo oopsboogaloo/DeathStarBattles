@@ -34,15 +34,54 @@ export class PlanetRenderer {
     const [pr, pg, pb] = planet.colour;
 
     if (planet.type === PlanetType.ASTEROID && planet._rotatedVerts?.length) {
-      ctx.beginPath();
       const verts = planet._rotatedVerts;
-      ctx.moveTo(verts[0].x * conv, verts[0].y * conv);
-      for (let i = 1; i < verts.length; i++) {
-        ctx.lineTo(verts[i].x * conv, verts[i].y * conv);
+      const n = verts.length;
+
+      // Outer polygon in screen coords
+      const outer = verts.map(v => ({ x: v.x * conv, y: v.y * conv }));
+
+      // Inner polygon — scale each vertex toward the centroid
+      const INNER = 0.52;
+      const inner = outer.map(v => ({
+        x: cx + (v.x - cx) * INNER,
+        y: cy + (v.y - cy) * INNER,
+      }));
+
+      // Light direction: upper-left (canvas y points down, so ldy < 0 = up)
+      const ldx = -0.62, ldy = -0.78;
+
+      // Facet panels: one quad per outer edge, shaded by outward face normal
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const edx = outer[j].x - outer[i].x;
+        const edy = outer[j].y - outer[i].y;
+        const len = Math.hypot(edx, edy) || 1;
+        let nx = -edy / len, ny = edx / len;
+        // Ensure normal points outward (away from centroid)
+        const mx = (outer[i].x + outer[j].x) / 2;
+        const my = (outer[i].y + outer[j].y) / 2;
+        if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
+
+        const ndotl = Math.max(0, nx * ldx + ny * ldy);
+        const f     = 0.35 + ndotl * 0.85; // 0.35 (shadow) → 1.20 (highlight)
+        ctx.beginPath();
+        ctx.moveTo(outer[i].x, outer[i].y);
+        ctx.lineTo(outer[j].x, outer[j].y);
+        ctx.lineTo(inner[j].x, inner[j].y);
+        ctx.lineTo(inner[i].x, inner[i].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgb(${Math.min(255, Math.round(pr * f))},${Math.min(255, Math.round(pg * f))},${Math.min(255, Math.round(pb * f))})`;
+        ctx.fill();
       }
+
+      // Inner (top) face — ambient mid-tone
+      ctx.beginPath();
+      ctx.moveTo(inner[0].x, inner[0].y);
+      for (let i = 1; i < n; i++) ctx.lineTo(inner[i].x, inner[i].y);
       ctx.closePath();
-      ctx.fillStyle = `rgb(${pr},${pg},${pb})`;
+      ctx.fillStyle = `rgb(${Math.min(255, Math.round(pr * 0.80))},${Math.min(255, Math.round(pg * 0.80))},${Math.min(255, Math.round(pb * 0.80))})`;
       ctx.fill();
+
       return;
     }
 
@@ -73,18 +112,34 @@ export class PlanetRenderer {
     const cg = Math.floor(pg * 0.38);
     const cb = Math.floor(pb * 0.15);
 
-    // Offscreen canvas sized to fit the full corona (max extent 3.2×r)
-    const margin  = 4;
-    const offSize = Math.ceil(r * 3.2 * 2) + margin * 2;
-    const off     = document.createElement('canvas');
-    off.width = off.height = offSize;
-    const oc  = off.getContext('2d');
-    const oCx = offSize / 2;
-    const oCy = offSize / 2;
+    // Clip the corona bounding box to the bgCanvas viewport.  For off-screen
+    // supergiants the full corona bounding box can be many times the screen
+    // size; blurring a canvas that large is very expensive.
+    const vpW    = ctx.canvas.width;
+    const vpH    = ctx.canvas.height;
+    const margin = 4;
+    const bx0 = Math.max(0,   Math.floor(cx - r * 3.2) - margin);
+    const by0 = Math.max(0,   Math.floor(cy - r * 3.2) - margin);
+    const bx1 = Math.min(vpW, Math.ceil(cx  + r * 3.2) + margin);
+    const by1 = Math.min(vpH, Math.ceil(cy  + r * 3.2) + margin);
+    if (bx1 <= bx0 || by1 <= by0) return; // corona entirely off-screen
+
+    const clipW = bx1 - bx0;
+    const clipH = by1 - by0;
+
+    // Star centre expressed in off-canvas coordinates (may be negative for
+    // off-screen supergiants whose corona only partially overlaps the viewport).
+    const oCx = cx - bx0;
+    const oCy = cy - by0;
 
     // Chromosphere inner ring + surface bristles — STAR type only.
     // White holes, white dwarfs, and pulsars keep the plain corona.
     const isStar = planet.type === PlanetType.STAR;
+
+    const off = document.createElement('canvas');
+    off.width  = clipW;
+    off.height = clipH;
+    const oc = off.getContext('2d');
 
     if (isStar) {
       const ringGrad = oc.createRadialGradient(oCx, oCy, r * 0.85, oCx, oCy, r * 1.45);
@@ -116,54 +171,64 @@ export class PlanetRenderer {
       oc.fill();
     }
 
-    // Bristles at reduced opacity for texture
+    // Bristles — skip any whose outer tip falls outside the clip canvas since
+    // those would be culled by the canvas anyway and add path overhead.
     const count = Math.max(200, Math.floor(r * 3.5));
     oc.lineWidth = Math.max(1, conv * 0.7);
 
     oc.strokeStyle = `rgba(${cr},${cg},${cb},0.60)`;
     oc.beginPath();
     for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = r * (0.87 + Math.random() * 0.13);
-      const e = r * (1.10 + Math.random() * 0.50);
-      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
-      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
+      const a  = Math.random() * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const e  = r * (1.10 + Math.random() * 0.50);
+      const ex = oCx + ca * e, ey = oCy + sa * e;
+      if (ex < 0 || ex > clipW || ey < 0 || ey > clipH) continue;
+      oc.moveTo(oCx + ca * r * (0.87 + Math.random() * 0.13), oCy + sa * r * (0.87 + Math.random() * 0.13));
+      oc.lineTo(ex, ey);
     }
     oc.stroke();
 
     oc.strokeStyle = `rgba(${cr},${cg},${cb},0.90)`;
     oc.beginPath();
     for (let i = 0, n = Math.floor(count * 0.55); i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = r * (0.92 + Math.random() * 0.08);
-      const e = r * (1.04 + Math.random() * 0.20);
-      oc.moveTo(oCx + Math.cos(a) * s, oCy + Math.sin(a) * s);
-      oc.lineTo(oCx + Math.cos(a) * e, oCy + Math.sin(a) * e);
+      const a  = Math.random() * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const e  = r * (1.04 + Math.random() * 0.20);
+      const ex = oCx + ca * e, ey = oCy + sa * e;
+      if (ex < 0 || ex > clipW || ey < 0 || ey > clipH) continue;
+      oc.moveTo(oCx + ca * r * (0.92 + Math.random() * 0.08), oCy + sa * r * (0.92 + Math.random() * 0.08));
+      oc.lineTo(ex, ey);
     }
     oc.stroke();
 
     // Composite offscreen canvas — blur disabled in simplified performance mode
     if (!_simplified) ctx.filter = 'blur(4px)';
-    ctx.drawImage(off, cx - oCx, cy - oCy);
+    ctx.drawImage(off, bx0, by0);
     ctx.filter = 'none';
 
+    // Short spikey bristles on the star surface
     if (isStar) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
-      spOff.width = spOff.height = offSize;
+      spOff.width  = clipW;
+      spOff.height = clipH;
       const sp = spOff.getContext('2d');
-      sp.strokeStyle = `rgba(210,230,255,0.92)`;
+      sp.strokeStyle = `rgba(${pr},${pg},${pb},0.60)`;
       sp.lineWidth   = Math.max(0.5, conv * 0.45);
       sp.beginPath();
       for (let i = 0; i < nSpikes; i++) {
         const a   = Math.random() * Math.PI * 2;
-        const len = r * (0.006 + Math.random() * 0.060);
-        sp.moveTo(oCx + Math.cos(a) * r * 0.97, oCy + Math.sin(a) * r * 0.97);
-        sp.lineTo(oCx + Math.cos(a) * (r + len), oCy + Math.sin(a) * (r + len));
+        const ca  = Math.cos(a), sa = Math.sin(a);
+        const tip = r + r * (0.001 + Math.random() * Math.random() * 0.20);
+        const tx  = oCx + ca * tip, ty = oCy + sa * tip;
+        if (tx < 0 || tx > clipW || ty < 0 || ty > clipH) continue;
+        sp.moveTo(oCx + ca * r * 0.97, oCy + sa * r * 0.97);
+        sp.lineTo(tx, ty);
       }
       sp.stroke();
-      if (!_simplified) ctx.filter = 'blur(2px)';
-      ctx.drawImage(spOff, cx - oCx, cy - oCy);
+      if (!_simplified) ctx.filter = 'blur(4px)';
+      ctx.drawImage(spOff, bx0, by0);
       ctx.filter = 'none';
     }
   }
@@ -187,16 +252,18 @@ export class PlanetRenderer {
       const oCx = offSize / 2;
       const oCy = offSize / 2;
 
+      const isRedGiant = pr > pg * 2.5 && pb < 30;
       const coreGrad = oc.createRadialGradient(oCx, oCy, r * 0.05, oCx, oCy, r);
-      coreGrad.addColorStop(0,   `rgb(255,255,${Math.min(255, pb + 120)})`);
-      coreGrad.addColorStop(0.5, `rgb(${pr},${pg},${pb})`);
-      coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .75)},${Math.floor(pg * .75)},${Math.floor(pb * .6)})`);
+      coreGrad.addColorStop(0,   isRedGiant ? `rgb(255,45,0)` : `rgb(255,255,${Math.min(255, pb + 120)})`);
+      coreGrad.addColorStop(0.7, isRedGiant ? `rgb(255,${Math.floor(pg * 0.6)},0)` : `rgb(255,255,${Math.min(255, pb + 50)})`);
+      coreGrad.addColorStop(0.9, `rgb(${pr},${pg},${pb})`);
+      coreGrad.addColorStop(1,   `rgb(${Math.floor(pr * .55)},${Math.floor(pg * .55)},${Math.floor(pb * .3)})`);
       oc.beginPath();
       oc.arc(oCx, oCy, r, 0, Math.PI * 2);
       oc.fillStyle = coreGrad;
       oc.fill();
 
-      if (!_simplified) ctx.filter = 'blur(1.8px)';
+      if (!_simplified) ctx.filter = 'blur(2.8px)';
       ctx.drawImage(off, cx - oCx, cy - oCy);
       ctx.filter = 'none';
       return;
@@ -235,22 +302,39 @@ export class PlanetRenderer {
     const r  = Math.max(4, planet.radius * 2 * conv);
     const [pr, pg, pb] = planet.colour;
 
-    // Dark void
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
-    ctx.fillStyle = '#000';
-    ctx.fill();
-
-    // Glowing ring
-    const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.33, cx, cy, r);
-    ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
-    ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
-    ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
-    ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = ringGrad;
-    ctx.fill();
+    if (planet.radius > 100) {
+      // Giant wormhole — draw at impactRadius so the arc appears at the screen
+      // corner where bullets are actually captured, not at the physics radius.
+      const vr = (planet.impactRadius ?? 50) * 8 * conv;
+      ctx.beginPath();
+      ctx.arc(cx, cy, vr * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+      const ringGrad = ctx.createRadialGradient(cx, cy, vr * 0.33, cx, cy, vr);
+      ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
+      ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
+      ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
+      ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, vr, 0, Math.PI * 2);
+      ctx.fillStyle = ringGrad;
+      ctx.fill();
+    } else {
+      // Normal wormhole — full gradient ring at display radius
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+      const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.33, cx, cy, r);
+      ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
+      ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
+      ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
+      ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = ringGrad;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
@@ -285,22 +369,28 @@ export class PlanetRenderer {
     oc.fillStyle = `rgba(${ar},${ag},${ab},0.50)`;
     oc.fillRect(ocx - r, ocy - r, r * 2, r * 2);
 
-    // Curved colour-B bands
-    const top     = ocy - r;
-    const nStripes = Math.ceil(r * 2 / stripeH) + 2;
-    for (let i = 0; i < nStripes; i += 2) {
-      const y    = top + i * stripeH;
-      const seed = Math.sin(i * 2.3999 + planet.position.x * 0.1) * 0.5 + 0.5;
-      const amp  = stripeH * (0.15 + seed * 0.35);
+    // Curved colour-B bands — varying heights for a natural gas giant look
+    const minH     = Math.max(2, r * 0.06);
+    const maxH     = Math.max(4, r * 0.22);
+    let   bandY    = ocy - r;
+    let   drawBand = true;
 
-      oc.beginPath();
-      oc.moveTo(ocx - r, y);
-      oc.quadraticCurveTo(ocx, y + amp, ocx + r, y);
-      oc.lineTo(ocx + r, y + stripeH);
-      oc.quadraticCurveTo(ocx, y + stripeH + amp, ocx - r, y + stripeH);
-      oc.closePath();
-      oc.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
-      oc.fill();
+    while (bandY < ocy + r + maxH) {
+      const seed      = Math.sin(bandY * 0.13 + planet.position.x * 0.1) * 0.5 + 0.5;
+      const thisBandH = minH + seed * (maxH - minH);
+      if (drawBand) {
+        const amp = thisBandH * (2.8 + seed * 0.15);
+        oc.beginPath();
+        oc.moveTo(ocx - r, bandY);
+        oc.quadraticCurveTo(ocx, bandY + amp, ocx + r, bandY);
+        oc.lineTo(ocx + r, bandY + thisBandH);
+        oc.quadraticCurveTo(ocx, bandY + thisBandH + amp, ocx - r, bandY + thisBandH);
+        oc.closePath();
+        oc.fillStyle = `rgba(${br},${bg},${bb},0.50)`;
+        oc.fill();
+      }
+      bandY += thisBandH;
+      drawBand = !drawBand;
     }
     oc.restore();
 

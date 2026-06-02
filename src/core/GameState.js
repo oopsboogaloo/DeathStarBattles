@@ -9,11 +9,11 @@ export const GameMode = Object.freeze({
 });
 
 export class GameState {
-  constructor({ planets = [], teams = [], config = {}, stationMovement = false } = {}) {
+  constructor({ planets = [], teams = [], config = {}, movementSpeed = 'off' } = {}) {
     this.planets          = planets;
     this.teams            = teams;
     this.config           = config;
-    this.stationMovement  = stationMovement; // feature toggle
+    this.movementSpeed    = movementSpeed;
     this.mode             = GameMode.AIMING;
     this.turn             = 0;
     this.gameIndex        = 0;
@@ -22,9 +22,13 @@ export class GameState {
     this.winner           = undefined;  // undefined=ongoing, null=draw, Team=winner
     this.activeBullets    = [];
     this.activeExplosions = [];         // asteroid/debris explosions: [{x,y,t,radius,colour,particles}]
+    this.crystals         = [];         // Crystal[] — space crystals on the map
+    this.vfxList          = [];         // VFX objects (crystal shatter, collectable grant, muzzle)
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click
   }
+
+  get stationMovement() { return this.movementSpeed !== 'off'; }
 
   get activeStation() {
     return this.teams[this.currentTeamIdx]?.stations[this.currentStatIdx] ?? null;

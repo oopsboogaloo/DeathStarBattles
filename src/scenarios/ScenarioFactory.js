@@ -133,7 +133,7 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare') {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full') {
     // Pre-roll sub-choice values (outside retry loop, matches Java's rnumber1-7)
     const rn = rng.roll(7); // rn[0]..rn[6]
 
@@ -143,7 +143,7 @@ export class ScenarioFactory {
     let attempts = 0;
 
     do {
-      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn);
+      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance);
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -154,9 +154,9 @@ export class ScenarioFactory {
     };
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
     if (threshold > 0 && rn[1] < threshold) {
-      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh);
+      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance);
       if (rn[4] < 0.35) {
-        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh);
+        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance);
       }
     }
 
@@ -344,7 +344,8 @@ export class ScenarioFactory {
 
   // ─── planet placement ──────────────────────────────────────────────────────
 
-  static _generate(id, gw, gh, nPlanets, rng, rn) {
+  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full') {
+    const simplified = performance === 'simplified';
     const planets = [];
 
     switch (id) {
@@ -536,11 +537,6 @@ export class ScenarioFactory {
           planets.push(...wc);
           for (let i = 3; i < nPlanets; i++)
             planets.push(makePlanet(rng, 1,0,0, 20,20,3, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
-        } else if (wType < 0.96) {
-          // Green random teleport
-          planets.push(makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM));
-          for (let i = 1; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 20,20,3, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
         } else {
           // Yellow self-teleport
           planets.push(makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF));
@@ -585,7 +581,7 @@ export class ScenarioFactory {
       // ── 17: Wormholes (all wormholes) ─────────────────────────────────────
       case 17: {
         const wt = rn[0];
-        if (wt < 0.40) {
+        if (wt < 0.25) {
           // Paired purple — ensure even count
           const count = nPlanets % 2 === 0 ? nPlanets : nPlanets - 1;
           for (let i = 0; i < count; i += 2) {
@@ -594,25 +590,23 @@ export class ScenarioFactory {
             wa.partner = wb; wb.partner = wa;
             planets.push(wa, wb);
           }
-        } else if (wt < 0.70) {
+        } else if (wt < 0.45) {
           // Cyclic blue — all chain to next, last chains to first
           const all = Array.from({length: nPlanets}, () =>
             makeWormhole(rng, gw,gh, [55,55,255], PlanetType.WORMHOLE_CYCLIC));
           for (let i = 0; i < all.length; i++)
             all[i].partner = all[(i + 1) % all.length];
           planets.push(...all);
-        } else if (wt < 0.85) {
+        } else if (wt < 0.70) {
           // Network red — each exits via another red wormhole on the map
           for (let i = 0; i < nPlanets; i++)
             planets.push(makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
         } else if (wt < 0.90) {
-          // Random location green
+          // Grey — splits into one copy per grey wormhole (red network in simplified)
           for (let i = 0; i < nPlanets; i++)
-            planets.push(makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM));
-        } else if (wt < 0.95) {
-          // Changing random destination grey
-          for (let i = 0; i < nPlanets; i++)
-            planets.push(makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
+            planets.push(simplified
+              ? makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)
+              : makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
         } else {
           // Self yellow
           for (let i = 0; i < nPlanets; i++)
@@ -623,38 +617,26 @@ export class ScenarioFactory {
 
       // ── 18: Big Wormhole Pair ─────────────────────────────────────────────
       case 18: {
-        const wt18 = rn[0];
-        if (wt18 < 0.1 || nPlanets <= 1) {
-          // Single green random wormhole
-          const w = makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM);
-          w.radius = 50; planets.push(w);
-          for (let i = 1; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 20,20,9, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
-        } else if (wt18 < 0.2) {
-          // Two green random wormholes
-          for (let s = 0; s < 2; s++) {
-            const w = makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM);
-            w.radius = 50; planets.push(w);
-          }
-          for (let i = 2; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 20,20,9, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
-        } else {
-          // Two paired purple huge wormholes (off-screen centres)
+        {
+          // Two paired purple huge wormholes — centres fixed just outside opposite
+          // screen corners so the impact zone always clips into the playfield.
           const bigR = (rng.next()*0.2 + rng.next()*0.2)*gh + 1.5*gh;
-          const cx0 = rv(rng,3,0,-1,gw), cy0 = rv(rng,3,0,-1,gh);
+          const margin = 10 + rng.next() * 25; // 10–35 units outside the corner
+          const cx0 = rng.next() < 0.5 ? -margin : gw + margin;
+          const cy0 = rng.next() < 0.5 ? -margin : gh + margin;
           const w0 = new Planet({
             position: new Vec2(cx0, cy0), radius: bigR,
-            density: 4000/(bigR*bigR), mass: 4000,
+            density: 1000/(bigR*bigR), mass: 100,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
-            impactRadius: 50,
+            impactRadius: 80,
           });
           const w1 = new Planet({
             position: new Vec2(gw - cx0, gh - cy0), radius: bigR,
-            density: 4000/(bigR*bigR), mass: 4000,
+            density: 1200/(bigR*bigR), mass: 1200,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
-            impactRadius: 50,
+            impactRadius: 80,
           });
           w0.partner = w1; w1.partner = w0;
           planets.push(w0, w1);
@@ -702,7 +684,8 @@ export class ScenarioFactory {
           const colour   = positive
             ? [Math.floor(255 - 40*density), 255, 0]
             : [255, Math.min(255, Math.floor(255 + 50*density)), 0];
-          const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE : PlanetType.WORMHOLE_PLANET;
+          const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE
+                        : (simplified ? PlanetType.WORMHOLE_NETWORK : PlanetType.WORMHOLE_PLANET);
           const shading = useWormholeShading ? ShadingStyle.WORMHOLE : ShadingStyle.GLOWING;
           planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading));
         }
@@ -781,7 +764,7 @@ export class ScenarioFactory {
           }
         }
         // Optional wildcard: one non-gas-giant body (~15%)
-        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh);
+        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
       }
 
@@ -848,7 +831,7 @@ export class ScenarioFactory {
             ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets);
           }
         }
-        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh);
+        if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
       }
 
@@ -925,12 +908,16 @@ export class ScenarioFactory {
     if (!planets.length) return true;
     const minGap = 10;
 
-    // No planet-planet overlap
+    // No planet-planet overlap — use impactRadius for gameplay-relevant size,
+    // falling back to radius. This prevents huge-physics/small-capture planets
+    // (e.g. big wormholes) from failing validation due to their physics radius.
     for (let i = 0; i < planets.length; i++) {
       for (let j = i + 1; j < planets.length; j++) {
         const pi = planets[i], pj = planets[j];
+        const ri = pi.impactRadius ?? pi.radius;
+        const rj = pj.impactRadius ?? pj.radius;
         const dist = pi.position.distanceTo(pj.position);
-        if (dist < minGap + pi.radius + pj.radius) return false;
+        if (dist < minGap + ri + rj) return false;
       }
     }
 
@@ -942,7 +929,8 @@ export class ScenarioFactory {
         const py = (j / 20) * gh;
         let free = true;
         for (const p of planets) {
-          if (p.position.distanceSqTo(new Vec2(px, py)) < p.radius * p.radius) {
+          const pr = p.impactRadius ?? p.radius;
+          if (p.position.distanceSqTo(new Vec2(px, py)) < pr * pr) {
             free = false;
             break;
           }
@@ -993,7 +981,8 @@ export class ScenarioFactory {
 
   // ─── bonus random feature injection ─────────────────────────────────────
 
-  static _addBonus(planets, rng, ra, rb, gw, gh) {
+  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full') {
+    const simplified = performance === 'simplified';
     if (planets.length < 2) return;
 
     let candidates;
@@ -1007,8 +996,14 @@ export class ScenarioFactory {
       wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
       candidates = wc;
     } else if (rb < 0.6) {
-      candidates = [makeWormhole(rng, gw,gh, [55,255,55], PlanetType.WORMHOLE_RANDOM)];
-    } else if (rb < 0.75) {
+      candidates = [makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)];
+    } else if (rb < 0.70) {
+      // Grey triple — bullet enters one, copies emerge from the other two
+      // Simplified: use red network wormholes instead
+      candidates = simplified
+        ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
+        : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
+    } else if (rb < 0.85) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
@@ -1023,7 +1018,7 @@ export class ScenarioFactory {
         type:         PlanetType.PULSAR,
         colour:       [...WHITE_COL],
         shading:      ShadingStyle.GLOWING,
-        pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
+        pulsarPeriod: 0.1 + rng.next() * 0.9,
         pulsarPhase:  rng.next() * 0.9,
       })];
     } else if (rb < 0.95) {

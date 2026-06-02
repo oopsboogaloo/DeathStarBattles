@@ -107,6 +107,19 @@ export class PhysicsEngine {
       }
     }
 
+    // Trick shot: accumulate signed rotation; flag when a full 360° loop is complete
+    if (!bullet.trickShotDone) {
+      const newAngle = Math.atan2(vy, vx);
+      if (bullet._prevAngle !== null) {
+        let delta = newAngle - bullet._prevAngle;
+        if (delta >  Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        bullet._angleAccum += delta;
+        if (Math.abs(bullet._angleAccum) >= 2 * Math.PI) bullet.trickShotDone = true;
+      }
+      bullet._prevAngle = newAngle;
+    }
+
     bullet.velocity = new Vec2(vx, vy);
     bullet.position = new Vec2(
       bullet.position.x + vx * TIMESTEP,
@@ -120,8 +133,8 @@ export class PhysicsEngine {
       bullet.status = BulletStatus.DEAD;
     }
 
-    // Lifetime cap — trail full → start explosion
-    if (bullet.trail.length >= BULLET_LIFE) {
+    // Lifetime cap — trail full → start explosion (spawned splits carry a _trailStart offset)
+    if (bullet.trail.length + (bullet._trailStart ?? 0) >= BULLET_LIFE) {
       bullet.status = BulletStatus.EXPLODING;
     }
   }
@@ -135,6 +148,38 @@ export class PhysicsEngine {
       if (station.status !== 'active') continue;
       if (bullet.position.distanceSqTo(station.position) < station.radius * station.radius) {
         return station;
+      }
+    }
+    return null;
+  }
+
+  // Returns stations the bullet is newly near-missing this step (within 3× their radius but
+  // outside their hit radius, excluding the owner and already-counted stations).
+  checkNearMisses(bullet, stations) {
+    if (bullet.status !== BulletStatus.ACTIVE) return [];
+    const result = [];
+    for (const station of stations) {
+      if (station.status !== 'active') continue;
+      if (station === bullet.owner) continue;
+      if (bullet.nearMissed.has(station)) continue;
+      const dSq = bullet.position.distanceSqTo(station.position);
+      const r   = station.radius;
+      if (dSq < (r * 3) ** 2 && dSq >= r * r) {
+        bullet.nearMissed.add(station);
+        result.push(station);
+      }
+    }
+    return result;
+  }
+
+  // Returns the first alive crystal hit by this bullet, or null.
+  // Crystal collision does NOT stop the bullet — call site handles award + destruction.
+  checkCrystalCollision(bullet, crystals) {
+    if (bullet.status !== BulletStatus.ACTIVE || !crystals?.length) return null;
+    for (const crystal of crystals) {
+      if (!crystal.alive) continue;
+      if (bullet.position.distanceSqTo(crystal.position) < crystal.radius * crystal.radius) {
+        return crystal;
       }
     }
     return null;
@@ -263,13 +308,26 @@ export class PhysicsEngine {
 
       case PlanetType.WORMHOLE_PLANET: {
         if (bullet.teleportCount < MAX_TELEPORTS) {
-          const dest = planets[Math.floor(Math.random() * planets.length)];
-          const a    = Math.random() * Math.PI * 2;
-          bullet.trail.push(null);
-          bullet.position = new Vec2(
-            dest.position.x + Math.cos(a) * (dest.impactRadius + 0.5),
-            dest.position.y + Math.sin(a) * (dest.impactRadius + 0.5),
+          const others = planets.filter(
+            p => p !== planet && p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed,
           );
+          bullet.trail.push(null);
+          if (others.length === 0) {
+            // No other grey wormholes — fall back to random position
+            bullet.position = new Vec2(Math.random() * this.gw, Math.random() * this.gh);
+          } else {
+            // Teleport bullet to first exit (same as paired wormhole behaviour)
+            const primary = others[0];
+            bullet.position = new Vec2(
+              primary.position.x + Math.cos(theta2) * (primary.impactRadius + 0.5),
+              primary.position.y + Math.sin(theta2) * (primary.impactRadius + 0.5),
+            );
+            // Store remaining exits so GameLoop can spawn extra copies
+            if (others.length > 1) bullet._greySplitExtras = others.slice(1);
+          }
+          // Halve remaining lifetime on every grey wormhole pass
+          const used = bullet.trail.length + (bullet._trailStart ?? 0);
+          bullet._trailStart = (bullet._trailStart ?? 0) + Math.floor((BULLET_LIFE - used) / 2);
           bullet.teleportCount++;
         } else {
           bullet.status = BulletStatus.EXPLODING;

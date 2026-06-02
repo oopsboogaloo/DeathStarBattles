@@ -1,5 +1,6 @@
 import { SuperBot }     from './SuperBot.js';
 import { AIController } from './AIController.js';
+import { WeaponId } from '../entities/Crystal.js';
 
 export class MegaBot extends SuperBot {
   constructor(physics) { super(physics, 5); }
@@ -10,6 +11,8 @@ export class MegaBot extends SuperBot {
 
   _useWormholes(_gs) { return true; }
 
+  get _tripleCProb() { return 0.25; }
+
   // Target the highest-scoring enemy team
   _selectTarget(station, gameState) {
     const enemies = gameState.teams
@@ -18,14 +21,14 @@ export class MegaBot extends SuperBot {
     if (!enemies.length) return null;
 
     const ranked = [...new Set(enemies.map(e => e.team))]
-      .sort((a, b) => b.stats.score - a.stats.score);
+      .sort((a, b) => b.stats.score - a.stats.score || Math.random() - 0.5);
     const topEnemies = enemies.filter(e => e.team === ranked[0]);
     return topEnemies[Math.floor(Math.random() * topEnemies.length)];
   }
 
   _chooseMoveVelocity(station, gameState) {
     if (Math.random() >= 0.70) return null;
-    const g   = SimBot._netGravity(station.position, gameState.planets);
+    const g   = SuperBot._netGravity(station.position, gameState.planets);
     const mag = Math.sqrt(g.x * g.x + g.y * g.y);
     if (mag < 0.0001) return null;
     const speed = 0.01 + Math.random() * 0.02;

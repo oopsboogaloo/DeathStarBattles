@@ -15,6 +15,7 @@ import { Leaderboard }          from './ui/Leaderboard.js';
 import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
+import { WeaponSelector }       from './ui/WeaponSelector.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
@@ -125,15 +126,49 @@ function makeBtn(label, accent = 'rgba(10,10,25,0.85)') {
   return btn;
 }
 
-const endTurnBtn    = makeBtn('End Turn');
-const hyperspaceBtn = makeBtn('Hyperspace');
-const moveBtn       = makeBtn('Move');
-btnBar.append(endTurnBtn, hyperspaceBtn, moveBtn);
+const endTurnBtn = makeBtn('End Turn');
+const weaponBtn  = makeBtn('CANNON ▲');
+const moveBtn    = makeBtn('Move');
+btnBar.append(endTurnBtn, weaponBtn, moveBtn);
 document.body.appendChild(btnBar);
 
-endTurnBtn.addEventListener('click',    e => { e.stopPropagation(); if (loop) loop.humanFire(); });
-hyperspaceBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanHyperspace(); });
-moveBtn.addEventListener('click',       e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
+const weaponSelector = new WeaponSelector();
+weaponSelector.setOnSelect(weaponId => { if (loop) loop.humanSelectWeapon(weaponId); });
+
+endTurnBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanFire(); });
+weaponBtn.addEventListener('click',  e => {
+  e.stopPropagation();
+  if (!loop) return;
+  const gs = loop.gs;
+  if (gs.mode === 'aiming' && gs.waitingForInput && gs.activeStation) {
+    weaponSelector.toggle(gs.activeStation, weaponBtn);
+  }
+});
+moveBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
+document.addEventListener('click', () => weaponSelector.close());
+
+// ─── All-humans-eliminated overlay (Fast FWD + Skip) ─────────────────────────
+
+const humanEliminatedBar = document.createElement('div');
+Object.assign(humanEliminatedBar.style, {
+  position: 'fixed', bottom: '14px', left: '50%',
+  transform: 'translateX(-50%)',
+  display: 'none', gap: '14px', zIndex: '10',
+});
+document.body.appendChild(humanEliminatedBar);
+
+const fastFwdBtn = makeBtn('Fast FWD', 'rgba(60,40,10,0.85)');
+const skipBtn    = makeBtn('Skip Round', 'rgba(60,10,10,0.85)');
+humanEliminatedBar.append(fastFwdBtn, skipBtn);
+
+fastFwdBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (loop) { loop.humanFastFwd(); fastFwdBtn.style.opacity = '0.4'; fastFwdBtn.disabled = true; }
+});
+skipBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (loop) loop.humanSkip(activeConfig.aiLevel ?? 3);
+});
 
 // ─── Game-over overlay ────────────────────────────────────────────────────────
 
@@ -197,13 +232,15 @@ document.body.appendChild(menuBtn);
 
 // ─── Button visibility sync ───────────────────────────────────────────────────
 
-let _prevMode = null;
+let _prevMode  = null;
+let _minimalUI = false;
 
 function updateButtons(gs) {
   if (panel.isVisible) return; // panel is open — don't show game UI on top of it
   if (!gs || isDemo) {
-    btnBar.style.display      = 'none';
-    gameOverBar.style.display = 'none';
+    btnBar.style.display             = 'none';
+    gameOverBar.style.display        = 'none';
+    humanEliminatedBar.style.display = 'none';
     aimControls.hide();
     return;
   }
@@ -211,22 +248,38 @@ function updateButtons(gs) {
   const isAiming   = gs.mode === GameMode.AIMING && gs.waitingForInput;
   const isGameOver = gs.mode === GameMode.GAMEOVER;
 
+  // All-humans-eliminated bar: show when game is ongoing but all human stations are gone
+  const allHumansGone = (gs.mode === GameMode.AIMING || gs.mode === GameMode.FIRING) &&
+    gs.teams.filter(t => t.isHuman).every(t => t.stations.every(s => s.status !== 'active')) &&
+    gs.aliveTeams.length > 1;
+  humanEliminatedBar.style.display = allHumansGone ? 'flex' : 'none';
+
   btnBar.style.display      = isAiming ? 'flex' : 'none';
   moveBtn.style.display     = (isAiming && gs.stationMovement) ? 'inline-block' : 'none';
-  moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : 'Move';
+  moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : (_minimalUI ? 'M' : 'Move');
   moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
 
-  // AimControls: shown when aiming but NOT when selecting a movement target
-  if (isAiming && !gs.waitingForMove) {
+  // AimControls: shown when aiming, not during move selection, not during hyperspace
+  const hyperspaceQueued = gs.activeStation?.hyperspaceQueued;
+  if (isAiming && !gs.waitingForMove && !hyperspaceQueued) {
     aimControls.show();
     aimControls.update(gs.activeStation);
   } else {
     aimControls.hide();
   }
 
+  // Weapon button label: refresh each frame so stock counts stay current
+  if (isAiming && gs.activeStation) {
+    weaponSelector.updateBtn(weaponBtn, gs.activeStation);
+  } else {
+    weaponBtn.textContent = 'CANNON ▲';
+    weaponSelector.close();
+  }
+
   // On first frame of GAMEOVER, trigger end-of-game flow
   if (isGameOver && _prevMode !== GameMode.GAMEOVER) {
+    humanEliminatedBar.style.display = 'none';
     _onGameOver(gs);
   }
   _prevMode = gs.mode;
@@ -267,6 +320,20 @@ function startGame(cfg) {
   renderer.setPerformance(cfg.performance ?? 'full');
   renderer.clearTrails();
 
+  // Apply per-game UI settings
+  const AIM_SCALES = { smaller: 0.5, regular: 1, larger: 2, mammoth: 3 };
+  renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
+
+  _minimalUI = cfg.minimalUI ?? false;
+  aimControls.setMinimal(_minimalUI);
+  endTurnBtn.textContent    = _minimalUI ? 'X' : 'End Turn';
+  endTurnBtn.style.padding  = _minimalUI ? '9px 14px' : '9px 26px';
+  weaponBtn.style.padding = _minimalUI ? '9px 12px' : '9px 18px';
+
+  // Reset Fast FWD button state
+  fastFwdBtn.disabled      = false;
+  fastFwdBtn.style.opacity = '1';
+
   const gw  = renderer.gameWidth;
   const gh  = renderer.gameHeight;
   renderer.setGameAspect(gw, gh); // lock new ratio for letterboxing on resize
@@ -280,7 +347,7 @@ function startGame(cfg) {
     nPlanets = cfg.performance === 'simplified' ? 20 : 30;
   }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare');
+  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -301,14 +368,14 @@ function startGame(cfg) {
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, planets);
 
-  const gameState = new GameState({ planets, teams, stationMovement: cfg.stationMovement ?? false });
+  const gameState = new GameState({ planets, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
 
   for (const team of teams.filter(t => !t.isHuman)) {
     team.controller = AIController.create(cfg.aiLevel ?? 3, physics);
   }
 
-  loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal' });
+  loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   aimControls.setLoop(loop);
 
   renderer.drawFrame = gs => { _baseDrawFrame(gs); updateButtons(gs); };
@@ -336,7 +403,7 @@ function _showDemoHint() {
     });
 
     const titleLine = document.createElement('div');
-    titleLine.textContent = 'DEATH STAR BATTLES';
+    titleLine.textContent = 'Death Star Battles';
     Object.assign(titleLine.style, {
       fontFamily: 'monospace',
       fontSize: 'clamp(26px, 5vw, 62px)',
@@ -353,7 +420,7 @@ function _showDemoHint() {
     });
 
     const authorLine = document.createElement('div');
-    authorLine.textContent = 'Chloe Bolland';
+    authorLine.textContent = 'By Chloe Bolland';
     Object.assign(authorLine.style, {
       fontFamily: 'monospace',
       fontSize: 'clamp(12px, 1.4vw, 18px)',

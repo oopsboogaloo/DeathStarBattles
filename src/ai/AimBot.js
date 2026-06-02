@@ -1,4 +1,5 @@
 import { AIController } from './AIController.js';
+import { WeaponId } from '../entities/Crystal.js';
 
 // Direct-aim with Gaussian-style noise scaled by total planet mass.
 // More mass = more gravitational deflection = harder to aim straight.
@@ -8,7 +9,7 @@ export class AimBot extends AIController {
 
   chooseAction(station, gameState) {
     const target = this._randomEnemy(station, gameState);
-    if (!target) return { angle: Math.floor(Math.random() * 360), power: 400, hyperspace: false };
+    if (!target) return { angle: Math.floor(Math.random() * 360), power: 400, weapon: WeaponId.CANNON };
 
     const dx = target.position.x - station.position.x;
     const dy = target.position.y - station.position.y;
@@ -21,11 +22,15 @@ export class AimBot extends AIController {
 
     const moveAngle = Math.random() * Math.PI * 2;
     const moveSpeed = 0.005 + Math.random() * 0.015;
+    const tcStock = Math.random() < 0.35 ? station.team?.getStock(WeaponId.TRIPLE_CANNON) ?? 0 : 0;
+    const weapon  = Math.random() < 0.14 ? WeaponId.HYPERSPACE
+                  : tcStock > 0          ? WeaponId.TRIPLE_CANNON
+                  : WeaponId.CANNON;
     return {
-      angle:      Math.round((baseAngle + noise + 360) % 360),
-      power:      Math.floor(Math.random() * 600) + 200,
-      hyperspace: Math.random() < 0.14,
-      velocity:   Math.random() < 0.15
+      angle:   Math.round((baseAngle + noise + 360) % 360),
+      power:   Math.floor(Math.random() * 600) + 200,
+      weapon,
+      velocity: Math.random() < 0.15
         ? { x: Math.cos(moveAngle) * moveSpeed, y: Math.sin(moveAngle) * moveSpeed }
         : null,
     };

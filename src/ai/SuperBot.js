@@ -1,5 +1,6 @@
 import { SimBot }       from './CleverBot.js';
 import { AIController } from './AIController.js';
+import { WeaponId } from '../entities/Crystal.js';
 // SimBot imported for _netGravity helper
 
 export class SuperBot extends SimBot {
@@ -11,6 +12,8 @@ export class SuperBot extends SimBot {
 
   // Wormhole-aware simulation after turn 3
   _useWormholes(gs) { return gs.turn >= 3; }
+
+  get _tripleCProb() { return 0.25; }
 
   // Prefer the nearest enemy station (70% of the time)
   _selectTarget(station, gameState) {
