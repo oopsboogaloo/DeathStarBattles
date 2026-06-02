@@ -75,7 +75,7 @@ Human players control angle and power via:
 - Available via the weapon selector (H key or weapon button)
 - Station is teleported to a random free position at start of next turn (before firing)
 - Cannot be used if the station is already destroyed
-- Forced every turn in the Hyperspace scenario (§6.21)
+- Forced every turn in the Hyperspace scenario (§6.26)
 
 ### 4.5 Station Movement
 - When Movement Speed is set to anything other than Off, stations drift slowly around the map each turn
@@ -120,7 +120,9 @@ All planets exert gravity unless stated otherwise. Planet impact behaviour when 
 | Type | Colour | Impact Behaviour |
 |---|---|---|
 | Rocky planet | Brown/tan | Bullet explodes on impact |
-| Asteroid | Dark brown | Bullet explodes on impact |
+| Asteroid | Dark brown | Bullet explodes on impact; fragments into 2–4 child asteroids |
+| Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed |
+| Rich Asteroid | Blue-brown | Same as Asteroid; additionally spawns one Collectable on destruction. Only appears when Collectables setting is ON (5% of asteroids). |
 | Star | Yellow/orange | Bullet explodes on impact |
 | White Dwarf | White | Bullet explodes on impact; very small radius, very high density |
 | Black Hole | Black | Bullet vanishes silently (no explosion); very high density |
@@ -141,31 +143,41 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 
 ## 6. Scenarios
 
-21 named scenarios control how planets are placed and what types appear. A "lucky dip" option picks randomly, weighted towards the more common scenarios.
+28 named scenarios control how planets are placed and what types appear. A "lucky dip" option picks randomly, weighted towards the more common scenarios:
+- **25% chance** — picks from scenarios 1–6 (Planetary through Jovian)
+- **63% chance** — picks from scenarios 1–19 (common + uncommon range)
+- **12% chance** — picks from the full 1–28 pool
 
 | # | Name | Description |
 |---|---|---|
-| 1 | Planetary | 1–10 rocky planets randomly placed |
+| 1 | Planetary | Rocky planets randomly placed |
 | 2 | Asteroids | Many small asteroids (density low, mass low) |
-| 3 | Star System | One central star + rocky planets |
-| 4 | Binary Star | Two stars + rocky bodies |
-| 5 | Jovian | One large gas giant + smaller moons |
-| 6 | Super Giant | One massive star placed off-centre, partially off-screen |
-| 7 | Super Giant Binary | Two massive off-screen stars |
-| 8 | Uneven Binary | One supergiant + one regular star |
-| 9 | Red Giant | Large red star + rocky bodies |
-| 10 | Star Cluster | Several small dense stars |
-| 11 | Mixture | Mix of stars and asteroids |
-| 12 | White Dwarf | One tiny but enormously dense white dwarf + rocky bodies |
-| 13 | Wormhole | Primarily wormhole portals (type varies: paired/cyclic/random/self) |
-| 14 | Dwarfs | Multiple white dwarfs |
-| 15 | Black Hole | One central black hole + rocky bodies |
-| 16 | Black Holes | Multiple black holes |
-| 17 | Wormholes | All wormhole portals, no regular planets |
-| 18 | Big Wormhole Pair | Two enormous wormhole portals (partially off-screen) + planets |
-| 19 | White Hole | One repulsive white hole + rocky bodies |
-| 20 | White Holes | Multiple white holes |
-| 21 | Hyperspace | No planets; hyperspace is forced every turn |
+| 3 | Crystal Asteroids | Like Asteroids but all asteroids are Crystal type — bullets pass through |
+| 4 | Star System | One central star + rocky planets |
+| 5 | Binary Star | Two stars + rocky bodies |
+| 6 | Jovian | One large gas giant + smaller moons |
+| 7 | Super Giant | One massive star placed off-centre, partially off-screen |
+| 8 | Super Giant Binary | Two massive off-screen stars |
+| 9 | Uneven Binary | One supergiant + one regular star |
+| 10 | Red Giant | Large red star + rocky bodies |
+| 11 | Star Cluster | Several small dense stars |
+| 12 | Gas Giants | Multiple gas giants |
+| 13 | Mixture | Mix of stars and asteroids |
+| 14 | White Dwarf | One tiny but enormously dense white dwarf + rocky bodies |
+| 15 | Comet | A moving comet that reacts to gravity |
+| 16 | Asteroid Ring | Ring of asteroids around a gas giant |
+| 17 | Asteroid Belt | Dense asteroid belt |
+| 18 | Oort Cloud | Orbiting comets around a white dwarf |
+| 19 | Wormhole | Primarily wormhole portals (type varies: paired/cyclic/random/self) |
+| 20 | Wormholes | All wormhole portals, no regular planets |
+| 21 | White Dwarfs | Multiple white dwarfs |
+| 22 | Black Hole | One central black hole + rocky bodies |
+| 23 | Neutron Star | One pulsar + mix of rocky planets and asteroids |
+| 24 | White Hole | One repulsive white hole + rocky bodies |
+| 25 | White Holes | Multiple white holes |
+| 26 | Hyperspace | No planets; hyperspace is forced every turn |
+| 27 | Black Holes | Multiple black holes |
+| 28 | Big Wormhole | Two enormous wormhole portals (partially off-screen) + planets |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, or black hole. Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
@@ -259,7 +271,7 @@ The config panel has a primary section always visible and an Advanced section (c
 |---|---|
 | Station size | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
 | Number of planets | Random / 3–50 |
-| Scenario | 1–21 / Lucky Dip |
+| Scenario | 1–28 / Lucky Dip |
 | Game mode | Single game / Tournament |
 | Game speed | ¼× / ½× / 1× (default) / 2× / 4× |
 | Movement speed | Off (default) / Glacial / Slow / Normal / Fast / Rocket |

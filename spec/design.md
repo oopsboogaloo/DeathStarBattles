@@ -107,7 +107,8 @@ class Planet {
 ```js
 const PlanetType = Object.freeze({
   ROCKY:            'rocky',        // explode on impact
-  ASTEROID:         'asteroid',     // explode on impact
+  ASTEROID:         'asteroid',     // explode on impact; fragments into children
+  CRYSTAL:          'crystal',      // bullet PASSES THROUGH; asteroid shatters into Crystal children
   STAR:             'star',         // explode on impact
   JOVIAN:           'jovian',       // explode on impact
   WHITE_DWARF:      'whiteDwarf',   // explode; tiny radius, very high density
@@ -120,6 +121,8 @@ const PlanetType = Object.freeze({
   WORMHOLE_SELF:    'wormholeSelf',     // teleport back near same wormhole
 });
 ```
+
+`Planet` also carries a `rich` boolean flag (default `false`). A Rich Asteroid is an `ASTEROID` with `rich = true` — rendered with a blue-brown tint, and on destruction spawns one `Collectable` in addition to its normal child fragments. Only 5% of asteroids are marked `rich`, and only when the Collectables setting is ON.
 
 #### 3.2.2 `ShadingStyle` enum
 
@@ -341,6 +344,7 @@ Note: this is the same Euler method as the original. Known drift near extreme gr
 | Planet type | Response |
 |---|---|
 | ROCKY / ASTEROID / STAR / JOVIAN / WHITE_DWARF | `bullet.status = EXPLODING` |
+| CRYSTAL | `planet.destroyed = true` only — bullet continues flying unchanged |
 | BLACK_HOLE | `bullet.status = EXPLODING; bullet.explosionT = 30` (silent, trail allowed to catch up) |
 | WHITE_HOLE | Same as BLACK_HOLE (repels via negative mass, but impact still destroys) |
 | WORMHOLE_* | Teleport bullet to exit position; preserve velocity direction; increment `teleportCount`; if `teleportCount >= MAX_TELEPORTS` destroy bullet |
@@ -476,10 +480,14 @@ All drawn directly on the canvas, not DOM:
 class ScenarioFactory {
   // Returns an array of Planet objects for the given scenario.
   // nPlanets may be overridden by scenario constraints.
-  static create(scenarioId, width, height, nPlanets, rng) {}
+  // collectables: 'off' | 'rare' | 'normal' | 'common' | 'continuous'
+  //   When 'off', no asteroids are marked rich (no blue-brown tint).
+  static create(scenarioId, width, height, nPlanets, rng,
+                wildcardFrequency = 'rare', performance = 'full', collectables = 'off') {}
 
   // Lucky dip — weighted random scenario selection.
-  static randomId() {}
+  // 25% → scenarios 1–6; 63% → 1–19; 12% → full 1–28 pool.
+  static randomId(rng) {}
 }
 ```
 
@@ -730,7 +738,7 @@ The pre-game config panel is a DOM overlay (not canvas) styled to match the dark
 |---|---|
 | STATION SIZE | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
 | PLANETS | Random / 3–50 |
-| SCENARIO | 1–21 / Lucky Dip |
+| SCENARIO | 1–28 / Lucky Dip |
 | MODE | Single Game / Tournament |
 | GAME SPEED | ¼× / ½× / 1× / 2× / 4× |
 | MOVEMENT SPEED | Off / Glacial / Slow / Normal / Fast / Rocket |
@@ -931,7 +939,7 @@ _trySpawnCollectable(config, rng, planets, teams) {
 - Not inside any planet's radius (checked against `planet.radius + collectable.radius`)
 - Not within `3 × collectable.radius` of any alive station (avoids spawning on top of a player)
 - Retry up to 200 times before giving up (cap still applies, so a failed spawn is silent)
-- Does not spawn in the Hyperspace scenario (`scenarioId === 21`)
+- Does not spawn in the Hyperspace scenario (`scenarioId === 26`)
 
 The placement retry loop is deliberately lighter than the station placement algorithm — a failed spawn is harmless.
 
