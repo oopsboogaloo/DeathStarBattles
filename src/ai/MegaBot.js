@@ -1,5 +1,6 @@
 import { SuperBot }     from './SuperBot.js';
 import { AIController } from './AIController.js';
+import { WeaponId } from '../entities/Crystal.js';
 
 export class MegaBot extends SuperBot {
   constructor(physics) { super(physics, 5); }
@@ -9,6 +10,8 @@ export class MegaBot extends SuperBot {
   get times()     { return 50; }
 
   _useWormholes(_gs) { return true; }
+
+  get _tripleCProb() { return 0.25; }
 
   // Target the highest-scoring enemy team
   _selectTarget(station, gameState) {

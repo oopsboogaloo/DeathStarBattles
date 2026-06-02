@@ -172,6 +172,19 @@ export class PhysicsEngine {
     return result;
   }
 
+  // Returns the first alive crystal hit by this bullet, or null.
+  // Crystal collision does NOT stop the bullet — call site handles award + destruction.
+  checkCrystalCollision(bullet, crystals) {
+    if (bullet.status !== BulletStatus.ACTIVE || !crystals?.length) return null;
+    for (const crystal of crystals) {
+      if (!crystal.alive) continue;
+      if (bullet.position.distanceSqTo(crystal.position) < crystal.radius * crystal.radius) {
+        return crystal;
+      }
+    }
+    return null;
+  }
+
   // ─── fast trajectory simulation for AI ───────────────────────────────────
   // Runs a coarser version of the physics loop and returns the closest-approach
   // distance the bullet achieves to targetStation.position over the simulation.

@@ -1,3 +1,5 @@
+import { WeaponId } from './Crystal.js';
+
 export const TEAM_COLOURS = [
   [  0, 220,   0],  // 0  green
   [  0, 195, 195],  // 1  cyan
@@ -35,8 +37,24 @@ export class Team {
     this.isHuman    = isHuman;
     this.controller = null;   // AIController — wired in Phase 7
     this.stats      = new TeamStats();
+    this.weaponStock = new Map();  // WeaponId → int (tournament-persistent)
   }
 
   get cssColour() { return `rgb(${this.colour[0]},${this.colour[1]},${this.colour[2]})`; }
   get isAlive()   { return this.stations.some(s => s.status === 'active'); }
+
+  getStock(weaponId) {
+    return this.weaponStock.get(weaponId) ?? 0;
+  }
+
+  addStock(weaponId, n) {
+    this.weaponStock.set(weaponId, (this.weaponStock.get(weaponId) ?? 0) + n);
+  }
+
+  spendStock(weaponId) {
+    const cur = this.weaponStock.get(weaponId) ?? 0;
+    if (cur <= 0) return false;
+    this.weaponStock.set(weaponId, cur - 1);
+    return true;
+  }
 }

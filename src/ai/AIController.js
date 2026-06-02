@@ -10,7 +10,7 @@ export class AIController {
     this.physics = physics;
   }
 
-  // Returns { angle: int, power: int, hyperspace: bool }
+  // Returns { angle: int, power: int, weapon: WeaponId }
   chooseAction(_station, _gameState) {
     throw new Error('AIController.chooseAction() is abstract');
   }

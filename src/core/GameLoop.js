@@ -3,6 +3,7 @@ import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
+import { Crystal, WeaponId } from '../entities/Crystal.js';
 
 // Physics steps per rAF frame for each speed setting.
 // Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
@@ -539,6 +540,7 @@ export class GameLoop {
     this.gs.waitingForInput = false;
     this.gs.waitingForMove  = false;
     this.gs.mode = GameMode.AIMING;
+    for (const s of this._turnOrder) s.selectedWeapon = WeaponId.CANNON;
     if (this.gs.stationMovement) this._clearStationVelocities();
     // Process leading AI stations immediately so first human gets the indicator
     this._advanceAiming();
@@ -561,9 +563,14 @@ export class GameLoop {
             hyperspace: Math.random() < 0.12,
           };
         }
-        station.angle            = action.angle;
-        station.power            = action.power;
-        station.hyperspaceQueued = action.hyperspace ?? false;
+        station.angle = action.angle;
+        station.power = action.power;
+        // Support both new weapon field and legacy hyperspace bool
+        if (action.weapon) {
+          station.selectedWeapon = action.weapon;
+        } else {
+          station.selectedWeapon = action.hyperspace ? WeaponId.HYPERSPACE : WeaponId.CANNON;
+        }
         const vel = this.gs.stationMovement ? (action.velocity ?? null) : null;
         station.velocity = vel;
         if (vel) station._moveDistRemaining = this._getMaxMoveDist(station);
@@ -590,14 +597,35 @@ export class GameLoop {
     this.gs.activeBullets = [];
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
-      if (station.hyperspaceQueued)    continue; // will teleport after firing phase
+      if (station.hyperspaceQueued) continue; // will teleport after firing phase
 
-      const { position, velocity } = this.physics.initialState(
-        station.angle, station.power, station,
-      );
-      const bullet = new Bullet({ owner: station, position, velocity });
-      bullet.trail.push(new Vec2(position.x, position.y));
-      this.gs.activeBullets.push(bullet);
+      const isTriple = station.selectedWeapon === WeaponId.TRIPLE_CANNON &&
+                       station.team.spendStock(WeaponId.TRIPLE_CANNON);
+
+      if (isTriple) {
+        // Muzzle flash VFX
+        this.gs.vfxList.push({
+          type: 'tripleCannonMuzzle',
+          x: station.position.x, y: station.position.y,
+          angle: station.angle, colour: station.team.colour,
+          t: 0, duration: 0.25,
+        });
+        // Three bullets at angle -5, 0, +5
+        for (const dAngle of [-5, 0, 5]) {
+          const a = ((station.angle + dAngle) % 360 + 360) % 360;
+          const { position, velocity } = this.physics.initialState(a, station.power, station);
+          const bullet = new Bullet({ owner: station, position, velocity });
+          bullet.trail.push(new Vec2(position.x, position.y));
+          this.gs.activeBullets.push(bullet);
+        }
+      } else {
+        const { position, velocity } = this.physics.initialState(
+          station.angle, station.power, station,
+        );
+        const bullet = new Bullet({ owner: station, position, velocity });
+        bullet.trail.push(new Vec2(position.x, position.y));
+        this.gs.activeBullets.push(bullet);
+      }
 
       station.lastAngle = station.angle;
       station.lastPower = station.power;
@@ -632,6 +660,21 @@ export class GameLoop {
         } else {
           for (const _s of this.physics.checkNearMisses(bullet, allStations))
             bullet.owner.stats.nearMisses++;
+        }
+
+        // Crystal collision — bullet passes through, crystal destroyed
+        const hitCrystal = this.physics.checkCrystalCollision(bullet, this.gs.crystals);
+        if (hitCrystal) {
+          hitCrystal.alive = false;
+          bullet.owner.team.addStock(WeaponId.TRIPLE_CANNON, 3);
+          this.gs.vfxList.push(this._makeCrystalShatterVFX(hitCrystal));
+          const [r, g, b] = bullet.owner.team.colour;
+          this.gs.vfxList.push({
+            type: 'collectableGrant',
+            x: hitCrystal.position.x, y: hitCrystal.position.y,
+            text: 'TRIPLE CANNON', colour: `rgb(${r},${g},${b})`,
+            t: 0, duration: 2.0,
+          });
         }
 
         // Save trail as ghost the moment a bullet leaves the active state
@@ -670,6 +713,10 @@ export class GameLoop {
 
     // Remove dead bullets
     this.gs.activeBullets = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD);
+
+    // Clean up destroyed crystals and advance VFX
+    this.gs.crystals = this.gs.crystals.filter(c => c.alive);
+    this._advanceVFX();
 
     this._advanceExplosionEffects();
 
@@ -789,7 +836,7 @@ export class GameLoop {
     const { gw, gh } = this.physics;
     for (const station of this.gs.allStations) {
       if (!station.hyperspaceQueued || station.status !== 'active') continue;
-      station.hyperspaceQueued = false;
+      station.selectedWeapon = WeaponId.CANNON;
       const oldPos = new Vec2(station.position.x, station.position.y);
       for (let a = 0; a < 300; a++) {
         const pos = new Vec2(this.rng.next() * gw, this.rng.next() * gh);
@@ -865,12 +912,15 @@ export class GameLoop {
 
     this._advanceExplosionEffects();
 
+    this._advanceVFX();
+
     if (--this._resultsTimer <= 0) {
       if (this.gs.winner !== undefined) {
         this.gs.mode = GameMode.GAMEOVER;
       } else {
         this.gs.turn++;
         this.renderer.clearTrails();
+        this._trySpawnCrystal();
         this._startTurn();
       }
     }
@@ -888,7 +938,19 @@ export class GameLoop {
 
   humanHyperspace() {
     const s = this.gs.activeStation;
-    if (s) s.hyperspaceQueued = !s.hyperspaceQueued;
+    if (!s) return;
+    // Build ordered weapon list for this station's team
+    const weapons = [WeaponId.CANNON, WeaponId.HYPERSPACE];
+    if (s.team.getStock(WeaponId.TRIPLE_CANNON) > 0) weapons.splice(1, 0, WeaponId.TRIPLE_CANNON);
+    const idx = weapons.indexOf(s.selectedWeapon);
+    s.selectedWeapon = weapons[(idx + 1) % weapons.length];
+  }
+
+  humanSelectWeapon(weaponId) {
+    const s = this.gs.activeStation;
+    if (!s) return;
+    if (weaponId === WeaponId.TRIPLE_CANNON && s.team.getStock(WeaponId.TRIPLE_CANNON) <= 0) return;
+    s.selectedWeapon = weaponId;
   }
 
   humanAngle(delta) {
@@ -939,6 +1001,76 @@ export class GameLoop {
     this._checkWin();
     this._resultsTimer = 90;
     this.gs.mode = GameMode.RESULTS;
+  }
+
+  // ─── Crystal spawning ─────────────────────────────────────────────────────────
+
+  _trySpawnCrystal() {
+    const collectables = this.gs.config?.collectables ?? 'off';
+    if (collectables === 'off') return;
+    if (this.gs.crystals.length >= 3) return;
+    // No crystals in Hyperspace scenario (id 21)
+    if (this.gs.config?.scenarioId === 21) return;
+
+    const probMap = { rare: 0.20, normal: 0.40, common: 0.75, continuous: 1.0 };
+    const prob = probMap[collectables] ?? 0;
+    if (this.rng.next() > prob) return;
+
+    const pos = this._findCrystalSpawnPos();
+    if (pos) this.gs.crystals.push(new Crystal(pos));
+  }
+
+  _findCrystalSpawnPos() {
+    const { gw, gh } = this.physics;
+    const R = 5; // CRYSTAL_RADIUS
+    for (let i = 0; i < 200; i++) {
+      const x = R + this.rng.next() * (gw - 2 * R);
+      const y = R + this.rng.next() * (gh - 2 * R);
+      let ok = true;
+
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const d = Math.hypot(x - planet.position.x, y - planet.position.y);
+        if (d < planet.impactRadius + R) { ok = false; break; }
+      }
+      if (!ok) continue;
+
+      for (const station of this.gs.allStations) {
+        if (station.status !== 'active') continue;
+        const d = Math.hypot(x - station.position.x, y - station.position.y);
+        if (d < station.radius * 3 + R) { ok = false; break; }
+      }
+      if (!ok) continue;
+
+      for (const crystal of this.gs.crystals) {
+        if (!crystal.alive) continue;
+        const d = Math.hypot(x - crystal.position.x, y - crystal.position.y);
+        if (d < R * 4) { ok = false; break; }
+      }
+      if (!ok) continue;
+
+      return new Vec2(x, y);
+    }
+    return null;
+  }
+
+  _makeCrystalShatterVFX(crystal) {
+    return {
+      type: 'crystalShatter',
+      x: crystal.position.x, y: crystal.position.y,
+      t: 0, duration: 0.6,
+      shards: Array.from({ length: 10 }, () => ({
+        angle: Math.random() * Math.PI * 2,
+        speed: 2 + Math.random() * 6,
+        length: 1 + Math.random() * 3,
+      })),
+    };
+  }
+
+  _advanceVFX() {
+    const DT = 1 / 60;
+    for (const vfx of this.gs.vfxList) vfx.t += DT / vfx.duration;
+    this.gs.vfxList = this.gs.vfxList.filter(v => v.t < 1);
   }
 
   togglePause()  { this._paused = !this._paused; }

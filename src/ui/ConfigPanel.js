@@ -24,6 +24,7 @@ export class ConfigPanel {
       performance:       'full',
       teamClustering:    'off',
       wildcardFrequency: 'rare',
+      collectables:      'off',
       aimCircleSize:     'regular',
       minimalUI:         false,
     };
@@ -169,6 +170,10 @@ export class ConfigPanel {
       this._cycle('wildcardFrequency',
         ['off', 'veryRare', 'rare', 'occasional', 'common', 'always'],
         v => ({ off: 'Off', veryRare: 'Very Rare', rare: 'Rare', occasional: 'Occasional', common: 'Common', always: 'Always' }[v]))));
+    advancedInner.appendChild(this._row('COLLECTABLES',
+      this._cycle('collectables',
+        ['off', 'rare', 'normal', 'common', 'continuous'],
+        (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i]))));
     advancedInner.appendChild(this._row('AIM CIRCLE SIZE',
       this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
         v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v]))));

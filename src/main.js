@@ -15,6 +15,7 @@ import { Leaderboard }          from './ui/Leaderboard.js';
 import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
+import { WeaponSelector }       from './ui/WeaponSelector.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
@@ -125,15 +126,26 @@ function makeBtn(label, accent = 'rgba(10,10,25,0.85)') {
   return btn;
 }
 
-const endTurnBtn    = makeBtn('End Turn');
-const hyperspaceBtn = makeBtn('Hyperspace');
-const moveBtn       = makeBtn('Move');
-btnBar.append(endTurnBtn, hyperspaceBtn, moveBtn);
+const endTurnBtn = makeBtn('End Turn');
+const weaponBtn  = makeBtn('CANNON ▲');
+const moveBtn    = makeBtn('Move');
+btnBar.append(endTurnBtn, weaponBtn, moveBtn);
 document.body.appendChild(btnBar);
 
-endTurnBtn.addEventListener('click',    e => { e.stopPropagation(); if (loop) loop.humanFire(); });
-hyperspaceBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanHyperspace(); });
-moveBtn.addEventListener('click',       e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
+const weaponSelector = new WeaponSelector();
+weaponSelector.setOnSelect(weaponId => { if (loop) loop.humanSelectWeapon(weaponId); });
+
+endTurnBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanFire(); });
+weaponBtn.addEventListener('click',  e => {
+  e.stopPropagation();
+  if (!loop) return;
+  const gs = loop.gs;
+  if (gs.mode === 'aiming' && gs.waitingForInput && gs.activeStation) {
+    weaponSelector.toggle(gs.activeStation, weaponBtn);
+  }
+});
+moveBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
+document.addEventListener('click', () => weaponSelector.close());
 
 // ─── All-humans-eliminated overlay (Fast FWD + Skip) ─────────────────────────
 
@@ -257,6 +269,14 @@ function updateButtons(gs) {
     aimControls.hide();
   }
 
+  // Weapon button label: refresh each frame so stock counts stay current
+  if (isAiming && gs.activeStation) {
+    weaponSelector.updateBtn(weaponBtn, gs.activeStation);
+  } else {
+    weaponBtn.textContent = 'CANNON ▲';
+    weaponSelector.close();
+  }
+
   // On first frame of GAMEOVER, trigger end-of-game flow
   if (isGameOver && _prevMode !== GameMode.GAMEOVER) {
     humanEliminatedBar.style.display = 'none';
@@ -308,8 +328,7 @@ function startGame(cfg) {
   aimControls.setMinimal(_minimalUI);
   endTurnBtn.textContent    = _minimalUI ? 'X' : 'End Turn';
   endTurnBtn.style.padding  = _minimalUI ? '9px 14px' : '9px 26px';
-  hyperspaceBtn.textContent = _minimalUI ? 'H' : 'Hyperspace';
-  hyperspaceBtn.style.padding = _minimalUI ? '9px 14px' : '9px 26px';
+  weaponBtn.style.padding = _minimalUI ? '9px 12px' : '9px 18px';
 
   // Reset Fast FWD button state
   fastFwdBtn.disabled      = false;
@@ -349,7 +368,7 @@ function startGame(cfg) {
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, planets);
 
-  const gameState = new GameState({ planets, teams, movementSpeed: cfg.movementSpeed ?? 'off' });
+  const gameState = new GameState({ planets, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
 
   for (const team of teams.filter(t => !t.isHuman)) {

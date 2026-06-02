@@ -1,3 +1,5 @@
+import { WeaponId } from './Crystal.js';
+
 export const StationSize = Object.freeze({
   MICRO:  { name: 'Micro',  radius: 2,   bulletRadius: 0.4  },
   TINY:   { name: 'Tiny',   radius: 3.2, bulletRadius: 0.48 },
@@ -46,7 +48,7 @@ export class Station {
     this.size            = size;          // StationSize
     this.angle           = 180;           // 0-359, default pointing down
     this.power           = 1;             // 1-800
-    this.hyperspaceQueued = false;
+    this.selectedWeapon  = WeaponId.CANNON; // current turn's weapon choice
     this.velocity         = null;  // Vec2 | null — one-turn movement vector (game units/timestep)
     this.status          = StationStatus.ACTIVE;
     this.explosionT      = 0;            // 0→1 animation progress
@@ -59,6 +61,7 @@ export class Station {
     this.stats           = new StationStats();
   }
 
-  get radius()  { return this.size.radius; }
-  get colour()  { return this.team.colour; }
+  get radius()          { return this.size.radius; }
+  get colour()          { return this.team.colour; }
+  get hyperspaceQueued() { return this.selectedWeapon === WeaponId.HYPERSPACE; }
 }

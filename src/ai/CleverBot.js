@@ -1,4 +1,5 @@
 import { AIController } from './AIController.js';
+import { WeaponId } from '../entities/Crystal.js';
 
 // ── SimBot ─────────────────────────────────────────────────────────────────────
 // Abstract base for all simulation-based bots.
@@ -13,14 +14,15 @@ export class SimBot extends AIController {
   get stepSize()   { return 20; }   // physics steps per sim iteration (coarser = faster)
   get simSteps()   { return 400; }  // iterations per trajectory trace
   get times()      { return 4; }    // trajectories sampled per shot
-  get hyperProb()  { return 0.11; } // base hyperspace probability
+  get hyperProb()    { return 0.11; } // base hyperspace probability
+  get _tripleCProb() { return 0.30; } // probability of using Triple Cannon if stocked
 
   // Override in SuperBot/MegaBot to enable wormhole-aware simulation
   _useWormholes(gameState) { return false; } // eslint-disable-line no-unused-vars
 
   chooseAction(station, gameState) {
     const target = this._selectTarget(station, gameState);
-    if (!target) return { angle: Math.floor(Math.random() * 360), power: 400, hyperspace: false };
+    if (!target) return { angle: Math.floor(Math.random() * 360), power: 400, weapon: WeaponId.CANNON };
 
     const { angle, power, closestDist } = this._findBestShot(
       station, target, gameState, this._numTrials(gameState.turn),
@@ -28,11 +30,16 @@ export class SimBot extends AIController {
 
     this._mem.set(`${station.id}-${target.id}`, { angle, power });
 
+    const shouldHyperspace = this._shouldHyperspace(station, target, gameState, closestDist);
+    const tcStock = Math.random() < this._tripleCProb ? station.team?.getStock(WeaponId.TRIPLE_CANNON) ?? 0 : 0;
+    const weapon  = shouldHyperspace   ? WeaponId.HYPERSPACE
+                  : tcStock > 0        ? WeaponId.TRIPLE_CANNON
+                  : WeaponId.CANNON;
     return {
       angle,
       power,
-      hyperspace: this._shouldHyperspace(station, target, gameState, closestDist),
-      velocity:   this._chooseMoveVelocity(station, gameState),
+      weapon,
+      velocity: this._chooseMoveVelocity(station, gameState),
     };
   }
 
