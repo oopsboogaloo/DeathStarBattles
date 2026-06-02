@@ -32,18 +32,18 @@ DeathStarBattles/
 │   │   ├── Planet.js       ← all planet/star/wormhole types
 │   │   ├── Station.js      ← player station
 │   │   ├── Bullet.js       ← projectile in flight
-│   │   └── Team.js         ← team + cumulative stats
+│   │   ├── Team.js         ← team + cumulative stats + weapon stock
+│   │   └── Crystal.js      ← collectable crystal entity + WeaponId enum
 │   ├── physics/
 │   │   └── PhysicsEngine.js
 │   ├── rendering/
-│   │   ├── Renderer.js     ← composites the three layers
-│   │   ├── PlanetRenderer.js
-│   │   └── HUDRenderer.js
+│   │   ├── Renderer.js     ← composites the three layers; crystal + VFX drawing
+│   │   └── PlanetRenderer.js
 │   ├── ai/
 │   │   ├── AIController.js ← base class + factory
 │   │   ├── RandBot.js
 │   │   ├── AimBot.js
-│   │   ├── CleverBot.js    ← also base for Superbot/Megabot
+│   │   ├── CleverBot.js    ← also base for Superbot/Megabot (SimBot)
 │   │   ├── SuperBot.js
 │   │   └── MegaBot.js
 │   ├── scenarios/
@@ -52,12 +52,14 @@ DeathStarBattles/
 │   ├── input/
 │   │   └── InputHandler.js
 │   └── ui/
-│       ├── ConfigPanel.js  ← pre-game setup panel (DOM)
-│       └── HUD.js          ← in-canvas HUD drawing
+│       ├── ConfigPanel.js  ← pre-game setup panel (DOM); responsive paged layout
+│       ├── AimControls.js  ← hold-to-repeat angle/power DOM buttons
+│       └── WeaponSelector.js ← weapon popup selector (DOM)
 └── spec/
     ├── requirements.md
     ├── design.md
-    └── tasks.md
+    ├── tasks.md
+    └── futureDesignThoughts.md
 ```
 
 ---
@@ -137,10 +139,10 @@ class Station {
   id             // int
   team           // Team reference
   position       // Vec2
-  size           // StationSize enum (MICRO→GIANT, maps to radius)
+  size           // StationSize enum (MICRO→MAMMOTH, maps to radius)
   angle          // int 0–359
   power          // int 1–800
-  hyperspaceQueued  // bool
+  selectedWeapon // WeaponId — reset to CANNON at start of each AIMING phase
 
   status         // StationStatus: ACTIVE | EXPLODING | DEAD
   explosionT     // float 0→1 animation progress when EXPLODING
@@ -148,8 +150,10 @@ class Station {
   // cumulative stats (persisted across tournament)
   stats          // StationStats object (see §3.3.1)
 
-  get radius()   // float, derived from size
-  get colour()   // from team
+  get radius()          // float, derived from size
+  get colour()          // from team
+  get hyperspaceQueued() // computed: selectedWeapon === WeaponId.HYPERSPACE
+                         // kept for backward-compatible reads; no setter
 }
 ```
 
@@ -209,6 +213,12 @@ class Team {
   shots = 0
   survived = 0
   turns = 0
+
+  // collectable weapon stocks — shared across all stations; persist across tournament games
+  weaponStock    // Map<WeaponId, int>  (absent key = 0 uses)
+  getStock(weaponId)         // returns 0 if key absent
+  addStock(weaponId, n)      // increments by n
+  spendStock(weaponId)       // decrements by 1; returns false if stock is 0
 }
 ```
 
@@ -237,6 +247,8 @@ class GameState {
 
   // Active turn data
   activeBullets  // Bullet[]
+  crystals       // Crystal[]  — alive crystals on the map (max 3 at once)
+  vfxList        // ActiveVFX[] — short-lived visual effects (shatter, grant text, muzzle)
 
   // Derived helpers
   get activeStation()
@@ -533,7 +545,7 @@ class AIController {
   constructor(level)
   // Returns the action this AI chooses for the given station.
   // Called during AIMING mode.
-  chooseAction(station, gameState) // → { angle, power, hyperspace: bool }
+  chooseAction(station, gameState) // → { angle, power, weapon: WeaponId }
 }
 ```
 
@@ -549,8 +561,8 @@ class SimBot extends AIController {
   chooseAction(station, gameState) {
     const target = this.#selectTarget(station, gameState)
     const { angle, power } = this.#findBestShot(station, target, gameState)
-    const hyperspace = this.#shouldHyperspace(station, gameState)
-    return { angle, power, hyperspace }
+    const weapon = this.#chooseWeapon(station, gameState)  // WeaponId
+    return { angle, power, weapon }
   }
 
   #findBestShot(station, target, gameState) {
@@ -615,10 +627,10 @@ class InputHandler {
   // Keyboard bindings (only active during AIMING mode for human player)
   // Z/X  → angle ±1, A/S → angle ±5
   // K/M  → power ±1, J/N → power ±10
-  // H    → toggle hyperspace
+  // H    → cycle weapons / open weapon selector popup (see §13.8)
   // Enter → end turn
   // P    → pause/unpause (any mode)
-  // O    → slow-motion step (while paused)
+  // O    → slow-motion step-through (hold while paused; reduces SHOW_EVERY to 1)
   #onKeyDown(e)
 }
 ```
@@ -667,13 +679,17 @@ Within `AIMING` mode, the station pointer advances through stations in order:
 
 `FIRING` runs the physics loop. Each tick:
 1. For each active bullet: `physicsEngine.step(bullet, planets)`
-2. `physicsEngine.checkCollisions(bullet, planets, stations)`
-3. Record trail points every `PRINT_EVERY` steps
-4. Repaint every `PRINT_EVERY × SHOW_EVERY` steps
-5. When all bullets are `DEAD` or `EXPLODING==done`:
-   - Process hyperspace queues (stations with `hyperspaceQueued` teleport now)
+2. `physicsEngine.checkCollisions(bullet, planets, stations)` — handles planet/station hits
+3. `physicsEngine.checkCrystalCollision(bullet, gameState.crystals)` — crystal hit check (bullet continues; see §13.6)
+4. Advance `vfxList` timers; prune completed VFX
+5. Record trail points every `PRINT_EVERY` steps
+6. Repaint every `PRINT_EVERY × SHOW_EVERY` steps
+7. When all bullets are `DEAD` or `EXPLODING==done`:
+   - Remove dead crystals from `gameState.crystals`
+   - Process hyperspace queues (stations with `selectedWeapon === WeaponId.HYPERSPACE` teleport now)
    - Update leaderboard
    - Check win condition → RESULTS
+   - Call `_trySpawnCrystal()` (see §13.5) before advancing to AIMING
 
 ### 9.3 Win Condition
 ```
@@ -686,28 +702,58 @@ if aliveTeams.length === 0 → draw (no winner)
 
 ## 10. Config Panel (DOM-based)
 
-The pre-game config panel is a DOM overlay (not canvas) so it can use standard HTML form controls. It is styled to match the game's dark space aesthetic.
+The pre-game config panel is a DOM overlay (not canvas) styled to match the dark space aesthetic. All controls are `◄ value ►` cycle buttons — click either arrow to step through options.
+
+### 10.1 Layout
+
+**Primary section** (always visible):
 
 ```
 ┌─────────────────────────────────────┐
-│  ☆ DEATH STAR BATTLES               │
+│  Death Star Battles                 │
 │                                     │
-│  Players        [ 2 players      ▲▼]│
-│  Human / CPU    [ 1H  1CPU       ▲▼]│
-│  Stations/Player[ 1              ▲▼]│
-│  CPU Level      [ Cleverbot      ▲▼]│
+│  PLAYERS        [ 4 players     ◄►] │
+│  HUMAN / CPU    [ 1H  3 CPU     ◄►] │
+│  STATIONS/PLAYER[ 2             ◄►] │
+│  CPU LEVEL      [ SuperBot      ◄►] │
 │                                     │
-│  ── More Options ───────────────── │
-│  Station Size   [ Medium         ▲▼]│
-│  Planets        [ Random (max 8) ▲▼]│
-│  Scenario       [ Lucky Dip      ▲▼]│
-│  Mode           [ Single Game    ▲▼]│
+│  ＋ ADVANCED                        │  ← collapsible on large screens
 │                                     │
 │       [ START GAME ]                │
+│  About  Instructions  …             │
 └─────────────────────────────────────┘
 ```
 
-Each `▲▼` is a cycle button (click to advance through options), matching the original's button-cycling interaction but styled as a proper select or custom cycle control.
+**Advanced section** (collapsible; 12 rows across two logical pages):
+
+| Row | Options |
+|---|---|
+| STATION SIZE | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
+| PLANETS | Random / 3–50 |
+| SCENARIO | 1–21 / Lucky Dip |
+| MODE | Single Game / Tournament |
+| GAME SPEED | ¼× / ½× / 1× / 2× / 4× |
+| MOVEMENT SPEED | Off / Glacial / Slow / Normal / Fast / Rocket |
+| PERFORMANCE | Full / Simplified |
+| TEAM CLUSTERING | Off / Tight / Moderate / Loose |
+| WILDCARD PLANETS | Off / Very Rare / Rare / Occasional / Common / Always |
+| COLLECTABLES | Off / Rare / Normal / Common / Continuous |
+| AIM CIRCLE SIZE | 0.5× / 1× / 2× / 3× |
+| MINIMAL UI | Off / On |
+
+### 10.2 Responsive Paged Layout
+
+On small viewports (`panel.scrollHeight > window.innerHeight × 0.92`) the panel switches to a **3-page paged layout**:
+
+- Page 1 **SETUP**: Players, Human/CPU, Stations/Player, CPU Level
+- Page 2 **WORLD**: Station Size, Planets, Scenario, Mode, Game Speed, Movement Speed
+- Page 3 **OPTIONS**: Performance, Team Clustering, Wildcard Planets, Collectables, Aim Circle, Minimal UI
+
+Navigation: `◄  ● ○ ○  ►` dot bar + Prev/Next buttons. Start button pinned and visible on all pages.
+
+Compact mode reduces font sizes and row spacing so the full panel fits within ~310px — comfortable for iPhone SE landscape (375px viewport height).
+
+Fit is detected on every `show()` call and on `window resize`. The panel switches bidirectionally between flat and paged modes by physically moving row DOM nodes between containers (no duplication — state bindings remain intact).
 
 ---
 
@@ -1102,30 +1148,26 @@ This does not require any new simulation infrastructure — it reuses `PhysicsEn
 
 ---
 
-### 13.11 Updated File Structure
+### 13.11 Affected Files
 
-```
-src/
-├── entities/
-│   ├── Crystal.js          ← NEW: Crystal entity (position, rotation, alive, radius)
-│   └── Team.js             ← UPDATED: weaponStock map + getStock/spendStock/addStock
-│   └── Station.js          ← UPDATED: selectedWeapon field; hyperspaceQueued → getter
-│   └── Bullet.js           ← minor: weapon field on bullet (for future per-weapon VFX)
-├── rendering/
-│   ├── Renderer.js         ← UPDATED: drawCrystals(), drawVFX() on Layer 2
-│   └── CrystalRenderer.js  ← NEW: crystal draw procedure + VFX draw procedures
-├── physics/
-│   └── PhysicsEngine.js    ← UPDATED: checkCrystalCollision() separate from checkCollisions()
-├── core/
-│   └── GameState.js        ← UPDATED: crystals[], vfxList[], _trySpawnCrystal(), _spawnBullets()
-├── ai/
-│   └── (all bots)          ← UPDATED: return weapon in action; crystal opportunism in SimBot
-├── ui/
-│   ├── WeaponSelector.js   ← NEW: DOM popup weapon selector
-│   └── ConfigPanel.js      ← UPDATED: Collectables cycle-button row
-└── input/
-    └── InputHandler.js     ← UPDATED: H key uses WeaponSelector.toggle() not direct hyperspace set
-```
+| File | Change |
+|---|---|
+| `src/entities/Crystal.js` | **NEW** — Crystal entity + WeaponId enum |
+| `src/entities/Team.js` | UPDATED — `weaponStock` map + `getStock` / `spendStock` / `addStock` |
+| `src/entities/Station.js` | UPDATED — `selectedWeapon` field; `hyperspaceQueued` → computed getter |
+| `src/physics/PhysicsEngine.js` | UPDATED — `checkCrystalCollision()` (separate from `checkCollisions()`) |
+| `src/core/GameState.js` | UPDATED — `crystals[]`, `vfxList[]`, `_trySpawnCrystal()` |
+| `src/core/GameLoop.js` | UPDATED — crystal collision call site, VFX advancement, `_fireAll` Triple Cannon path |
+| `src/rendering/Renderer.js` | UPDATED — `_drawCrystals()`, `_drawVFX()` on Layer 2; crystal rotation advanced here |
+| `src/ui/WeaponSelector.js` | **NEW** — DOM popup weapon selector |
+| `src/ui/ConfigPanel.js` | UPDATED — Collectables cycle-button row |
+| `src/ai/AIController.js` | UPDATED — `chooseAction` returns `weapon: WeaponId` not `hyperspace: bool` |
+| `src/ai/RandBot.js` | UPDATED — weapon selection logic |
+| `src/ai/AimBot.js` | UPDATED — weapon selection logic |
+| `src/ai/CleverBot.js` | UPDATED — weapon selection logic |
+| `src/ai/SuperBot.js` | UPDATED — weapon selection + crystal opportunism |
+| `src/ai/MegaBot.js` | UPDATED — weapon selection + crystal opportunism |
+| `src/main.js` | UPDATED — weapon button wires to WeaponSelector; GameState receives config |
 
 ---
 
@@ -1142,14 +1184,12 @@ src/
 
 ---
 
-## 12. Open Implementation Decisions
+## 12. Implementation Decisions Log
 
-These were not resolved in requirements and need a call before implementation:
-
-| # | Question | Recommended Default |
+| # | Question | Decision |
 |---|---|---|
-| 1 | Star Wars theming depth | ✅ **Death Star visuals** — sphere + equatorial trench + dome detail, scaled by station size |
-| 2 | Sound | Out of scope v1 |
-| 3 | Slow-motion step (O while paused) | ✅ **Include** — reduce `SHOW_EVERY` multiplier while O is held; release restores normal speed |
-| 4 | RNG reproducibility | Use seeded PRNG (mulberry32) — enables replay in future without cost now |
-| 5 | Mobile / touch | Out of scope v1 |
+| 1 | Star Wars theming depth | ✅ Death Star visuals — sphere + equatorial trench + dome detail, scaled by station size |
+| 2 | Sound | ✅ Out of scope v1 |
+| 3 | Slow-motion step (O while paused) | ✅ Implemented — hold O while paused reduces `SHOW_EVERY` to 1; release restores normal speed |
+| 4 | RNG reproducibility | ✅ Seeded PRNG (mulberry32) used throughout |
+| 5 | Mobile config panel | ✅ Implemented — responsive paged layout (see §10.2); game canvas not yet touch-controlled |
