@@ -68,8 +68,9 @@ export class SimBot extends AIController {
   }
 
   _numTrials(turn) {
-    // Ramp up trials after turn 8 (bots learn the map over time)
-    return turn >= 8 ? this.times : Math.max(2, Math.floor(this.times / 4));
+    if (turn >= 18) return this.times * 2;
+    if (turn >= 8)  return this.times;
+    return Math.max(2, Math.floor(this.times / 4));
   }
 
   _findBestShot(station, target, gameState, trials) {
@@ -116,8 +117,10 @@ export class CleverBot extends SimBot {
 
   get stepSize()  { return 10; }
   get simSteps()  { return 800; }
-  get times()     { return 8; }
+  get times()     { return 10; }
   get hyperProb() { return 0.11; }
+
+  _numTrials(turn) { return turn >= 18 ? 20 : turn >= 8 ? 10 : 4; }
 
   _chooseMoveVelocity(station, gameState) {
     if (Math.random() >= 0.35) return null;
