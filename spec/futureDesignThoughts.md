@@ -2,9 +2,142 @@
 
 ---
 
+## FEATURE: Config Panel Pagination
+
+**Status:** Spec complete — ready to implement
+
+---
+
+### 1. Problem
+
+The config panel has no `maxHeight`, so when the Advanced section is expanded it can overflow the viewport on short screens (laptops ~650 px tall, phones, tablets in landscape). `minWidth: 460px` also breaks layout on narrow mobile.
+
+---
+
+### 2. Behaviour Summary
+
+| Condition | Layout |
+|---|---|
+| Panel fits in viewport | Existing layout — 4 primary rows + collapsible Advanced section |
+| Panel does not fit | Paged mode — 3 pages, page navigation bar, Start button pinned |
+
+"Fits" = `panel.scrollHeight ≤ window.innerHeight × 0.92` after the DOM has rendered. Checked on every `show()` call and whenever the window is resized via `ResizeObserver`.
+
+---
+
+### 3. Paged Mode — Page Contents
+
+| Page | Label | Rows |
+|---|---|---|
+| 1 | **Setup** | Players, Human / CPU, Stations / Player, CPU Level |
+| 2 | **World** | Station Size, Planets, Scenario, Mode, Game Speed, Movement Speed |
+| 3 | **Options** | Performance, Team Clustering, Wildcard Planets, Collectables, Aim Circle Size, Minimal UI |
+
+~6 rows per page, balanced and fits even at 568 px viewport height.
+
+---
+
+### 4. Paged Mode — Layout
+
+```
+┌────────────────────────────────────┐
+│  ▶ RESUME GAME  (if applicable)    │  ← pinned top, conditional
+│  Death Star Battles                │  ← title
+├────────────────────────────────────┤
+│                                    │
+│  [page content — rows for page N]  │  ← scrollable if still needed
+│                                    │
+├────────────────────────────────────┤
+│         ●  ○  ○    (page dots)     │  ← page indicator
+│         ◄  NEXT ►                  │  ← prev / next buttons
+├────────────────────────────────────┤
+│         [ START GAME ]             │  ← pinned, all pages
+│   About  Instructions  …           │  ← info links, all pages
+└────────────────────────────────────┘
+```
+
+- **Page dots**: three filled/hollow dots (`●` / `○`) indicating current page. Clicking a dot jumps directly to that page.
+- **Prev / Next**: `◄ PREV` (disabled on page 1) and `NEXT ►` (disabled on page 3). Text labels, not arrows only, so intent is clear on touch.
+- **Start button**: always visible, all pages — player does not need to navigate to a specific page to start.
+- **Resume button**: pinned above title when `_canResume` is true, same as non-paged mode.
+- **Info links**: same row, all pages.
+- **Panel height**: capped at `min(92vh, 640px)` in paged mode; content area gets remaining height after header + footer. Content area is `overflow-y: auto` as a safety net if a page still overflows on an extreme screen.
+- **Panel minWidth**: reduced from `460px` to `320px` in paged mode to fit narrow mobile.
+
+---
+
+### 5. Non-Paged Mode (Large Screens)
+
+No changes to the existing layout. The Advanced collapsible (`＋ ADVANCED`) remains. Paged mode is never shown on a screen where the panel fits.
+
+If the window is resized while the panel is open and the layout switches mode (fit → no-fit or vice versa), `_applyLayout()` is called again immediately to rebuild the content area.
+
+---
+
+### 6. Page Transitions
+
+Simple instant swap (no animation). The content area's children are toggled `display: block / none`. Instant is appropriate: the panel already has no transitions except the Advanced collapse, and adding a slide/fade would complicate implementation for minimal benefit on a config screen.
+
+---
+
+### 7. Implementation Notes
+
+**One file**: all changes in `src/ui/ConfigPanel.js`.
+
+**New private state:**
+```js
+this._pagedMode   = false;
+this._currentPage = 0;          // 0-indexed
+this._pageEls     = [];         // array of 3 DOM div elements (one per page)
+this._dotEls      = [];         // array of 3 dot span elements
+this._resizeObs   = null;       // ResizeObserver instance
+```
+
+**New private methods:**
+- `_checkFit()` — measures `panel.scrollHeight` vs `window.innerHeight * 0.92`; calls `_applyLayout(fits)` if mode needs to change.
+- `_applyLayout(paged)` — rebuilds the content area: if `paged`, hides the flat section and shows the paged container; if not, hides paged container and shows flat section. Sets `_pagedMode`.
+- `_buildPagedContainer()` — builds the 3-page DOM structure with nav bar (dots + prev/next) and wires up interactions; called once in `_build()`, kept hidden until needed.
+- `_showPage(n)` — hides all `_pageEls`, shows `_pageEls[n]`, updates dots and button disabled states. Updates `_currentPage`.
+
+**`_build()` changes:**
+1. Build the existing primary rows + Advanced section into a `_flatSection` div (unchanged).
+2. Also build the paged container div (`_pagedContainer`) — initially hidden.
+3. Both live inside the panel; `_applyLayout()` switches which is visible.
+4. Attach `ResizeObserver` on the panel; call `_checkFit()` on observe.
+
+**`show()` change:**
+After `this.element.style.display = 'flex'`, call `this._checkFit()` (one rAF delay to let layout settle: `requestAnimationFrame(() => this._checkFit())`).
+
+**Row sharing**: The actual row DOM nodes (the `_cycle` and `_row` elements) are created once and moved into either the flat section or the appropriate page div. They are not duplicated — the same DOM node appears in one place at a time. This keeps `_d` state and `_refresh()` references working unchanged.
+
+---
+
+### 8. Files Changed
+
+| File | Change |
+|---|---|
+| `src/ui/ConfigPanel.js` | All changes — pagination logic, paged container, `_checkFit`, `_applyLayout`, `_showPage`, ResizeObserver |
+
+---
+
+### 9. Resolved Decisions
+
+| Question | Decision |
+|---|---|
+| Page count | 3 (Setup / World / Options) |
+| Start button in paged mode | Always visible — pinned on all pages |
+| Large screen behaviour | Keep existing collapsible Advanced — no change |
+| Page transition animation | None — instant swap |
+| Dot indicator | 3 dots, clickable, filled = current page |
+| Panel min-width in paged mode | 320px (reduced from 460px) |
+| Fit detection threshold | `scrollHeight > innerHeight × 0.92` |
+| Resize handling | ResizeObserver re-checks on every panel resize |
+
+---
+
 ## FEATURE: Special Weapons & Collectables
 
-**Status:** Spec draft — open questions pending (see end of section)
+**Status:** Implemented ✅
 
 ---
 
