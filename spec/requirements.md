@@ -302,6 +302,7 @@ The config panel always uses a compact 4-page paged layout. Page 1 is always vis
 | Team clustering | Off / Tight / Moderate / Loose | Controls how close same-team stations are placed |
 | Wildcard planets | Off / Very Rare / Rare (default) / Occasional / Common / Always | See §6.1 |
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
+| Bullet paths | Off (default) / Full / Half / Quarter / Eighth | Simulated path preview for current aim — see §11.11 |
 | Minimal UI | Off / On | Reduces HUD text size for smaller screens |
 
 ### Page 4 — Collectables
@@ -335,11 +336,46 @@ The original game draws everything on-canvas with a Java AWT toolbar above and b
 - **In-canvas control buttons** (redesigned from bottom toolbar): End Turn and **weapon selector** (replaces Hyperspace button) rendered as minimal floating DOM buttons at the bottom edge
 - **Floating score panel** — compact, expandable leaderboard
 
-### 11.3 In-Game Aiming Visualisation (from screenshots)
-The original shows a **white circle** around the active station with a **single white line** extending from the centre in the firing direction. This is clean and effective — preserve it in the HTML5 version:
-- White circle radius = the interactive drag zone (matches stationboxradius)
-- Single white line from centre in firing direction, length proportional to power
-- Updates live as the player adjusts angle/power
+### 11.3 In-Game Aiming Visualisation
+
+The **aim indicator** consists of an aim circle and one or more aim lines:
+
+- **Aim circle** — white circle around the active station, radius scaled by the Aim Circle Size config option. Functions as the interactive drag zone.
+- **Aim lines** — solid white line(s) from station centre to the aim circle edge, showing firing direction. Length is proportional to power (fixed at max for weapons with no power control).
+- For **multi-bullet weapons**, one aim line is drawn per bullet angle. The centre line is brighter (alpha 0.95, 2px); flanking lines are dimmer (alpha 0.45, 1px).
+
+| Weapon | Aim lines | Angles |
+|---|---|---|
+| Cannon | 1 | 0° |
+| Triple Cannon | 3 | −5°, 0°, +5° |
+| Blaster | 5 | −10°, −5°, 0°, +5°, +10° |
+| Blunderbuss | 5 | −15°, −7.5°, 0°, +7.5°, +15° (representative) |
+| Minigun | 3 | −2°, 0°, +2° (representative) |
+| Laser | 1 | 0° (always full length) |
+| Rocket | 1 | 0° |
+
+A faint **ghost aim line** (dashed, low opacity) also shows the angle and power used on the previous turn.
+
+### 11.10 Ghost Trail
+
+During a station's aiming phase, dashed lines in the station's team colour are drawn showing the path(s) every bullet/beam/rocket took on that station's previous turn. Allows the player to see exactly where their shot went and adjust accordingly.
+
+- One trail per bullet fired — triple cannon shows 3, blunderbuss shows all 11, minigun all 13, etc.
+- Wormhole jumps are shown: a gap appears at the entry point and the path continues from the exit point.
+- Laser: the full simulated beam path is shown.
+- Rocket: the full flight path including thrust arc is shown.
+- Shown only during human aiming phases; hidden during AI turns and the firing phase.
+- Style: dashed `[5, 5]`, team colour, alpha 0.55.
+
+### 11.11 Bullet Path Preview
+
+An optional player aid that shows simulated gravity-curved path(s) for the current aim, rendered as solid fading lines (bright near the station, fading to transparent at the cutoff length). Off by default.
+
+- Controlled by the **Bullet Paths** config option: Off / Full / Half / Quarter / Eighth (referring to fraction of screen width simulated).
+- All bullet weapons show white fading paths. Laser shows a team-coloured fading path. Rocket shows the thrust-then-coast arc.
+- For multi-bullet weapons, the centre path is more prominent than flanking paths.
+- Rocket and laser use dedicated simulations matching their actual physics (thrust model for rocket, high-speed reduced-gravity for laser).
+- Drawn behind the aim lines so aim lines remain readable on top.
 
 ### 11.4 Station Visual Design (from screenshots)
 - Stations are small circular icons (~15–25px diameter) resembling a **Death Star** — a coloured sphere with a visible equatorial band/trench detail

@@ -84,6 +84,7 @@ export class ConfigPanel {
       collectableSize:   'medium',
       startingWeapons:   'none',
       aimCircleSize:     'regular',
+      bulletPaths:       'off',
       minimalUI:         false,
       tpTargets:         5,
       tpSize:            'MEDIUM',
@@ -374,6 +375,9 @@ export class ConfigPanel {
     const rowAimCircle   = this._row('AIM CIRCLE SIZE',
       this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
         v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v])));
+    const rowBulletPaths = this._row('BULLET PATHS',
+      this._cycle('bulletPaths', ['off', 'full', 'half', 'quarter', 'eighth'],
+        v => ({ off: 'Off', full: 'Full  (1 screen)', half: 'Half  (½ screen)', quarter: 'Quarter  (¼ screen)', eighth: 'Eighth  (⅛ screen)' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
 
@@ -412,7 +416,7 @@ export class ConfigPanel {
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowStationSize, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
-    this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowMinimalUI];
+    this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
 

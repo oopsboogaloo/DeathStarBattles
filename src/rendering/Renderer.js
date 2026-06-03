@@ -1,6 +1,8 @@
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
+import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
+         ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -27,10 +29,15 @@ export class Renderer {
     this._vpH = this.height;
     this._ox  = 0; // x offset of viewport within canvas (pillarbox bars)
     this._oy  = 0; // y offset of viewport within canvas (letterbox bars)
-    this._aimCircleScale = 1;
+    this._aimCircleScale      = 1;
+    this._bulletPathMaxLength = 0;
   }
 
-  setAimCircleScale(scale) { this._aimCircleScale = scale ?? 1; }
+  setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
+  setBulletPathLength(setting) {
+    const LENGTHS = { off: 0, full: 700, half: 350, quarter: 175, eighth: 87.5 };
+    this._bulletPathMaxLength = LENGTHS[setting] ?? 0;
+  }
 
   // Set which team is visible during a TP turn (null = show all, normal mode)
   setTPVisibleTeam(teamIndex) { this._tpVisibleTeamIndex = teamIndex ?? null; }
@@ -634,6 +641,9 @@ export class Renderer {
 
     const w = station.selectedWeapon;
 
+    // Bullet path preview (drawn behind aim lines)
+    if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
+
     // Aim lines — one per bullet angle, centre line stronger than flanking
     const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'forceShield']);
     const displayPower = noPower.has(w) ? 800 : station.power;
@@ -677,7 +687,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  _computeLaserPreviewPath(station, angleDeg, planets) {
+  _computeLaserPreviewPath(station, angleDeg, planets, maxLength = Infinity) {
     const LASER_SPEED   = 160;
     const LASER_GRAVITY = 1.0;
     const MAX_STEPS     = 200;
@@ -689,6 +699,7 @@ export class Renderer {
     let vx = LASER_SPEED * Math.sin(rad);
     let vy = LASER_SPEED * Math.cos(rad);
     const path = [{ x: px, y: py }];
+    let distTravelled = 0;
     for (let step = 0; step < MAX_STEPS; step++) {
       for (const planet of planets) {
         if (planet.destroyed) continue;
@@ -701,9 +712,12 @@ export class Renderer {
         vx += Math.cos(theta) * sign * LASER_GRAVITY * G * planet.mass / rSq * TIMESTEP;
         vy += Math.sin(theta) * sign * LASER_GRAVITY * G * planet.mass / rSq * TIMESTEP;
       }
+      const prevX = px, prevY = py;
       px += vx * TIMESTEP;
       py += vy * TIMESTEP;
+      distTravelled += Math.sqrt((px - prevX) ** 2 + (py - prevY) ** 2);
       path.push({ x: px, y: py });
+      if (distTravelled >= maxLength) break;
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
       // Stop at solid planet surface
       for (const planet of planets) {
@@ -720,13 +734,58 @@ export class Renderer {
     return path;
   }
 
+  _computeRocketPreviewPath(station, angleDeg, power, planets, maxLength = Infinity) {
+    const STEP_SIZE = 20;
+    const MAX_ITER  = 600;
+    const dt  = TIMESTEP * STEP_SIZE;
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    const fuel0 = ROCKET_MIN_FUEL + (power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+    let px   = station.position.x + (station.radius + 1) * Math.sin(rad);
+    let py   = station.position.y + (station.radius + 1) * Math.cos(rad);
+    let vx   = ROCKET_LAUNCH_SPEED * Math.sin(rad);
+    let vy   = ROCKET_LAUNCH_SPEED * Math.cos(rad);
+    let fuel = fuel0;
+    const gw = this.gameWidth;
+    const gh = this.gameHeight;
+    const path = [{ x: px, y: py }];
+    let distTravelled = 0;
+
+    for (let i = 0; i < MAX_ITER; i++) {
+      if (fuel > 0) {
+        const speed = Math.sqrt(vx * vx + vy * vy) || 1;
+        vx  += (vx / speed) * ROCKET_THRUST / (ROCKET_BASE_MASS + fuel) * dt;
+        vy  += (vy / speed) * ROCKET_THRUST / (ROCKET_BASE_MASS + fuel) * dt;
+        fuel = Math.max(0, fuel - ROCKET_FUEL_BURN_RATE * dt);
+      }
+      for (const planet of planets) {
+        if (planet.destroyed) continue;
+        const dx  = planet.position.x - px;
+        const dy  = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        vx += Math.cos(theta) * sign * G * planet.mass / rSq * dt;
+        vy += Math.sin(theta) * sign * G * planet.mass / rSq * dt;
+      }
+      const prevX = px, prevY = py;
+      px += vx * dt;
+      py += vy * dt;
+      distTravelled += Math.sqrt((px - prevX) ** 2 + (py - prevY) ** 2);
+      path.push({ x: px, y: py });
+      if (distTravelled >= maxLength) break;
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+    }
+    return path;
+  }
+
   // Simulate a regular bullet arc for aim preview (coarse steps, same gravity as physics engine)
-  _computeBulletPreviewPath(station, angleDeg, power, planets) {
+  _computeBulletPreviewPath(station, angleDeg, power, planets, maxLength = Infinity, speedOverride = null) {
     const STEP_SIZE = 20;   // physics steps per preview iteration (matches AI sim)
     const MAX_ITER  = 400;
     const dt  = TIMESTEP * STEP_SIZE;
     const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
-    const vScale = (power / 1000 + MIN_POWER) * MAX_POWER;
+    const vScale = speedOverride ?? (power / 1000 + MIN_POWER) * MAX_POWER;
     let px = station.position.x + (station.radius + 1) * Math.sin(rad);
     let py = station.position.y + (station.radius + 1) * Math.cos(rad);
     let vx = vScale * Math.sin(rad);
@@ -734,6 +793,7 @@ export class Renderer {
     const gw = this.gameWidth;
     const gh = this.gameHeight;
     const path = [{ x: px, y: py }];
+    let distTravelled = 0;
 
     for (let i = 0; i < MAX_ITER; i++) {
       for (const planet of planets) {
@@ -747,9 +807,12 @@ export class Renderer {
         vx += Math.cos(theta) * sign * G * planet.mass / rSq * dt;
         vy += Math.sin(theta) * sign * G * planet.mass / rSq * dt;
       }
+      const prevX = px, prevY = py;
       px += vx * dt;
       py += vy * dt;
+      distTravelled += Math.sqrt((px - prevX) ** 2 + (py - prevY) ** 2);
       path.push({ x: px, y: py });
+      if (distTravelled >= maxLength) break;
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
       for (const planet of planets) {
         if (planet.destroyed) continue;
@@ -763,6 +826,85 @@ export class Renderer {
       }
     }
     return path;
+  }
+
+  _drawBulletPathPreview(ctx, station, gameState) {
+    const w       = station.selectedWeapon;
+    const planets = gameState.planets ?? [];
+    const maxLen  = this._bulletPathMaxLength;
+    const MAX_V   = (800 / 1000 + MIN_POWER) * MAX_POWER;
+
+    let shots;
+    switch (w) {
+      case 'cannon':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'tripleCannon':
+        shots = [
+          { dAngle: -5, speed: null, alpha: 0.35, lw: 1   },
+          { dAngle:  0, speed: null, alpha: 0.7,  lw: 1.5 },
+          { dAngle:  5, speed: null, alpha: 0.35, lw: 1   },
+        ];
+        break;
+      case 'blaster':
+        shots = [-10, -5, 0, 5, 10].map(dAngle => ({
+          dAngle, speed: MAX_V * 0.55,
+          alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'blunderbuss':
+        shots = [-15, 0, 15].map(dAngle => ({
+          dAngle, speed: MAX_V * 0.275,
+          alpha: dAngle === 0 ? 0.7 : 0.25, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'minigun':
+        shots = [-2, 0, 2].map(dAngle => ({
+          dAngle, speed: MAX_V * 1.5,
+          alpha: dAngle === 0 ? 0.7 : 0.25, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'laser': {
+        const path = this._computeLaserPreviewPath(station, station.angle, planets, maxLen);
+        if (path.length >= 2) {
+          const [tr, tg, tb] = station.team.colour;
+          this._drawFadingPath(ctx, path, 0.7, 1.5, `${tr},${tg},${tb}`);
+        }
+        return;
+      }
+      case 'rocket': {
+        const path = this._computeRocketPreviewPath(station, station.angle, station.power, planets, maxLen);
+        if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 1.5);
+        return;
+      }
+      default:
+        return; // forceShield, hyperspace — no path preview
+    }
+
+    for (const shot of shots) {
+      const path = this._computeBulletPreviewPath(
+        station, station.angle + shot.dAngle, station.power, planets, maxLen, shot.speed,
+      );
+      if (path.length < 2) continue;
+      this._drawFadingPath(ctx, path, shot.alpha, shot.lw);
+    }
+  }
+
+  _drawFadingPath(ctx, path, startAlpha, lw, colour = '255,255,255') {
+    const c  = this.conv;
+    const x0 = path[0].x * c,               y0 = path[0].y * c;
+    const x1 = path[path.length - 1].x * c, y1 = path[path.length - 1].y * c;
+    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, `rgba(${colour},${startAlpha})`);
+    grad.addColorStop(1, `rgba(${colour},0)`);
+    ctx.save();
+    ctx.strokeStyle = grad;
+    ctx.lineWidth   = lw;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x * c, path[i].y * c);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------
