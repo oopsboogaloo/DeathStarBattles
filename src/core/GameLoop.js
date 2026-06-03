@@ -1141,6 +1141,14 @@ export class GameLoop {
 
   // Spawn shockwave + particle burst on a newly-killed station.
   _spawnStationExplosion(station) {
+    if (station.role === 'target') {
+      station.shockwave = { t: 0, r: 204, g: 17, b: 17 };
+      station.particles = [
+        ...this._makeParticles(station.position.x, station.position.y, 204, 17,  17,  8),
+        ...this._makeParticles(station.position.x, station.position.y, 255, 255, 255, 8),
+      ];
+      return;
+    }
     const [r, g, b] = station.colour;
     station.shockwave = { t: 0, r, g, b };
     station.particles = this._makeParticles(station.position.x, station.position.y, r, g, b, 16);

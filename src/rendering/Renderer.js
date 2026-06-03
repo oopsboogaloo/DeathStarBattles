@@ -690,13 +690,15 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawStationExplosion(ctx, station) {
-    const cx   = station.position.x * this.conv;
-    const cy   = station.position.y * this.conv;
-    const t    = station.explosionT;
-    const maxR = Math.max(40, station.radius * this.conv * 4);
-    const r    = t * maxR;
+    const cx    = station.position.x * this.conv;
+    const cy    = station.position.y * this.conv;
+    const t     = station.explosionT;
+    const maxR  = Math.max(40, station.radius * this.conv * 4);
+    const r     = t * maxR;
     const alpha = Math.max(0, 1 - t);
-    const [cr, cg, cb] = station.colour;
+
+    const isTarget = station.role === 'target';
+    const [cr, cg, cb] = isTarget ? [204, 17, 17] : station.colour;
 
     // Outer ring
     ctx.beginPath();
@@ -705,20 +707,22 @@ export class Renderer {
     ctx.lineWidth   = Math.max(1, (1 - t) * 6);
     ctx.stroke();
 
-    // Secondary ring
+    // Secondary ring — white for targets, orange for normal
     if (r > 8) {
+      const [sr, sg, sb] = isTarget ? [255, 255, 255] : [255, 200, 80];
       ctx.beginPath();
       ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255,200,80,${alpha * 0.6})`;
+      ctx.strokeStyle = `rgba(${sr},${sg},${sb},${alpha * 0.6})`;
       ctx.lineWidth   = Math.max(1, (1 - t) * 3);
       ctx.stroke();
     }
 
     // Bright central flash (early in explosion)
     if (t < 0.3) {
+      const [fr, fg, fb] = isTarget ? [255, 120, 120] : [255, 230, 120];
       ctx.beginPath();
       ctx.arc(cx, cy, station.radius * this.conv * (1 + t * 4), 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,230,120,${(0.3 - t) * 3.3})`;
+      ctx.fillStyle = `rgba(${fr},${fg},${fb},${(0.3 - t) * 3.3})`;
       ctx.fill();
     }
   }
