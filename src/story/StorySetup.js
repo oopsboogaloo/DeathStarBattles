@@ -105,6 +105,7 @@ function buildPlanet(def, gw, gh, rng) {
     case PlanetType.WHITE_DWARF:
       return new Planet({
         position, radius, density,
+        mass:    def.mass ?? null,
         type:    PlanetType.WHITE_DWARF,
         colour:  [...WHITE_COL],
         shading: ShadingStyle.GLOWING,

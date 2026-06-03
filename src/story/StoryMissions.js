@@ -715,14 +715,14 @@ export const STORY_MISSIONS = [
 
   {
     id:    'm18-laser',
-    title: 'Laser Engagement',
+    title: 'Laser Squad',
     story: 'Six factions. Three ships each. Asteroid field around a white dwarf — shots bend hard near the centre. Everyone has lasers. First team through wins.',
 
     layout: {
       scenarioId: 17,
       // White dwarf substituted at map centre — dense gravity bends all laser paths near centre
       extraPlanets: [
-        { type: 'whiteDwarf', x: 0.50, y: 0.50, radius: 8, density: 800 },
+        { type: 'whiteDwarf', x: 0.50, y: 0.50, radius: 8, density: 0.014, mass: 900 },
       ],
       stations: [
         { x: 0.10, y: 0.38, team: 0, role: 'human', visualStyle: 'station' },
