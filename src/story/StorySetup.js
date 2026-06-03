@@ -140,6 +140,31 @@ function buildPlanet(def, gw, gh, rng) {
   }
 }
 
+// ─── Push a position clear of any overlapping planets ────────────────────────
+function clearPlanetOverlap(pos, planets, clearance, gw, gh) {
+  let x = pos.x, y = pos.y;
+  for (let iter = 0; iter < 20; iter++) {
+    let moved = false;
+    for (const planet of planets) {
+      const dx   = x - planet.position.x;
+      const dy   = y - planet.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minD = planet.radius + clearance;
+      if (dist < minD) {
+        const scale = minD / (dist || 0.01);
+        x = planet.position.x + dx * scale;
+        y = planet.position.y + dy * scale;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  // Clamp to field bounds with clearance margin
+  x = Math.max(clearance, Math.min(gw - clearance, x));
+  y = Math.max(clearance, Math.min(gh - clearance, y));
+  return new Vec2(x, y);
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 export function buildStoryMission(mission, physics, rng) {
@@ -197,7 +222,8 @@ export function buildStoryMission(mission, physics, rng) {
 
   for (const def of mission.layout.stations) {
     const team    = teams.find(t => t.index === def.team);
-    const pos     = new Vec2(def.x * gw, def.y * gh);
+    const rawPos  = new Vec2(def.x * gw, def.y * gh);
+    const pos     = clearPlanetOverlap(rawPos, planets, size.radius + 8, gw, gh);
     const station = new Station({ id: _nextId++, team, position: pos, size });
     station.role        = def.role        ?? 'human';
     station.visualStyle = def.visualStyle ?? 'station';
