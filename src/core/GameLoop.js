@@ -1223,6 +1223,7 @@ export class GameLoop {
         vx += Math.cos(theta) * accel * TIMESTEP;
         vy += Math.sin(theta) * accel * TIMESTEP;
       }
+      const px0 = px, py0 = py;
       px += vx * TIMESTEP;
       py += vy * TIMESTEP;
       path.push(new Vec2(px, py));
@@ -1250,10 +1251,21 @@ export class GameLoop {
       }
       if (reflected) continue;
 
-      // Station hit — kill and keep going
+      // Station hit — swept segment vs circle so fast steps don't skip over ships
       for (const s of this.gs.allStations) {
         if (s.status !== 'active' || s === station) continue;
-        if ((px - s.position.x) ** 2 + (py - s.position.y) ** 2 < s.radius ** 2) {
+        const sdx = px0 - s.position.x, sdy = py0 - s.position.y;
+        const edx = px  - s.position.x, edy = py  - s.position.y;
+        const segDx = px - px0, segDy = py - py0;
+        const a  = segDx * segDx + segDy * segDy;
+        const b  = 2 * (sdx * segDx + sdy * segDy);
+        const c  = sdx * sdx + sdy * sdy - s.radius * s.radius;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a);
+        const t2 = (-b + sq) / (2 * a);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) {
           this._resolveStationHit(proxy, s);
         }
       }
