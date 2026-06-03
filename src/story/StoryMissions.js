@@ -456,22 +456,22 @@ export const STORY_MISSIONS = [
   {
     id:    'm12-mining',
     title: 'Mining Duty',
-    story: 'Basic training is done, recruit. Now you pull your weight. That asteroid field is full of raw crystals — we\'ve logged at least ten in range. Two ships, twenty turns. Get them.',
+    story: 'Basic training is done, recruit. Now you pull your weight. That asteroid field is full of raw crystals — every rock out there is rich. Two ships, twenty turns. Get eight of them.',
 
     layout: {
       planets: [
         { type: 'gasGiant', x: 0.50, y: 0.50, radius: 48, density: 0.02 },
-        { type: 'asteroid', x: 0.28, y: 0.30, radius: 28, density: 0.08 },
+        { type: 'asteroid', x: 0.28, y: 0.30, radius: 28, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.42, y: 0.22, radius: 24, density: 0.08, rich: true },
-        { type: 'asteroid', x: 0.60, y: 0.20, radius: 20, density: 0.08 },
+        { type: 'asteroid', x: 0.60, y: 0.20, radius: 20, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.74, y: 0.32, radius: 28, density: 0.08, rich: true },
-        { type: 'asteroid', x: 0.80, y: 0.48, radius: 24, density: 0.08 },
+        { type: 'asteroid', x: 0.80, y: 0.48, radius: 24, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.78, y: 0.65, radius: 20, density: 0.08, rich: true },
-        { type: 'asteroid', x: 0.64, y: 0.76, radius: 28, density: 0.08 },
+        { type: 'asteroid', x: 0.64, y: 0.76, radius: 28, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.46, y: 0.80, radius: 24, density: 0.08, rich: true },
-        { type: 'asteroid', x: 0.28, y: 0.70, radius: 20, density: 0.08 },
+        { type: 'asteroid', x: 0.28, y: 0.70, radius: 20, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.22, y: 0.54, radius: 28, density: 0.08, rich: true },
-        { type: 'asteroid', x: 0.35, y: 0.62, radius: 24, density: 0.08 },
+        { type: 'asteroid', x: 0.35, y: 0.62, radius: 24, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.68, y: 0.36, radius: 20, density: 0.08, rich: true },
       ],
       stations: [
@@ -492,7 +492,7 @@ export const STORY_MISSIONS = [
       enemyStartingWeapons: {},
     },
 
-    objectives:     [{ type: 'collect_n', params: { count: 10 } }],
+    objectives:     [{ type: 'collect_n', params: { count: 8 } }],
     failConditions: [{ type: 'max_turns', turns: 20 }],
 
     scoring: { formula: 'collectables_score', passingScore: 1500 },
