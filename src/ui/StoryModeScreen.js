@@ -38,6 +38,7 @@ export class StoryModeScreen {
     this._onClose        = null;
     this._selectedMission = null;
     this._debriefGs       = null;
+    this._devMode         = false;
 
     this.el = el('div', {
       position:   'fixed',
@@ -59,6 +60,7 @@ export class StoryModeScreen {
 
   setOnStartMission(cb)  { this._onStartMission = cb; }
   setOnClose(cb)         { this._onClose = cb; }
+  setDevMode(on)         { this._devMode = on; if (this._selectView.style.display !== 'none') this._refresh(); }
   get isVisible()        { return this.el.style.display !== 'none'; }
 
   showSelect() {
@@ -133,7 +135,7 @@ export class StoryModeScreen {
       });
 
       for (const m of missions) {
-        const unlocked  = StoryPersistence.isUnlocked(m.id, data);
+        const unlocked  = this._devMode || StoryPersistence.isUnlocked(m.id, data);
         const bestScore = StoryPersistence.getBestScore(m.id, data);
         const card      = this._missionCard(m, unlocked, bestScore);
         row.appendChild(card);
@@ -300,7 +302,7 @@ export class StoryModeScreen {
 
     const idx  = STORY_MISSIONS.indexOf(mission);
     const next = STORY_MISSIONS[idx + 1];
-    const nextUnlocked = next && StoryPersistence.isUnlocked(next.id, data);
+    const nextUnlocked = next && (this._devMode || StoryPersistence.isUnlocked(next.id, data));
     this._nextBtn.style.display = (ss.passed && next && nextUnlocked) ? 'inline-block' : 'none';
 
     if (ss.passed && StoryPersistence.isCampaignComplete(data)) {

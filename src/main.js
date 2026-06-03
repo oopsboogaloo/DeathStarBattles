@@ -817,6 +817,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     _devMode = !_devMode;
     panel.setDevMode(_devMode);
+    storyScreen.setDevMode(_devMode);
     return;
   }
   if (!loop || isDemo) return;
