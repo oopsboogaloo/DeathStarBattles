@@ -631,10 +631,14 @@ export class GameLoop {
     this.gs.waitingForInput = false;
     this.gs.waitingForMove  = false;
     this.gs.mode = GameMode.AIMING;
-    const defaultWeapon = this.gs.storyState?.mission.settings.cannonEnabled === false
-      ? WeaponId.HYPERSPACE
-      : WeaponId.CANNON;
-    for (const s of this._turnOrder) s.selectedWeapon = defaultWeapon;
+    const cannonEnabled = this.gs.storyState?.mission.settings.cannonEnabled !== false;
+    for (const s of this._turnOrder) {
+      if (!cannonEnabled && s.team.getStock(WeaponId.ROCKET) > 0) {
+        s.selectedWeapon = WeaponId.ROCKET;
+      } else {
+        s.selectedWeapon = cannonEnabled ? WeaponId.CANNON : WeaponId.HYPERSPACE;
+      }
+    }
     if (this.gs.stationMovement) this._clearStationVelocities();
     if (this.gs.storyDialogText !== null) {
       this.gs._storyPrevMode = GameMode.AIMING;
