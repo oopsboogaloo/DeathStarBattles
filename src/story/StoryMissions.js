@@ -14,9 +14,9 @@ export const STORY_MISSIONS = [
 
     layout: {
       planets: [
-        { type: 'crystal', x: 0.50, y: 0.40, radius: 14, density: 30 },
-        { type: 'crystal', x: 0.48, y: 0.55, radius: 12, density: 30 },
-        { type: 'crystal', x: 0.53, y: 0.62, radius: 10, density: 30 },
+        { type: 'crystal', x: 0.50, y: 0.40, radius: 14, density: 0.05 },
+        { type: 'crystal', x: 0.48, y: 0.55, radius: 12, density: 0.05 },
+        { type: 'crystal', x: 0.53, y: 0.62, radius: 10, density: 0.05 },
       ],
       stations: [
         { x: 0.20, y: 0.50, team: 0, role: 'human',  visualStyle: 'station' },

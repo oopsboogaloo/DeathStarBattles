@@ -453,7 +453,10 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawStation(ctx, station) {
-    if (station.role === 'target') this._drawTargetRing(ctx, station);
+    if (station.role === 'target') {
+      this._drawTarget(ctx, station);
+      return;
+    }
     if (station.visualStyle === 'drone') {
       this._drawDroneStation(ctx, station);
     } else {
