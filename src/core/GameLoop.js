@@ -324,6 +324,8 @@ export class GameLoop {
       }
     }
   }
+
+  _isWormhole(type) {
     return type === PlanetType.WORMHOLE_PAIRED
         || type === PlanetType.WORMHOLE_CYCLIC
         || type === PlanetType.WORMHOLE_RANDOM
