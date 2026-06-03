@@ -830,13 +830,7 @@ export const STORY_MISSIONS = [
 
     layout: {
       scenarioId: 22,
-      blackHoleMassScale: 0.7,
-      // 3 comets added — moving gravitational bodies that vary the field each turn
-      extraPlanets: [
-        { type: 'comet', x: 0.25, y: 0.25, radius: 6, density: 30 },
-        { type: 'comet', x: 0.75, y: 0.30, radius: 6, density: 30 },
-        { type: 'comet', x: 0.50, y: 0.80, radius: 6, density: 30 },
-      ],
+      blackHoleMassScale: 0.56,
       stations: [
         { x: 0.12, y: 0.28, team: 0, role: 'human', visualStyle: 'station' },
         { x: 0.12, y: 0.42, team: 0, role: 'human', visualStyle: 'station' },
