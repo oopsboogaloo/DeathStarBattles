@@ -18,6 +18,9 @@ import { AimControls }          from './ui/AimControls.js';
 import { WeaponSelector }       from './ui/WeaponSelector.js';
 import { StoryObjectivePanel }  from './ui/StoryObjectivePanel.js';
 import { StoryDialogPopup }     from './ui/StoryDialogPopup.js';
+import { StoryModeScreen }      from './ui/StoryModeScreen.js';
+import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
+import { StoryPersistence }     from './story/StoryPersistence.js';
 import { WeaponId }             from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
@@ -119,6 +122,9 @@ panel.onStart(cfg => {
   _prevWeaponStocks = null;
   if (cfg.mode === 'target-practice') {
     startTPGame(cfg);
+  } else if (cfg.mode === 'story') {
+    panel.hide();
+    storyScreen.showSelect();
   } else {
     startGame(cfg);
   }
@@ -161,6 +167,9 @@ weaponSelector.setOnSelect(weaponId => { if (loop) loop.humanSelectWeapon(weapon
 const storyObjectivePanel = new StoryObjectivePanel();
 const storyDialogPopup    = new StoryDialogPopup();
 storyDialogPopup.setOnDismiss(() => { if (loop) loop.humanDismissDialog(); });
+const storyScreen = new StoryModeScreen();
+storyScreen.setOnStartMission(mission => startStoryMission(mission));
+storyScreen.setOnClose(() => panel.show());
 
 endTurnBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanFire(); });
 weaponBtn.addEventListener('click',  e => {
@@ -308,6 +317,19 @@ function updateButtons(gs) {
     weaponSelector.close();
   }
 
+  // On first frame of STORY_DEBRIEF, save progress and show debrief screen
+  if (gs.mode === GameMode.STORY_DEBRIEF && _prevMode !== GameMode.STORY_DEBRIEF) {
+    humanEliminatedBar.style.display = 'none';
+    if (loop) { loop.stop(); }
+    const ss = gs.storyState;
+    if (ss.passed) {
+      let data = StoryPersistence.load();
+      data = StoryPersistence.recordPass(ss.mission.id, ss.score, data);
+      StoryPersistence.save(data);
+    }
+    storyScreen.showDebrief(gs);
+  }
+
   // On first frame of GAMEOVER, trigger end-of-game flow
   if (isGameOver && _prevMode !== GameMode.GAMEOVER) {
     humanEliminatedBar.style.display = 'none';
@@ -431,6 +453,63 @@ function startGame(cfg) {
     } else {
       renderer.setTPVisibleTeam(null);
     }
+    _baseDrawFrame(gs);
+    updateButtons(gs);
+  };
+
+  handler = new InputHandler({ canvas, loop, renderer });
+  loop.start();
+
+  updateButtons(gameState);
+}
+
+// ─── Story Mode ──────────────────────────────────────────────────────────────
+
+let _currentStoryMission = null;
+
+function startStoryMission(mission) {
+  if (loop) { loop.stop(); loop = null; }
+  _menuPausedLoop      = false;
+  _prevMode            = null;
+  _currentStoryMission = mission;
+  panel.setCanResume(false);
+  leaderboard.hide();
+  storyScreen.hide();
+
+  resetStoryStationId();
+
+  renderer.setGameAspect(null, null);
+  renderer.resize(window.innerWidth, window.innerHeight);
+  renderer.setPerformance('full');
+  renderer.clearTrails();
+  renderer.setTPVisibleTeam(null);
+  renderer.setAimCircleScale(1);
+
+  _minimalUI = false;
+  aimControls.setMinimal(false);
+  endTurnBtn.textContent   = 'End Turn';
+  endTurnBtn.style.padding = '9px 26px';
+  weaponBtn.style.padding  = '9px 18px';
+
+  fastFwdBtn.disabled      = false;
+  fastFwdBtn.style.opacity = '1';
+
+  const gw  = renderer.gameWidth;
+  const gh  = renderer.gameHeight;
+  renderer.setGameAspect(gw, gh);
+
+  const physics  = new PhysicsEngine(gw, gh);
+  const rng      = new RNG(RNG.randomSeed());
+  const { gs: gameState, teams } = buildStoryMission(mission, physics, rng);
+
+  const stars = Renderer.generateStarField(gw, gh);
+  renderer.drawBackground(stars, gameState.planets);
+
+  loop = new GameLoop({ gameState, physics, renderer, rng, speed: mission.settings.gameSpeed ?? 'normal', performance: 'full' });
+  aimControls.setLoop(loop);
+
+  renderer.drawFrame = gs => {
+    renderer.setTPVisibleTeam(null);
     _baseDrawFrame(gs);
     updateButtons(gs);
   };

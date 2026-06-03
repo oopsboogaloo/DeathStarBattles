@@ -348,8 +348,8 @@ export class ConfigPanel {
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`));
     const rowMode        = this._row('MODE',
-      this._cycle('mode', ['single', 'tournament', 'target-practice'],
-        v => ({ single: 'Single Game', tournament: 'Tournament', 'target-practice': 'Target Practice' }[v])));
+      this._cycle('mode', ['single', 'tournament', 'target-practice', 'story'],
+        v => ({ single: 'Single Game', tournament: 'Tournament', 'target-practice': 'Target Practice', story: 'Story Mode' }[v])));
     const rowGameSpeed   = this._row('GAME SPEED',
       this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
         v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v])));
