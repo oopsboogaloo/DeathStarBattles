@@ -16,6 +16,8 @@ import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
 import { WeaponSelector }       from './ui/WeaponSelector.js';
+import { StoryObjectivePanel }  from './ui/StoryObjectivePanel.js';
+import { StoryDialogPopup }     from './ui/StoryDialogPopup.js';
 import { WeaponId }             from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
@@ -156,6 +158,10 @@ document.body.appendChild(btnBar);
 const weaponSelector = new WeaponSelector();
 weaponSelector.setOnSelect(weaponId => { if (loop) loop.humanSelectWeapon(weaponId); });
 
+const storyObjectivePanel = new StoryObjectivePanel();
+const storyDialogPopup    = new StoryDialogPopup();
+storyDialogPopup.setOnDismiss(() => { if (loop) loop.humanDismissDialog(); });
+
 endTurnBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanFire(); });
 weaponBtn.addEventListener('click',  e => {
   e.stopPropagation();
@@ -257,6 +263,8 @@ let _prevMode  = null;
 let _minimalUI = false;
 
 function updateButtons(gs) {
+  storyObjectivePanel.update(gs);
+  storyDialogPopup.update(gs);
   if (panel.isVisible) return; // panel is open — don't show game UI on top of it
   if (!gs || isDemo) {
     btnBar.style.display             = 'none';

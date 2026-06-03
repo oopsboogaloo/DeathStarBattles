@@ -1585,7 +1585,7 @@ export class GameLoop {
         }
 
         const maxTurnsFc = ss.mission.failConditions.find(fc => fc.type === 'max_turns');
-        if (maxTurnsFc && this.gs.turn >= maxTurnsFc.turns) {
+        if (maxTurnsFc && this.gs.turn + 1 >= maxTurnsFc.turns) {
           ss.failed = true;
           this.gs.mode = GameMode.STORY_DEBRIEF;
           return;
