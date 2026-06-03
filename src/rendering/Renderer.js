@@ -1,5 +1,6 @@
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
+import { G, TIMESTEP } from '../physics/PhysicsEngine.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -321,7 +322,7 @@ export class Renderer {
     const active = gameState.activeStation;
     if (active && active.status === 'active' && !active.hyperspaceQueued && active.selectedWeapon !== 'forceShield') {
       if (gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') {
-        this._drawAimingIndicator(ctx, active);
+        this._drawAimingIndicator(ctx, active, gameState);
       }
     }
 
@@ -603,30 +604,21 @@ export class Renderer {
   // Aiming indicator — white circle + direction line
   // ----------------------------------------------------------------
 
-  _drawAimingIndicator(ctx, station) {
-    const cx    = station.position.x * this.conv;
-    const cy    = station.position.y * this.conv;
-    const r     = Math.max(3, station.radius * this.conv);
-    const boxR  = Math.max(57, 3 * r) * this._aimCircleScale;
-
-    // Angle convention: 0 = up, 90 = right (clockwise), matches original Java
-    // angle=0 → fires down (+y canvas), angle=180 → fires up (-y canvas)
-    // matches Java physics: vx=sin(rad), vy=cos(rad)
-    const rad = (station.angle * Math.PI) / 180;
-    const dx  = Math.sin(rad);
-    const dy  = Math.cos(rad);
+  _drawAimingIndicator(ctx, station, gameState) {
+    const cx   = station.position.x * this.conv;
+    const cy   = station.position.y * this.conv;
+    const r    = Math.max(3, station.radius * this.conv);
+    const boxR = Math.max(57, 3 * r) * this._aimCircleScale;
 
     // Ghost aim line from last turn — shown before current line so it sits behind
     if (station.lastAngle !== null && station.lastPower !== null) {
-      const lastRad  = (station.lastAngle * Math.PI) / 180;
-      const lastDx   = Math.sin(lastRad);
-      const lastDy   = Math.cos(lastRad);
-      const lastLen  = r + (boxR - r) * (station.lastPower / 800);
+      const lastRad = (station.lastAngle * Math.PI) / 180;
+      const lastLen = r + (boxR - r) * (station.lastPower / 800);
       ctx.save();
       ctx.setLineDash([3, 5]);
       ctx.beginPath();
       ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + lastDx * lastLen, cy + lastDy * lastLen);
+      ctx.lineTo(cx + Math.sin(lastRad) * lastLen, cy + Math.cos(lastRad) * lastLen);
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
       ctx.lineWidth   = 1.5;
       ctx.stroke();
@@ -640,16 +632,98 @@ export class Renderer {
     ctx.lineWidth   = 1;
     ctx.stroke();
 
-    // Direction line — full length for weapons where power is irrelevant
-    const noPowerWeapons = new Set(['blunderbuss', 'blaster', 'laser', 'forceShield']);
-    const displayPower   = noPowerWeapons.has(station.selectedWeapon) ? 800 : station.power;
-    const lineLen        = r + (boxR - r) * (displayPower / 800);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + dx * lineLen, cy + dy * lineLen);
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    const w = station.selectedWeapon;
+
+    // Laser: draw simulated curved path as dashed preview
+    if (w === 'laser') {
+      this._drawLaserAimPreview(ctx, station, gameState);
+      return;
+    }
+
+    // Angle offsets per weapon — centre line drawn brighter, flanking lines dimmer
+    const noPower = new Set(['blunderbuss', 'blaster', 'forceShield']);
+    const displayPower = noPower.has(w) ? 800 : station.power;
+    const lineLen      = r + (boxR - r) * (displayPower / 800);
+
+    let offsets;
+    switch (w) {
+      case 'tripleCannon': offsets = [-5, 0, 5];               break;
+      case 'blunderbuss':  offsets = [-15, -7.5, 0, 7.5, 15]; break;
+      case 'blaster':      offsets = [-10, -5, 0, 5, 10];     break;
+      case 'minigun':      offsets = [-2, 0, 2];               break;
+      default:             offsets = [0];                      break;
+    }
+
+    for (const off of offsets) {
+      const rad = ((station.angle + off) * Math.PI) / 180;
+      const alpha = off === 0 ? 0.95 : 0.45;
+      const lw    = off === 0 ? 2    : 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.sin(rad) * lineLen, cy + Math.cos(rad) * lineLen);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth   = lw;
+      ctx.stroke();
+    }
+  }
+
+  _drawLaserAimPreview(ctx, station, gameState) {
+    const path = this._computeLaserPreviewPath(station, station.angle, gameState.planets ?? []);
+    if (path.length < 2) return;
+    const c        = this.conv;
+    const [tr, tg, tb] = station.team.colour;
+    ctx.save();
+    ctx.setLineDash([5, 5]);
     ctx.lineWidth   = 2;
+    ctx.strokeStyle = `rgba(${tr},${tg},${tb},0.65)`;
+    ctx.beginPath();
+    ctx.moveTo(path[0].x * c, path[0].y * c);
+    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x * c, path[i].y * c);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  _computeLaserPreviewPath(station, angleDeg, planets) {
+    const LASER_SPEED   = 160;
+    const LASER_GRAVITY = 1.0;
+    const MAX_STEPS     = 200;
+    const gw = this.gameWidth;
+    const gh = this.gameHeight;
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    let px = station.position.x + (station.radius + 1) * Math.sin(rad);
+    let py = station.position.y + (station.radius + 1) * Math.cos(rad);
+    let vx = LASER_SPEED * Math.sin(rad);
+    let vy = LASER_SPEED * Math.cos(rad);
+    const path = [{ x: px, y: py }];
+    for (let step = 0; step < MAX_STEPS; step++) {
+      for (const planet of planets) {
+        if (planet.destroyed) continue;
+        const dx  = planet.position.x - px;
+        const dy  = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        vx += Math.cos(theta) * sign * LASER_GRAVITY * G * planet.mass / rSq * TIMESTEP;
+        vy += Math.sin(theta) * sign * LASER_GRAVITY * G * planet.mass / rSq * TIMESTEP;
+      }
+      px += vx * TIMESTEP;
+      py += vy * TIMESTEP;
+      path.push({ x: px, y: py });
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+      // Stop at solid planet surface
+      for (const planet of planets) {
+        if (planet.destroyed) continue;
+        const dx = planet.position.x - px;
+        const dy = planet.position.y - py;
+        if (dx * dx + dy * dy < planet.impactRadius ** 2) {
+          if (planet.type !== PlanetType.GAS_GIANT &&
+              planet.type !== PlanetType.ASTEROID &&
+              planet.type !== PlanetType.CRYSTAL) return path;
+        }
+      }
+    }
+    return path;
   }
 
   // ----------------------------------------------------------------
