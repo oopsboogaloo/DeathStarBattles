@@ -615,8 +615,12 @@ export class GameLoop {
 
   _startTurn() {
     if (this._fastFwdPrevSpeed !== null) {
-      this._speedSteps      = this._fastFwdPrevSpeed;
-      this._fastFwdPrevSpeed = null;
+      const humansAlive = this.gs.teams.some(t => t.isHuman && t.isAlive);
+      if (humansAlive) {
+        this._speedSteps      = this._fastFwdPrevSpeed;
+        this._fastFwdPrevSpeed = null;
+      }
+      // No humans alive — stay in Fast FWD for all remaining AI turns
     }
     this._turnOrder = this.gs.allStations.filter(s => s.status === 'active');
     this._turnIdx   = 0;
