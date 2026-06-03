@@ -308,9 +308,22 @@ export class GameLoop {
         }
       }
     }
+    // ── Collectable pickup on movement contact ───────────────────────────────
+    for (const station of allStations) {
+      if (station.status !== 'active') continue;
+      for (const c of this.gs.collectables) {
+        if (!c.alive) continue;
+        if (station.position.distanceSqTo(c.position) >= (station.radius + c.radius) ** 2) continue;
+        c.alive = false;
+        const grant = this._pickCollectableGrant();
+        station.team.addStock(grant.weaponId, grant.count);
+        if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
+        this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+        const [cr, cg, cb] = station.team.colour;
+        this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+      }
+    }
   }
-
-  _isWormhole(type) {
     return type === PlanetType.WORMHOLE_PAIRED
         || type === PlanetType.WORMHOLE_CYCLIC
         || type === PlanetType.WORMHOLE_RANDOM
