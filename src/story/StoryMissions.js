@@ -813,8 +813,8 @@ export const STORY_MISSIONS = [
       collectablesSpawn:    'off',
       collectableWeapon:    null,
       cannonEnabled:        true,
-      startingWeapons:      {},
-      enemyStartingWeapons: {},
+      startingWeapons:      { laser: 1, minigun: 1, rocket: 3, tripleCannon: 3, blunderbuss: 3, blaster: 3 },
+      enemyStartingWeapons: { laser: 1, minigun: 1, rocket: 3, tripleCannon: 3, blunderbuss: 3, blaster: 3 },
     },
 
     objectives:     [{ type: 'destroy_all' }],
