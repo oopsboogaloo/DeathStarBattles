@@ -54,12 +54,13 @@ function buildPlanet(def, gw, gh, rng) {
       const vertices  = asteroidVertices(rng, n);
       const rotation  = rng.next() * Math.PI * 2;
       const rotSpeed  = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180;
+      const rich      = def.rich ?? false;
       const p = new Planet({
         position, radius, density,
         type:          PlanetType.ASTEROID,
-        colour:        [...ASTEROID_COL],
+        colour:        rich ? [75, 90, 120] : [...ASTEROID_COL],
         shading:       ShadingStyle.ROCKY,
-        vertices, rotation, rotationSpeed: rotSpeed,
+        vertices, rotation, rotationSpeed: rotSpeed, rich,
       });
       cacheRotatedVerts(p);
       return p;
