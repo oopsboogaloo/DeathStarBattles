@@ -55,7 +55,7 @@ export class Station {
     this.shockwave       = null;         // {t: 0, colour} | null — expanding solid disc
     this.particles       = null;         // [{x,y,vx,vy,t,r,g,b}] | null — debris
     this.hyperspaceFlash = null;         // {t, oldPos, newPos} | null — hyperspace anim
-    this.lastTrail       = null;         // Vec2[] | null — ghost trail from previous shot
+    this.lastTrails      = null;         // Vec2[][] | null — ghost trails from previous shot (one per bullet)
     this.lastAngle       = null;         // int | null — angle fired last turn (for ghost aim line)
     this.lastPower       = null;         // int | null — power fired last turn
     this.role            = 'human';      // 'human' | 'target' | 'ai'

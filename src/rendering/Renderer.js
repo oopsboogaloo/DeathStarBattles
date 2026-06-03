@@ -246,7 +246,7 @@ export class Renderer {
     // Ghost trail of previous shot — helps human players adjust aim
     if ((gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') && gameState.waitingForInput) {
       const active = gameState.activeStation;
-      if (active?.lastTrail?.length > 1) this._drawGhostTrail(ctx, active);
+      if (active?.lastTrails?.length > 0) this._drawGhostTrail(ctx, active);
     }
 
     // Bullets + off-screen indicators
@@ -1051,22 +1051,23 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawGhostTrail(ctx, station) {
-    const trail = station.lastTrail;
     const conv  = this.conv;
     const [tr, tg, tb] = station.colour;
     ctx.save();
     ctx.strokeStyle = `rgba(${tr},${tg},${tb},0.55)`;
     ctx.lineWidth   = Math.max(1, conv * 0.7);
     ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    let penDown = false;
-    for (const pt of trail) {
-      if (!pt) { penDown = false; continue; } // wormhole break
-      const px = pt.x * conv, py = pt.y * conv;
-      if (!penDown) { ctx.moveTo(px, py); penDown = true; }
-      else          { ctx.lineTo(px, py); }
+    for (const trail of station.lastTrails) {
+      ctx.beginPath();
+      let penDown = false;
+      for (const pt of trail) {
+        if (!pt) { penDown = false; continue; } // wormhole break
+        const px = pt.x * conv, py = pt.y * conv;
+        if (!penDown) { ctx.moveTo(px, py); penDown = true; }
+        else          { ctx.lineTo(px, py); }
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
     ctx.restore();
   }
 

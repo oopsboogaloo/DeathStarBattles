@@ -780,8 +780,9 @@ export class GameLoop {
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
       }
 
-      station.lastAngle = station.angle;
-      station.lastPower = station.power;
+      station.lastAngle  = station.angle;
+      station.lastPower  = station.power;
+      station.lastTrails = [];
       station.stats.shots++;
       station.stats.totalPower += station.power;
       station.stats.turns++;
@@ -848,6 +849,7 @@ export class GameLoop {
         if (pl.delaySteps <= 0) {
           const path = this._simulateLaserPath(pl.station, pl.angle);
           this.gs.vfxList.push({ type: 'laserPath', path, colour: pl.station.team.colour, t: 0, duration: 1.5 });
+          if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
         }
       }
       this.gs.pendingLasers = this.gs.pendingLasers.filter(pl => pl.delaySteps > 0);
@@ -892,7 +894,7 @@ export class GameLoop {
         // Boundary
         const { gw, gh } = this.physics;
         const { x, y }   = rocket.position;
-        if (x < -gw || x > 2 * gw || y < -gw || y > gh + gw) { rocket.status = RocketStatus.DEAD; continue; }
+        if (x < -gw || x > 2 * gw || y < -gw || y > gh + gw) { if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]); rocket.status = RocketStatus.DEAD; continue; }
 
         // Shield collision → detonate
         let detonated = false;
@@ -994,7 +996,7 @@ export class GameLoop {
 
         // Save trail as ghost the moment a bullet leaves the active state
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
-          bullet.owner.lastTrail = [...bullet.trail];
+          if (bullet.owner.lastTrails) bullet.owner.lastTrails.push([...bullet.trail]);
         }
       }
 
@@ -1355,6 +1357,7 @@ export class GameLoop {
 
   _detonateRocket(rocket) {
     if (rocket.status !== RocketStatus.ACTIVE) return;
+    if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]);
     rocket.status = RocketStatus.EXPLODING;
     // Spawn an expanding blast zone — damage is applied progressively as it grows.
     this.gs.rocketBlasts.push({
@@ -1997,7 +2000,7 @@ export class GameLoop {
         }
 
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
-          bullet.owner.lastTrail = [...bullet.trail];
+          if (bullet.owner.lastTrails) bullet.owner.lastTrails.push([...bullet.trail]);
         }
       }
     }
