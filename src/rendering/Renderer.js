@@ -453,6 +453,15 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawStation(ctx, station) {
+    if (station.role === 'target') this._drawTargetRing(ctx, station);
+    if (station.visualStyle === 'drone') {
+      this._drawDroneStation(ctx, station);
+    } else {
+      this._drawNormalStation(ctx, station);
+    }
+  }
+
+  _drawNormalStation(ctx, station) {
     const cx = station.position.x * this.conv;
     const cy = station.position.y * this.conv;
     const r  = Math.max(3, station.radius * this.conv);
@@ -512,6 +521,79 @@ export class Renderer {
     }
 
     ctx.restore(); // restore globalAlpha
+  }
+
+  _drawDroneStation(ctx, station) {
+    const cx = station.position.x * this.conv;
+    const cy = station.position.y * this.conv;
+    const r  = Math.max(3, station.radius * this.conv);
+    const [cr, cg, cb] = station.colour;
+
+    const alpha = station.status === 'exploding'
+      ? Math.max(0, 1 - station.explosionT * 2.5)
+      : 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Hexagonal body (flat-top orientation)
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 6) + (Math.PI / 3) * i;
+      const x = cx + r * Math.cos(a);
+      const y = cy + r * Math.sin(a);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle   = `rgb(${Math.floor(cr*0.28)},${Math.floor(cg*0.28)},${Math.floor(cb*0.28)})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.lineWidth   = Math.max(1, r * 0.13);
+    ctx.stroke();
+
+    // Inner cross in team colour
+    if (r >= 5) {
+      const arm = r * 0.52;
+      ctx.beginPath();
+      ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+      ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.45)`;
+      ctx.lineWidth   = Math.max(1, r * 0.07);
+      ctx.stroke();
+    }
+
+    // Bright core dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, r * 0.22), 0, Math.PI * 2);
+    ctx.fillStyle = `rgb(${Math.min(255,cr+90)},${Math.min(255,cg+90)},${Math.min(255,cb+90)})`;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  _drawTargetRing(ctx, station) {
+    const cx = station.position.x * this.conv;
+    const cy = station.position.y * this.conv;
+    const r  = Math.max(3, station.radius * this.conv);
+    const [cr, cg, cb] = station.colour;
+
+    ctx.save();
+
+    // Static outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.35)`;
+    ctx.lineWidth   = Math.max(1, r * 0.08);
+    ctx.stroke();
+
+    // Pulsing expanding ring (expands from 1.5r to 2.5r over 1.4 s, fades out)
+    const t = (Date.now() / 1400) % 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * (1.5 + t), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${((1 - t) * 0.45).toFixed(3)})`;
+    ctx.lineWidth   = Math.max(1, r * 0.07);
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------
