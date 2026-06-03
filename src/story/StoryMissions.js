@@ -483,7 +483,7 @@ export const STORY_MISSIONS = [
     settings: {
       stationSize:          'large',
       gameSpeed:            'normal',
-      movementSpeed:        'off',
+      movementSpeed:        'medium',
       collectablesSpawn:    'normal',
       collectableWeapon:    null,
       cannonEnabled:        true,
@@ -528,7 +528,7 @@ export const STORY_MISSIONS = [
     settings: {
       stationSize:          'large',
       gameSpeed:            'normal',
-      movementSpeed:        'off',
+      movementSpeed:        'medium',
       collectablesSpawn:    'normal',
       collectableWeapon:    null,
       cannonEnabled:        true,
