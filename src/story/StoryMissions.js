@@ -575,7 +575,7 @@ export const STORY_MISSIONS = [
       collectablesSpawn:    'off',
       collectableWeapon:    null,
       cannonEnabled:        true,
-      startingWeapons:      { blaster: 2, blunderbuss: 2 },
+      startingWeapons:      { blaster: 2, blunderbuss: 2, tripleCannon: 3 },
       enemyStartingWeapons: {},
     },
 
@@ -586,10 +586,10 @@ export const STORY_MISSIONS = [
       {
         turn: 2,
         spawnStations: [
-          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: { tripleCannon: 4 } },
-          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: { tripleCannon: 4 } },
-          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: { tripleCannon: 4 } },
-          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: { tripleCannon: 4 } },
+          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: {} },
+          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: {} },
+          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: {} },
+          { x: null, y: null, team: 1, role: 'ai', visualStyle: 'station', aiLevel: 3, startingWeapons: {} },
         ],
         dialog: 'Bogeys inbound. Four {enemy1}s, armed. Don\'t let them pick you apart.',
         addObjectives: [{ type: 'destroy_all' }],
