@@ -162,7 +162,7 @@ weaponBtn.addEventListener('click',  e => {
   if (!loop) return;
   const gs = loop.gs;
   if (gs.mode === 'aiming' && gs.waitingForInput && gs.activeStation) {
-    weaponSelector.toggle(gs.activeStation, weaponBtn);
+    weaponSelector.toggle(gs.activeStation, weaponBtn, gs);
   }
 });
 moveBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });

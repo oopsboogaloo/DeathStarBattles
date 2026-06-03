@@ -11,7 +11,8 @@ export class StoryModeState {
   }
 
   get allObjectivesMet() {
-    return this.objectiveMet.every(Boolean);
+    // Missions with no objectives yet (e.g. pre-event M13/M14) cannot pass
+    return this.objectives.length > 0 && this.objectiveMet.every(Boolean);
   }
 
   addObjective(obj) {
