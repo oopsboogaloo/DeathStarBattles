@@ -506,14 +506,14 @@ export const STORY_MISSIONS = [
     layout: {
       planets: [
         { type: 'gasGiant', x: 0.48, y: 0.52, radius: 42, density: 0.02 },
-        { type: 'asteroid', x: 0.24, y: 0.28, radius: 24, density: 0.08 },
-        { type: 'asteroid', x: 0.38, y: 0.18, radius: 28, density: 0.08, rich: true },
+        { type: 'asteroid', x: 0.24, y: 0.28, radius: 24, density: 0.08, rich: true },
+        { type: 'asteroid', x: 0.38, y: 0.18, radius: 28, density: 0.08 },
         { type: 'asteroid', x: 0.56, y: 0.22, radius: 20, density: 0.08 },
         { type: 'asteroid', x: 0.72, y: 0.30, radius: 24, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.82, y: 0.44, radius: 28, density: 0.08 },
         { type: 'asteroid', x: 0.80, y: 0.62, radius: 20, density: 0.08, rich: true },
-        { type: 'asteroid', x: 0.70, y: 0.76, radius: 24, density: 0.08 },
-        { type: 'asteroid', x: 0.52, y: 0.82, radius: 28, density: 0.08, rich: true },
+        { type: 'asteroid', x: 0.70, y: 0.76, radius: 24, density: 0.08, rich: true },
+        { type: 'asteroid', x: 0.52, y: 0.82, radius: 28, density: 0.08 },
         { type: 'asteroid', x: 0.34, y: 0.76, radius: 20, density: 0.08 },
         { type: 'asteroid', x: 0.22, y: 0.62, radius: 24, density: 0.08, rich: true },
         { type: 'asteroid', x: 0.20, y: 0.44, radius: 28, density: 0.08 },
