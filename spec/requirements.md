@@ -423,7 +423,697 @@ Rules for new options:
 
 ---
 
-## 13. Out of Scope (v1)
+## 13. Story Mode
+
+### 13.1 Overview
+
+Story Mode is a curated sequence of single-human-player missions with fixed layouts, defined objectives, and narrative framing. Missions progress from a simple introductory exercise to challenges that require mastery of specific mechanics — hyperspace, collectables, multi-station coordination. Completing a mission with a passing score unlocks the next; all completed missions remain replayable for score improvement.
+
+Story Mode is entirely separate from the standard game loop. No config panel is shown; all game parameters are fixed by the mission definition.
+
+**Narrative tone:** All story text uses a military boot camp voice — gruff, direct, drill sergeant addressing a raw recruit. Avoid all references to specific IP (no proprietary character or faction names). Reference enemies by their team colour: "those cyans", "the reds", "those yellows." Objectives are orders, not suggestions. Keep briefing text to 2–4 sentences.
+
+**Colour substitution:** Story text strings use template placeholders `{enemy1}`, `{enemy2}`, etc. which are replaced at render time with the actual colour name of the enemy team at that index (e.g. `{enemy1}` → "cyan" for team 1). Colour names match the fixed team colour list (green, cyan, yellow, red, purple, blue, orange, grey…). This ensures the text is always accurate regardless of team assignment.
+
+---
+
+### 13.2 Mission Select Screen
+
+- **Entry point:** Story Mode is selected via the **Mode** option in the config panel (alongside Single Game and Tournament), not a separate button. The Story Mode screen replaces the config panel when this mode is active.
+- Displays all missions in a vertical list or card grid, in order
+- Each card shows: mission number, title, lock/unlock state, best score (if previously completed)
+- Locked missions are visible but greyed out with a padlock icon
+- Mission 1 is always unlocked; subsequent missions unlock by completing the preceding mission with objectives met
+- Selecting an unlocked mission shows the Mission Briefing overlay, then starts the game
+
+---
+
+### 13.3 Mission Briefing & Debrief
+
+**Briefing** (shown before play begins):
+- Mission number and title
+- Narrative flavour text (2–4 sentences, in-world voice)
+- Objectives listed clearly ("Destroy all 3 targets", "Collect at least 5 collectables")
+- Active fail conditions listed ("Fail if not complete within 15 turns")
+- **Start Mission** button
+
+**Debrief** (shown after the game ends, win or lose):
+- Outcome banner: MISSION COMPLETE or MISSION FAILED
+- Score breakdown in mission-specific metrics
+- Final numeric score
+- Best score badge if the player beat their previous record
+- Two buttons: **Retry Mission** | **Next Mission** (greyed out on fail if next mission is still locked)
+
+---
+
+### 13.4 In-Game Objective Panel
+
+A compact overlay panel, top-right corner of the canvas, lists the mission's active objectives. Each objective has a checkmark that fills when the condition is met. The panel also shows the current turn count and, if a turn limit is active, a countdown ("Turn 7 of 15"). Objectives are evaluated at the end of each resolution phase.
+
+All objectives must be met (and no fail condition triggered) for the mission to count as MISSION COMPLETE.
+
+---
+
+### 13.5 Mission Data Schema
+
+All missions are declared as entries in a `STORY_MISSIONS` constant array. This is the data-driven layout system — every aspect of a mission is specified in its definition object rather than in procedural game setup code. The game engine reads the mission object and configures itself accordingly; no mission-specific branching logic exists in the engine.
+
+```js
+{
+  id: string,            // unique slug, e.g. "m1-training"
+  title: string,         // display title, e.g. "Basic Training"
+  story: string,         // narrative briefing text shown before play
+
+  layout: {
+    planets: [
+      {
+        type: PlanetType,   // any type from §5 (e.g. "asteroid", "star", "crystalAsteroid")
+        x: float,           // normalised canvas position 0–1
+        y: float,
+        radius: float,      // game units
+        density: float,     // mass = radius² × density
+      }
+    ],
+    stations: [
+      {
+        x: float,
+        y: float,
+        team: number,           // 0 = human team; 1+ = separate enemy teams
+        role: "human" | "target" | "ai",
+        aiLevel: number,        // 1–5 matching §7; only for role "ai"
+        visualStyle: "station" | "drone",  // visual variant; default "station"
+      }
+    ],
+    collectables: [         // optional: explicit collectable positions spawned at game start
+      { x: float, y: float }
+    ],
+  },
+
+  settings: {
+    stationSize: StationSize,         // size tier from §4.1
+    gameSpeed: number,                // speed multiplier from §10
+    startingWeapons: object,          // weapon type → initial charge count for human team
+    enemyStartingWeapons: object,     // weapon type → initial charge count for all AI teams
+    collectablesSpawn: string,        // "off" | "fixed" | "normal"; "fixed" uses layout.collectables
+    collectableWeapon: string | null, // if set, all collectables always grant this weapon; null = random (default)
+    movementSpeed: string,            // from §4.5
+    cannonEnabled: boolean,           // default true; false removes cannon from the weapon list entirely
+  },
+
+  objectives: [
+    {
+      type: ObjectiveType,      // see §13.6
+      params: object,
+    }
+  ],
+
+  failConditions: [
+    {
+      type: "max_turns",
+      turns: number,
+    }
+  ],
+
+  events: [                     // optional: turn-triggered game events
+    {
+      turn: number,             // 1-indexed turn number when this fires
+      spawnStations: [          // stations materialised on the map at this turn
+        {
+          x: float | null,      // null = random valid position (uses hyperspace animation)
+          y: float | null,
+          team: number,
+          role: "ai",
+          aiLevel: number,
+          visualStyle: "station" | "drone",
+          startingWeapons: object,
+        }
+      ],
+      dialog: string,           // optional popup message shown to the player when event fires
+      addObjectives: [          // optional objectives appended to the active list mid-game
+        { type: ObjectiveType, params: object }
+      ],
+    }
+  ],
+
+  scoring: {
+    formula: ScoringFormula,   // see §13.7
+    passingScore: number,      // minimum score to count as a pass and unlock the next mission
+  },
+}
+```
+
+#### `role: "target"` — Station Role for Story Mode
+
+Target stations are stationary non-combatants: they never fire, never use hyperspace, and never move. They represent training dummies or objective markers. Visually they use standard station rendering in dark red with a thin pulsing ring indicator to distinguish them from active enemy stations. They count as enemies for scoring purposes (killing one is a kill; own-goaling one does not deduct points in story missions).
+
+#### `visualStyle: "drone"` — Combat AI Visual Variant
+
+Drone-style stations render as angular, mechanical shapes rather than the standard death-star sphere — a robot/machine aesthetic that signals "this one fights back." Used for AI opponents in story missions. Drones use their assigned team colour. Story-mode-only; no gameplay effect.
+
+#### `collectablesSpawn: "fixed"`
+
+When set to `"fixed"`, all collectables listed in `layout.collectables` are placed on the map at game start simultaneously. The normal per-turn spawn system is disabled. This enables designed collectable layouts for missions that require them.
+
+#### `cannonEnabled: false`
+
+When false, Cannon is removed from the active weapon list. Any collectable that would normally grant a Cannon-type reward instead re-rolls once for a different weapon. Intended for missions built entirely around a specific alternative weapon.
+
+#### `events` — Mid-Mission Events
+
+Events fire exactly once when `GameState.turn` equals the event's `turn` value. Stations spawned by an event use the hyperspace materialisation animation (appearing at a random valid position when `x`/`y` are `null`). The combat implicit fail rule applies to event-spawned enemy stations from the moment they arrive. If an event includes `addObjectives`, those objectives are appended to the active list and the in-game objective panel updates immediately. A `dialog` string triggers a dismissable popup overlay at event time.
+
+#### Combat Fail Condition (Implicit)
+
+For missions containing `role: "ai"` stations (whether placed at game start or via `events`), if all human stations are destroyed the mission fails immediately. This does not appear in `failConditions` — it is a base rule enforced by the engine for all story combat missions.
+
+---
+
+### 13.6 Objective Types
+
+| Type | Description | Params |
+|---|---|---|
+| `destroy_all` | Destroy every enemy station (all teams other than team 0) | — |
+| `destroy_n` | Destroy at least N enemy stations | `count: number` |
+| `collect_n` | Shoot through (collect) at least N collectables | `count: number` |
+
+Objective state is tracked per-mission-run and reset on retry. The in-game objective panel (§13.4) reflects real-time progress.
+
+---
+
+### 13.7 Scoring Formulae
+
+**Pass/fail:** Meeting all objectives within any fail conditions = MISSION COMPLETE. Failing an objective or triggering a fail condition = MISSION FAILED. Score has no effect on pass/fail.
+
+**Score** is a leaderboard grade awarded on a pass. Each mission uses one scoring formula:
+
+| Formula | Calculation |
+|---|---|
+| `target_practice` | Delegates to the target practice mode scoring system (see Target Practice spec). Rewards accuracy (shots fired vs hits) and turn efficiency. |
+| `turns_remaining` | `score = (maxTurns − turnsUsed) × 100` — faster completion scores higher |
+| `collectables_score` | `score = (collectedCount × 200) − (turnsUsed × 10)` — collectables are primary; turn efficiency is secondary |
+| `combat_efficiency` | `score = (kills × 200) + (stationsSurvived × 100) − (turnsUsed × 5)` — rewards kills, preserving stations, and winning fast |
+
+`passingScore` is a reference benchmark displayed on the debrief screen (e.g. as a star rating) but does not gate the unlock. Completing objectives unlocks the next mission regardless of score. Best scores are recorded per mission; retrying can improve them.
+
+---
+
+### 13.8 Persistence
+
+Story progress is stored in `localStorage` under the key `dsb_story`. This is distinct from the §14 out-of-scope "save/load game state" — it stores only unlock flags and high scores, not mid-game state.
+
+```json
+{
+  "unlocked": ["m1-training", "m2-team"],
+  "scores": {
+    "m1-training": 2450,
+    "m2-team": 1800
+  }
+}
+```
+
+- `unlocked` — mission IDs the player has passed at least once
+- `scores` — best score per mission ID; absent if never passed
+- `campaignComplete` — boolean flag set when all 20 missions have been passed at least once
+- Mission 1 is always playable regardless of `unlocked` contents
+
+---
+
+### 13.9 Campaign Completion Reward
+
+When the player passes Mission 20 (completing all 20 missions for the first time), `campaignComplete: true` is written to `dsb_story`. This flag unlocks the **Starting Weapons** config option in the main config panel — an option that is hidden from players until this point. Starting Weapons also applies to Target Practice mode. No other hidden or dev-only config options are exposed by this flag.
+
+The completion reward is shown on the Mission 20 debrief screen with a brief unlock message.
+
+---
+
+### 13.10 Mission Definitions
+
+#### Mission 1 — Basic Training
+
+**Story:** *"You are a new recruit. Welcome to the Academy. Pass basic target practice and we'll talk about putting you in a real cockpit."*
+
+**Layout:**
+- 1 human station at centre-left (x=0.2, y=0.5)
+- 3 target stations in a loose arc to the right: (x=0.78, y=0.22), (x=0.82, y=0.5), (x=0.78, y=0.78)
+- 3 Crystal Asteroids forming a cluster at map centre: (x=0.5, y=0.4), (x=0.48, y=0.55), (x=0.53, y=0.62); small radius, low density
+- No stars or heavy gravitating bodies
+
+**Settings:** Standard size, normal speed, no movement, collectables off
+
+**Objectives:** Destroy all 3 targets
+
+**Fail conditions:** None
+
+**Scoring:** `target_practice` formula
+
+**Passing score:** 500
+
+**Design note:** Crystal Asteroids are placed between the player and targets; bullets pass straight through them (§5). This introduces the crystal asteroid mechanic while keeping the challenge accessible. Players learn that crystal asteroids do not block shots.
+
+---
+
+#### Mission 2 — Wing Formation
+
+**Story:** *"Good shooting, recruit. But out there you won't be alone. Learn to coordinate with your wingman — two ships, one objective."*
+
+**Layout:**
+- 2 human stations on the same team, left side: (x=0.18, y=0.35) and (x=0.18, y=0.65) — the human player controls both sequentially each turn (2 stations per player, as per existing §4.1 multi-station support)
+- 5 target stations scattered across the right half
+- 3 standard asteroids placed across the centre band
+
+**Settings:** Standard size, normal speed, no movement, collectables off
+
+**Objectives:** Destroy all 5 targets
+
+**Fail conditions:** None
+
+**Scoring:** `target_practice` formula applied across both stations combined (total shots fired, total hits)
+
+**Passing score:** 800
+
+**Design note:** The human controls both stations themselves, taking two aiming actions per turn. "Team practice" teaches multi-station coordination — planning which station to use for which target, and recovering when one fires badly.
+
+---
+
+#### Mission 3 — Dead Zone
+
+**Story:** *"Position is everything in combat. Your current position is a death sentence — the star's gravity will drag every shot you fire right back down. Figure it out, recruit."*
+
+**Layout:**
+- 1 human station placed in the lower-middle of the screen, close to the star (x=0.5, y=0.82)
+- 1 target station at the top of the screen (x=0.5, y=0.1)
+- 1 Supergiant star (type `star`, very large radius, high density) placed just off the bottom edge (x=0.5, y=1.08) — visible as a large corona bleeding into the bottom of the play area; gravitationally dominates the lower half of the screen
+- No other planets
+
+**Settings:** Standard size, normal speed, no movement, collectables off; Hyperspace available from the start
+
+**Objectives:** Destroy the target
+
+**Fail conditions:** 15 turns maximum
+
+**Scoring:** `turns_remaining` — `score = (15 − turnsUsed) × 100`
+
+**Passing score:** 200 (equivalent to succeeding within 13 turns)
+
+**Design note:** The intended solution is to Hyperspace once or twice to escape the gravity well, then fire from a position where the target is reachable. The star must be tuned so that no straight shot from the starting position reaches the target — all trajectories curve back down. Players who stumble onto an extreme angle solution are not blocked, but the consistent path is repositioning via hyperspace. This teaches strategic hyperspace use (§4.4).
+
+---
+
+#### Mission 4 — Field Collection
+
+**Story:** *"Special equipment doesn't get handed out for free — you earn it in the field. Those collectables out there? Each one gives you a Blaster charge. Get five of them. Go."*
+
+**Layout:**
+- 1 human station at screen left (x=0.15, y=0.5)
+- 10 collectables placed in a spread pattern across the right two-thirds of the map (`collectablesSpawn: "fixed"`)
+- 6 standard asteroids interspersed amongst the collectables as obstacles requiring trajectory planning
+- No stars or heavy gravitating bodies; mild gravity from asteroids only
+
+**Settings:** Standard size, normal speed, no movement, `collectablesSpawn: "fixed"`, `collectableWeapon: "blaster"`
+
+**Objectives:** Collect at least 5 collectables (shoot through 5)
+
+**Fail conditions:** 15 turns maximum
+
+**Scoring:** `collectables_score` — `score = (collectedCount × 200) − (turnsUsed × 10)`
+
+**Passing score:** 600 (collecting 5 within 10 turns, or 6+ in up to 14 turns)
+
+**Design note:** Collectables always grant Blaster here (overriding the usual random weapon), so the reward is predictable and the player learns what the Blaster does. Bullets pass through collectables without being destroyed — a well-aimed shot can chain through multiple in one turn. Discovering this is part of the skill ceiling.
+
+---
+
+#### Mission 5 — Contact
+
+**Story:** *"Target practice is over, recruit. Those {enemy1}s shoot back now. One of them, one of you. Show us you can hold your own against a live opponent."*
+
+**Layout:**
+- 1 human station at left (x=0.18, y=0.5)
+- 1 AI drone station (Aimbot, level 2; `visualStyle: "drone"`) at right (x=0.82, y=0.5)
+- Binary Star scenario (existing scenario 5)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off
+
+**Objectives:** Destroy the enemy drone
+
+**Fail conditions:** Combat implicit fail (human station destroyed)
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 200
+
+**Design note:** First mission with a live opponent that fires back. Binary Star provides two gravitational foci that curve trajectories unpredictably — harder than a flat range. Aimbot accuracy is low (~3%) so the player has room to learn, but the threat is real.
+
+---
+
+#### Mission 6 — Solo Combat
+
+**Story:** *"One on one. Gas giant territory. Those cyans picked this turf — they like the gravity curves. Outthink them."*
+
+**Layout:**
+- 1 human station at left
+- 1 AI drone (Aimbot, level 2; `visualStyle: "drone"`) at right
+- Gas Giants scenario (existing scenario 12)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off
+
+**Objectives:** Destroy the enemy drone
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 200
+
+**Design note:** Same opponent as M5 but on a Gas Giants map with stronger gravity curvature. The player must adapt trajectory intuition to a heavier gravitational environment.
+
+---
+
+#### Mission 7 — Two vs Two
+
+**Story:** *"Two of you, two of theirs. Gas Giants again — same field, different problem. Watch your wingman and pick your targets. Don't cross their shots."*
+
+**Layout:**
+- 2 human stations at left, medium team grouping
+- 2 AI drone stations (Aimbot, level 2; `visualStyle: "drone"`) at right, medium team grouping
+- Gas Giants scenario (existing scenario 12)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, medium team clustering
+
+**Objectives:** Destroy all enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 350
+
+---
+
+#### Mission 8 — Squad
+
+**Story:** *"Four on four. Tight formations. Star system — that gravity will bite you if you don't respect it. Those reds think their numbers make them safe. Show them different."*
+
+**Layout:**
+- 4 human stations, tight team grouping, left side
+- 4 AI drone stations (Cleverbot, level 3; `visualStyle: "drone"`), tight team grouping, right side
+- Star System scenario (existing scenario 4)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, tight team clustering
+
+**Objectives:** Destroy all enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 500
+
+---
+
+#### Mission 9 — Platoon
+
+**Story:** *"Six on six. Wormhole space — unpredictable. Those purples are veterans. They will adapt to you. Adapt faster."*
+
+**Layout:**
+- 6 human stations, loose team grouping, left half
+- 6 AI drone stations (Superbot, level 4; `visualStyle: "drone"`), loose team grouping, right half
+- Wormhole scenario (existing scenario 19)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, loose team clustering
+
+**Objectives:** Destroy all enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 600
+
+---
+
+#### Mission 10 — Line of Battle
+
+**Story:** *"Eight versus eight. Asteroid belt between you and those reds. You have one minigun — so do they. Whoever uses it better wins. Don't waste it."*
+
+**Layout:**
+- 8 human stations evenly spaced in a vertical line at x=0.1 (y from 0.1 to 0.9)
+- 8 AI drone stations (Cleverbot, level 3; `visualStyle: "drone"`) in a mirrored vertical line at x=0.9
+- Dense horizontal band of asteroids across the centre (y=0.4 to y=0.6) — approximately 15–20 small asteroids placed explicitly in the mission layout (not using the scenario generator, so both lines and belt width are precisely controlled)
+
+**Settings:** Standard size, normal speed, Fast movement, collectables off, `startingWeapons: { minigun: 1 }`, `enemyStartingWeapons: { minigun: 1 }`
+
+**Objectives:** Destroy all enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 700
+
+**Design note:** Fast movement means positions shift meaningfully each turn. The Minigun timing decision — when to spend the single charge — is the central strategic choice of the mission.
+
+---
+
+#### Mission 11 — Rocket Corps
+
+**Story:** *"No cannons today, recruit. Rockets only. Dense field around a star — everything curves. Four on four. Welcome to the Rocket Corps."*
+
+**Layout:**
+- 4 human stations, left half
+- 4 AI drone stations (Cleverbot, level 3; `visualStyle: "drone"`), right half
+- Small central star (medium radius, moderate density)
+- Dense asteroid ring around the star — approximately 20–25 small asteroids in a rough ring at 25–35% of map-width radius from the star centre
+
+**Settings:** Standard size, normal speed, Slow movement, `cannonEnabled: false`, `startingWeapons: { rocket: 99 }`, `enemyStartingWeapons: { rocket: 99 }`, `collectablesSpawn: "normal"`
+
+**Objectives:** Destroy all enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 500
+
+**Design note:** With cannon disabled, every action is a rocket or hyperspace. Rocket blasts destroy asteroids within their radius, so the map opens up over the course of the game. The central star curves all rocket paths. Collectables spawn normally and provide standard special weapons — any collectable that rolls Cannon re-rolls once (per the `cannonEnabled: false` rule in §13.5).
+
+---
+
+#### Mission 12 — Mining Duty
+
+**Story:** *"Basic training is done, recruit. Now you pull your weight. That asteroid field is full of raw crystals — we've logged at least ten in range. Two ships, twenty turns. Get them."*
+
+**Layout:**
+- 2 human stations, left side, moderate team grouping
+- Small Gas Giant at map centre (low density, moderate radius)
+- Surrounding mixed asteroid field: standard asteroids with Rich Asteroids at ~10% of bodies; no stars
+
+**Settings:** Standard size, normal speed, no movement, `collectablesSpawn: "normal"`, Rich Asteroids = Common (10%), no enemy starting weapons
+
+**Objectives:** Collect at least 10 collectables
+
+**Fail conditions:** 20 turns maximum
+
+**Scoring:** `collectables_score` — `score = (collectedCount × 200) − (turnsUsed × 10)`
+
+**Passing score:** 1500
+
+**Design note:** No enemies — pure collection in a gravitational field. Shooting Rich Asteroids destroys them and spawns a collectable; the player must plan shots to collect the spawned gem in the same move or a follow-up before it drifts. The two ships allow parallel approach angles. Story text uses "crystals" as the in-universe informal term for collectables.
+
+---
+
+#### Mission 13 — Ambush
+
+**Story:** *"Same sector. Intel says collect crystals — sensors are picking up something on the edge of the system. Stay sharp."*
+
+**Layout:**
+- 2 human stations, left side
+- Small Gas Giant at map centre; mixed Rich/standard asteroid field (own separate layout from M12)
+- No initial enemy stations
+
+**Settings:** Standard size, normal speed, no movement, `collectablesSpawn: "normal"`, Rich Asteroids = Common (10%)
+
+**Objectives (initial):** None — the collection phase is tactical (collectables grant weapons), not a tracked objective. The objective panel is empty until the ambush fires.
+
+**Fail conditions:** 20 turns maximum; combat implicit fail once enemy arrives
+
+**Events:**
+- **Turn 3:** 2 Cleverbot drones (`visualStyle: "drone"`, `startingWeapons: { rocket: 99 }`) spawn at random valid positions. Dialog: *"Contact. Two {enemy1} ships have warped in. New objective: take them out."* New objective added: destroy all enemy stations.
+
+**Scoring:** `combat_efficiency` — once the ambush fires, winning the fight is the only thing that matters
+
+**Passing score:** 400
+
+**Design note:** The collecting phase (turns 1–2) is purely tactical — use it to gather weapon charges before the fight. Once the enemies arrive, the mission reorients entirely. A player who collects nothing and survives the fight still passes; a player who collects everything but gets destroyed fails. The 20-turn limit applies from turn 1 — it is visible in the objective panel throughout.
+
+---
+
+#### Mission 14 — Patrol
+
+**Story:** *"We are at war, recruit. You are on patrol. Supergiant binary — dangerous territory. Keep your eyes open."*
+
+**Layout:**
+- 2 human stations, left side
+- No initial enemy stations
+- Supergiant Binary scenario (existing scenario 8)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, `startingWeapons: { blaster: 2, blunderbuss: 2 }`
+
+**Objectives:** Destroy all enemy stations (added by event)
+
+**Fail conditions:** Combat implicit fail once enemy arrives
+
+**Events:**
+- **Turn 2:** 4 Cleverbot drones (`visualStyle: "drone"`, `startingWeapons: { tripleCannon: 4 }`) spawn at random valid positions. Dialog: *"Bogeys inbound. Four {enemy1}s, armed. Don't let them pick you apart."* New objective added: destroy all enemy stations.
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 400
+
+**Design note:** Human team starts as a 2-ship patrol with cannon and hyperspace only, then faces 4 triple-cannon Cleverbots. Hyperspace repositioning to break targeting is the intended survival tool. The hostile supergiant binary gravity adds trajectory complexity on both sides. Triple cannon charges are finite — surviving the opening salvo matters.
+
+---
+
+#### Mission 15 — Outnumbered
+
+**Story:** *"Three of you. Six of them. Same weapons. Different odds. Figure it out."*
+
+**Layout:**
+- 3 human stations, left side, tight team grouping
+- 6 Cleverbot drone stations, right side, tight team grouping
+- Star Cluster scenario (existing scenario 11)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, tight team clustering, `startingWeapons: { tripleCannon: 3, minigun: 1 }`, `enemyStartingWeapons: { tripleCannon: 3, minigun: 1 }`
+
+**Objectives:** Destroy all enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 500
+
+**Design note:** 2:1 numerical disadvantage with equal firepower. Star Cluster's multiple dense gravity sources reward mastery of curved shots. The shared enemy minigun is a genuine threat — they will deploy it.
+
+---
+
+#### Mission 16 — Three-Way
+
+**Story:** *"Another faction has entered the field. The reds and the yellows both want those resources. So do we. There's only room for one team in this asteroid field."*
+
+**Layout:**
+- 3 human stations, moderate team grouping (team 0)
+- 3 Cleverbot drone stations, moderate team grouping (team 1)
+- 3 Cleverbot drone stations, moderate team grouping (team 2)
+- Mixed asteroid field: standard asteroids with Rich Asteroids = Normal (5%) and Crystal Asteroids (~20% of bodies); no stars
+
+**Settings:** Standard size, normal speed, Slow movement, `collectablesSpawn: "normal"`, Rich Asteroids = Normal (5%), moderate team clustering, `startingWeapons: { rocket: 2 }`, `enemyStartingWeapons: { rocket: 2 }`
+
+**Objectives:** Destroy all enemy stations (both opposing teams)
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency` — kills against either enemy team count equally
+
+**Passing score:** 400
+
+**Design note:** First 3-team mission. The two AI factions fight each other as well as the player — letting them weaken each other before committing is valid strategy. Crystal Asteroids mean some bullets unexpectedly pass through terrain; Rich Asteroids generate collectables mid-battle as a side effect of combat.
+
+---
+
+#### Mission 17 — Four Factions
+
+**Story:** *"Four factions. Two stations each. Red Giant territory. Everyone's armed. Show them who belongs in this sector."*
+
+**Layout:**
+- 2 human stations (team 0), moderate team grouping
+- 2 Superbot drone stations per enemy team (teams 1, 2, 3), moderate team grouping
+- Red Giant scenario (existing scenario 10)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, moderate team clustering, `startingWeapons: { rocket: 2, blaster: 4, blunderbuss: 3 }`, `enemyStartingWeapons: { rocket: 2, blaster: 4, blunderbuss: 3 }`
+
+**Objectives:** Destroy all enemy stations (3 opposing teams)
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 500
+
+**Design note:** First mission against Superbots (~30% hit rate). Three AI factions target each other as well as the player; the human must manage threats across multiple directions. The heavy loadout on all sides makes every turn consequential.
+
+---
+
+#### Mission 18 — Laser Engagement
+
+**Story:** *"Six factions. Three ships each. Asteroid field around a white dwarf — shots bend hard near the centre. Everyone has lasers. First team through wins."*
+
+**Layout:**
+- 3 human stations (team 0), loose team grouping
+- 3 Superbot drone stations per enemy team (teams 1–5), loose team grouping
+- Asteroid Belt scenario (existing scenario 17) with a White Dwarf substituted at map centre (custom planet entry: type `whiteDwarf`, x=0.5, y=0.5, small radius, very high density)
+
+**Settings:** Standard size, normal speed, Slow movement, collectables off, loose team clustering, `startingWeapons: { laser: 3 }`, `enemyStartingWeapons: { laser: 3 }`
+
+**Objectives:** Destroy all enemy stations (5 opposing teams)
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 600
+
+**Design note:** Lasers pierce through multiple stations in a line without stopping — a single aligned shot can eliminate several targets. The white dwarf's extreme gravity bends laser paths near the centre. With 5 AI factions fighting simultaneously, the arena degrades rapidly and opportunities for multi-kill shots open unpredictably.
+
+---
+
+#### Mission 19 — Total War
+
+**Story:** *"All factions. Maximum engagement. Wormhole space. Small stations. Everyone is in the fight now, recruit. Do not let them outmanoeuvre you."*
+
+**Layout:**
+- 4 human stations (team 0), loose team grouping
+- 4 Megabot drone stations per enemy team (teams 1–7), loose team grouping
+- Wormhole scenario (existing scenario 19) — wormhole portals with mixed planet types
+
+**Settings:** Small station size, normal speed, Slow movement, collectables off, loose team clustering
+
+**Objectives:** Destroy all enemy stations (7 opposing teams)
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 700
+
+**Design note:** 32 stations total. Megabots coordinate targeting and factor in leaderboard positioning (§7.2). Wormhole deflections cause bullets to appear from unexpected directions — in a 32-station game this produces chaotic crossfire. Human must survive the opening turns while the AI factions thin each other, then push for kills once the field opens. Small station size shrinks hit radius for all parties.
+
+---
+
+#### Mission 20 — The Duel
+
+**Story:** *"One final confrontation. Micro stations. A black hole between you and them. This is what all the training was for. Do not miss."*
+
+**Layout:**
+- 4 human stations (team 0), tight team grouping, left side
+- 4 Megabot drone stations (team 1), tight team grouping, right side
+- Black Hole scenario (existing scenario 22) with 3 comets added to `layout.planets` (type `comet`, gravitational bodies that move each turn per Comet scenario rules — see scenario 15)
+
+**Settings:** Micro station size, normal speed, Slow movement, collectables off, tight team clustering
+
+**Objectives:** Destroy all 4 enemy stations
+
+**Fail conditions:** Combat implicit fail
+
+**Scoring:** `combat_efficiency`
+
+**Passing score:** 800
+
+**Design note:** The finale. Micro stations are the smallest hit target in the game — every shot must count. The black hole at centre makes direct paths impossible; all trajectories must arc around it. Moving comets add shifting gravitational perturbations that vary turn to turn. Megabots run at ~50% hit rate; surviving the opening turns requires careful hyperspace use and positional play learned across the full campaign.
+
+---
+
+## 14. Out of Scope (v1)
 
 - Sound / music
 - Multiplayer over network
@@ -436,7 +1126,7 @@ These may be considered for later versions.
 
 ---
 
-## 14. Open Questions for Review
+## 15. Confirmed Decisions
 
 The following are confirmed from the original source / website / screenshots:
 - ✅ **Simultaneous fire** — all shots fire at once when every player has acted.
@@ -445,10 +1135,4 @@ The following are confirmed from the original source / website / screenshots:
 - ✅ **Wormhole colour coding** — purple/blue/green/grey/yellow — keep exactly.
 - ✅ **First-run demo** — auto-start a demo game (5 AI, red giant scenario) before the player configures anything.
 
-The following still need a decision:
-
-1. **Tournament leaderboard detail** — the original shows "hit accuracy, wins, kills and surviving stations" as a running total. Do we want to surface the per-kill-type breakdown (vengeance/strategy/bully etc.) in the UI, or reserve that for an end-of-tournament awards screen only?
-2. **Star Wars theming** — how literal? Death Star icons on stations (as in original), Star Wars-style font for the title screen, or minimal theming (keep the name but don't lean hard into SW IP)?
-3. **Sound** — the original has no sound. Do we want to add it in v1, or keep it out for now?
-4. **Slow-motion mode** — the original has O key while paused for slow-motion step-through. Include in v1?
-5. **Numerical accuracy** — the original's author notes the physics has known drift errors near black holes (acceptable). Should we try to improve this (e.g. RK4 integration) or faithfully reproduce the same Euler method?
+All open questions have been resolved.

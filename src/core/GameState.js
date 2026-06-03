@@ -1,11 +1,14 @@
 export const GameMode = Object.freeze({
-  CONFIG:   'config',
-  DEMO:     'demo',
-  AIMING:   'aiming',
-  FIRING:   'firing',
-  RESULTS:  'results',
-  GAMEOVER: 'gameover',
-  AWARDS:   'awards',
+  CONFIG:     'config',
+  DEMO:       'demo',
+  AIMING:     'aiming',
+  FIRING:     'firing',
+  RESULTS:    'results',
+  GAMEOVER:   'gameover',
+  AWARDS:     'awards',
+  TP_AIMING:  'tp_aiming',
+  TP_FIRING:  'tp_firing',
+  TP_RESULTS: 'tp_results',
 });
 
 export class GameState {
@@ -34,6 +37,7 @@ export class GameState {
     this.firingStep       = 0;          // physics step counter within the current firing phase
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click
+    this.tpGame           = null;       // TargetPracticeGame | null
   }
 
   get stationMovement() { return this.movementSpeed !== 'off'; }

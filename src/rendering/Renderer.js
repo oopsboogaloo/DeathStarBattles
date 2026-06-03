@@ -31,6 +31,9 @@ export class Renderer {
 
   setAimCircleScale(scale) { this._aimCircleScale = scale ?? 1; }
 
+  // Set which team is visible during a TP turn (null = show all, normal mode)
+  setTPVisibleTeam(teamIndex) { this._tpVisibleTeamIndex = teamIndex ?? null; }
+
   setPerformance(mode) {
     this._performance = mode ?? 'full';
     setPlanetRendererSimplified(this._simplified);
@@ -240,7 +243,7 @@ export class Renderer {
     }
 
     // Ghost trail of previous shot — helps human players adjust aim
-    if (gameState.mode === 'aiming' && gameState.waitingForInput) {
+    if ((gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') && gameState.waitingForInput) {
       const active = gameState.activeStation;
       if (active?.lastTrail?.length > 1) this._drawGhostTrail(ctx, active);
     }
@@ -261,8 +264,24 @@ export class Renderer {
       if (!this._simplified) this._drawParticles(ctx, ex.particles);
     }
 
-    // Stations + station explosions + hyperspace flashes
-    for (const station of gameState.allStations) {
+    // Practice targets (TP mode — only the current team's surviving targets)
+    if (gameState.tpGame) {
+      const tp      = gameState.tpGame;
+      const teamIdx = this._tpVisibleTeamIndex;
+
+      tp.targets.forEach((tgt, i) => {
+        const show = teamIdx !== null && teamIdx !== undefined
+          ? !tp.isTargetDestroyed(teamIdx, i)
+          : [...tp.teamData.values()].some(d => !d.targetDestroyed[i]);
+        if (show) this._drawTarget(ctx, tgt);
+      });
+    }
+
+    // Stations — filter to current team in TP, show all otherwise
+    const stationsToRender = (this._tpVisibleTeamIndex !== null && this._tpVisibleTeamIndex !== undefined)
+      ? gameState.allStations.filter(s => s.team.index === this._tpVisibleTeamIndex)
+      : gameState.allStations;
+    for (const station of stationsToRender) {
       if (station.hyperspaceFlash)        this._drawHyperspaceFlash(ctx, station);
       if (station.status === 'exploding') this._drawStationExplosion(ctx, station);
       if (station.shockwave)              this._drawShockwave(ctx, station.position.x, station.position.y, station.shockwave.t, station.radius * 5, station.shockwave.r, station.shockwave.g, station.shockwave.b);
@@ -298,10 +317,12 @@ export class Renderer {
     // VFX overlays (collectable shatter, collectable grants, muzzle flashes, laser paths)
     if (gameState.vfxList?.length) this._drawVFX(ctx, gameState.vfxList);
 
-    // Aiming indicator — active station in AIMING mode (hidden when hyperspace queued)
+    // Aiming indicator — active station in AIMING or TP_AIMING mode
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && gameState.mode === 'aiming' && !active.hyperspaceQueued && active.selectedWeapon !== 'forceShield') {
-      this._drawAimingIndicator(ctx, active);
+    if (active && active.status === 'active' && !active.hyperspaceQueued && active.selectedWeapon !== 'forceShield') {
+      if (gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') {
+        this._drawAimingIndicator(ctx, active);
+      }
     }
 
     // HUD (drawn above everything)
@@ -317,7 +338,8 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawHUD(ctx, gameState) {
-    if (!gameState.waitingForInput && gameState.mode !== 'aiming') return;
+    const isTP = gameState.mode === 'tp_aiming' || gameState.mode === 'tp_firing';
+    if (!isTP && !gameState.waitingForInput && gameState.mode !== 'aiming') return;
     const station = gameState.activeStation;
     if (!station) return;
 
@@ -334,7 +356,9 @@ export class Renderer {
     ctx.fillStyle    = `rgb(${cr},${cg},${cb})`;
     ctx.shadowColor  = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur   = 6;
-    const header = `T e a m  ${teamNum}        S t a t i o n  ${statNum}`;
+    const tp = gameState.tpGame;
+    const roundSuffix = tp ? `   —   Round ${tp.currentRound} / ${tp.totalRounds}` : '';
+    const header = `T e a m  ${teamNum}        S t a t i o n  ${statNum}${roundSuffix}`;
     ctx.fillText(header, this._vpW / 2, 10);
     ctx.restore();
 
@@ -388,8 +412,8 @@ export class Renderer {
       }
     }
 
-    // Turn counter (top-right corner, unobtrusive)
-    if (gameState.mode !== 'gameover') {
+    // Turn counter (top-right corner, unobtrusive) — suppressed in TP mode
+    if (gameState.mode !== 'gameover' && !gameState.tpGame) {
       ctx.font         = `${Math.max(12, Math.floor(this._vpW / 80))}px monospace`;
       ctx.textAlign    = 'right';
       ctx.textBaseline = 'top';
@@ -1184,6 +1208,7 @@ export class Renderer {
         case 'collectableGrant':       this._drawCollectableGrant(ctx, vfx);        break;
         case 'tripleCannonMuzzle':     this._drawTripleCannonMuzzle(ctx, vfx);      break;
         case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
+        case 'glitter':                this._drawGlitter(ctx, vfx);                 break;
       }
     }
   }
@@ -1253,6 +1278,45 @@ export class Renderer {
       ctx.lineWidth   = Math.max(1, (1 - t) * 3.5);
       ctx.stroke();
     }
+  }
+
+  _drawGlitter(ctx, vfx) {
+    const conv  = this.conv;
+    const alpha = Math.max(0, 1 - vfx.t);
+    for (const p of vfx.particles) {
+      const px = (p.ox + p.vx * vfx.t * 30) * conv;
+      const py = (p.oy + p.vy * vfx.t * 30) * conv;
+      const r  = Math.max(1, p.size * conv * (1 - vfx.t * 0.6));
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fillStyle = p.colour;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ----------------------------------------------------------------
+  // Practice target — archery bullseye
+  // ----------------------------------------------------------------
+
+  _drawTarget(ctx, target) {
+    const conv = this.conv;
+    const cx   = target.position.x * conv;
+    const cy   = target.position.y * conv;
+    const r    = Math.max(4, target.radius * conv);
+
+    for (let i = 5; i >= 1; i--) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * i / 5, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 === 0 ? '#cc1111' : '#ffffff';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth   = Math.max(0.5, conv * 0.2);
+    ctx.stroke();
   }
 
   _drawLaserPath(ctx, vfx) {

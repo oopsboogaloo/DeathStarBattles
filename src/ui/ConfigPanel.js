@@ -8,8 +8,8 @@ const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', 
 
 const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
-const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS', 'COLLECTABLES'];
-const NUM_PAGES   = 4;
+const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS', 'COLLECTABLES', 'TARGET PRACTICE'];
+const NUM_PAGES   = 5; // page 5 (index 4) is only reachable when mode === 'target-practice'
 
 // Style tokens — normal vs compact (paged mobile) mode
 const S = {
@@ -85,6 +85,10 @@ export class ConfigPanel {
       startingWeapons:   'none',
       aimCircleSize:     'regular',
       minimalUI:         false,
+      tpTargets:         5,
+      tpSize:            'MEDIUM',
+      tpRounds:          5,
+      tpIncludeAI:       false,
     };
     this._onStartCb       = null;
     this._onResumeCb      = null;
@@ -165,6 +169,7 @@ export class ConfigPanel {
       for (const row of this._page2Rows) this._pageEls[1].appendChild(row);
       for (const row of this._page3Rows) this._pageEls[2].appendChild(row);
       for (const row of this._page4Rows) this._pageEls[3].appendChild(row);
+      for (const row of this._page5Rows) this._pageEls[4].appendChild(row);
       this._flatSection.style.display  = 'none';
       this._pagedSection.style.display = 'block';
       this._panel.style.minWidth  = S.compact.panelMinW;
@@ -178,6 +183,7 @@ export class ConfigPanel {
       for (const row of this._page2Rows) this._advancedInner.appendChild(row);
       for (const row of this._page3Rows) this._advancedInner.appendChild(row);
       for (const row of this._page4Rows) this._advancedInner.appendChild(row);
+      for (const row of this._page5Rows) this._advancedInner.appendChild(row);
       this._flatSection.style.display  = 'block';
       this._pagedSection.style.display = 'none';
       this._panel.style.minWidth  = S.norm.panelMinW;
@@ -198,7 +204,7 @@ export class ConfigPanel {
     this._resumeBtn.style.padding      = t.resumePad;
     this._resumeBtn.style.fontSize     = t.resumeFont;
 
-    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows, ...this._page4Rows]) {
+    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows, ...this._page4Rows, ...this._page5Rows]) {
       row.style.marginBottom = t.rowMarginB;
       row.style.minHeight    = t.rowMinH;
       const lbl  = row.children[0];
@@ -229,19 +235,27 @@ export class ConfigPanel {
     this._navBar.style.paddingTop = t.navPadT;
   }
 
+  get _maxPage() { return this._d.mode === 'target-practice' ? 4 : 3; }
+
   _showPage(n) {
+    // Clamp to valid range for current mode
+    n = Math.min(n, this._maxPage);
     this._currentPage = n;
     for (let i = 0; i < NUM_PAGES; i++) {
       this._pageEls[i].style.display = i === n ? 'block' : 'none';
-      this._dotEls[i].textContent    = i === n ? '●' : '○';
-      this._dotEls[i].style.opacity  = i === n ? '1' : '0.45';
+      // Dot[4] only shown in target-practice mode
+      if (i === 4) {
+        this._dotEls[i].style.display = this._d.mode === 'target-practice' ? '' : 'none';
+      }
+      this._dotEls[i].textContent = i === n ? '●' : '○';
+      this._dotEls[i].style.opacity = i === n ? '1' : '0.45';
     }
     this._prevBtn.disabled      = n === 0;
-    this._nextBtn.disabled      = n === NUM_PAGES - 1;
+    this._nextBtn.disabled      = n === this._maxPage;
     this._prevBtn.style.opacity = n === 0 ? '0.25' : '1';
-    this._nextBtn.style.opacity = n === NUM_PAGES - 1 ? '0.25' : '1';
+    this._nextBtn.style.opacity = n === this._maxPage ? '0.25' : '1';
     this._prevBtn.style.cursor  = n === 0 ? 'default' : 'pointer';
-    this._nextBtn.style.cursor  = n === NUM_PAGES - 1 ? 'default' : 'pointer';
+    this._nextBtn.style.cursor  = n === this._maxPage ? 'default' : 'pointer';
   }
 
   // ── DOM construction ─────────────────────────────────────────────────────────
@@ -334,8 +348,8 @@ export class ConfigPanel {
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`));
     const rowMode        = this._row('MODE',
-      this._cycle('mode', ['single', 'tournament'],
-        v => v === 'single' ? 'Single Game' : 'Tournament'));
+      this._cycle('mode', ['single', 'tournament', 'target-practice'],
+        v => ({ single: 'Single Game', tournament: 'Tournament', 'target-practice': 'Target Practice' }[v])));
     const rowGameSpeed   = this._row('GAME SPEED',
       this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
         v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v])));
@@ -379,6 +393,16 @@ export class ConfigPanel {
         ['none', 'one', 'minor', 'oneOfEach', 'lots', 'tooMany'],
         v => ({ none: 'None', one: 'One at Random', minor: 'Minor  (2 Cannons)', oneOfEach: 'One of Each', lots: 'Lots  (3 of Each)', tooMany: 'Too Many  (7 of Each)' }[v])));
 
+    // Page 5 — Target Practice
+    const rowTPTargets = this._row('TARGETS',
+      this._cycle('tpTargets', [1, 3, 5, 7, 10, 20], v => String(v)));
+    const rowTPSize    = this._row('TARGET SIZE',
+      this._cycle('tpSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase()));
+    const rowTPRounds  = this._row('ROUNDS',
+      this._cycle('tpRounds', [1, 3, 5, 7, 10], v => String(v)));
+    const rowTPAI      = this._row('INCLUDE AI',
+      this._cycle('tpIncludeAI', [false, true], v => v ? 'On' : 'Off'));
+
     this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
     this._devRows        = [rowStartWep];
     rowStartWep.style.display = 'none'; // hidden until dev mode enabled
@@ -388,6 +412,7 @@ export class ConfigPanel {
     this._page2Rows = [rowStationSize, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
+    this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
 
     // ── Flat section ─────────────────────────────────────────────────────────
     this._flatSection = el('div', {});
@@ -458,6 +483,8 @@ export class ConfigPanel {
       const dot = el('span', {
         fontSize: '16px', cursor: 'pointer',
         color: 'rgba(170,185,255,0.8)', userSelect: 'none',
+        // Page 5 dot starts hidden; shown only in target-practice mode
+        display: i === 4 ? 'none' : '',
       });
       dot.textContent = '○';
       dot.addEventListener('click', () => this._showPage(i));
@@ -647,6 +674,7 @@ export class ConfigPanel {
       if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
     }
     if (key === 'collectables') this._updateCollectableGrey();
+    if (key === 'mode') this._showPage(Math.min(this._currentPage, this._maxPage));
   }
 
   setDevMode(enabled) {

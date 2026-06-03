@@ -18,6 +18,10 @@ import { AimControls }          from './ui/AimControls.js';
 import { WeaponSelector }       from './ui/WeaponSelector.js';
 import { WeaponId }             from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
+import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
+import { TargetPracticeGame }          from './core/TargetPracticeGame.js';
+import { TargetPracticeResultsScreen } from './ui/TargetPracticeResultsScreen.js';
+import { TARGET_PRACTICE_SCENARIOS }   from './scenarios/scenarioData.js';
 // Side-effect imports register each bot with AIController
 import './ai/RandBot.js';
 import './ai/AimBot.js';
@@ -82,6 +86,16 @@ leaderboard.hide();
 const gameOverScreen = new GameOverScreen();
 document.body.appendChild(gameOverScreen.element);
 
+const tpResultsScreen = new TargetPracticeResultsScreen();
+document.body.appendChild(tpResultsScreen.element);
+tpResultsScreen.onPlayAgain(() => startTPGame(activeConfig));
+tpResultsScreen.onMainMenu(() => {
+  tournament = null;
+  if (loop) { loop.stop(); loop = null; }
+  renderer.setGameAspect(null, null);
+  panel.show();
+});
+
 gameOverScreen.onContinue(() => {
   if (tournament) {
     startGame(activeConfig);      // same config, next tournament game
@@ -99,9 +113,13 @@ gameOverScreen.onNewGame(() => {
 panel.onStart(cfg => {
   isDemo       = false;
   activeConfig = cfg;
-  tournament        = null;   // fresh tournament on each new config start
+  tournament        = null;
   _prevWeaponStocks = null;
-  startGame(cfg);
+  if (cfg.mode === 'target-practice') {
+    startTPGame(cfg);
+  } else {
+    startGame(cfg);
+  }
 });
 
 // ─── Bottom UI buttons (End Turn / Hyperspace) ────────────────────────────────
@@ -248,7 +266,7 @@ function updateButtons(gs) {
     return;
   }
 
-  const isAiming   = gs.mode === GameMode.AIMING && gs.waitingForInput;
+  const isAiming   = (gs.mode === GameMode.AIMING || gs.mode === GameMode.TP_AIMING) && gs.waitingForInput;
   const isGameOver = gs.mode === GameMode.GAMEOVER;
 
   // All-humans-eliminated bar: show when game is ongoing but all human stations are gone
@@ -257,8 +275,10 @@ function updateButtons(gs) {
     gs.aliveTeams.length > 1;
   humanEliminatedBar.style.display = allHumansGone ? 'flex' : 'none';
 
+  const isTP = gs.tpGame != null;
   btnBar.style.display      = isAiming ? 'flex' : 'none';
-  moveBtn.style.display     = (isAiming && gs.stationMovement) ? 'inline-block' : 'none';
+  moveBtn.style.display     = (isAiming && gs.stationMovement && !isTP) ? 'inline-block' : 'none';
+  weaponBtn.style.display   = isTP ? 'none' : 'inline-block';
   moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : (_minimalUI ? 'M' : 'Move');
   moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
@@ -397,9 +417,146 @@ function startGame(cfg) {
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   aimControls.setLoop(loop);
 
-  renderer.drawFrame = gs => { _baseDrawFrame(gs); updateButtons(gs); };
+  renderer.drawFrame = gs => {
+    if (gs?.tpGame && (gs.mode === 'tp_aiming' || gs.mode === 'tp_firing')) {
+      renderer.setTPVisibleTeam(gs.activeStation?.team?.index ?? null);
+    } else {
+      renderer.setTPVisibleTeam(null);
+    }
+    _baseDrawFrame(gs);
+    updateButtons(gs);
+  };
 
   handler = new InputHandler({ canvas, loop, renderer });
+  loop.start();
+
+  updateButtons(gameState);
+}
+
+// ─── Target Practice ─────────────────────────────────────────────────────────
+
+const MAX_TP_REROLLS = 6;
+
+function startTPGame(cfg) {
+  if (loop) { loop.stop(); loop = null; }
+  _menuPausedLoop = false;
+  panel.setCanResume(false);
+  _prevMode = null;
+  leaderboard.hide();
+
+  renderer.setGameAspect(null, null);
+  renderer.resize(window.innerWidth, window.innerHeight);
+  renderer.setPerformance(cfg.performance ?? 'full');
+  renderer.clearTrails();
+  renderer.setTPVisibleTeam(null);
+
+  const AIM_SCALES = { smaller: 0.5, regular: 1, larger: 2, mammoth: 3 };
+  renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
+  _minimalUI = cfg.minimalUI ?? false;
+  aimControls.setMinimal(_minimalUI);
+  endTurnBtn.textContent   = _minimalUI ? 'X' : 'End Turn';
+  endTurnBtn.style.padding = _minimalUI ? '9px 14px' : '9px 26px';
+
+  const gw  = renderer.gameWidth;
+  const gh  = renderer.gameHeight;
+  renderer.setGameAspect(gw, gh);
+
+  const rng        = new RNG(RNG.randomSeed());
+  const tpSize     = StationSize[cfg.tpSize ?? 'MEDIUM'] ?? StationSize.MEDIUM;
+  const N          = cfg.tpTargets ?? 5;
+  const rounds     = cfg.tpRounds  ?? 5;
+  const includeAI  = cfg.tpIncludeAI ?? false;
+
+  // Build teams (only human teams if includeAI is off)
+  const nP = cfg.numPlayers;
+  const nH = Math.min(cfg.numHuman ?? 1, nP);
+  const nTeams = includeAI ? nP : Math.max(1, nH);
+  const teams = [];
+  for (let i = 0; i < nTeams; i++) {
+    teams.push(new Team({ index: i, isHuman: includeAI ? i < nH : true }));
+  }
+  let stationId = 0;
+  for (const team of teams) {
+    for (let s = 0; s < (cfg.stationsPerPlayer ?? 1); s++) {
+      team.stations.push(new Station({ id: stationId++, team, position: new Vec2(0, 0), size: tpSize }));
+    }
+  }
+
+  // Attach AI controllers for AI teams
+  if (includeAI) {
+    const physics0 = new PhysicsEngine(gw, gh);
+    for (const team of teams.filter(t => !t.isHuman)) {
+      team.controller = AIController.create(cfg.aiLevel ?? 3, physics0);
+    }
+  }
+
+  // Try to build a valid map with rerolls
+  const targetRadius = (StationSize[cfg.tpSize ?? 'MEDIUM'] ?? StationSize.MEDIUM).radius * 2.5;
+  let planets, side, selectedTargets;
+  let rerolls = 0;
+
+  while (rerolls <= MAX_TP_REROLLS) {
+    const scenarioPool = TARGET_PRACTICE_SCENARIOS;
+    const scenarioId   = scenarioPool[Math.floor(rng.next() * scenarioPool.length)];
+    const nPlanets     = rng.nextInt(6) + 3;
+    planets = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng,
+      cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', 'off', 'off');
+
+    // Place stations on one edge
+    side = TargetPracticeSetup.placeStations(teams, planets, gw, gh, rng);
+
+    // Attempt to place 2N targets
+    const effectiveN = rerolls >= MAX_TP_REROLLS ? Math.max(1, Math.floor(N / 2)) : N;
+    const candidates = TargetPracticeSetup.placeTargets(effectiveN, targetRadius, planets, gw, gh, side, rng);
+
+    if (candidates) {
+      // Run feasibility
+      const physicsForSim = new PhysicsEngine(gw, gh);
+      const allStations   = teams.flatMap(t => t.stations);
+      const ranked        = TargetPracticeSetup.runFeasibility(allStations, candidates, planets, physicsForSim);
+      selectedTargets     = ranked.slice(0, effectiveN);
+      break;
+    }
+    rerolls++;
+  }
+
+  // Draw background
+  const stars = Renderer.generateStarField(gw, gh);
+  renderer.drawBackground(stars, planets);
+
+  // Build game state
+  const gameState = new GameState({ planets, teams, config: { ...cfg }, movementSpeed: 'off' });
+  const physics   = new PhysicsEngine(gw, gh);
+
+  // Wire AI controllers into the game state (reuse the ones we built)
+  if (includeAI) {
+    for (const team of teams.filter(t => !t.isHuman)) {
+      team.controller = AIController.create(cfg.aiLevel ?? 3, physics);
+    }
+  }
+
+  // Build TargetPracticeGame
+  const stationList = teams.flatMap(t => t.stations);
+  gameState.tpGame  = new TargetPracticeGame({ targets: selectedTargets, totalRounds: rounds, stationList, teams });
+
+  loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
+  loop.setTPResultsCallback(() => {
+    tpResultsScreen.show(gameState);
+  });
+  aimControls.setLoop(loop);
+
+  renderer.drawFrame = gs => {
+    if (gs?.tpGame && (gs.mode === 'tp_aiming' || gs.mode === 'tp_firing')) {
+      renderer.setTPVisibleTeam(gs.activeStation?.team?.index ?? null);
+    } else {
+      renderer.setTPVisibleTeam(null);
+    }
+    _baseDrawFrame(gs);
+    updateButtons(gs);
+  };
+
+  handler = new InputHandler({ canvas, loop, renderer });
+  loop.startTP();
   loop.start();
 
   updateButtons(gameState);

@@ -98,6 +98,6 @@ export class InputHandler {
 
   _isHumanAiming() {
     const gs = this.loop?.gs;
-    return gs && gs.mode === GameMode.AIMING && gs.waitingForInput;
+    return gs && (gs.mode === GameMode.AIMING || gs.mode === GameMode.TP_AIMING) && gs.waitingForInput;
   }
 }

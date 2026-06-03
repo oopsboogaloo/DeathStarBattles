@@ -32,6 +32,10 @@ export const SCENARIO_NAMES = [
   'Big Wormhole',       // 28
 ];
 
+// Scenarios valid for Target Practice mode
+// Planetary(1), Asteroids(2), Crystal Asteroids(3), Star System(4), Jovian(6), Wormhole(19)
+export const TARGET_PRACTICE_SCENARIOS = [1, 2, 3, 4, 6, 19];
+
 // Weighted random scenario selection matching the original:
 // <25 → common (1-5), <88 → uncommon (1-13), else → any
 export function weightedRandomId(rng) {

@@ -28,8 +28,10 @@ export class GameLoop {
     this._turnIdx         = 0;
     this._resultsTimer    = 0;
     this._fastFwdPrevSpeed = null;   // non-null when Fast FWD is active
+    this._tpResultsCb     = null;
 
-    this._startTurn();
+    // TP mode: caller is responsible for calling startTP() after construction
+    if (!gameState.tpGame) this._startTurn();
   }
 
   // ─── rAF driver ─────────────────────────────────────────────────────────────
@@ -68,7 +70,14 @@ export class GameLoop {
         this._rotateAsteroids();
         this._advanceResults();
         break;
-      // GAMEOVER: no advance — waits for external restart
+      case GameMode.TP_AIMING:
+        this._advanceTPAiming();
+        break;
+      case GameMode.TP_FIRING:
+        this._rotateAsteroids();
+        this._advanceTPFiring();
+        break;
+      // GAMEOVER / TP_RESULTS: no advance — waits for external interaction
     }
   }
 
@@ -1479,6 +1488,13 @@ export class GameLoop {
   // ─── human input API (called by InputHandler in Phase 6) ────────────────────
 
   humanFire() {
+    if (this.gs.mode === GameMode.TP_AIMING && this.gs.waitingForInput) {
+      this.gs.waitingForInput = false;
+      this.gs.waitingForMove  = false;
+      this._turnIdx++;
+      this._advanceTPAiming();
+      return;
+    }
     if (this.gs.mode !== GameMode.AIMING || !this.gs.waitingForInput) return;
     this.gs.waitingForInput = false;
     this.gs.waitingForMove  = false;
@@ -1645,4 +1661,222 @@ export class GameLoop {
   togglePause()  { this._paused = !this._paused; }
   stepOne()      { if (this._paused) this._oneStep = true; }
   get isPaused() { return this._paused; }
+
+  // ─── Target Practice ─────────────────────────────────────────────────────────
+
+  setTPResultsCallback(cb) { this._tpResultsCb = cb; }
+
+  startTP() { this._startTPRound(); }
+
+  // Start a new round: build the ordered list of teams that still have targets.
+  _startTPRound() {
+    const tp = this.gs.tpGame;
+    this._tpTeamOrder = [...tp.teamData.keys()].filter(ti => !tp.isTeamDone(ti));
+    this._tpTeamIdx   = 0;
+
+    if (this._tpTeamOrder.length === 0) {
+      this.gs.mode = GameMode.TP_RESULTS;
+      this._tpResultsCb?.();
+      return;
+    }
+    this._startTPTeamTurn();
+  }
+
+  // Start the aiming phase for the current team in this round.
+  _startTPTeamTurn() {
+    const tp      = this.gs.tpGame;
+    const teamIdx = this._tpTeamOrder[this._tpTeamIdx];
+
+    this._turnOrder = tp.stationList.filter(s =>
+      s.status === 'active' && s.team.index === teamIdx,
+    );
+
+    if (this._turnOrder.length === 0) {
+      this._advanceTPTeam();
+      return;
+    }
+
+    this.gs.activeBullets   = [];
+    this.gs.waitingForInput = false;
+    this.gs.waitingForMove  = false;
+    this.renderer.clearTrails();
+    this.gs.mode  = GameMode.TP_AIMING;
+    this._turnIdx = 0;
+    for (const s of this._turnOrder) s.selectedWeapon = 'cannon';
+
+    this._advanceTPAiming();
+  }
+
+  // Called when a team's firing phase ends. Advance to the next team or next round.
+  _advanceTPTeam() {
+    const tp      = this.gs.tpGame;
+    const teamIdx = this._tpTeamOrder[this._tpTeamIdx];
+
+    // Record finish if this team just cleared all their targets
+    const data = tp.teamData.get(teamIdx);
+    if (data && data.finishedRound === null && tp.isAllTargetsCleared(teamIdx)) {
+      data.finishedRound = tp.currentRound;
+    }
+
+    this._tpTeamIdx++;
+
+    if (this._tpTeamIdx < this._tpTeamOrder.length) {
+      this._startTPTeamTurn();
+    } else {
+      tp.currentRound++;
+      if (tp.allTeamsDone || tp.currentRound > tp.totalRounds) {
+        this.gs.mode = GameMode.TP_RESULTS;
+        this._tpResultsCb?.();
+      } else {
+        this._startTPRound();
+      }
+    }
+  }
+
+  _advanceTPAiming() {
+    if (this.gs.waitingForInput) return;
+
+    while (this._turnIdx < this._turnOrder.length) {
+      const station = this._turnOrder[this._turnIdx];
+
+      if (!station.team.isHuman) {
+        this._tpAIAim(station);
+        this._setActive(station);
+        this._turnIdx++;
+      } else {
+        this._setActive(station);
+        this.gs.waitingForInput = true;
+        return;
+      }
+    }
+
+    this._tpFireAll();
+  }
+
+  _tpAIAim(station) {
+    const tp           = this.gs.tpGame;
+    const aliveIndices = tp.survivingTargetIndices(station.team.index);
+
+    if (!aliveIndices.length) {
+      station.angle = Math.floor(Math.random() * 360);
+      station.power = 400;
+      return;
+    }
+
+    const ti     = aliveIndices[Math.floor(Math.random() * aliveIndices.length)];
+    const target = tp.targets[ti];
+
+    if (station.team.controller?._findBestShot) {
+      const { angle, power } = station.team.controller._findBestShot(
+        station, target, { planets: this.gs.planets, turn: 20 }, 10,
+      );
+      station.angle = angle;
+      station.power = power;
+    } else {
+      const dx = target.position.x - station.position.x;
+      const dy = target.position.y - station.position.y;
+      station.angle = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) % 360 + 360) % 360);
+      station.power = 400;
+    }
+  }
+
+  _tpFireAll() {
+    this.gs.activeBullets = [];
+    this.gs.firingStep    = 0;
+
+    for (const station of this._turnOrder) {
+      station.lastAngle = station.angle;
+      station.lastPower = station.power;
+      this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
+    }
+    this.gs.mode = GameMode.TP_FIRING;
+  }
+
+  _advanceTPFiring() {
+    const tp            = this.gs.tpGame;
+    const stepsPerFrame = this._paused ? PRINT_EVERY : this._speedSteps;
+
+    for (let i = 0; i < stepsPerFrame; i++) {
+      this.gs.firingStep++;
+
+      for (const bullet of this.gs.activeBullets) {
+        if (bullet.status !== BulletStatus.ACTIVE) continue;
+
+        this.physics.step(bullet, this.gs.planets);
+
+        if (bullet.lifetime % PRINT_EVERY === 0) {
+          bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));
+          this.renderer.appendTrailPoint(bullet);
+        }
+
+        // Target hit detection — pass-through, per-team shared pool
+        const teamIndex = bullet.owner.team.index;
+        for (let ti = 0; ti < tp.targets.length; ti++) {
+          if (tp.isTargetDestroyed(teamIndex, ti)) continue;
+          const tgt = tp.targets[ti];
+          const dx  = tgt.position.x - bullet.position.x;
+          const dy  = tgt.position.y - bullet.position.y;
+          if (dx * dx + dy * dy < tgt.radius * tgt.radius) {
+            const accuracy = this._tpAccuracy(bullet.velocity, dx, dy);
+            if (tp.recordHit(bullet.owner.id, teamIndex, ti, accuracy)) {
+              this.gs.vfxList.push(this._makeGlitterVFX(tgt.position.x, tgt.position.y));
+            }
+          }
+        }
+
+        if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
+          bullet.owner.lastTrail = [...bullet.trail];
+        }
+      }
+    }
+
+    this._processAsteroidFragments();
+    this._processGreySplits();
+
+    for (const bullet of this.gs.activeBullets) {
+      if (bullet.status === BulletStatus.EXPLODING) {
+        bullet.explosionT += 0.025;
+        if (bullet.explosionT >= 1) bullet.status = BulletStatus.DEAD;
+      }
+    }
+    this.gs.activeBullets = this.gs.activeBullets.filter(b => b.status !== BulletStatus.DEAD);
+
+    this._advanceVFX();
+    this._advanceExplosionEffects();
+
+    if (this.gs.activeBullets.length === 0) {
+      this._advanceTPTeam();
+    }
+  }
+
+  _tpAccuracy(velocity, dxToCenter, dyToCenter) {
+    const vMag = Math.sqrt(velocity.x ** 2 + velocity.y ** 2);
+    const dMag = Math.sqrt(dxToCenter ** 2 + dyToCenter ** 2);
+    if (vMag < 1e-9 || dMag < 1e-9) return 1;
+    const dot   = (velocity.x * dxToCenter + velocity.y * dyToCenter) / (vMag * dMag);
+    const theta = Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI);
+    return Math.max(0, 1 - theta / 90);
+  }
+
+  _makeGlitterVFX(x, y) {
+    const colours = ['#ffffff', '#ffffff', '#ff1111', '#ff1111', '#dd0000'];
+    return {
+      type:     'glitter',
+      x, y,
+      t:        0,
+      duration: 0.8,
+      particles: Array.from({ length: 24 }, () => {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 3.5;
+        return {
+          vx:     Math.cos(angle) * speed,
+          vy:     Math.sin(angle) * speed,
+          colour: colours[Math.floor(Math.random() * colours.length)],
+          size:   2 + Math.random() * 3,
+          ox: x, oy: y,
+        };
+      }),
+    };
+  }
+
 }
