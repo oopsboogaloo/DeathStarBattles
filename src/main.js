@@ -16,6 +16,11 @@ import { GameOverScreen }       from './ui/GameOverScreen.js';
 import { TournamentState }      from './core/TournamentState.js';
 import { AimControls }          from './ui/AimControls.js';
 import { WeaponSelector }       from './ui/WeaponSelector.js';
+import { StoryObjectivePanel }  from './ui/StoryObjectivePanel.js';
+import { StoryDialogPopup }     from './ui/StoryDialogPopup.js';
+import { StoryModeScreen }      from './ui/StoryModeScreen.js';
+import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
+import { StoryPersistence }     from './story/StoryPersistence.js';
 import { WeaponId }             from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
@@ -42,6 +47,9 @@ const panel = new ConfigPanel();
 document.body.appendChild(panel.element);
 
 let activeConfig      = panel.config; // last config used to start a real game
+
+// Apply campaign completion reward immediately on load
+{ const _d = StoryPersistence.load(); if (StoryPersistence.isCampaignComplete(_d)) panel.setCampaignComplete(true); }
 let isDemo            = false;
 let tournament        = null;          // TournamentState | null
 let lastGameState     = null;          // game state from most recently completed game (for Scores modal)
@@ -117,6 +125,9 @@ panel.onStart(cfg => {
   _prevWeaponStocks = null;
   if (cfg.mode === 'target-practice') {
     startTPGame(cfg);
+  } else if (cfg.mode === 'story') {
+    panel.hide();
+    storyScreen.showSelect();
   } else {
     startGame(cfg);
   }
@@ -156,13 +167,20 @@ document.body.appendChild(btnBar);
 const weaponSelector = new WeaponSelector();
 weaponSelector.setOnSelect(weaponId => { if (loop) loop.humanSelectWeapon(weaponId); });
 
+const storyObjectivePanel = new StoryObjectivePanel();
+const storyDialogPopup    = new StoryDialogPopup();
+storyDialogPopup.setOnDismiss(() => { if (loop) loop.humanDismissDialog(); });
+const storyScreen = new StoryModeScreen();
+storyScreen.setOnStartMission(mission => startStoryMission(mission));
+storyScreen.setOnClose(() => panel.show());
+
 endTurnBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanFire(); });
 weaponBtn.addEventListener('click',  e => {
   e.stopPropagation();
   if (!loop) return;
   const gs = loop.gs;
   if (gs.mode === 'aiming' && gs.waitingForInput && gs.activeStation) {
-    weaponSelector.toggle(gs.activeStation, weaponBtn);
+    weaponSelector.toggle(gs.activeStation, weaponBtn, gs);
   }
 });
 moveBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
@@ -257,7 +275,13 @@ let _prevMode  = null;
 let _minimalUI = false;
 
 function updateButtons(gs) {
-  if (panel.isVisible) return; // panel is open — don't show game UI on top of it
+  if (panel.isVisible) {
+    storyObjectivePanel.hide();
+    storyDialogPopup.update(null);
+    return; // panel is open — don't show game UI on top of it
+  }
+  storyObjectivePanel.update(gs);
+  storyDialogPopup.update(gs);
   if (!gs || isDemo) {
     btnBar.style.display             = 'none';
     gameOverBar.style.display        = 'none';
@@ -298,6 +322,20 @@ function updateButtons(gs) {
   } else {
     weaponBtn.textContent = 'CANNON ▲';
     weaponSelector.close();
+  }
+
+  // On first frame of STORY_DEBRIEF, save progress and show debrief screen
+  if (gs.mode === GameMode.STORY_DEBRIEF && _prevMode !== GameMode.STORY_DEBRIEF) {
+    humanEliminatedBar.style.display = 'none';
+    if (loop) { loop.stop(); }
+    const ss = gs.storyState;
+    if (ss.passed) {
+      let data = StoryPersistence.load();
+      data = StoryPersistence.recordPass(ss.mission.id, ss.score, data);
+      StoryPersistence.save(data);
+      if (StoryPersistence.isCampaignComplete(data)) panel.setCampaignComplete(true);
+    }
+    storyScreen.showDebrief(gs);
   }
 
   // On first frame of GAMEOVER, trigger end-of-game flow
@@ -423,6 +461,63 @@ function startGame(cfg) {
     } else {
       renderer.setTPVisibleTeam(null);
     }
+    _baseDrawFrame(gs);
+    updateButtons(gs);
+  };
+
+  handler = new InputHandler({ canvas, loop, renderer });
+  loop.start();
+
+  updateButtons(gameState);
+}
+
+// ─── Story Mode ──────────────────────────────────────────────────────────────
+
+let _currentStoryMission = null;
+
+function startStoryMission(mission) {
+  if (loop) { loop.stop(); loop = null; }
+  _menuPausedLoop      = false;
+  _prevMode            = null;
+  _currentStoryMission = mission;
+  panel.setCanResume(false);
+  leaderboard.hide();
+  storyScreen.hide();
+
+  resetStoryStationId();
+
+  renderer.setGameAspect(null, null);
+  renderer.resize(window.innerWidth, window.innerHeight);
+  renderer.setPerformance('full');
+  renderer.clearTrails();
+  renderer.setTPVisibleTeam(null);
+  renderer.setAimCircleScale(1);
+
+  _minimalUI = false;
+  aimControls.setMinimal(false);
+  endTurnBtn.textContent   = 'End Turn';
+  endTurnBtn.style.padding = '9px 26px';
+  weaponBtn.style.padding  = '9px 18px';
+
+  fastFwdBtn.disabled      = false;
+  fastFwdBtn.style.opacity = '1';
+
+  const gw  = renderer.gameWidth;
+  const gh  = renderer.gameHeight;
+  renderer.setGameAspect(gw, gh);
+
+  const physics  = new PhysicsEngine(gw, gh);
+  const rng      = new RNG(RNG.randomSeed());
+  const { gs: gameState, teams } = buildStoryMission(mission, physics, rng);
+
+  const stars = Renderer.generateStarField(gw, gh);
+  renderer.drawBackground(stars, gameState.planets);
+
+  loop = new GameLoop({ gameState, physics, renderer, rng, speed: mission.settings.gameSpeed ?? 'normal', performance: 'full' });
+  aimControls.setLoop(loop);
+
+  renderer.drawFrame = gs => {
+    renderer.setTPVisibleTeam(null);
     _baseDrawFrame(gs);
     updateButtons(gs);
   };
@@ -722,6 +817,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     _devMode = !_devMode;
     panel.setDevMode(_devMode);
+    storyScreen.setDevMode(_devMode);
     return;
   }
   if (!loop || isDemo) return;

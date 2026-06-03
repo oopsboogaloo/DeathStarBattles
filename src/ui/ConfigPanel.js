@@ -108,6 +108,8 @@ export class ConfigPanel {
     this._advancedInner   = null;
     this._collectSubRows  = null; // rows greyed out when collectables === 'off'
     this._devRows         = null; // rows hidden unless dev mode is active
+    this._campaignUnlocked = false;
+    this._devModeOn        = false;
     this._flatSection     = null;
     this._pagedSection    = null;
     this.element          = this._build();
@@ -348,8 +350,8 @@ export class ConfigPanel {
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`));
     const rowMode        = this._row('MODE',
-      this._cycle('mode', ['single', 'tournament', 'target-practice'],
-        v => ({ single: 'Single Game', tournament: 'Tournament', 'target-practice': 'Target Practice' }[v])));
+      this._cycle('mode', ['single', 'tournament', 'target-practice', 'story'],
+        v => ({ single: 'Single Game', tournament: 'Tournament', 'target-practice': 'Target Practice', story: 'Story Mode' }[v])));
     const rowGameSpeed   = this._row('GAME SPEED',
       this._cycle('speed', ['verySlow', 'slow', 'normal', 'fast', 'veryFast'],
         v => ({ verySlow: '¼×  Very Slow', slow: '½×  Slow', normal: '1×  Normal', fast: '2×  Fast', veryFast: '4×  Very Fast' }[v])));
@@ -679,8 +681,19 @@ export class ConfigPanel {
 
   setDevMode(enabled) {
     this._devBadge.style.display = enabled ? 'inline' : 'none';
+    this._devModeOn = enabled;
+    this._updateDevRows();
+  }
+
+  setCampaignComplete(complete) {
+    this._campaignUnlocked = complete;
+    this._updateDevRows();
+  }
+
+  _updateDevRows() {
+    const show = this._devModeOn || this._campaignUnlocked;
     for (const row of this._devRows ?? []) {
-      row.style.display = enabled ? '' : 'none';
+      row.style.display = show ? '' : 'none';
     }
   }
 

@@ -37,8 +37,8 @@ export class WeaponSelector {
     btn.textContent = n !== null ? `${lbl} [${n}] ▲` : `${lbl} ▲`;
   }
 
-  open(station, anchorEl) {
-    this._rebuildRows(station);
+  open(station, anchorEl, gs) {
+    this._rebuildRows(station, gs);
     this.popup.style.display = 'block';
     this._isOpen = true;
     this._position(anchorEl);
@@ -49,8 +49,8 @@ export class WeaponSelector {
     this._isOpen = false;
   }
 
-  toggle(station, anchorEl) {
-    this._isOpen ? this.close() : this.open(station, anchorEl);
+  toggle(station, anchorEl, gs) {
+    this._isOpen ? this.close() : this.open(station, anchorEl, gs);
   }
 
   _position(anchorEl) {
@@ -78,12 +78,13 @@ export class WeaponSelector {
     return popup;
   }
 
-  _rebuildRows(station) {
+  _rebuildRows(station, gs) {
     this.popup.innerHTML = '';
     const team = station.team;
+    const cannonEnabled = gs?.storyState?.mission.settings.cannonEnabled !== false;
 
     const allWeapons = [
-      WeaponId.CANNON,
+      ...(cannonEnabled ? [WeaponId.CANNON] : []),
       WeaponId.HYPERSPACE,
       WeaponId.TRIPLE_CANNON,
       WeaponId.BLUNDERBUSS,

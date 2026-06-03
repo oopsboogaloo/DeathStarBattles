@@ -7,6 +7,9 @@ import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED,
          ROCKET_BLAST_RADIUS, ROCKET_HITBOX_RADIUS } from '../entities/Rocket.js';
+import { Station, StationSize }            from '../entities/Station.js';
+import { Team }                            from '../entities/Team.js';
+import { AIController }                    from '../ai/AIController.js';
 
 // Physics steps per rAF frame for each speed setting.
 // Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
@@ -77,7 +80,7 @@ export class GameLoop {
         this._rotateAsteroids();
         this._advanceTPFiring();
         break;
-      // GAMEOVER / TP_RESULTS: no advance — waits for external interaction
+      // GAMEOVER / STORY_DIALOG / TP_RESULTS: no advance — waits for external interaction
     }
   }
 
@@ -303,6 +306,21 @@ export class GameLoop {
           this._spawnStationExplosion(a);
           this._spawnStationExplosion(b);
         }
+      }
+    }
+    // ── Collectable pickup on movement contact ───────────────────────────────
+    for (const station of allStations) {
+      if (station.status !== 'active') continue;
+      for (const c of this.gs.collectables) {
+        if (!c.alive) continue;
+        if (station.position.distanceSqTo(c.position) >= (station.radius + c.radius) ** 2) continue;
+        c.alive = false;
+        const grant = this._pickCollectableGrant();
+        station.team.addStock(grant.weaponId, grant.count);
+        if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
+        this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+        const [cr, cg, cb] = station.team.colour;
+        this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
       }
     }
   }
@@ -622,13 +640,26 @@ export class GameLoop {
       }
       // No humans alive — stay in Fast FWD for all remaining AI turns
     }
-    this._turnOrder = this.gs.allStations.filter(s => s.status === 'active');
+    this._processStoryEvents(); // may spawn stations and set storyDialogText
+    this._turnOrder = this.gs.allStations.filter(s => s.status === 'active' && s.role !== 'target');
     this._turnIdx   = 0;
     this.gs.waitingForInput = false;
     this.gs.waitingForMove  = false;
     this.gs.mode = GameMode.AIMING;
-    for (const s of this._turnOrder) s.selectedWeapon = WeaponId.CANNON;
+    const cannonEnabled = this.gs.storyState?.mission.settings.cannonEnabled !== false;
+    for (const s of this._turnOrder) {
+      if (!cannonEnabled && s.team.getStock(WeaponId.ROCKET) > 0) {
+        s.selectedWeapon = WeaponId.ROCKET;
+      } else {
+        s.selectedWeapon = cannonEnabled ? WeaponId.CANNON : WeaponId.HYPERSPACE;
+      }
+    }
     if (this.gs.stationMovement) this._clearStationVelocities();
+    if (this.gs.storyDialogText !== null) {
+      this.gs._storyPrevMode = GameMode.AIMING;
+      this.gs.mode = GameMode.STORY_DIALOG;
+      return;
+    }
     // Process leading AI stations immediately so first human gets the indicator
     this._advanceAiming();
   }
@@ -744,8 +775,8 @@ export class GameLoop {
           intervalSteps: 200, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
-      } else {
-        // Cannon (or fallback)
+      } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
+        // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
       }
 
@@ -948,8 +979,9 @@ export class GameLoop {
         const hitCollectable = this.physics.checkCollectableCollision(bullet, this.gs.collectables);
         if (hitCollectable) {
           hitCollectable.alive = false;
-          const grant = WEAPON_GRANTS[Math.floor(this.rng.next() * WEAPON_GRANTS.length)];
+          const grant = this._pickCollectableGrant();
           bullet.owner.team.addStock(grant.id, grant.charges);
+          if (this.gs.storyState && bullet.owner.team.isHuman) this.gs.storyState.collectCount++;
           this.gs.vfxList.push(this._makeCollectableShatterVFX(hitCollectable));
           const [r, g, b] = bullet.owner.team.colour;
           this.gs.vfxList.push({
@@ -1024,10 +1056,11 @@ export class GameLoop {
         if (dx * dx + dy * dy < r2) {
           blast.hitSet.add(c);
           c.alive = false;
-          const grant = WEAPON_GRANTS[Math.floor(this.rng.next() * WEAPON_GRANTS.length)];
-          blast.owner.addStock(grant.id, grant.charges);
+          const grant = this._pickCollectableGrant();
+          blast.owner.team.addStock(grant.id, grant.charges);
+          if (this.gs.storyState && blast.owner.team.isHuman) this.gs.storyState.collectCount++;
           this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
-          const [cr, cg, cb] = blast.owner.colour;
+          const [cr, cg, cb] = blast.owner.team.colour;
           this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
         }
       }
@@ -1127,6 +1160,14 @@ export class GameLoop {
 
   // Spawn shockwave + particle burst on a newly-killed station.
   _spawnStationExplosion(station) {
+    if (station.role === 'target') {
+      station.shockwave = { t: 0, r: 204, g: 17, b: 17 };
+      station.particles = [
+        ...this._makeParticles(station.position.x, station.position.y, 204, 17,  17,  8),
+        ...this._makeParticles(station.position.x, station.position.y, 255, 255, 255, 8),
+      ];
+      return;
+    }
     const [r, g, b] = station.colour;
     station.shockwave = { t: 0, r, g, b };
     station.particles = this._makeParticles(station.position.x, station.position.y, r, g, b, 16);
@@ -1182,6 +1223,7 @@ export class GameLoop {
         vx += Math.cos(theta) * accel * TIMESTEP;
         vy += Math.sin(theta) * accel * TIMESTEP;
       }
+      const px0 = px, py0 = py;
       px += vx * TIMESTEP;
       py += vy * TIMESTEP;
       path.push(new Vec2(px, py));
@@ -1209,10 +1251,21 @@ export class GameLoop {
       }
       if (reflected) continue;
 
-      // Station hit — kill and keep going
+      // Station hit — swept segment vs circle so fast steps don't skip over ships
       for (const s of this.gs.allStations) {
         if (s.status !== 'active' || s === station) continue;
-        if ((px - s.position.x) ** 2 + (py - s.position.y) ** 2 < s.radius ** 2) {
+        const sdx = px0 - s.position.x, sdy = py0 - s.position.y;
+        const edx = px  - s.position.x, edy = py  - s.position.y;
+        const segDx = px - px0, segDy = py - py0;
+        const a  = segDx * segDx + segDy * segDy;
+        const b  = 2 * (sdx * segDx + sdy * segDy);
+        const c  = sdx * sdx + sdy * sdy - s.radius * s.radius;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a);
+        const t2 = (-b + sq) / (2 * a);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) {
           this._resolveStationHit(proxy, s);
         }
       }
@@ -1430,6 +1483,87 @@ export class GameLoop {
     }
   }
 
+  // ─── Story mode helpers ──────────────────────────────────────────────────────
+
+  _processStoryEvents() {
+    const ss = this.gs.storyState;
+    if (!ss) return;
+    for (const event of ss.mission.events ?? []) {
+      if (event.turn !== this.gs.turn || ss.firedEvents.has(event)) continue;
+      ss.firedEvents.add(event);
+      if (event.spawnStations?.length) {
+        const teamWeaponsGiven = new Set();
+        for (const def of event.spawnStations) {
+          const station = this._buildStoryStation(def);
+          if (!teamWeaponsGiven.has(def.team) && def.startingWeapons) {
+            station.team.addStartingWeapons(def.startingWeapons);
+            teamWeaponsGiven.add(def.team);
+          }
+        }
+      }
+      if (event.dialog) this.gs.storyDialogText = event.dialog;
+      for (const obj of event.addObjectives ?? []) ss.addObjective(obj);
+    }
+  }
+
+  _buildStoryStation(def) {
+    const { gw, gh } = this.physics;
+    let team = this.gs.teams.find(t => t.index === def.team);
+    if (!team) {
+      team = new Team({ index: def.team, isHuman: false });
+      this.gs.teams.push(team);
+    }
+    if (!team.controller && def.role === 'ai') {
+      team.controller = AIController.create(def.aiLevel ?? 2, this.physics);
+    }
+    const size  = StationSize[this.gs.storyState.mission.settings.stationSize?.toUpperCase()] ?? StationSize.LARGE;
+    const newId = this.gs.teams.reduce((sum, t) => sum + t.stations.length, 0);
+    const station = new Station({ id: newId, team, position: new Vec2(0, 0), size });
+    station.role        = def.role        ?? 'ai';
+    station.visualStyle = def.visualStyle ?? 'drone';
+    if (def.x !== null && def.y !== null) {
+      station.position = new Vec2(def.x * gw, def.y * gh);
+    } else {
+      let placed = false;
+      for (let a = 0; a < 300; a++) {
+        const candidate = new Vec2(this.rng.next() * gw, this.rng.next() * gh);
+        const clearOfPlanets  = this.gs.planets.every(
+          p => candidate.distanceSqTo(p.position) >= (p.impactRadius + station.radius + 5) ** 2,
+        );
+        const clearOfStations = this.gs.allStations.every(
+          s => s.status !== 'active' ||
+               candidate.distanceSqTo(s.position) >= (station.radius + s.radius + 5) ** 2,
+        );
+        if (clearOfPlanets && clearOfStations) {
+          station.position = candidate;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) station.position = new Vec2(gw * 0.5, gh * 0.5);
+    }
+    team.stations.push(station);
+    return station;
+  }
+
+  _pickCollectableGrant() {
+    const wid = this.gs.storyState?.mission.settings.collectableWeapon;
+    if (wid) {
+      const match = WEAPON_GRANTS.find(g => g.id === wid);
+      if (match) return match;
+    }
+    return WEAPON_GRANTS[Math.floor(this.rng.next() * WEAPON_GRANTS.length)];
+  }
+
+  humanDismissDialog() {
+    if (this.gs.mode !== GameMode.STORY_DIALOG) return;
+    this.gs.storyDialogText  = null;
+    const prev               = this.gs._storyPrevMode ?? GameMode.AIMING;
+    this.gs._storyPrevMode   = null;
+    this.gs.mode             = prev;
+    if (prev === GameMode.AIMING) this._advanceAiming();
+  }
+
   // ─── Explosion effect advancement ────────────────────────────────────────────
 
   _advanceExplosionEffects() {
@@ -1478,6 +1612,39 @@ export class GameLoop {
     this._advanceVFX();
 
     if (--this._resultsTimer <= 0) {
+      if (this.gs.storyState && !this.gs.storyState.passed && !this.gs.storyState.failed) {
+        const ss = this.gs.storyState;
+        ss.evaluate(this.gs);
+
+        if (ss.allObjectivesMet) {
+          ss.passed = true;
+          ss.score  = ss.computeScore(this.gs, this.gs.turn);
+          this.gs.mode = GameMode.STORY_DEBRIEF;
+          return;
+        }
+
+        const maxTurnsFc = ss.mission.failConditions.find(fc => fc.type === 'max_turns');
+        if (maxTurnsFc && this.gs.turn + 1 >= maxTurnsFc.turns) {
+          ss.failed = true;
+          this.gs.mode = GameMode.STORY_DEBRIEF;
+          return;
+        }
+
+        const humansDead   = this.gs.teams.filter(t => t.isHuman).every(t => !t.isAlive);
+        const enemiesAlive = this.gs.teams.filter(t => !t.isHuman).some(t => t.isAlive);
+        if (humansDead && enemiesAlive) {
+          ss.failed = true;
+          this.gs.mode = GameMode.STORY_DEBRIEF;
+          return;
+        }
+
+        this.gs.turn++;
+        this.renderer.clearTrails();
+        this._trySpawnCollectable();
+        this._startTurn();
+        return;
+      }
+
       if (this.gs.winner !== undefined) {
         this.gs.mode = GameMode.GAMEOVER;
       } else {
@@ -1509,9 +1676,9 @@ export class GameLoop {
   humanHyperspace() {
     const s = this.gs.activeStation;
     if (!s) return;
-    // Build ordered weapon list for this station's team
-    const weapons = [WeaponId.CANNON, WeaponId.HYPERSPACE];
-    if (s.team.getStock(WeaponId.TRIPLE_CANNON) > 0) weapons.splice(1, 0, WeaponId.TRIPLE_CANNON);
+    const cannonOk = this.gs.storyState?.mission.settings.cannonEnabled !== false;
+    const weapons  = cannonOk ? [WeaponId.CANNON, WeaponId.HYPERSPACE] : [WeaponId.HYPERSPACE];
+    if (s.team.getStock(WeaponId.TRIPLE_CANNON) > 0) weapons.splice(cannonOk ? 1 : 0, 0, WeaponId.TRIPLE_CANNON);
     const idx = weapons.indexOf(s.selectedWeapon);
     s.selectedWeapon = weapons[(idx + 1) % weapons.length];
   }
@@ -1519,6 +1686,7 @@ export class GameLoop {
   humanSelectWeapon(weaponId) {
     const s = this.gs.activeStation;
     if (!s) return;
+    if (weaponId === WeaponId.CANNON && this.gs.storyState?.mission.settings.cannonEnabled === false) return;
     if (weaponId !== WeaponId.CANNON && weaponId !== WeaponId.HYPERSPACE) {
       const reserved = s.team.stations.filter(
         t => t !== s && t.status === 'active' && t.selectedWeapon === weaponId

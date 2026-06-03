@@ -1,14 +1,18 @@
 export const GameMode = Object.freeze({
-  CONFIG:     'config',
-  DEMO:       'demo',
-  AIMING:     'aiming',
-  FIRING:     'firing',
-  RESULTS:    'results',
-  GAMEOVER:   'gameover',
-  AWARDS:     'awards',
-  TP_AIMING:  'tp_aiming',
-  TP_FIRING:  'tp_firing',
-  TP_RESULTS: 'tp_results',
+  CONFIG:          'config',
+  DEMO:            'demo',
+  AIMING:          'aiming',
+  FIRING:          'firing',
+  RESULTS:         'results',
+  GAMEOVER:        'gameover',
+  AWARDS:          'awards',
+  TP_AIMING:       'tp_aiming',
+  TP_FIRING:       'tp_firing',
+  TP_RESULTS:      'tp_results',
+  STORY_SELECT:    'story_select',
+  STORY_BRIEFING:  'story_briefing',
+  STORY_DEBRIEF:   'story_debrief',
+  STORY_DIALOG:    'story_dialog',
 });
 
 export class GameState {
@@ -38,6 +42,9 @@ export class GameState {
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click
     this.tpGame           = null;       // TargetPracticeGame | null
+    this.storyState       = null;       // StoryModeState | null
+    this.storyDialogText  = null;       // string | null — queued dialog text
+    this._storyPrevMode   = null;       // GameMode to restore after dialog dismissed
   }
 
   get stationMovement() { return this.movementSpeed !== 'off'; }

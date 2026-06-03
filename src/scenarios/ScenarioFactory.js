@@ -592,8 +592,8 @@ export class ScenarioFactory {
         planets.push(new Planet({
           position:    new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
           radius:      bhDispR,
-          density:     0.02,
-          mass:        bhBigR * bhBigR * 0.02,
+          density:     0.012,
+          mass:        bhBigR * bhBigR * 0.012,
           type:        PlanetType.BLACK_HOLE,
           colour:      BLACK_COL,
           shading:     ShadingStyle.NONE,
