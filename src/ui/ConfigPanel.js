@@ -108,6 +108,8 @@ export class ConfigPanel {
     this._advancedInner   = null;
     this._collectSubRows  = null; // rows greyed out when collectables === 'off'
     this._devRows         = null; // rows hidden unless dev mode is active
+    this._campaignUnlocked = false;
+    this._devModeOn        = false;
     this._flatSection     = null;
     this._pagedSection    = null;
     this.element          = this._build();
@@ -679,8 +681,19 @@ export class ConfigPanel {
 
   setDevMode(enabled) {
     this._devBadge.style.display = enabled ? 'inline' : 'none';
+    this._devModeOn = enabled;
+    this._updateDevRows();
+  }
+
+  setCampaignComplete(complete) {
+    this._campaignUnlocked = complete;
+    this._updateDevRows();
+  }
+
+  _updateDevRows() {
+    const show = this._devModeOn || this._campaignUnlocked;
     for (const row of this._devRows ?? []) {
-      row.style.display = enabled ? '' : 'none';
+      row.style.display = show ? '' : 'none';
     }
   }
 

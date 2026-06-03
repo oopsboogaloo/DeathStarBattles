@@ -47,6 +47,9 @@ const panel = new ConfigPanel();
 document.body.appendChild(panel.element);
 
 let activeConfig      = panel.config; // last config used to start a real game
+
+// Apply campaign completion reward immediately on load
+{ const _d = StoryPersistence.load(); if (StoryPersistence.isCampaignComplete(_d)) panel.setCampaignComplete(true); }
 let isDemo            = false;
 let tournament        = null;          // TournamentState | null
 let lastGameState     = null;          // game state from most recently completed game (for Scores modal)
@@ -326,6 +329,7 @@ function updateButtons(gs) {
       let data = StoryPersistence.load();
       data = StoryPersistence.recordPass(ss.mission.id, ss.score, data);
       StoryPersistence.save(data);
+      if (StoryPersistence.isCampaignComplete(data)) panel.setCampaignComplete(true);
     }
     storyScreen.showDebrief(gs);
   }
