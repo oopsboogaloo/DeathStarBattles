@@ -23,7 +23,7 @@ export class StoryObjectivePanel {
 
   update(gs) {
     const ss = gs?.storyState;
-    if (!ss) { this.el.style.display = 'none'; return; }
+    if (!ss || gs.mode === 'story_debrief') { this.el.style.display = 'none'; return; }
 
     this.el.style.display = 'block';
 

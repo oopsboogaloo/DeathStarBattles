@@ -275,9 +275,13 @@ let _prevMode  = null;
 let _minimalUI = false;
 
 function updateButtons(gs) {
+  if (panel.isVisible) {
+    storyObjectivePanel.hide();
+    storyDialogPopup.update(null);
+    return; // panel is open — don't show game UI on top of it
+  }
   storyObjectivePanel.update(gs);
   storyDialogPopup.update(gs);
-  if (panel.isVisible) return; // panel is open — don't show game UI on top of it
   if (!gs || isDemo) {
     btnBar.style.display             = 'none';
     gameOverBar.style.display        = 'none';

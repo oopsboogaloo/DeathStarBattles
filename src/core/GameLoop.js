@@ -1450,8 +1450,8 @@ export class GameLoop {
     const ss = this.gs.storyState;
     if (!ss) return;
     for (const event of ss.mission.events ?? []) {
-      if (event.turn !== this.gs.turn || ss.firedEvents.has(event.turn)) continue;
-      ss.firedEvents.add(event.turn);
+      if (event.turn !== this.gs.turn || ss.firedEvents.has(event)) continue;
+      ss.firedEvents.add(event);
       if (event.spawnStations?.length) {
         const teamWeaponsGiven = new Set();
         for (const def of event.spawnStations) {
