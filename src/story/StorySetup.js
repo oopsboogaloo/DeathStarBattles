@@ -193,6 +193,13 @@ export function buildStoryMission(mission, physics, rng) {
     planets = (mission.layout.planets ?? []).map(def => buildPlanet(def, gw, gh, rng));
   }
 
+  // Apply optional star radius scale (e.g. to shrink an oversized red giant)
+  if (mission.layout.starRadiusScale != null) {
+    for (const p of planets) {
+      if (p.type === PlanetType.STAR) p.radius *= mission.layout.starRadiusScale;
+    }
+  }
+
   // ── Teams ────────────────────────────────────────────────────────────────────
   const teamIndices = [...new Set(mission.layout.stations.map(s => s.team))].sort((a, b) => a - b);
 

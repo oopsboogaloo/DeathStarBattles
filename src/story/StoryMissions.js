@@ -683,6 +683,7 @@ export const STORY_MISSIONS = [
 
     layout: {
       scenarioId: 10,
+      starRadiusScale: 0.8,
       stations: [
         { x: 0.15, y: 0.42, team: 0, role: 'human', visualStyle: 'station' },
         { x: 0.15, y: 0.58, team: 0, role: 'human', visualStyle: 'station' },
