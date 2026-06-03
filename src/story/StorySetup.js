@@ -201,6 +201,15 @@ export function buildStoryMission(mission, physics, rng) {
     }
   }
 
+  // Apply optional black hole mass scale (e.g. to tone down gravity on final mission)
+  if (mission.layout.blackHoleMassScale != null) {
+    for (const p of planets) {
+      if (p.type === PlanetType.BLACK_HOLE && p._massOverride != null) {
+        p._massOverride *= mission.layout.blackHoleMassScale;
+      }
+    }
+  }
+
   // ── Teams ────────────────────────────────────────────────────────────────────
   const teamIndices = [...new Set(mission.layout.stations.map(s => s.team))].sort((a, b) => a - b);
 
