@@ -1,6 +1,6 @@
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
-import { G, TIMESTEP } from '../physics/PhysicsEngine.js';
+import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -634,14 +634,8 @@ export class Renderer {
 
     const w = station.selectedWeapon;
 
-    // Laser: draw simulated curved path as dashed preview
-    if (w === 'laser') {
-      this._drawLaserAimPreview(ctx, station, gameState);
-      return;
-    }
-
-    // Angle offsets per weapon — centre line drawn brighter, flanking lines dimmer
-    const noPower = new Set(['blunderbuss', 'blaster', 'forceShield']);
+    // Aim lines — one per bullet angle, centre line stronger than flanking
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'forceShield']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -712,6 +706,51 @@ export class Renderer {
       path.push({ x: px, y: py });
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
       // Stop at solid planet surface
+      for (const planet of planets) {
+        if (planet.destroyed) continue;
+        const dx = planet.position.x - px;
+        const dy = planet.position.y - py;
+        if (dx * dx + dy * dy < planet.impactRadius ** 2) {
+          if (planet.type !== PlanetType.GAS_GIANT &&
+              planet.type !== PlanetType.ASTEROID &&
+              planet.type !== PlanetType.CRYSTAL) return path;
+        }
+      }
+    }
+    return path;
+  }
+
+  // Simulate a regular bullet arc for aim preview (coarse steps, same gravity as physics engine)
+  _computeBulletPreviewPath(station, angleDeg, power, planets) {
+    const STEP_SIZE = 20;   // physics steps per preview iteration (matches AI sim)
+    const MAX_ITER  = 400;
+    const dt  = TIMESTEP * STEP_SIZE;
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    const vScale = (power / 1000 + MIN_POWER) * MAX_POWER;
+    let px = station.position.x + (station.radius + 1) * Math.sin(rad);
+    let py = station.position.y + (station.radius + 1) * Math.cos(rad);
+    let vx = vScale * Math.sin(rad);
+    let vy = vScale * Math.cos(rad);
+    const gw = this.gameWidth;
+    const gh = this.gameHeight;
+    const path = [{ x: px, y: py }];
+
+    for (let i = 0; i < MAX_ITER; i++) {
+      for (const planet of planets) {
+        if (planet.destroyed) continue;
+        const dx  = planet.position.x - px;
+        const dy  = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        vx += Math.cos(theta) * sign * G * planet.mass / rSq * dt;
+        vy += Math.sin(theta) * sign * G * planet.mass / rSq * dt;
+      }
+      px += vx * dt;
+      py += vy * dt;
+      path.push({ x: px, y: py });
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
       for (const planet of planets) {
         if (planet.destroyed) continue;
         const dx = planet.position.x - px;
