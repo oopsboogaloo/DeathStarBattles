@@ -57,4 +57,10 @@ export class Team {
     this.weaponStock.set(weaponId, cur - 1);
     return true;
   }
+
+  addStartingWeapons(weaponMap) {
+    for (const [id, count] of Object.entries(weaponMap)) {
+      this.addStock(id, count);
+    }
+  }
 }

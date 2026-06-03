@@ -58,6 +58,8 @@ export class Station {
     this.lastTrail       = null;         // Vec2[] | null — ghost trail from previous shot
     this.lastAngle       = null;         // int | null — angle fired last turn (for ghost aim line)
     this.lastPower       = null;         // int | null — power fired last turn
+    this.role            = 'human';      // 'human' | 'target' | 'ai'
+    this.visualStyle     = 'station';    // 'station' | 'drone'
     this.stats           = new StationStats();
   }
 
