@@ -46,6 +46,8 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Wildcard pool**
   - Moons included in the wildcard candidate list for all scenarios that support wildcards
 
+- [ ] **Space Rift** — New non-solid map object: a piecewise-linear chain of 3–11 connected segments (each ~1 Medium station diameter long, ≤30° turn between segments). Each vertex exerts a linear-falloff repulsive force on bullets, allowing slow shots to be deflected and fast shots to punch through. Background layer renders a forked lightning glow; the rift line itself is a static luminescent polyline. Adds two new scenarios (Rift: 1 rift + sparse planets; Rifts: 2–6 rifts + planets/asteroids) and a 10% wildcard chance. AI trajectory simulation picks up the repulsion automatically. See `spec/space-rift.md`.
+
 ## Polish
 
 <!-- e.g. - [ ] Description -->
