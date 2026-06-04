@@ -88,6 +88,8 @@ Two new named scenarios shall be added to the scenario list (extending the curre
 
 Both scenarios shall be included in the **Lucky Dip** uncommon range (63% pool, scenarios 1–19 extended to include 29–30) and eligible for random selection in Tournament mode.
 
+The existing **Hyperspace** scenario (26) shall be modified to include 2–4 rifts placed using SR-02. All other Hyperspace rules remain unchanged (no planets; hyperspace forced every turn).
+
 ---
 
 ## SR-07 Wildcard Pool
