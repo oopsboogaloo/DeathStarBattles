@@ -42,10 +42,10 @@ The ±1° angle deviation for each rocket is drawn independently from a uniform 
 
 Each rocket spawns offset perpendicular to the aimed direction rather than at the station centre, alternating sides:
 
-- **Odd-indexed rockets** (1, 3, 5, 7): spawn at station centre displaced 1× station hit-radius in the direction perpendicular-left of the aim angle (aim angle rotated +90°).
-- **Even-indexed rockets** (2, 4, 6, 8): spawn at station centre displaced 1× station hit-radius in the direction perpendicular-right of the aim angle (aim angle rotated −90°).
+- **Odd-indexed rockets** (1, 3, 5, 7): spawn displaced 1× station diameter (2× hit-radius) perpendicular-left of the aim angle (aim angle rotated +90°).
+- **Even-indexed rockets** (2, 4, 6, 8): spawn displaced 1× station diameter (2× hit-radius) perpendicular-right of the aim angle (aim angle rotated −90°).
 
-The aim angle and power used for each rocket's trajectory are computed from the offset spawn position, not the station centre, so the trajectory originates correctly from the side of the station.
+All rockets travel in the player's aimed direction (plus their individual ±1° deviation) — the trajectories are parallel, not converging. The offset is purely a spawn position; rockets do not aim toward a point from their side positions. The 1× diameter offset ensures each rocket visually clears the station body before its smoke trail begins.
 
 ---
 
