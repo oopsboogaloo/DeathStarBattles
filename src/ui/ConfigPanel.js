@@ -721,6 +721,18 @@ export class ConfigPanel {
     }
   }
 
+  // Called by main.js after each game starts — shows the auto-generated seed in muted colour.
+  // Typing in the field resets to normal colour and marks the seed as user-supplied.
+  setGeneratedSeed(seed) {
+    this._d.mapSeed       = seed;
+    this._seedIsGenerated = true;
+    if (this._seedInput) {
+      this._seedInput.value      = seed;
+      this._seedInput.style.color = 'rgba(180,185,210,0.5)';
+    }
+    this._updateSeedGrey();
+  }
+
   _seedRow() {
     const input = document.createElement('input');
     input.type        = 'text';
@@ -743,6 +755,8 @@ export class ConfigPanel {
     input.addEventListener('blur',  () => { input.style.borderColor = 'rgba(80,110,255,0.3)'; });
     input.addEventListener('input', () => {
       this._d.mapSeed = input.value;
+      this._seedIsGenerated = false;
+      input.style.color = '#eee';
       this._updateSeedGrey();
     });
     this._seedInput = input;

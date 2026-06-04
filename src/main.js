@@ -405,23 +405,21 @@ function startGame(cfg) {
 
   const size = StationSize[cfg.stationSize] ?? StationSize.LARGE;
 
-  let layoutRng = rng;
-  let scenarioId, nPlanets;
-  const rawSeed = (cfg.mapSeed ?? '').trim();
-  if (rawSeed) {
-    const normSeed = rawSeed.toLowerCase();
-    layoutRng  = new RNG(hashString(normSeed));
-    scenarioId = layoutRng.nextInt(SCENARIO_COUNT) + 1;
-    const isHeavy = [2, 3, 16, 17].includes(scenarioId);
-    nPlanets = isHeavy ? (cfg.performance === 'simplified' ? 20 : 30) : layoutRng.nextInt(18) + 3;
-  } else {
-    scenarioId = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
-    const isRandom = (cfg.numPlanets ?? -1) <= 0;
-    nPlanets = isRandom ? (rng.nextInt(6) + 3) : cfg.numPlanets;
-    if (isRandom && [2, 3, 16, 17].includes(scenarioId)) {
-      nPlanets = cfg.performance === 'simplified' ? 20 : 30;
-    }
-  }
+  // Every game gets a seed — generate one if the player didn't type one.
+  // The seed fully determines scenario + planet layout; typing it back replays the exact map.
+  const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const rawSeed   = (cfg.mapSeed ?? '').trim();
+  const activeSeed = rawSeed
+    || Array.from({ length: 8 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
+
+  if (!rawSeed) panel.setGeneratedSeed(activeSeed);
+
+  const layoutRng = new RNG(hashString(activeSeed.toLowerCase()));
+  const scenarioId = getUrlScenario() ?? layoutRng.nextInt(SCENARIO_COUNT) + 1;
+  const isHeavy    = [2, 3, 16, 17].includes(scenarioId);
+  const nPlanets   = isHeavy
+    ? (cfg.performance === 'simplified' ? 20 : 30)
+    : layoutRng.nextInt(18) + 3;
 
   const { planets, rifts } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
 
