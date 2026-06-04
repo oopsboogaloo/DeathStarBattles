@@ -391,6 +391,14 @@ export class PhysicsEngine {
         bullet.status = BulletStatus.EXPLODING;
         break;
 
+      case PlanetType.MOON:
+        // Multi-hit — record the hit; GameLoop handles crack/fragmentation
+        bullet.status    = BulletStatus.EXPLODING;
+        bullet._hitMoon  = planet;
+        bullet._hitMoonX = bullet.position.x;
+        bullet._hitMoonY = bullet.position.y;
+        break;
+
       default:
         // ROCKY, STAR, JOVIAN, WHITE_DWARF — normal explosion
         bullet.status = BulletStatus.EXPLODING;

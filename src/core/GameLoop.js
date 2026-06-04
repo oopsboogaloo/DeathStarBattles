@@ -487,7 +487,9 @@ export class GameLoop {
       const p = this.gs.planets[i];
       if (!p.destroyed) continue;
       this.gs.planets.splice(i, 1);
-      if (p.type === PlanetType.COMET) {
+      if (p.type === PlanetType.MOON) {
+        continue; // Moon destruction + fragmentation handled in _handleMoonHit
+      } else if (p.type === PlanetType.COMET) {
         this._spawnCometExplosion(p);
       } else if (p.type === PlanetType.CRYSTAL) {
         children.push(...this._fragmentCrystalAsteroid(p));
@@ -990,6 +992,12 @@ export class GameLoop {
 
         this.physics.step(bullet, this.gs.planets, this.gs.rifts);
 
+        // Moon hit — must check before trail recording since step() may EXPLODE the bullet
+        if (bullet._hitMoon) {
+          this._handleMoonHit(bullet._hitMoon, bullet._hitMoonX, bullet._hitMoonY);
+          bullet._hitMoon = null;
+        }
+
         if (bullet.lifetime % PRINT_EVERY === 0) {
           bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));
           this.renderer.appendTrailPoint(bullet);
@@ -1210,6 +1218,59 @@ export class GameLoop {
       t: 0, r, g, b,
       particles: this._makeParticles(planet.position.x, planet.position.y, r, g, b, 10),
     });
+  }
+
+  _handleMoonHit(moon, impactX, impactY) {
+    moon.hitCount++;
+    if (moon.hitCount >= 3) {
+      // Third hit — destroy and fragment into 3-5 asteroids
+      moon.destroyed = true;
+      const n        = 3 + Math.floor(this.rng.next() * 3); // 3-5
+      const factor   = n <= 3 ? 0.40 : n <= 4 ? 0.35 : 0.30;
+      const childR   = moon.radius * factor;
+      const maxDist  = moon.radius - childR;
+      for (let i = 0; i < n; i++) {
+        const angle = this.rng.next() * Math.PI * 2;
+        const dist  = Math.sqrt(this.rng.next()) * maxDist;
+        const pos   = new Vec2(
+          moon.position.x + Math.cos(angle) * dist,
+          moon.position.y + Math.sin(angle) * dist,
+        );
+        // Children have no initial velocity (spec: no initial velocity)
+        const child = this._makeChildAsteroid(pos, Math.max(8, childR), moon.density, false);
+        this.gs.planets.push(child);
+      }
+      this._spawnAsteroidExplosion(moon);
+      const idx = this.gs.planets.indexOf(moon);
+      if (idx !== -1) this.gs.planets.splice(idx, 1);
+    } else {
+      // First or second hit — generate cracks from impact point
+      const cracks = this._generateMoonCracks(moon, impactX, impactY);
+      moon.crackLines.push(cracks);
+    }
+  }
+
+  _generateMoonCracks(moon, ix, iy) {
+    const n      = 5 + Math.floor(this.rng.next() * 4); // 5-8 cracks
+    const cracks = [];
+    for (let i = 0; i < n; i++) {
+      const baseAngle = (2 * Math.PI * i) / n + (this.rng.next() - 0.5) * 0.8;
+      const pts    = [new Vec2(ix, iy)];
+      let cx = ix, cy = iy;
+      const steps  = 3 + Math.floor(this.rng.next() * 3); // 3-5 segments
+      const segLen = moon.radius / steps;
+      let angle    = baseAngle;
+      for (let s = 0; s < steps; s++) {
+        angle += (this.rng.next() - 0.5) * 0.4;
+        cx += Math.cos(angle) * segLen;
+        cy += Math.sin(angle) * segLen;
+        pts.push(new Vec2(cx, cy));
+        const ddx = cx - moon.position.x, ddy = cy - moon.position.y;
+        if (ddx * ddx + ddy * ddy > moon.radius * moon.radius * 1.1) break;
+      }
+      cracks.push(pts);
+    }
+    return cracks;
   }
 
   // Spawn a bright white flash explosion for a destroyed comet.
@@ -2023,6 +2084,11 @@ export class GameLoop {
               this.gs.vfxList.push(this._makeGlitterVFX(tgt.position.x, tgt.position.y));
             }
           }
+        }
+
+        if (bullet._hitMoon) {
+          this._handleMoonHit(bullet._hitMoon, bullet._hitMoonX, bullet._hitMoonY);
+          bullet._hitMoon = null;
         }
 
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {

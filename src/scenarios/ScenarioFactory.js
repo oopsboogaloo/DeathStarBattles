@@ -131,6 +131,32 @@ function makeComet(rng, position, velocity) {
   });
 }
 
+// Moon body radius: 12–20 game units; generates 3–6 crater positions
+function makeMoon(rng, A, B, C, gw, gh) {
+  const radius = 12 + rng.next() * 8; // 12–20
+  const cx     = rv(rng, A, B, C, gw);
+  const cy     = rv(rng, A, B, C, gh);
+  const nCraters = 3 + Math.floor(rng.next() * 4); // 3–6
+  const craterData = [];
+  for (let i = 0; i < nCraters; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist  = rng.next() * radius * 0.7;
+    const cr    = 2 + rng.next() * (radius * 0.22); // crater radius 2 – ~22% of moon radius
+    craterData.push({ dx: Math.cos(angle) * dist, dy: Math.sin(angle) * dist, cr });
+  }
+  return new Planet({
+    position:   new Vec2(cx, cy),
+    radius,
+    density:    0.04,
+    type:       PlanetType.MOON,
+    colour:     [200, 207, 228],
+    shading:    ShadingStyle.ROCKY,
+    craterData,
+    hitCount:   0,
+    crackLines: [],
+  });
+}
+
 function makePulsar(rng, A, B, C, gw, gh) {
   const bigR  = rng.nextInRange(80, 160) + 140.5;
   const dispR = rng.nextInRange(7, 10);
@@ -976,6 +1002,21 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 31: Moons — rocky body orbited by destructible moons ─────────────────
+      case 31: {
+        // Central rocky planet (large, slightly off-centre)
+        planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+        // 2–5 moons scattered around the field
+        const nMoons = 2 + Math.floor(rng.next() * 4);
+        for (let i = 0; i < nMoons; i++)
+          planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+        // Fill remaining slots with asteroids
+        const remaining = Math.max(0, nPlanets - 1 - nMoons);
+        for (let i = 0; i < remaining; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -1124,6 +1165,9 @@ export class ScenarioFactory {
       candidates = simplified
         ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
         : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
+    } else if (rb < 0.78) {
+      // Wildcard moon (bonus multi-hit body)
+      candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];
     } else if (rb < 0.85) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({

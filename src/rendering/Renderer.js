@@ -122,12 +122,12 @@ export class Renderer {
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.drawCorona(ctx, planet, this.conv);
     }
     // Pass 2: solid bodies on top
     for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
     }
     // Pass 3: space rifts above planets
@@ -342,6 +342,11 @@ export class Renderer {
       if (planet.vertices && !planet.destroyed) PlanetRenderer.draw(ctx, planet, this.conv);
     }
 
+    // Moons — drawn live so cracks and damage state are always up-to-date
+    for (const planet of this._planets) {
+      if (planet.type === PlanetType.MOON && !planet.destroyed) this._drawMoon(ctx, planet);
+    }
+
     // Ghost trail of previous shot — helps human players adjust aim
     if ((gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') && gameState.waitingForInput) {
       const active = gameState.activeStation;
@@ -546,6 +551,67 @@ export class Renderer {
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = 'rgb(255,255,230)';
     ctx.fill();
+  }
+
+  // ----------------------------------------------------------------
+  // Moon — cratered sphere with crack lines growing per hit
+  // ----------------------------------------------------------------
+
+  _drawMoon(ctx, planet) {
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const r  = Math.max(4, planet.radius * this.conv);
+
+    // Body: light grey-blue sphere with upper-left lit-side shading
+    const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
+    grad.addColorStop(0,   'rgb(240,243,252)');
+    grad.addColorStop(0.5, 'rgb(200,207,228)');
+    grad.addColorStop(1,   'rgb(100,106,130)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Craters
+    if (planet.craterData) {
+      for (const { dx, dy, cr } of planet.craterData) {
+        const kx = cx + dx * this.conv;
+        const ky = cy + dy * this.conv;
+        const kr = Math.max(1, cr * this.conv);
+
+        // Dark crater floor
+        ctx.beginPath();
+        ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(60,65,85,0.75)';
+        ctx.fill();
+
+        // Bright rim highlight (upper-left arc)
+        ctx.beginPath();
+        ctx.arc(kx, ky, kr, Math.PI * 0.8, Math.PI * 1.6);
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth   = Math.max(0.5, kr * 0.25);
+        ctx.stroke();
+      }
+    }
+
+    // Crack lines — drawn per-hit in red-orange
+    if (planet.crackLines && planet.crackLines.length > 0) {
+      const crackAlphas = [0.75, 0.65, 0.55];
+      for (let ci = 0; ci < planet.crackLines.length; ci++) {
+        const alpha = crackAlphas[ci] ?? 0.5;
+        ctx.strokeStyle = `rgba(220,90,30,${alpha})`;
+        ctx.lineWidth   = Math.max(0.8, this.conv * 0.6);
+        ctx.lineCap     = 'round';
+        for (const seg of planet.crackLines[ci]) {
+          ctx.beginPath();
+          ctx.moveTo(seg[0].x * this.conv, seg[0].y * this.conv);
+          for (let i = 1; i < seg.length; i++) {
+            ctx.lineTo(seg[i].x * this.conv, seg[i].y * this.conv);
+          }
+          ctx.stroke();
+        }
+      }
+    }
   }
 
   // ----------------------------------------------------------------
