@@ -107,9 +107,10 @@ export class Renderer {
   // Layer 0 — Background (stars + planets, drawn once per game)
   // ----------------------------------------------------------------
 
-  drawBackground(stars, planets) {
+  drawBackground(stars, planets, rifts = []) {
     this._stars   = stars;
     this._planets = planets;
+    this._rifts   = rifts;
     this._renderBackground();
   }
 
@@ -128,6 +129,97 @@ export class Renderer {
     for (const planet of this._planets) {
       if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
+    }
+    // Pass 3: space rifts above planets
+    for (const rift of this._rifts ?? []) this._drawRift(ctx, rift);
+  }
+
+  _drawRift(ctx, rift) {
+    const conv     = this.conv;
+    const pts      = rift.vertices.map(v => ({ x: v.x * conv, y: v.y * conv }));
+    if (pts.length < 2) return;
+
+    const buildPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    };
+
+    // Outer glow
+    ctx.save();
+    ctx.shadowColor  = '#C060FF';
+    ctx.shadowBlur   = 20;
+    ctx.strokeStyle  = 'rgba(192,96,255,0.3)';
+    ctx.lineWidth    = 28;
+    ctx.lineCap      = 'round';
+    ctx.lineJoin     = 'round';
+    buildPath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Forked lightning decorations (cosmetic — Math.random() intentional)
+    const nForks = 2 + Math.floor(Math.random() * 3); // 2–4
+    for (let f = 0; f < nForks; f++) {
+      const t     = Math.random();
+      const seg   = Math.floor(t * (pts.length - 1));
+      const frac  = t * (pts.length - 1) - seg;
+      const startX = pts[seg].x + (pts[seg + 1].x - pts[seg].x) * frac;
+      const startY = pts[seg].y + (pts[seg + 1].y - pts[seg].y) * frac;
+      this._drawLightningBranch(ctx, startX, startY, Math.random() * Math.PI * 2, 3 + Math.floor(Math.random() * 4), 0.3 + Math.random() * 0.2, 2);
+    }
+
+    // Inner glow pass
+    ctx.save();
+    ctx.shadowColor = '#E8C0FF';
+    ctx.shadowBlur  = 8;
+    ctx.strokeStyle = 'rgba(232,192,255,0.35)';
+    ctx.lineWidth   = 7;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    buildPath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Core line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,192,255,0.95)';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    buildPath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _drawLightningBranch(ctx, x, y, dir, segs, alpha, depth) {
+    if (segs <= 0 || alpha < 0.05) return;
+    const segLen = 12 + Math.random() * 18; // 12–30 px per segment
+    ctx.save();
+    ctx.strokeStyle = `rgba(192,96,255,${alpha.toFixed(2)})`;
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    let cx = x, cy = y, angle = dir;
+    for (let i = 0; i < segs; i++) {
+      angle += (Math.random() * 2 - 1) * (Math.PI * 40 / 180); // ±40°
+      cx += Math.cos(angle) * segLen;
+      cy += Math.sin(angle) * segLen;
+      ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // Fork once at minimum
+    if (depth > 0) {
+      const forkPt = Math.floor(segs * (0.3 + Math.random() * 0.4));
+      let bx = x, by = y, ba = dir;
+      for (let i = 0; i < forkPt; i++) {
+        ba += (Math.random() * 2 - 1) * (Math.PI * 40 / 180);
+        bx += Math.cos(ba) * segLen;
+        by += Math.sin(ba) * segLen;
+      }
+      const subSegs = Math.max(1, Math.floor(segs * 0.6));
+      this._drawLightningBranch(ctx, bx, by, ba + (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
+      this._drawLightningBranch(ctx, bx, by, ba - (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
     }
   }
 

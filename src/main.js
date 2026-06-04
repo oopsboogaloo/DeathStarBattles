@@ -423,7 +423,7 @@ function startGame(cfg) {
     }
   }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
+  const { planets, rifts } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -456,9 +456,9 @@ function startGame(cfg) {
   _applyStartingWeapons(teams, cfg, rng);
 
   const stars = Renderer.generateStarField(gw, gh);
-  renderer.drawBackground(stars, planets);
+  renderer.drawBackground(stars, planets, rifts);
 
-  const gameState = new GameState({ planets, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
+  const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
 
   for (const team of teams.filter(t => !t.isHuman)) {
@@ -608,8 +608,8 @@ function startTPGame(cfg) {
     const scenarioPool = TARGET_PRACTICE_SCENARIOS;
     const scenarioId   = scenarioPool[Math.floor(rng.next() * scenarioPool.length)];
     const nPlanets     = rng.nextInt(6) + 3;
-    planets = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng,
-      cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', 'off', 'off');
+    ({ planets } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng,
+      cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', 'off', 'off'));
 
     // Place stations on one edge
     side = TargetPracticeSetup.placeStations(teams, planets, gw, gh, rng);
@@ -631,7 +631,7 @@ function startTPGame(cfg) {
 
   // Draw background
   const stars = Renderer.generateStarField(gw, gh);
-  renderer.drawBackground(stars, planets);
+  renderer.drawBackground(stars, planets, []);
 
   // Build game state
   const gameState = new GameState({ planets, teams, config: { ...cfg }, movementSpeed: 'off' });

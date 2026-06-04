@@ -78,6 +78,7 @@ export class SimBot extends AIController {
       stepSize:    this.stepSize,
       simSteps:    this.simSteps,
       useWormholes: this._useWormholes(gameState),
+      rifts:       gameState.rifts ?? [],
     };
 
     const mem = this._mem.get(`${station.id}-${target.id}`);

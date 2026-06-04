@@ -1,6 +1,7 @@
 import { Vec2 }                                                      from '../core/Vec2.js';
 import { Planet, PlanetType, ShadingStyle, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
 import { weightedRandomId }                                from './scenarioData.js';
+import { SpaceRift, RIFT_SEGMENT_LENGTH }                  from '../entities/SpaceRift.js';
 
 // Generate a convex-ish polygon with N=6–10 unit-radius vertices (in angle order)
 function asteroidVertices(rng, n) {
@@ -180,19 +181,40 @@ export class ScenarioFactory {
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
 
+    // Scenario-specific rifts (generated after planets are placed)
+    const rifts = [];
+    if (scenarioId === 26) { // Hyperspace: 2–4 rifts per SR-06
+      const nRifts = rng.nextInt(3) + 2;
+      for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+    } else if (scenarioId === 29) { // Rift: 1 rift
+      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+    } else if (scenarioId === 30) { // Rifts: 2–6 rifts
+      const nRifts = rng.nextInt(5) + 2;
+      for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+    }
+
     // Wildcard bonus injection — frequency controlled by wildcardFrequency setting
+    // 10% chance wildcard becomes a rift (SR-07) instead of a planet bonus
     const WILDCARD_THRESHOLDS = {
       off: 0, veryRare: 0.03, rare: 0.1, occasional: 0.25, common: 0.55, always: 2,
     };
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
     if (threshold > 0 && rn[1] < threshold) {
-      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance);
+      if (rn[2] < 0.10) {
+        rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+      } else {
+        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance);
+      }
       if (rn[4] < 0.35) {
-        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance);
+        if (rn[5] < 0.10) {
+          rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+        } else {
+          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance);
+        }
       }
     }
 
-    return planets;
+    return { planets, rifts };
   }
 
   static randomId(rng) { return weightedRandomId(rng); }
@@ -932,6 +954,28 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 29: Rift — sparse planets + asteroid field (rift injected in create()) ──
+      case 29: {
+        const nRocky = Math.min(3, Math.max(0, nPlanets - 2));
+        const nAst   = Math.max(0, nPlanets - nRocky);
+        for (let i = 0; i < nRocky; i++)
+          planets.push(makePlanet(rng, 0.7,0.2,0.05, 20,15,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+        for (let i = 0; i < nAst; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        break;
+      }
+
+      // ── 30: Rifts — moderate planet mix (rifts injected in create()) ──────────
+      case 30: {
+        for (let i = 0; i < nPlanets; i++) {
+          if (i % 3 === 0)
+            planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.05, richProb));
+          else
+            planets.push(makePlanet(rng, 0.8,0.1,0.05, 25,20,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -1017,6 +1061,43 @@ export class ScenarioFactory {
       ay + radius * (v.x * sin + v.y * cos),
     ));
     return planet;
+  }
+
+  // ─── space rift generation (SR-02) ───────────────────────────────────────
+
+  static generateRift(gw, gh, rng, existingPlanets = []) {
+    const N      = rng.nextInt(9) + 3; // 3–11 segments
+    const margin = RIFT_SEGMENT_LENGTH * (N + 2);
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let theta = rng.next() * Math.PI * 2;
+      const x0  = margin + rng.next() * Math.max(1, gw - 2 * margin);
+      const y0  = margin + rng.next() * Math.max(1, gh - 2 * margin);
+      const vertices = [new Vec2(x0, y0)];
+
+      for (let i = 1; i <= N; i++) {
+        theta += (rng.next() * 2 - 1) * (Math.PI / 6); // ±30°
+        const prev = vertices[i - 1];
+        vertices.push(new Vec2(
+          prev.x + Math.cos(theta) * RIFT_SEGMENT_LENGTH,
+          prev.y + Math.sin(theta) * RIFT_SEGMENT_LENGTH,
+        ));
+      }
+
+      const inBounds = vertices.every(v => v.x >= 0 && v.x <= gw && v.y >= 0 && v.y <= gh);
+      if (!inBounds && attempt < 9) continue;
+
+      const overlaps = existingPlanets.some(p =>
+        vertices.some(v => {
+          const dx = v.x - p.position.x, dy = v.y - p.position.y;
+          return dx * dx + dy * dy < (p.impactRadius * 0.8) ** 2;
+        }),
+      );
+      if (!overlaps || attempt === 9) return new SpaceRift({ vertices });
+    }
+    // Fallback: diagonal across map centre
+    const cx = gw * 0.5, cy = gh * 0.5;
+    return new SpaceRift({ vertices: [new Vec2(cx - 30, cy), new Vec2(cx, cy - 20), new Vec2(cx + 30, cy)] });
   }
 
   // ─── bonus random feature injection ─────────────────────────────────────

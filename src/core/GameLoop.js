@@ -988,7 +988,7 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
-        this.physics.step(bullet, this.gs.planets);
+        this.physics.step(bullet, this.gs.planets, this.gs.rifts);
 
         if (bullet.lifetime % PRINT_EVERY === 0) {
           bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));
@@ -2003,7 +2003,7 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
-        this.physics.step(bullet, this.gs.planets);
+        this.physics.step(bullet, this.gs.planets, this.gs.rifts);
 
         if (bullet.lifetime % PRINT_EVERY === 0) {
           bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));

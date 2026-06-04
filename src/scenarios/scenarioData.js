@@ -1,4 +1,4 @@
-export const SCENARIO_COUNT = 28;
+export const SCENARIO_COUNT = 30;
 
 // Deterministic FNV-1a 32-bit hash of a UTF-16 string (platform-independent)
 export function hashString(str) {
@@ -41,17 +41,22 @@ export const SCENARIO_NAMES = [
   'Hyperspace',         // 26
   'Black Holes',        // 27
   'Big Wormhole',       // 28
+  'Rift',               // 29
+  'Rifts',              // 30
 ];
 
 // Scenarios valid for Target Practice mode
 // Planetary(1), Asteroids(2), Crystal Asteroids(3), Star System(4), Jovian(6), Wormhole(19)
 export const TARGET_PRACTICE_SCENARIOS = [1, 2, 3, 4, 6, 19];
 
-// Weighted random scenario selection matching the original:
-// <25 → common (1-5), <88 → uncommon (1-13), else → any
+// Weighted random scenario selection:
+// <25 → common (1-6), <88 → uncommon (1-19 plus 29-30), else → any (1-30)
 export function weightedRandomId(rng) {
   const choice = Math.floor(rng.next() * 100);
   if (choice < 25) return rng.nextInt(6) + 1;
-  if (choice < 88) return rng.nextInt(19) + 1;
+  if (choice < 88) {
+    const idx = rng.nextInt(21); // 0-20 → 1-19 (idx 0-18) plus 29 (19) and 30 (20)
+    return idx < 19 ? idx + 1 : idx === 19 ? 29 : 30;
+  }
   return rng.nextInt(SCENARIO_COUNT) + 1;
 }
