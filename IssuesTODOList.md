@@ -21,6 +21,8 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 
 
+- [ ] **Named Seeds** — Allow players to enter a text string as a map seed. The seed deterministically generates the planet layout (count, types, positions, masses, wormhole pairings, asteroid shapes) via a separate PRNG, case-insensitively. Scenario and Planets config options grey out when a seed is active. Seed is shown as the map name in-game. See `spec/named-seeds.md`.
+
 - [ ] **Moons** — New planet type with multi-hit destruction, crater rendering, and a dedicated scenario.
 
   **Appearance**
