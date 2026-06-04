@@ -763,6 +763,12 @@ export class GameLoop {
         const rocket = new Rocket({ owner: station, position: pos, velocity: vel });
         rocket.fuel  = fuel;
         this.gs.rockets.push(rocket);
+      } else if (w === WeaponId.ROCKET_POD && station.team.spendStock(WeaponId.ROCKET_POD)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.ROCKET_POD, shotsRemaining: 8, totalShots: 8,
+          intervalSteps: 600, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
       } else if (w === WeaponId.BLASTER && station.team.spendStock(WeaponId.BLASTER)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.BLASTER, shotsRemaining: 5, totalShots: 5,
@@ -822,7 +828,26 @@ export class GameLoop {
 
       // ── Burst queue ───────────────────────────────────────────────────────────
       for (const burst of this.gs.burstQueue) {
-        if (this.gs.firingStep >= burst.nextFireStep) {
+        if (this.gs.firingStep < burst.nextFireStep) continue;
+
+        if (burst.weapon === WeaponId.ROCKET_POD) {
+          const shotIdx  = (burst.totalShots ?? 8) - burst.shotsRemaining;
+          const deviation = (this.rng.next() * 2 - 1) * 1.0;
+          const rad       = (((burst.angle + deviation) % 360 + 360) % 360 * Math.PI) / 180;
+          const offset    = burst.station.radius * 2;
+          const isLeft    = shotIdx % 2 === 0;
+          const perpX     = isLeft ? -Math.cos(rad) : Math.cos(rad);
+          const perpY     = isLeft ?  Math.sin(rad) : -Math.sin(rad);
+          const pos       = new Vec2(
+            burst.station.position.x + perpX * offset,
+            burst.station.position.y + perpY * offset,
+          );
+          const vel    = new Vec2(ROCKET_LAUNCH_SPEED * Math.sin(rad), ROCKET_LAUNCH_SPEED * Math.cos(rad));
+          const rocket = new Rocket({ owner: burst.station, position: pos, velocity: vel });
+          rocket.fuel  = ROCKET_MIN_FUEL + (burst.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+          rocket.blastRadius = ROCKET_BLAST_RADIUS * 0.5;
+          this.gs.rockets.push(rocket);
+        } else {
           const MAX_V = (800 / 1000 + 0.2) * 0.8;
           let spread, speed;
           if (burst.weapon === WeaponId.BLASTER) {
@@ -837,9 +862,10 @@ export class GameLoop {
           const b = this._makeBulletVelocity(burst.station, burst.angle + spread, speed);
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
-          burst.shotsRemaining--;
-          burst.nextFireStep = this.gs.firingStep + burst.intervalSteps;
         }
+
+        burst.shotsRemaining--;
+        burst.nextFireStep = this.gs.firingStep + burst.intervalSteps;
       }
       this.gs.burstQueue = this.gs.burstQueue.filter(b => b.shotsRemaining > 0);
 
@@ -1362,7 +1388,7 @@ export class GameLoop {
     // Spawn an expanding blast zone — damage is applied progressively as it grows.
     this.gs.rocketBlasts.push({
       x: rocket.position.x, y: rocket.position.y,
-      maxRadius:     ROCKET_BLAST_RADIUS,
+      maxRadius:     rocket.blastRadius ?? ROCKET_BLAST_RADIUS,
       currentRadius: 1,
       owner:         rocket.owner,
       hitSet:        new Set(),

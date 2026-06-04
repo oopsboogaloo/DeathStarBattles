@@ -655,6 +655,7 @@ export class Renderer {
       case 'blunderbuss':  offsets = [-15, -7.5, 0, 7.5, 15]; break;
       case 'blaster':      offsets = [-10, -5, 0, 5, 10];     break;
       case 'minigun':      offsets = [-2, 0, 2];               break;
+      case 'rocketPod':    offsets = [-1, 0, 1];               break;
       default:             offsets = [0];                      break;
     }
 
@@ -877,6 +878,8 @@ export class Renderer {
         if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 1.5);
         return;
       }
+      case 'rocketPod':
+        return; // self-propelled; no path preview
       default:
         return; // forceShield, hyperspace — no path preview
     }

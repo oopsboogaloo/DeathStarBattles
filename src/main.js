@@ -1,6 +1,6 @@
 import { Renderer }             from './rendering/Renderer.js';
 import { ScenarioFactory }      from './scenarios/ScenarioFactory.js';
-import { weightedRandomId } from './scenarios/scenarioData.js';
+import { weightedRandomId, hashString, SCENARIO_COUNT } from './scenarios/scenarioData.js';
 import { RNG }                  from './core/RNG.js';
 import { GameState, GameMode }  from './core/GameState.js';
 import { GameLoop }             from './core/GameLoop.js';
@@ -403,15 +403,27 @@ function startGame(cfg) {
   renderer.setGameAspect(gw, gh); // lock new ratio for letterboxing on resize
   const rng = new RNG(RNG.randomSeed());
 
-  const size       = StationSize[cfg.stationSize] ?? StationSize.LARGE;
-  const scenarioId  = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
-  const isRandom    = (cfg.numPlanets ?? -1) <= 0;
-  let   nPlanets    = isRandom ? (rng.nextInt(6) + 3) : cfg.numPlanets;
-  if (isRandom && [2, 3, 16, 17].includes(scenarioId)) {
-    nPlanets = cfg.performance === 'simplified' ? 20 : 30;
+  const size = StationSize[cfg.stationSize] ?? StationSize.LARGE;
+
+  let layoutRng = rng;
+  let scenarioId, nPlanets;
+  const rawSeed = (cfg.mapSeed ?? '').trim();
+  if (rawSeed) {
+    const normSeed = rawSeed.toLowerCase();
+    layoutRng  = new RNG(hashString(normSeed));
+    scenarioId = layoutRng.nextInt(SCENARIO_COUNT) + 1;
+    const isHeavy = [2, 3, 16, 17].includes(scenarioId);
+    nPlanets = isHeavy ? (cfg.performance === 'simplified' ? 20 : 30) : layoutRng.nextInt(18) + 3;
+  } else {
+    scenarioId = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
+    const isRandom = (cfg.numPlanets ?? -1) <= 0;
+    nPlanets = isRandom ? (rng.nextInt(6) + 3) : cfg.numPlanets;
+    if (isRandom && [2, 3, 16, 17].includes(scenarioId)) {
+      nPlanets = cfg.performance === 'simplified' ? 20 : 30;
+    }
   }
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
+  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);

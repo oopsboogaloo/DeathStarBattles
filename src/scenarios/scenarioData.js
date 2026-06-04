@@ -1,5 +1,16 @@
 export const SCENARIO_COUNT = 28;
 
+// Deterministic FNV-1a 32-bit hash of a UTF-16 string (platform-independent)
+export function hashString(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+    h >>>= 0;
+  }
+  return h >>> 0;
+}
+
 export const SCENARIO_NAMES = [
   null,                 // 0 unused
   'Planetary',          // 1

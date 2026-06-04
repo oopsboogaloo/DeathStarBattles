@@ -441,8 +441,8 @@ export const STORY_MISSIONS = [
       collectablesSpawn:    'normal',
       collectableWeapon:    null,
       cannonEnabled:        false,
-      startingWeapons:      { rocket: 99 },
-      enemyStartingWeapons: { rocket: 99 },
+      startingWeapons:      { rocket: 99, rocketPod: 1 },
+      enemyStartingWeapons: { rocket: 99, rocketPod: 1 },
     },
 
     objectives:     [{ type: 'destroy_all' }],

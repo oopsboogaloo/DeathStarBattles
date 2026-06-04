@@ -7,6 +7,7 @@ const LABELS = {
   [WeaponId.BLUNDERBUSS]:   'BLUNDERBUSS',
   [WeaponId.LASER]:         'LASER',
   [WeaponId.ROCKET]:        'ROCKET',
+  [WeaponId.ROCKET_POD]:    'ROCKET POD',
   [WeaponId.BLASTER]:       'BLASTER',
   [WeaponId.MINIGUN]:       'MINIGUN',
   [WeaponId.FORCE_SHIELD]:  'FORCE SHIELD',
@@ -15,7 +16,7 @@ const LABELS = {
 // Weapons that use stock (shown with [n] count)
 const LIMITED = new Set([
   WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER, WeaponId.ROCKET,
-  WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+  WeaponId.ROCKET_POD, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
 ]);
 
 export class WeaponSelector {
@@ -90,6 +91,7 @@ export class WeaponSelector {
       WeaponId.BLUNDERBUSS,
       WeaponId.LASER,
       WeaponId.ROCKET,
+      WeaponId.ROCKET_POD,
       WeaponId.BLASTER,
       WeaponId.MINIGUN,
       WeaponId.FORCE_SHIELD,
