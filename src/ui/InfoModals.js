@@ -603,7 +603,7 @@ Use the weapon selector button to cycle through available weapons. Special weapo
 
 Hyperspace is also a weapon choice — select it instead of firing to teleport your station to a random location. Useful when surrounded by hazards or planets.
 
-Force Shield deploys a protective barrier around your station for one turn.
+Force Shield deploys a protective barrier around your station for the duration of the firing phase.
 
 
 COLLECTABLES

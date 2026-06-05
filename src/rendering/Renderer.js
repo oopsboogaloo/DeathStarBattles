@@ -431,7 +431,7 @@ export class Renderer {
 
     // Aiming indicator — active station in AIMING or TP_AIMING mode
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && !active.hyperspaceQueued && active.selectedWeapon !== 'forceShield') {
+    if (active && active.status === 'active' && !active.hyperspaceQueued) {
       if (gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') {
         this._drawAimingIndicator(ctx, active, gameState);
       }
@@ -487,11 +487,6 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
       ctx.fillText('H Y P E R S P A C I N G . . .', this._vpW / 2, this._vpH - 60);
-    } else if (station.selectedWeapon === 'forceShield') {
-      const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 200);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
-      ctx.fillText('S H I E L D I N G . . .', this._vpW / 2, this._vpH - 60);
     }
     // Angle / Power values are now rendered by AimControls DOM buttons
     ctx.restore();
@@ -879,7 +874,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'forceShield']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1114,8 +1109,11 @@ export class Renderer {
       }
       case 'rocketPod':
         return; // self-propelled; no path preview
+      case 'forceShield':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
       default:
-        return; // forceShield, hyperspace — no path preview
+        return; // hyperspace — no path preview
     }
 
     for (const shot of shots) {

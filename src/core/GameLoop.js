@@ -730,6 +730,7 @@ export class GameLoop {
       if (w === WeaponId.HYPERSPACE) continue; // teleports after firing phase
       if (w === WeaponId.FORCE_SHIELD && station.team.spendStock(WeaponId.FORCE_SHIELD)) {
         this.gs.shields.push({ station, radius: station.radius * 1.6, alive: true });
+        this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
         station.stats.turns++;
         continue;
       }
@@ -972,6 +973,12 @@ export class GameLoop {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
         for (const shield of this.gs.shields) {
           if (!shield.alive) continue;
+          if (bullet.owner === shield.station) {
+            // Pass through while moving outward; reflect if it orbits back inward
+            const odx = bullet.position.x - shield.station.position.x;
+            const ody = bullet.position.y - shield.station.position.y;
+            if (bullet.velocity.x * odx + bullet.velocity.y * ody > 0) continue;
+          }
           if (bullet.position.distanceSqTo(shield.station.position) < shield.radius ** 2) {
             const nx = (bullet.position.x - shield.station.position.x) / shield.radius;
             const ny = (bullet.position.y - shield.station.position.y) / shield.radius;
