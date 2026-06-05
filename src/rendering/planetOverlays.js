@@ -19,7 +19,7 @@ export const PLANET_OVERLAYS = {
 
   moon: [
     {
-      svgs:          ['Images/moon1.svg', 'Images/moon2.svg', 'Images/moon3.svg', 'Images/moon4.svg', 'Images/moon5.svg'],
+      svgs:          ['Images/moon1.svg', 'Images/moon2.svg', 'Images/moon3.svg', 'Images/moon4.svg', 'Images/moon5.svg', 'Images/moon6.svg'],
       count:         1,
       scale:         1.0,
       alpha:         0.35,
