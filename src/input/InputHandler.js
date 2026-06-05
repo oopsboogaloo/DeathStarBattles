@@ -20,12 +20,6 @@ export class InputHandler {
     const loop = this.loop;
     if (!loop) return;
 
-    // System keys work any time
-    switch (e.key) {
-      case 'p': case 'P': loop.togglePause(); return;
-      case 'o': case 'O': loop.stepOne();     return;
-    }
-
     // Aiming keys only when waiting for human input
     if (!this._isHumanAiming()) return;
 
@@ -41,6 +35,7 @@ export class InputHandler {
       case 'j': case 'J': loop.humanPower(+10); break;
       case 'n': case 'N': loop.humanPower(-10); break;
       // Actions
+      case 'w': case 'W':  loop.humanCycleWeapon(); break;
       case 'h': case 'H':  loop.humanHyperspace(); break;
       case 'Enter':        loop.humanFire();        break;
     }

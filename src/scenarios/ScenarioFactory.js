@@ -779,7 +779,7 @@ export class ScenarioFactory {
         break;
       }
 
-      // ── 23: Neutron Star (one pulsar + mix of rocky planets and asteroids) ──
+      // ── 23: Pulsar (one pulsar + mix of rocky planets and asteroids) ──
       case 23: {
         planets.push(makePulsar(rng, 0.1, 0.1, 0.4, gw, gh));
         for (let i = 1; i < nPlanets; i++) {

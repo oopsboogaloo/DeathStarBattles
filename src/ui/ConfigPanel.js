@@ -83,7 +83,7 @@ export class ConfigPanel {
       richAsteroids:     'normal',
       collectableSize:   'medium',
       startingWeapons:   'none',
-      mapSeed:           '',
+      overrideSeed:      '',
       aimCircleSize:     'regular',
       bulletPaths:       'off',
       minimalUI:         false,
@@ -346,7 +346,8 @@ export class ConfigPanel {
     // Page 2 — World
     const rowStationSize = this._row('STATION SIZE',
       this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase()));
-    const rowSeed        = this._seedRow();
+    const rowCurrentSeed  = this._currentSeedRow();
+    const rowOverrideSeed = this._overrideSeedRow();
     this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
     const rowPlanets     = this._row('PLANETS', this._planetsCtrl);
     const rowScenario    = this._row('SCENARIO',
@@ -419,7 +420,7 @@ export class ConfigPanel {
     this._updateSeedGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
-    this._page2Rows = [rowStationSize, rowSeed, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
+    this._page2Rows = [rowStationSize, rowCurrentSeed, rowOverrideSeed, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
@@ -714,31 +715,51 @@ export class ConfigPanel {
   }
 
   _updateSeedGrey() {
-    const active = (this._d.mapSeed ?? '').trim().length > 0;
+    const active = (this._d.overrideSeed ?? '').trim().length > 0;
     for (const row of this._seedSubRows ?? []) {
       row.style.opacity       = active ? '0.35' : '1';
       row.style.pointerEvents = active ? 'none' : '';
     }
   }
 
-  // Called by main.js after each game starts — shows the auto-generated seed in muted colour.
-  // Typing in the field resets to normal colour and marks the seed as user-supplied.
+  // Called by main.js after each game starts — writes the seed actually used into the read-only display.
   setGeneratedSeed(seed) {
-    this._d.mapSeed       = seed;
-    this._seedIsGenerated = true;
-    if (this._seedInput) {
-      this._seedInput.value      = seed;
-      this._seedInput.style.color = 'rgba(180,185,210,0.5)';
+    if (this._currentSeedDisplay) {
+      this._currentSeedDisplay.value = seed;
     }
-    this._updateSeedGrey();
   }
 
-  _seedRow() {
+  _currentSeedRow() {
+    const input = document.createElement('input');
+    input.type     = 'text';
+    input.readOnly = true;
+    input.value    = '';
+    Object.assign(input.style, {
+      background:    'rgba(5,5,20,0.5)',
+      border:        '1px solid rgba(80,110,255,0.18)',
+      borderRadius:  '3px',
+      color:         'rgba(180,185,210,0.55)',
+      fontFamily:    'monospace',
+      fontSize:      S.norm.arrowFont,
+      padding:       S.norm.arrowPad,
+      minWidth:      '150px',
+      outline:       'none',
+      letterSpacing: '0.06em',
+      cursor:        'text',
+    });
+    this._currentSeedDisplay = input;
+
+    const ctrl = el('div', {});
+    ctrl.appendChild(input);
+    return this._row('CURRENT SEED', ctrl);
+  }
+
+  _overrideSeedRow() {
     const input = document.createElement('input');
     input.type        = 'text';
     input.maxLength   = 32;
-    input.placeholder = 'enter seed…';
-    input.value       = this._d.mapSeed ?? '';
+    input.placeholder = 'leave blank for random…';
+    input.value       = this._d.overrideSeed ?? '';
     Object.assign(input.style, {
       background:    'rgba(5,5,20,0.8)',
       border:        '1px solid rgba(80,110,255,0.3)',
@@ -754,16 +775,14 @@ export class ConfigPanel {
     input.addEventListener('focus', () => { input.style.borderColor = 'rgba(130,160,255,0.6)'; });
     input.addEventListener('blur',  () => { input.style.borderColor = 'rgba(80,110,255,0.3)'; });
     input.addEventListener('input', () => {
-      this._d.mapSeed = input.value;
-      this._seedIsGenerated = false;
-      input.style.color = '#eee';
+      this._d.overrideSeed = input.value;
       this._updateSeedGrey();
     });
-    this._seedInput = input;
+    this._overrideSeedInput = input;
 
     const ctrl = el('div', {});
     ctrl.appendChild(input);
-    return this._row('MAP SEED', ctrl);
+    return this._row('OVERRIDE SEED', ctrl);
   }
 }
 

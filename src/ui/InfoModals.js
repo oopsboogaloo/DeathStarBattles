@@ -295,6 +295,88 @@ Rare is the default (roughly 10% chance per game). Always guarantees at least on
 
 Wildcards can dramatically change the flow of play — a surprise black hole or wormhole pair can redirect shots that would otherwise miss.`,
   },
+  {
+    title: 'Aim Circle Size',
+    body: `The radius of the white targeting circle drawn around your station while aiming. Options: 0.5× Smaller, 1× Regular, 2× Larger, 3× Mammoth.
+
+The circle defines your power range: the line from your station to the circle edge represents maximum power; a shorter line is lower power.
+
+A larger circle gives finer control at high power values — more canvas distance means more precision per degree of mouse movement. A smaller circle keeps the aiming UI compact on small screens.`,
+  },
+  {
+    title: 'Bullet Paths',
+    body: `Shows a preview of your shot's trajectory before firing. The path fades out at the selected distance. Options: Off, Full (1 screen), Half, Quarter, Eighth.
+
+The preview is computed using the same physics as the real shot — gravity from every planet is included. It is a genuine prediction, not an approximation.
+
+Useful for learning trajectories. Experienced players may prefer Off to keep the game challenging. Short paths (Eighth) hint at the initial direction without revealing the full arc.`,
+  },
+  {
+    title: 'Minimal UI',
+    body: `When On, shrinks the weapon selector, end-turn button, and other controls to leave more screen space for the game.
+
+The game itself is unchanged — only the size of interface elements is affected. Useful on smaller screens or when you want less visual clutter during play.`,
+  },
+  {
+    title: 'Map Seed',
+    body: `Two fields control map seeding:
+
+Current Seed — read-only. Always shows the seed that was used to generate the current map. Click to select and copy it.
+
+Override Seed — leave blank for a fresh random map each game. Type a seed here to pin the layout; that exact map will be generated every time until you clear the field.
+
+The seed determines the scenario, planet positions, and planet types. Giving someone else your current seed lets them play the exact same map.`,
+  },
+  {
+    title: 'Collectables',
+    body: `Power-ups scattered across the map that can be collected by hitting them with your own projectile. Options: Off, Rare, Normal, Common, Continuous.
+
+Collectables grant bonuses: extra weapons, shields, speed boosts, and more. The owning station receives the reward automatically on hit.
+
+Continuous respawns new collectables throughout the match as old ones are taken. Off removes them entirely. Normal is a good starting point.`,
+  },
+  {
+    title: 'Rich Asteroids',
+    body: `How often asteroids contain a hidden collectable (requires Collectables to be enabled). Options: Off, Rare (1%), Normal (5%), Common (10%), Abundant (25%), Overwhelming.
+
+When a rich asteroid is destroyed, it drops its collectable for any station to collect. The percentage is the chance per asteroid.
+
+Overwhelming gives most asteroids a reward, effectively turning asteroid fields into loot fields.`,
+  },
+  {
+    title: 'Collectable Size',
+    body: `The physical size of collectable power-ups on the map. Options: Tiny (½×), Medium, Large (1.5×), Huge (2×), Mammoth (3×), Varied.
+
+Larger collectables are easier to hit. Tiny collectables require a near-direct hit and add a skill element to collecting.
+
+Varied gives each collectable a random size from the full range, so some are easy and some are not.`,
+  },
+  {
+    title: 'Targets  (Target Practice)',
+    body: `How many target stations appear per round in Target Practice mode. Options: 1, 3, 5, 7, 10, 20.
+
+Each target must be destroyed to score. The round ends when all targets are eliminated or the maximum turn count is reached.
+
+Fewer targets with careful placement can be more demanding than many spread-out ones.`,
+  },
+  {
+    title: 'Target Size  (Target Practice)',
+    body: `The physical size of target stations in Target Practice mode. Uses the same size scale as the Station Size option: Micro, Tiny, Small, Medium, Large, Giant, Mammoth.
+
+Smaller targets are harder to hit and reward precise aim. Larger targets suit players who are still learning to read trajectories.`,
+  },
+  {
+    title: 'Rounds  (Target Practice)',
+    body: `How many rounds make up a Target Practice session. Options: 1, 3, 5, 7, 10.
+
+Each round gives players a fresh set of targets on the same map. Scores accumulate across all rounds; the player with the highest total at the end wins.`,
+  },
+  {
+    title: 'Include AI  (Target Practice)',
+    body: `When On, computer-controlled stations compete alongside human players in Target Practice mode, using the CPU Level set in Setup.
+
+AI stations aim for the same targets using their standard trajectory simulation. Useful for benchmarking your performance against a known baseline, or for filling out a session when playing alone.`,
+  },
 ];
 
 // ── OptionsHelpModal ──────────────────────────────────────────────────────────
@@ -497,7 +579,7 @@ export class InstructionsModal {
     p.appendChild(heading('✦  HOW TO PLAY'));
 
     p.appendChild(bodyText(
-`Each turn, every player sets an angle and power for their station to fire a projectile at their opponents. When all players have chosen, all projectiles fire simultaneously. Projectiles are affected by the gravity of planets and stars. Last station standing wins.
+`Each turn, every player selects a weapon, sets an angle and power, then fires at their opponents. When all players have chosen, all projectiles fire simultaneously. Projectiles are affected by the gravity of planets and stars. Last station standing wins.
 
 
 CONTROLS
@@ -510,15 +592,24 @@ Keyboard:
   X / S               Rotate aim clockwise
   K / J               Increase power
   M / N               Decrease power
-  H                   Toggle hyperspace
+  W                   Cycle weapon
   Return              Fire / End turn
   P                   Pause / Unpause
   O                   Slow motion (while paused)
 
 
-HYPERSPACE
+WEAPONS
 
-Instead of firing, click Hyperspace then End Turn to teleport your station to a random location. Useful when surrounded by hazards.
+Use the weapon selector button to cycle through available weapons. Special weapons (triple cannon, laser, rocket, and others) are collected as power-ups during play.
+
+Hyperspace is also a weapon choice — select it instead of firing to teleport your station to a random location. Useful when surrounded by hazards or planets.
+
+Force Shield deploys a protective barrier around your station for one turn.
+
+
+COLLECTABLES
+
+Collectables appear on the map as glowing gems. Hit one with your own projectile to claim it — you receive the reward automatically. Rewards include extra weapons, shields, and other bonuses.
 
 
 WINNING

@@ -1775,6 +1775,34 @@ export class GameLoop {
     s.selectedWeapon = weapons[(idx + 1) % weapons.length];
   }
 
+  humanCycleWeapon() {
+    const s = this.gs.activeStation;
+    if (!s) return;
+    const cannonOk = this.gs.storyState?.mission.settings.cannonEnabled !== false;
+    const allOrder = [
+      ...(cannonOk ? [WeaponId.CANNON] : []),
+      WeaponId.HYPERSPACE,
+      WeaponId.TRIPLE_CANNON,
+      WeaponId.BLUNDERBUSS,
+      WeaponId.LASER,
+      WeaponId.ROCKET,
+      WeaponId.ROCKET_POD,
+      WeaponId.BLASTER,
+      WeaponId.MINIGUN,
+      WeaponId.FORCE_SHIELD,
+    ];
+    const available = allOrder.filter(w => {
+      if (w === WeaponId.CANNON || w === WeaponId.HYPERSPACE) return true;
+      const reserved = s.team.stations.filter(
+        t => t !== s && t.status === 'active' && t.selectedWeapon === w
+      ).length;
+      return s.team.getStock(w) - reserved > 0;
+    });
+    if (available.length === 0) return;
+    const idx = available.indexOf(s.selectedWeapon);
+    s.selectedWeapon = available[(idx + 1) % available.length];
+  }
+
   humanSelectWeapon(weaponId) {
     const s = this.gs.activeStation;
     if (!s) return;

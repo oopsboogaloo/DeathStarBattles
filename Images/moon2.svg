@@ -31,7 +31,7 @@
      inkscape:window-x="4104"
      inkscape:window-y="146"
      inkscape:window-maximized="0"
-     inkscape:current-layer="layer3" />
+     inkscape:current-layer="layer1" />
   <defs
      id="defs1" />
   <g
@@ -40,7 +40,7 @@
      id="layer1"
      sodipodi:insensitive="true">
     <ellipse
-       style="display:inline;opacity:0.0968922;fill:none;fill-opacity:0.988528;stroke:#000000;stroke-width:1.099"
+       style="display:none;opacity:0.0968922;fill:none;fill-opacity:0.988528;stroke:#000000;stroke-width:1.099"
        id="path1"
        cx="132.31021"
        cy="132.31021"

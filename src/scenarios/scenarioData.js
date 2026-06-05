@@ -35,7 +35,7 @@ export const SCENARIO_NAMES = [
   'Wormholes',          // 20
   'White Dwarfs',       // 21
   'Black Hole',         // 22
-  'Neutron Star',       // 23
+  'Pulsar',             // 23
   'White Hole',         // 24
   'White Holes',        // 25
   'Hyperspace',         // 26

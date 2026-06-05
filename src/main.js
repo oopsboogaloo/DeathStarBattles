@@ -408,7 +408,7 @@ function startGame(cfg) {
   // Every game gets a seed — generate one if the player didn't type one.
   // The seed fully determines scenario + planet layout; typing it back replays the exact map.
   const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const rawSeed   = (cfg.mapSeed ?? '').trim();
+  const rawSeed   = (cfg.overrideSeed ?? '').trim();
   const activeSeed = rawSeed
     || Array.from({ length: 8 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
 
