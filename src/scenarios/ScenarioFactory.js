@@ -487,7 +487,7 @@ export class ScenarioFactory {
           shading: ShadingStyle.GAS_GIANT,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 6,6,3, gw,gh, 0.04, PlanetType.ROCKY, MOON_COL, ShadingStyle.ROCKY));
+          planets.push(makeMoon(rng, 1,0,0, gw,gh));
         break;
       }
 

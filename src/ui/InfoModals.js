@@ -548,7 +548,6 @@ export class AboutModal {
 
     const close = () => this.hide();
     p.appendChild(closeBtn(close));
-    p.appendChild(heading('✦  DEATH STAR BATTLES'));
 
     const content = el('div', { lineHeight: '2', fontSize: '14px', color: '#ccd', textAlign: 'center', marginTop: '18px' });
     content.innerHTML = `<div style="font-size:18px;letter-spacing:0.1em;color:#aac;margin-bottom:12px;">Death Star Battles</div>
