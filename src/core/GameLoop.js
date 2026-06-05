@@ -487,7 +487,9 @@ export class GameLoop {
       const p = this.gs.planets[i];
       if (!p.destroyed) continue;
       this.gs.planets.splice(i, 1);
-      if (p.type === PlanetType.COMET) {
+      if (p.type === PlanetType.MOON) {
+        continue; // Moon destruction + fragmentation handled in _handleMoonHit
+      } else if (p.type === PlanetType.COMET) {
         this._spawnCometExplosion(p);
       } else if (p.type === PlanetType.CRYSTAL) {
         children.push(...this._fragmentCrystalAsteroid(p));
@@ -763,6 +765,12 @@ export class GameLoop {
         const rocket = new Rocket({ owner: station, position: pos, velocity: vel });
         rocket.fuel  = fuel;
         this.gs.rockets.push(rocket);
+      } else if (w === WeaponId.ROCKET_POD && station.team.spendStock(WeaponId.ROCKET_POD)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.ROCKET_POD, shotsRemaining: 8, totalShots: 8,
+          intervalSteps: 600, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
       } else if (w === WeaponId.BLASTER && station.team.spendStock(WeaponId.BLASTER)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.BLASTER, shotsRemaining: 5, totalShots: 5,
@@ -822,7 +830,26 @@ export class GameLoop {
 
       // ── Burst queue ───────────────────────────────────────────────────────────
       for (const burst of this.gs.burstQueue) {
-        if (this.gs.firingStep >= burst.nextFireStep) {
+        if (this.gs.firingStep < burst.nextFireStep) continue;
+
+        if (burst.weapon === WeaponId.ROCKET_POD) {
+          const shotIdx  = (burst.totalShots ?? 8) - burst.shotsRemaining;
+          const deviation = (this.rng.next() * 2 - 1) * 1.0;
+          const rad       = (((burst.angle + deviation) % 360 + 360) % 360 * Math.PI) / 180;
+          const offset    = burst.station.radius * 2;
+          const isLeft    = shotIdx % 2 === 0;
+          const perpX     = isLeft ? -Math.cos(rad) : Math.cos(rad);
+          const perpY     = isLeft ?  Math.sin(rad) : -Math.sin(rad);
+          const pos       = new Vec2(
+            burst.station.position.x + perpX * offset,
+            burst.station.position.y + perpY * offset,
+          );
+          const vel    = new Vec2(ROCKET_LAUNCH_SPEED * Math.sin(rad), ROCKET_LAUNCH_SPEED * Math.cos(rad));
+          const rocket = new Rocket({ owner: burst.station, position: pos, velocity: vel });
+          rocket.fuel  = ROCKET_MIN_FUEL + (burst.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+          rocket.blastRadius = ROCKET_BLAST_RADIUS * 0.5;
+          this.gs.rockets.push(rocket);
+        } else {
           const MAX_V = (800 / 1000 + 0.2) * 0.8;
           let spread, speed;
           if (burst.weapon === WeaponId.BLASTER) {
@@ -837,9 +864,10 @@ export class GameLoop {
           const b = this._makeBulletVelocity(burst.station, burst.angle + spread, speed);
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
-          burst.shotsRemaining--;
-          burst.nextFireStep = this.gs.firingStep + burst.intervalSteps;
         }
+
+        burst.shotsRemaining--;
+        burst.nextFireStep = this.gs.firingStep + burst.intervalSteps;
       }
       this.gs.burstQueue = this.gs.burstQueue.filter(b => b.shotsRemaining > 0);
 
@@ -962,7 +990,13 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
-        this.physics.step(bullet, this.gs.planets);
+        this.physics.step(bullet, this.gs.planets, this.gs.rifts);
+
+        // Moon hit — must check before trail recording since step() may EXPLODE the bullet
+        if (bullet._hitMoon) {
+          this._handleMoonHit(bullet._hitMoon, bullet._hitMoonX, bullet._hitMoonY);
+          bullet._hitMoon = null;
+        }
 
         if (bullet.lifetime % PRINT_EVERY === 0) {
           bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));
@@ -1186,6 +1220,59 @@ export class GameLoop {
     });
   }
 
+  _handleMoonHit(moon, impactX, impactY) {
+    moon.hitCount++;
+    if (moon.hitCount >= 3) {
+      // Third hit — destroy and fragment into 3-5 asteroids
+      moon.destroyed = true;
+      const n        = 3 + Math.floor(this.rng.next() * 3); // 3-5
+      const factor   = n <= 3 ? 0.40 : n <= 4 ? 0.35 : 0.30;
+      const childR   = moon.radius * factor;
+      const maxDist  = moon.radius - childR;
+      for (let i = 0; i < n; i++) {
+        const angle = this.rng.next() * Math.PI * 2;
+        const dist  = Math.sqrt(this.rng.next()) * maxDist;
+        const pos   = new Vec2(
+          moon.position.x + Math.cos(angle) * dist,
+          moon.position.y + Math.sin(angle) * dist,
+        );
+        // Children have no initial velocity (spec: no initial velocity)
+        const child = this._makeChildAsteroid(pos, Math.max(8, childR), moon.density, false);
+        this.gs.planets.push(child);
+      }
+      this._spawnAsteroidExplosion(moon);
+      const idx = this.gs.planets.indexOf(moon);
+      if (idx !== -1) this.gs.planets.splice(idx, 1);
+    } else {
+      // First or second hit — generate cracks from impact point
+      const cracks = this._generateMoonCracks(moon, impactX, impactY);
+      moon.crackLines.push(cracks);
+    }
+  }
+
+  _generateMoonCracks(moon, ix, iy) {
+    const n      = 5 + Math.floor(this.rng.next() * 4); // 5-8 cracks
+    const cracks = [];
+    for (let i = 0; i < n; i++) {
+      const baseAngle = (2 * Math.PI * i) / n + (this.rng.next() - 0.5) * 0.8;
+      const pts    = [new Vec2(ix, iy)];
+      let cx = ix, cy = iy;
+      const steps  = 3 + Math.floor(this.rng.next() * 3); // 3-5 segments
+      const segLen = moon.radius / steps;
+      let angle    = baseAngle;
+      for (let s = 0; s < steps; s++) {
+        angle += (this.rng.next() - 0.5) * 0.4;
+        cx += Math.cos(angle) * segLen;
+        cy += Math.sin(angle) * segLen;
+        pts.push(new Vec2(cx, cy));
+        const ddx = cx - moon.position.x, ddy = cy - moon.position.y;
+        if (ddx * ddx + ddy * ddy > moon.radius * moon.radius * 1.1) break;
+      }
+      cracks.push(pts);
+    }
+    return cracks;
+  }
+
   // Spawn a bright white flash explosion for a destroyed comet.
   _spawnCometExplosion(comet) {
     const r = 240, g = 250, b = 255;
@@ -1362,7 +1449,7 @@ export class GameLoop {
     // Spawn an expanding blast zone — damage is applied progressively as it grows.
     this.gs.rocketBlasts.push({
       x: rocket.position.x, y: rocket.position.y,
-      maxRadius:     ROCKET_BLAST_RADIUS,
+      maxRadius:     rocket.blastRadius ?? ROCKET_BLAST_RADIUS,
       currentRadius: 1,
       owner:         rocket.owner,
       hitSet:        new Set(),
@@ -1977,7 +2064,7 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
-        this.physics.step(bullet, this.gs.planets);
+        this.physics.step(bullet, this.gs.planets, this.gs.rifts);
 
         if (bullet.lifetime % PRINT_EVERY === 0) {
           bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));
@@ -1997,6 +2084,11 @@ export class GameLoop {
               this.gs.vfxList.push(this._makeGlitterVFX(tgt.position.x, tgt.position.y));
             }
           }
+        }
+
+        if (bullet._hitMoon) {
+          this._handleMoonHit(bullet._hitMoon, bullet._hitMoonX, bullet._hitMoonY);
+          bullet._hitMoon = null;
         }
 
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {

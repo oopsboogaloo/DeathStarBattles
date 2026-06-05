@@ -83,6 +83,7 @@ export class ConfigPanel {
       richAsteroids:     'normal',
       collectableSize:   'medium',
       startingWeapons:   'none',
+      mapSeed:           '',
       aimCircleSize:     'regular',
       bulletPaths:       'off',
       minimalUI:         false,
@@ -345,6 +346,7 @@ export class ConfigPanel {
     // Page 2 — World
     const rowStationSize = this._row('STATION SIZE',
       this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase()));
+    const rowSeed        = this._seedRow();
     this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
     const rowPlanets     = this._row('PLANETS', this._planetsCtrl);
     const rowScenario    = this._row('SCENARIO',
@@ -410,12 +412,14 @@ export class ConfigPanel {
       this._cycle('tpIncludeAI', [false, true], v => v ? 'On' : 'Off'));
 
     this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
+    this._seedSubRows    = [rowPlanets, rowScenario];
     this._devRows        = [rowStartWep];
     rowStartWep.style.display = 'none'; // hidden until dev mode enabled
     this._updateCollectableGrey();
+    this._updateSeedGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
-    this._page2Rows = [rowStationSize, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
+    this._page2Rows = [rowStationSize, rowSeed, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
@@ -707,6 +711,59 @@ export class ConfigPanel {
       row.style.opacity       = off ? '0.35' : '1';
       row.style.pointerEvents = off ? 'none' : '';
     }
+  }
+
+  _updateSeedGrey() {
+    const active = (this._d.mapSeed ?? '').trim().length > 0;
+    for (const row of this._seedSubRows ?? []) {
+      row.style.opacity       = active ? '0.35' : '1';
+      row.style.pointerEvents = active ? 'none' : '';
+    }
+  }
+
+  // Called by main.js after each game starts — shows the auto-generated seed in muted colour.
+  // Typing in the field resets to normal colour and marks the seed as user-supplied.
+  setGeneratedSeed(seed) {
+    this._d.mapSeed       = seed;
+    this._seedIsGenerated = true;
+    if (this._seedInput) {
+      this._seedInput.value      = seed;
+      this._seedInput.style.color = 'rgba(180,185,210,0.5)';
+    }
+    this._updateSeedGrey();
+  }
+
+  _seedRow() {
+    const input = document.createElement('input');
+    input.type        = 'text';
+    input.maxLength   = 32;
+    input.placeholder = 'enter seed…';
+    input.value       = this._d.mapSeed ?? '';
+    Object.assign(input.style, {
+      background:    'rgba(5,5,20,0.8)',
+      border:        '1px solid rgba(80,110,255,0.3)',
+      borderRadius:  '3px',
+      color:         '#eee',
+      fontFamily:    'monospace',
+      fontSize:      S.norm.arrowFont,
+      padding:       S.norm.arrowPad,
+      minWidth:      '150px',
+      outline:       'none',
+      letterSpacing: '0.06em',
+    });
+    input.addEventListener('focus', () => { input.style.borderColor = 'rgba(130,160,255,0.6)'; });
+    input.addEventListener('blur',  () => { input.style.borderColor = 'rgba(80,110,255,0.3)'; });
+    input.addEventListener('input', () => {
+      this._d.mapSeed = input.value;
+      this._seedIsGenerated = false;
+      input.style.color = '#eee';
+      this._updateSeedGrey();
+    });
+    this._seedInput = input;
+
+    const ctrl = el('div', {});
+    ctrl.appendChild(input);
+    return this._row('MAP SEED', ctrl);
   }
 }
 

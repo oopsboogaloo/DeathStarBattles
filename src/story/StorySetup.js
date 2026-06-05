@@ -179,13 +179,13 @@ export function buildStoryMission(mission, physics, rng) {
     const nPlanets      = [2, 3, 17].includes(mission.layout.scenarioId) ? 20 : 10;
     const collectables  = mission.settings.collectablesSpawn === 'normal' ? 'normal' : 'off';
     const richAsteroids = mission.settings.richAsteroids ?? 'normal';
-    planets = ScenarioFactory.create(
+    ({ planets } = ScenarioFactory.create(
       mission.layout.scenarioId, gw, gh, nPlanets, rng,
       'off',        // no random wildcard planets — keep story layouts clean
       'full',
       collectables,
       richAsteroids,
-    );
+    ));
     // Append mission-specific extra planets (e.g. white dwarf in M18, comets in M20)
     for (const def of mission.layout.extraPlanets ?? []) {
       planets.push(buildPlanet(def, gw, gh, rng));

@@ -1,6 +1,6 @@
 import { Renderer }             from './rendering/Renderer.js';
 import { ScenarioFactory }      from './scenarios/ScenarioFactory.js';
-import { weightedRandomId } from './scenarios/scenarioData.js';
+import { weightedRandomId, hashString, SCENARIO_COUNT } from './scenarios/scenarioData.js';
 import { RNG }                  from './core/RNG.js';
 import { GameState, GameMode }  from './core/GameState.js';
 import { GameLoop }             from './core/GameLoop.js';
@@ -403,15 +403,25 @@ function startGame(cfg) {
   renderer.setGameAspect(gw, gh); // lock new ratio for letterboxing on resize
   const rng = new RNG(RNG.randomSeed());
 
-  const size       = StationSize[cfg.stationSize] ?? StationSize.LARGE;
-  const scenarioId  = cfg.scenarioId > 0 ? cfg.scenarioId : (getUrlScenario() ?? weightedRandomId(rng));
-  const isRandom    = (cfg.numPlanets ?? -1) <= 0;
-  let   nPlanets    = isRandom ? (rng.nextInt(6) + 3) : cfg.numPlanets;
-  if (isRandom && [2, 3, 16, 17].includes(scenarioId)) {
-    nPlanets = cfg.performance === 'simplified' ? 20 : 30;
-  }
+  const size = StationSize[cfg.stationSize] ?? StationSize.LARGE;
 
-  const planets  = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
+  // Every game gets a seed — generate one if the player didn't type one.
+  // The seed fully determines scenario + planet layout; typing it back replays the exact map.
+  const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const rawSeed   = (cfg.mapSeed ?? '').trim();
+  const activeSeed = rawSeed
+    || Array.from({ length: 8 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
+
+  if (!rawSeed) panel.setGeneratedSeed(activeSeed);
+
+  const layoutRng = new RNG(hashString(activeSeed.toLowerCase()));
+  const scenarioId = getUrlScenario() ?? layoutRng.nextInt(SCENARIO_COUNT) + 1;
+  const isHeavy    = [2, 3, 16, 17].includes(scenarioId);
+  const nPlanets   = isHeavy
+    ? (cfg.performance === 'simplified' ? 20 : 30)
+    : layoutRng.nextInt(18) + 3;
+
+  const { planets, rifts } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -444,9 +454,9 @@ function startGame(cfg) {
   _applyStartingWeapons(teams, cfg, rng);
 
   const stars = Renderer.generateStarField(gw, gh);
-  renderer.drawBackground(stars, planets);
+  renderer.drawBackground(stars, planets, rifts);
 
-  const gameState = new GameState({ planets, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
+  const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
 
   for (const team of teams.filter(t => !t.isHuman)) {
@@ -596,8 +606,8 @@ function startTPGame(cfg) {
     const scenarioPool = TARGET_PRACTICE_SCENARIOS;
     const scenarioId   = scenarioPool[Math.floor(rng.next() * scenarioPool.length)];
     const nPlanets     = rng.nextInt(6) + 3;
-    planets = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng,
-      cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', 'off', 'off');
+    ({ planets } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, rng,
+      cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', 'off', 'off'));
 
     // Place stations on one edge
     side = TargetPracticeSetup.placeStations(teams, planets, gw, gh, rng);
@@ -619,7 +629,7 @@ function startTPGame(cfg) {
 
   // Draw background
   const stars = Renderer.generateStarField(gw, gh);
-  renderer.drawBackground(stars, planets);
+  renderer.drawBackground(stars, planets, []);
 
   // Build game state
   const gameState = new GameState({ planets, teams, config: { ...cfg }, movementSpeed: 'off' });

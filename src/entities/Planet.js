@@ -16,6 +16,7 @@ export const PlanetType = Object.freeze({
   WORMHOLE_SELF:    'wormholeSelf',
   WORMHOLE_NETWORK: 'wormholeNetwork', // red network — bullet exits via another red wormhole
   COMET:            'comet',           // dynamic body with reduced self-gravity
+  MOON:             'moon',            // multi-hit body: 3 hits to destroy; shows cracks
 });
 
 export const ShadingStyle = Object.freeze({
@@ -54,6 +55,9 @@ export class Planet {
     pulsarPhase   = 0,      // current phase within period (seconds)
     velocity      = null,   // Vec2 — used by COMET type for dynamic movement
     rich          = false,  // true for Rich Asteroid (blue-brown, yields crystal on break)
+    craterData    = null,   // [{dx,dy,r}] — crater positions relative to moon centre (MOON only)
+    hitCount      = 0,      // damage level 0-2; 3rd hit destroys the moon
+    crackLines    = null,   // [[Vec2[]]...] — one crack-set per hit (MOON only)
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -75,6 +79,9 @@ export class Planet {
     this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings
     this.velocity      = velocity;
     this.rich          = rich;
+    this.craterData    = craterData;
+    this.hitCount      = hitCount;
+    this.crackLines    = crackLines ?? [];
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

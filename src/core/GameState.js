@@ -16,8 +16,9 @@ export const GameMode = Object.freeze({
 });
 
 export class GameState {
-  constructor({ planets = [], teams = [], config = {}, movementSpeed = 'off' } = {}) {
+  constructor({ planets = [], rifts = [], teams = [], config = {}, movementSpeed = 'off' } = {}) {
     this.planets          = planets;
+    this.rifts            = rifts;
     this.teams            = teams;
     this.config           = config;
     this.movementSpeed    = movementSpeed;

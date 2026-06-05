@@ -45,7 +45,7 @@ export class SimBot extends AIController {
   _pickWeapon(station) {
     if (Math.random() >= this._specialProb) return WeaponId.CANNON;
     const priority = [
-      WeaponId.LASER, WeaponId.ROCKET, WeaponId.MINIGUN, WeaponId.TRIPLE_CANNON,
+      WeaponId.LASER, WeaponId.ROCKET, WeaponId.ROCKET_POD, WeaponId.MINIGUN, WeaponId.TRIPLE_CANNON,
       WeaponId.BLUNDERBUSS, WeaponId.BLASTER, WeaponId.FORCE_SHIELD,
     ];
     for (const w of priority) {
@@ -78,6 +78,7 @@ export class SimBot extends AIController {
       stepSize:    this.stepSize,
       simSteps:    this.simSteps,
       useWormholes: this._useWormholes(gameState),
+      rifts:       gameState.rifts ?? [],
     };
 
     const mem = this._mem.get(`${station.id}-${target.id}`);

@@ -1,6 +1,7 @@
 import { Vec2 }          from '../core/Vec2.js';
 import { PlanetType }    from '../entities/Planet.js';
 import { BulletStatus }  from '../entities/Bullet.js';
+import { RIFT_REPULSION_STRENGTH } from '../entities/SpaceRift.js';
 
 // ─── constants (match original Java values exactly) ───────────────────────────
 export const G             = 0.2;
@@ -40,7 +41,7 @@ export class PhysicsEngine {
   // Applies Newtonian gravity from all planets, then moves bullet.
   // Handles planet impacts (collision + wormholes) in-step.
 
-  step(bullet, planets) {
+  step(bullet, planets, rifts = []) {
     if (bullet.status !== BulletStatus.ACTIVE) return;
 
     let vx = bullet.velocity.x;
@@ -104,6 +105,19 @@ export class PhysicsEngine {
             vy += (-dy / d) * strength;
           }
         }
+      }
+    }
+
+    // Rift repulsion — linear-falloff force from each vertex, bullets only
+    for (const rift of rifts) {
+      for (const v of rift.vertices) {
+        const rdx = bullet.position.x - v.x;
+        const rdy = bullet.position.y - v.y;
+        const d   = Math.sqrt(rdx * rdx + rdy * rdy);
+        if (d < 0.01 || d >= rift.influenceRadius) continue;
+        const F = RIFT_REPULSION_STRENGTH * (1 - d / rift.influenceRadius);
+        vx += (rdx / d) * F * TIMESTEP;
+        vy += (rdy / d) * F * TIMESTEP;
       }
     }
 
@@ -192,7 +206,7 @@ export class PhysicsEngine {
   // stepSize: number of TIMESTEP units advanced per iteration (larger = faster, less accurate).
 
   simulate(angle, power, fromStation, targetStation, planets, opts = {}) {
-    const { stepSize = 20, simSteps = 400, useWormholes = false } = opts;
+    const { stepSize = 20, simSteps = 400, useWormholes = false, rifts = [] } = opts;
     const init = this.initialState(angle, power, fromStation);
     let px = init.position.x, py = init.position.y;
     let vx = init.velocity.x, vy = init.velocity.y;
@@ -232,6 +246,18 @@ export class PhysicsEngine {
       }
 
       if (stop) break;
+
+      // Rift repulsion in simulation
+      for (const rift of rifts) {
+        for (const v of rift.vertices) {
+          const rdx = px - v.x, rdy = py - v.y;
+          const d   = Math.sqrt(rdx * rdx + rdy * rdy);
+          if (d < 0.01 || d >= rift.influenceRadius) continue;
+          const F = RIFT_REPULSION_STRENGTH * (1 - d / rift.influenceRadius);
+          ax += (rdx / d) * F;
+          ay += (rdy / d) * F;
+        }
+      }
 
       vx += ax * dt; vy += ay * dt;
       px += vx * dt; py += vy * dt;
@@ -363,6 +389,14 @@ export class PhysicsEngine {
         // Both bullet and comet are destroyed on collision
         planet.destroyed = true;
         bullet.status = BulletStatus.EXPLODING;
+        break;
+
+      case PlanetType.MOON:
+        // Multi-hit — record the hit; GameLoop handles crack/fragmentation
+        bullet.status    = BulletStatus.EXPLODING;
+        bullet._hitMoon  = planet;
+        bullet._hitMoonX = bullet.position.x;
+        bullet._hitMoonY = bullet.position.y;
         break;
 
       default:

@@ -107,9 +107,10 @@ export class Renderer {
   // Layer 0 — Background (stars + planets, drawn once per game)
   // ----------------------------------------------------------------
 
-  drawBackground(stars, planets) {
+  drawBackground(stars, planets, rifts = []) {
     this._stars   = stars;
     this._planets = planets;
+    this._rifts   = rifts;
     this._renderBackground();
   }
 
@@ -121,13 +122,104 @@ export class Renderer {
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.drawCorona(ctx, planet, this.conv);
     }
     // Pass 2: solid bodies on top
     for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET) continue;
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
+    }
+    // Pass 3: space rifts above planets
+    for (const rift of this._rifts ?? []) this._drawRift(ctx, rift);
+  }
+
+  _drawRift(ctx, rift) {
+    const conv     = this.conv;
+    const pts      = rift.vertices.map(v => ({ x: v.x * conv, y: v.y * conv }));
+    if (pts.length < 2) return;
+
+    const buildPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    };
+
+    // Outer glow
+    ctx.save();
+    ctx.shadowColor  = '#C060FF';
+    ctx.shadowBlur   = 20;
+    ctx.strokeStyle  = 'rgba(192,96,255,0.3)';
+    ctx.lineWidth    = 28;
+    ctx.lineCap      = 'round';
+    ctx.lineJoin     = 'round';
+    buildPath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Forked lightning decorations (cosmetic — Math.random() intentional)
+    const nForks = 2 + Math.floor(Math.random() * 3); // 2–4
+    for (let f = 0; f < nForks; f++) {
+      const t     = Math.random();
+      const seg   = Math.floor(t * (pts.length - 1));
+      const frac  = t * (pts.length - 1) - seg;
+      const startX = pts[seg].x + (pts[seg + 1].x - pts[seg].x) * frac;
+      const startY = pts[seg].y + (pts[seg + 1].y - pts[seg].y) * frac;
+      this._drawLightningBranch(ctx, startX, startY, Math.random() * Math.PI * 2, 3 + Math.floor(Math.random() * 4), 0.3 + Math.random() * 0.2, 2);
+    }
+
+    // Inner glow pass
+    ctx.save();
+    ctx.shadowColor = '#E8C0FF';
+    ctx.shadowBlur  = 8;
+    ctx.strokeStyle = 'rgba(232,192,255,0.35)';
+    ctx.lineWidth   = 7;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    buildPath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Core line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,192,255,0.95)';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    buildPath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _drawLightningBranch(ctx, x, y, dir, segs, alpha, depth) {
+    if (segs <= 0 || alpha < 0.05) return;
+    const segLen = 12 + Math.random() * 18; // 12–30 px per segment
+    ctx.save();
+    ctx.strokeStyle = `rgba(192,96,255,${alpha.toFixed(2)})`;
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    let cx = x, cy = y, angle = dir;
+    for (let i = 0; i < segs; i++) {
+      angle += (Math.random() * 2 - 1) * (Math.PI * 40 / 180); // ±40°
+      cx += Math.cos(angle) * segLen;
+      cy += Math.sin(angle) * segLen;
+      ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // Fork once at minimum
+    if (depth > 0) {
+      const forkPt = Math.floor(segs * (0.3 + Math.random() * 0.4));
+      let bx = x, by = y, ba = dir;
+      for (let i = 0; i < forkPt; i++) {
+        ba += (Math.random() * 2 - 1) * (Math.PI * 40 / 180);
+        bx += Math.cos(ba) * segLen;
+        by += Math.sin(ba) * segLen;
+      }
+      const subSegs = Math.max(1, Math.floor(segs * 0.6));
+      this._drawLightningBranch(ctx, bx, by, ba + (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
+      this._drawLightningBranch(ctx, bx, by, ba - (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
     }
   }
 
@@ -248,6 +340,11 @@ export class Renderer {
     // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
     for (const planet of this._planets) {
       if (planet.vertices && !planet.destroyed) PlanetRenderer.draw(ctx, planet, this.conv);
+    }
+
+    // Moons — drawn live so cracks and damage state are always up-to-date
+    for (const planet of this._planets) {
+      if (planet.type === PlanetType.MOON && !planet.destroyed) this._drawMoon(ctx, planet);
     }
 
     // Ghost trail of previous shot — helps human players adjust aim
@@ -457,6 +554,67 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // Moon — cratered sphere with crack lines growing per hit
+  // ----------------------------------------------------------------
+
+  _drawMoon(ctx, planet) {
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const r  = Math.max(4, planet.radius * this.conv);
+
+    // Body: light grey-blue sphere with upper-left lit-side shading
+    const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
+    grad.addColorStop(0,   'rgb(240,243,252)');
+    grad.addColorStop(0.5, 'rgb(200,207,228)');
+    grad.addColorStop(1,   'rgb(100,106,130)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Craters
+    if (planet.craterData) {
+      for (const { dx, dy, cr } of planet.craterData) {
+        const kx = cx + dx * this.conv;
+        const ky = cy + dy * this.conv;
+        const kr = Math.max(1, cr * this.conv);
+
+        // Dark crater floor
+        ctx.beginPath();
+        ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(60,65,85,0.75)';
+        ctx.fill();
+
+        // Bright rim highlight (upper-left arc)
+        ctx.beginPath();
+        ctx.arc(kx, ky, kr, Math.PI * 0.8, Math.PI * 1.6);
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth   = Math.max(0.5, kr * 0.25);
+        ctx.stroke();
+      }
+    }
+
+    // Crack lines — drawn per-hit in red-orange
+    if (planet.crackLines && planet.crackLines.length > 0) {
+      const crackAlphas = [0.75, 0.65, 0.55];
+      for (let ci = 0; ci < planet.crackLines.length; ci++) {
+        const alpha = crackAlphas[ci] ?? 0.5;
+        ctx.strokeStyle = `rgba(220,90,30,${alpha})`;
+        ctx.lineWidth   = Math.max(0.8, this.conv * 0.6);
+        ctx.lineCap     = 'round';
+        for (const seg of planet.crackLines[ci]) {
+          ctx.beginPath();
+          ctx.moveTo(seg[0].x * this.conv, seg[0].y * this.conv);
+          for (let i = 1; i < seg.length; i++) {
+            ctx.lineTo(seg[i].x * this.conv, seg[i].y * this.conv);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // ----------------------------------------------------------------
   // Station — Death Star icon
   // ----------------------------------------------------------------
 
@@ -655,6 +813,7 @@ export class Renderer {
       case 'blunderbuss':  offsets = [-15, -7.5, 0, 7.5, 15]; break;
       case 'blaster':      offsets = [-10, -5, 0, 5, 10];     break;
       case 'minigun':      offsets = [-2, 0, 2];               break;
+      case 'rocketPod':    offsets = [-1, 0, 1];               break;
       default:             offsets = [0];                      break;
     }
 
@@ -877,6 +1036,8 @@ export class Renderer {
         if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 1.5);
         return;
       }
+      case 'rocketPod':
+        return; // self-propelled; no path preview
       default:
         return; // forceShield, hyperspace — no path preview
     }
