@@ -33,7 +33,7 @@ export class Renderer {
     this._aimCircleScale      = 1;
     this._bulletPathMaxLength = 0;
     this._svgOverlayCache     = new Map(); // planet → [{img, rotation, alpha}]
-    this._crackSvgImg         = null;      // shared crack SVG image, loaded once per game
+    this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
   }
 
   setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
@@ -115,10 +115,10 @@ export class Renderer {
     this._planets = planets;
     this._rifts   = rifts;
     this._svgOverlayCache.clear();
-    this._crackSvgImg = null;
+    this._crackSvgImgs = [];
     this._renderBackground();
     this._loadPlanetOverlays(planets); // async, fire-and-forget
-    this._loadCrackSvg();              // async, fire-and-forget
+    this._loadCrackSvgs();             // async, fire-and-forget
   }
 
   _renderBackground() {
@@ -564,21 +564,24 @@ export class Renderer {
   // SVG planet overlays — loaded async, drawn per-frame over live bodies
   // ----------------------------------------------------------------
 
-  async _loadCrackSvg() {
-    try {
-      const resp  = await fetch('Images/cracks1.svg');
-      let   text  = await resp.text();
-      const colour = 'rgb(0,0,0)';
-      text = text.replace(/fill\s*:\s*(?!none|transparent|url)[^;}"]+/gi, `fill:${colour}`);
-      text = text.replace(/fill="(?!none|transparent|url)[^"]+"/gi,       `fill="${colour}"`);
-      text = text.replace(/stroke\s*:\s*(?!none)[^;}"]+/gi, `stroke:${colour}`);
-      text = text.replace(/stroke="(?!none)[^"]+"/gi,        `stroke="${colour}"`);
-      const blob  = new Blob([text], { type: 'image/svg+xml' });
-      const img   = new Image();
-      img.src     = URL.createObjectURL(blob);
-      this._crackSvgImg = img;
-    } catch (e) {
-      console.warn('Failed to load cracks1.svg', e);
+  async _loadCrackSvgs() {
+    const paths  = ['Images/cracks1.svg', 'Images/cracks2.svg', 'Images/cracks3.svg'];
+    const colour = 'rgb(0,0,0)';
+    for (const path of paths) {
+      try {
+        const resp = await fetch(path);
+        let   text = await resp.text();
+        text = text.replace(/fill\s*:\s*(?!none|transparent|url)[^;}"]+/gi, `fill:${colour}`);
+        text = text.replace(/fill="(?!none|transparent|url)[^"]+"/gi,       `fill="${colour}"`);
+        text = text.replace(/stroke\s*:\s*(?!none)[^;}"]+/gi, `stroke:${colour}`);
+        text = text.replace(/stroke="(?!none)[^"]+"/gi,        `stroke="${colour}"`);
+        const blob = new Blob([text], { type: 'image/svg+xml' });
+        const img  = new Image();
+        img.src    = URL.createObjectURL(blob);
+        this._crackSvgImgs.push(img);
+      } catch (e) {
+        console.warn(`Failed to load ${path}`, e);
+      }
     }
   }
 
@@ -668,20 +671,20 @@ export class Renderer {
     if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
 
     // SVG crack overlay — one per hit, rotated to face impact point
-    if (planet.crackAngles?.length && this._crackSvgImg?.complete) {
-      const alphas = [0.5, 0.5];
+    if (planet.crackAngles?.length && this._crackSvgImgs.length) {
       for (let i = 0; i < planet.crackAngles.length; i++) {
-        const impactAngle = planet.crackAngles[i];
-        const rotation    = impactAngle - Math.PI / 2; // SVG cracks originate from bottom
-        const size        = r * 2;
+        const img = this._crackSvgImgs[planet.crackSvgIdxs?.[i] ?? 0];
+        if (!img?.complete) continue;
+        const rotation = planet.crackAngles[i] - Math.PI / 2;
+        const size     = r * 2;
         ctx.save();
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.clip();
-        ctx.globalAlpha = alphas[i] ?? 0.45;
+        ctx.globalAlpha = 0.5;
         ctx.translate(cx, cy);
         ctx.rotate(rotation);
-        ctx.drawImage(this._crackSvgImg, -size / 2, -size / 2, size, size);
+        ctx.drawImage(img, -size / 2, -size / 2, size, size);
         ctx.restore();
       }
     }

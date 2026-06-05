@@ -1244,9 +1244,11 @@ export class GameLoop {
       const idx = this.gs.planets.indexOf(moon);
       if (idx !== -1) this.gs.planets.splice(idx, 1);
     } else {
-      // First or second hit — record impact angle for SVG crack overlay
-      if (!moon.crackAngles) moon.crackAngles = [];
+      // First or second hit — record impact angle and random SVG index for crack overlay
+      if (!moon.crackAngles)   moon.crackAngles   = [];
+      if (!moon.crackSvgIdxs) moon.crackSvgIdxs  = [];
       moon.crackAngles.push(Math.atan2(impactY - moon.position.y, impactX - moon.position.x));
+      moon.crackSvgIdxs.push(Math.floor(this.rng.next() * 3));
     }
   }
 
