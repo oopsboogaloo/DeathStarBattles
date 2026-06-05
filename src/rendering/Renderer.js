@@ -3,6 +3,7 @@ import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
+import { PLANET_OVERLAYS } from './planetOverlays.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -31,6 +32,7 @@ export class Renderer {
     this._oy  = 0; // y offset of viewport within canvas (letterbox bars)
     this._aimCircleScale      = 1;
     this._bulletPathMaxLength = 0;
+    this._svgOverlayCache     = new Map(); // planet → [{img, rotation, alpha}]
   }
 
   setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
@@ -111,7 +113,9 @@ export class Renderer {
     this._stars   = stars;
     this._planets = planets;
     this._rifts   = rifts;
+    this._svgOverlayCache.clear();
     this._renderBackground();
+    this._loadPlanetOverlays(planets); // async, fire-and-forget
   }
 
   _renderBackground() {
@@ -554,6 +558,72 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // SVG planet overlays — loaded async, drawn per-frame over live bodies
+  // ----------------------------------------------------------------
+
+  async _loadPlanetOverlays(planets) {
+    const rand = (min, max) => min + Math.random() * (max - min);
+
+    for (const planet of planets) {
+      const layerDefs = PLANET_OVERLAYS[planet.type];
+      if (!layerDefs?.length) continue;
+
+      const entries = [];
+      for (const def of layerDefs) {
+        for (let n = 0; n < (def.count ?? 1); n++) {
+          const svgPath = def.svgs[Math.floor(Math.random() * def.svgs.length)];
+          const h = rand(def.colour.h[0], def.colour.h[1]).toFixed(1);
+          const s = rand(def.colour.s[0], def.colour.s[1]).toFixed(1);
+          const l = rand(def.colour.l[0], def.colour.l[1]).toFixed(1);
+          const colour = `hsl(${h},${s}%,${l}%)`;
+
+          let rotation = 0;
+          if (def.rotation === 'random') rotation = Math.random() * Math.PI * 2;
+          else if (typeof def.rotation === 'number') rotation = def.rotation * Math.PI / 180;
+
+          try {
+            const resp = await fetch(svgPath);
+            let text = await resp.text();
+            // Replace all fill colours with randomised colour
+            text = text.replace(/fill\s*:\s*(?!none|transparent|url)[^;}"]+/gi, `fill:${colour}`);
+            text = text.replace(/fill="(?!none|transparent|url)[^"]+"/gi,       `fill="${colour}"`);
+            if (!def.strokeVisible) {
+              text = text.replace(/stroke\s*:\s*(?!none)[^;}"]+/gi, 'stroke:none');
+              text = text.replace(/stroke="(?!none)[^"]+"/gi,        'stroke="none"');
+            }
+            const blob = new Blob([text], { type: 'image/svg+xml' });
+            const url  = URL.createObjectURL(blob);
+            const img  = new Image();
+            img.src    = url;
+            entries.push({ img, rotation, alpha: def.alpha ?? 1, scale: def.scale ?? 1 });
+          } catch (e) {
+            console.warn(`SVG overlay load failed: ${svgPath}`, e);
+          }
+        }
+      }
+      if (entries.length) this._svgOverlayCache.set(planet, entries);
+    }
+  }
+
+  _drawSVGOverlay(ctx, planet, entry) {
+    const { img, rotation, alpha, scale } = entry;
+    if (!img.complete || img.naturalWidth === 0) return;
+    const cx   = planet.position.x * this.conv;
+    const cy   = planet.position.y * this.conv;
+    const r    = Math.max(4, planet.radius * this.conv);
+    const size = r * 2 * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
   // Moon — cratered sphere with crack lines growing per hit
   // ----------------------------------------------------------------
 
@@ -572,27 +642,9 @@ export class Renderer {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Craters
-    if (planet.craterData) {
-      for (const { dx, dy, cr } of planet.craterData) {
-        const kx = cx + dx * this.conv;
-        const ky = cy + dy * this.conv;
-        const kr = Math.max(1, cr * this.conv);
-
-        // Dark crater floor
-        ctx.beginPath();
-        ctx.arc(kx, ky, kr, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(60,65,85,0.75)';
-        ctx.fill();
-
-        // Bright rim highlight (upper-left arc)
-        ctx.beginPath();
-        ctx.arc(kx, ky, kr, Math.PI * 0.8, Math.PI * 1.6);
-        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-        ctx.lineWidth   = Math.max(0.5, kr * 0.25);
-        ctx.stroke();
-      }
-    }
+    // SVG overlays (drawn above base sphere, below cracks)
+    const overlays = this._svgOverlayCache.get(planet);
+    if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
 
     // Crack lines — drawn per-hit in red-orange
     if (planet.crackLines && planet.crackLines.length > 0) {

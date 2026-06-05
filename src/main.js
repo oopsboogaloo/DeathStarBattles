@@ -415,7 +415,7 @@ function startGame(cfg) {
   if (!rawSeed) panel.setGeneratedSeed(activeSeed);
 
   const layoutRng = new RNG(hashString(activeSeed.toLowerCase()));
-  const scenarioId = getUrlScenario() ?? layoutRng.nextInt(SCENARIO_COUNT) + 1;
+  const scenarioId = getUrlScenario() ?? (cfg.scenarioId > 0 ? cfg.scenarioId : layoutRng.nextInt(SCENARIO_COUNT) + 1);
   const isHeavy    = [2, 3, 16, 17].includes(scenarioId);
   const nPlanets   = isHeavy
     ? (cfg.performance === 'simplified' ? 20 : 30)
