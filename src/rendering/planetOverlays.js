@@ -37,12 +37,36 @@ export const PLANET_OVERLAYS = {
       alpha:         0.45,
       colour:        'planetB',  // use the planet's colourB (band colour) for SVG marks
       rotation:      'random',
-      strokeVisible: true,
+      strokeVisible: false,
     },
   ],
 
-  // Uncomment and populate to add overlays for other body types:
-  // rocky:     [ ... ],
+  rocky: [
+    {
+      svgs: [
+        'Images/planet1.svg',  'Images/planet2.svg',  'Images/planet3.svg',
+        'Images/planet4.svg',  'Images/planet5.svg',  'Images/planet6.svg',
+        'Images/planet7.svg',  'Images/planet8.svg',  'Images/planet9.svg',
+        'Images/planet10.svg', 'Images/planet12.svg', 'Images/planet13.svg',
+        'Images/planet14.svg', 'Images/planet15.svg',
+      ],
+      countRange:    [1, 3],
+      scale:         1.0,
+      alpha:         1.0,
+      colour: [
+        [160,  60, 220],  // purple
+        [200,  40,  60],  // red
+        [220,  70,  40],  // orange-red
+        [240, 210,  50],  // yellow
+        [230, 215,  45],  // yellow
+        [ 50, 110, 230],  // blue
+        [ 55, 100, 225],  // blue
+        [150,  45, 215],  // purple
+      ],
+      rotation:      'random',
+      strokeVisible: false,
+    },
+  ],
   // asteroid:  [ ... ],
   // crystal:   [ ... ],
   // whiteDwarf:[ ... ],

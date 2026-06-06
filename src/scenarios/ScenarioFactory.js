@@ -16,7 +16,16 @@ function asteroidVertices(rng, n) {
   return verts;
 }
 
-const ROCKY_COL             = [150, 120,  80];
+const ROCKY_COLS = [
+  [150, 120,  80],  // warm brown
+  [180, 160, 140],  // dusty tan
+  [140, 160, 130],  // sage green
+  [160, 150, 180],  // lavender grey
+  [180, 170, 140],  // sandy beige
+  [140, 165, 170],  // dusty teal
+  [175, 145, 145],  // muted terracotta
+  [155, 170, 190],  // steel blue
+];
 const ASTEROID_COL          = [120,  80,  10];
 const RICH_ASTEROID_COL     = [ 75,  90, 120]; // blue-brown tint for rich asteroids
 const CRYSTAL_ASTEROID_COL  = [160, 210, 255]; // icy blue-white for crystal asteroids
@@ -433,7 +442,7 @@ export class ScenarioFactory {
       // ── 1: Planetary ──────────────────────────────────────────────────────
       case 1: {
         for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+          planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         break;
       }
 
@@ -454,7 +463,7 @@ export class ScenarioFactory {
           type: PlanetType.STAR, colour: col, shading: ShadingStyle.GLOWING,
         }));
         for (let i = 1; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.08, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+          planets.push(makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.08, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         break;
       }
 
@@ -609,14 +618,14 @@ export class ScenarioFactory {
           w0.partner = w1; w1.partner = w0;
           planets.push(w0, w1);
           for (let i = 2; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 20,20,3, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+            planets.push(makePlanet(rng, 1,0,0, 20,20,3, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         } else if (wType < 0.9 && nPlanets > 2) {
           // Blue cyclic A→B→C→A
           const wc = [0,1,2].map(() => makeWormhole(rng, gw,gh, [55,55,255], PlanetType.WORMHOLE_CYCLIC));
           wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
           planets.push(...wc);
           for (let i = 3; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 20,20,3, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+            planets.push(makePlanet(rng, 1,0,0, 20,20,3, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         } else {
           // Yellow self-teleport
           planets.push(makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF));
@@ -985,7 +994,7 @@ export class ScenarioFactory {
         const nRocky = Math.min(3, Math.max(0, nPlanets - 2));
         const nAst   = Math.max(0, nPlanets - nRocky);
         for (let i = 0; i < nRocky; i++)
-          planets.push(makePlanet(rng, 0.7,0.2,0.05, 20,15,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+          planets.push(makePlanet(rng, 0.7,0.2,0.05, 20,15,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         for (let i = 0; i < nAst; i++)
           planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
         break;
@@ -997,7 +1006,7 @@ export class ScenarioFactory {
           if (i % 3 === 0)
             planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.05, richProb));
           else
-            planets.push(makePlanet(rng, 0.8,0.1,0.05, 25,20,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+            planets.push(makePlanet(rng, 0.8,0.1,0.05, 25,20,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         }
         break;
       }
@@ -1005,7 +1014,7 @@ export class ScenarioFactory {
       // ── 31: Moons — rocky body orbited by destructible moons ─────────────────
       case 31: {
         // Central rocky planet (large, slightly off-centre)
-        planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+        planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         // 2–5 moons scattered around the field
         const nMoons = 2 + Math.floor(rng.next() * 4);
         for (let i = 0; i < nMoons; i++)
@@ -1020,7 +1029,7 @@ export class ScenarioFactory {
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COL, ShadingStyle.ROCKY));
+          planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
     }
 
     return planets;

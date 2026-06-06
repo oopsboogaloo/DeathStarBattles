@@ -31,7 +31,9 @@ export const ShadingStyle = Object.freeze({
 export const GAS_GIANT_COLOUR_PAIRS = [
   [[160,  60, 220], [200,  40,  60]],  // purple / red
   [[220,  70,  40], [240, 210,  50]],  // red / yellow
+  [[220,  70,  40], [ 50, 110, 230]],  // red / blue
   [[230, 215,  45], [ 50, 110, 230]],  // yellow / blue
+  [[230, 215,  45], [150,  45, 215]],  // yellow / purple
   [[ 55, 100, 225], [150,  45, 215]],  // blue / purple
 ];
 

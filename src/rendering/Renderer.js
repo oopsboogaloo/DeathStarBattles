@@ -33,6 +33,7 @@ export class Renderer {
     this._aimCircleScale      = 1;
     this._bulletPathMaxLength = 0;
     this._svgOverlayCache     = new Map(); // planet → [{img, rotation, alpha}]
+    this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
   }
 
@@ -115,9 +116,22 @@ export class Renderer {
     this._planets = planets;
     this._rifts   = rifts;
     this._svgOverlayCache.clear();
+    this._atmosphereCache.clear();
     this._crackSvgImgs = [];
+
+    const ATMOS_COLS = [
+      [ 60, 120, 220], [ 80, 160, 255],  // blues
+      [ 60, 200, 100], [ 80, 220, 140],  // greens
+      [220,  60,  60], [240, 100,  50],  // reds
+      [240, 210,  50], [200, 240,  60],  // yellows
+    ];
+    for (const planet of planets) {
+      if (planet.vertices || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
+      this._atmosphereCache.set(planet, ATMOS_COLS[Math.floor(Math.random() * ATMOS_COLS.length)]);
+    }
+
     this._renderBackground();
-    this._loadPlanetOverlays(planets); // async, fire-and-forget
+    if (!this._simplified) this._loadPlanetOverlays(planets); // async, fire-and-forget
     this._loadCrackSvgs();             // async, fire-and-forget
   }
 
@@ -132,12 +146,25 @@ export class Renderer {
       if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.drawCorona(ctx, planet, this.conv);
     }
+    // Pass 1b: atmosphere glow rings (drawn before solid body so planet covers interior)
+    if (!this._simplified) for (const planet of this._planets) {
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
+      this._drawAtmosphere(ctx, planet);
+    }
     // Pass 2: solid bodies on top
     for (const planet of this._planets) {
       if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
     }
-    // Pass 3: space rifts above planets
+    // Pass 3: SVG overlays for static bodies, then shading gradient on top
+    if (!this._simplified) for (const planet of this._planets) {
+      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
+      const overlays = this._svgOverlayCache.get(planet);
+      if (!overlays) continue;
+      for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      this._drawShadingOverlay(ctx, planet);
+    }
+    // Pass 4: space rifts above planets
     for (const rift of this._rifts ?? []) this._drawRift(ctx, rift);
   }
 
@@ -336,6 +363,11 @@ export class Renderer {
 
     // Gas giants — drawn live so their 50% transparency composites correctly over background.
     // Base circle in colourA; SVG overlay in colourB replaces old stripe rendering.
+    if (!this._simplified) for (const planet of this._planets) {
+      if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
+      this._drawAtmosphere(this.mainCtx, planet);
+    }
+    if (!this._simplified) ctx.filter = 'blur(3px)';
     for (const planet of this._planets) {
       if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
       const cx = planet.position.x * this.conv;
@@ -350,9 +382,12 @@ export class Renderer {
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
-      const overlays = this._svgOverlayCache.get(planet);
-      if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      if (!this._simplified) {
+        const overlays = this._svgOverlayCache.get(planet);
+        if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      }
     }
+    if (!this._simplified) ctx.filter = 'none';
 
     // Comets — drawn live every frame (they move and are not in the static bg layer)
     for (const planet of gameState.planets) {
@@ -604,11 +639,18 @@ export class Renderer {
 
       const entries = [];
       for (const def of layerDefs) {
-        for (let n = 0; n < (def.count ?? 1); n++) {
+        const count = def.countRange
+          ? def.countRange[0] + Math.floor(Math.random() * (def.countRange[1] - def.countRange[0] + 1))
+          : (def.count ?? 1);
+        for (let n = 0; n < count; n++) {
           const svgPath = def.svgs[Math.floor(Math.random() * def.svgs.length)];
 
           let colour;
-          if (typeof def.colour === 'string') {
+          if (Array.isArray(def.colour)) {
+            // Pool of RGB arrays — pick one at random per layer application
+            const [r, g, b] = def.colour[Math.floor(Math.random() * def.colour.length)];
+            colour = `rgb(${r},${g},${b})`;
+          } else if (typeof def.colour === 'string') {
             // 'planet' → colourA,  'planetB' → colourB (falls back to colourA if unset)
             const src = def.colour === 'planetB' ? (planet.colourB ?? planet.colour) : planet.colour;
             const [r, g, b] = src;
@@ -641,6 +683,7 @@ export class Renderer {
             const url  = URL.createObjectURL(blob);
             const img  = new Image();
             img.src    = url;
+            await img.decode();
             entries.push({ img, rotation, alpha: def.alpha ?? 1, scale: def.scale ?? 1 });
           } catch (e) {
             console.warn(`SVG overlay load failed: ${svgPath}`, e);
@@ -649,6 +692,8 @@ export class Renderer {
       }
       if (entries.length) this._svgOverlayCache.set(planet, entries);
     }
+    // Re-render background so static-body overlays (rocky planets etc.) appear immediately
+    this._renderBackground();
   }
 
   _drawSVGOverlay(ctx, planet, entry) {
@@ -666,6 +711,43 @@ export class Renderer {
     ctx.translate(cx, cy);
     ctx.rotate(rotation);
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+
+  _drawAtmosphere(ctx, planet) {
+    const atmos = this._atmosphereCache.get(planet);
+    if (!atmos) return;
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const r  = Math.max(4, planet.radius * this.conv);
+    const [ar, ag, ab] = atmos;
+    const outerR = r * 1.18;
+    // Gradient starts just inside planet rim and fades to transparent at outerR
+    const grad = ctx.createRadialGradient(cx, cy, r * 0.88, cx, cy, outerR);
+    grad.addColorStop(0, `rgba(${ar},${ag},${ab},0.50)`);
+    grad.addColorStop(1, `rgba(${ar},${ag},${ab},0)`);
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  _drawShadingOverlay(ctx, planet) {
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const r  = Math.max(4, planet.radius * this.conv);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    const grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r);
+    grad.addColorStop(0,    'rgba(255,255,255,0.40)');
+    grad.addColorStop(0.45, 'rgba(0,0,0,0)');
+    grad.addColorStop(1,    'rgba(0,0,0,0.65)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
     ctx.restore();
   }
 
@@ -689,8 +771,10 @@ export class Renderer {
     ctx.fill();
 
     // SVG overlays (drawn above base sphere, below cracks)
-    const overlays = this._svgOverlayCache.get(planet);
-    if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+    if (!this._simplified) {
+      const overlays = this._svgOverlayCache.get(planet);
+      if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+    }
 
     // SVG crack overlay — one per hit, rotated to face impact point
     if (planet.crackAngles?.length && this._crackSvgImgs.length) {
