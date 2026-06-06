@@ -1,5 +1,5 @@
 export const WORMHOLE_PARTICLE_DEFAULTS = {
-  count:         160,   // particles per wormhole
+  count:         80,    // particles per wormhole
   spawnMult:     1.55,  // spawn ring = visualRing * spawnMult
   voidMult:      0.18,  // despawn when r < visualRing * voidMult
   angularSpeed:  1.1,   // base radians/sec at spawn radius
@@ -7,7 +7,7 @@ export const WORMHOLE_PARTICLE_DEFAULTS = {
   inwardFrac:    0.20,  // inward speed = visualRing * inwardFrac per second
   blobMult:      0.26,  // blob radius = visualRing * blobMult at spawn
   blobMinMult:   0.06,  // minimum blob radius near centre
-  alphaMax:      0.35,  // max particle opacity
+  alphaMax:      0.18,  // max particle opacity
   alphaFadeMult: 0.40,  // fade starts when r < visualRing * alphaFadeMult
   hueRange:      35,    // ± degrees of per-particle colour jitter
   glowLayers:    2,     // concentric gradient passes per blob
