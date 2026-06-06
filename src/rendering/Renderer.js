@@ -37,6 +37,8 @@ export class Renderer {
     this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
     this._wormholeParticles   = new Map(); // planet → WormholeParticles
+    this._smokeImg            = null;
+    this._loadSmokeSprite();
   }
 
   setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
@@ -617,6 +619,12 @@ export class Renderer {
   // ----------------------------------------------------------------
   // SVG planet overlays — loaded async, drawn per-frame over live bodies
   // ----------------------------------------------------------------
+
+  _loadSmokeSprite() {
+    const img = new Image();
+    img.src = 'Images/Cloud1.png';
+    this._smokeImg = img;
+  }
 
   async _loadCrackSvgs() {
     const paths  = ['Images/cracks1.svg', 'Images/cracks2.svg', 'Images/cracks3.svg'];
@@ -1746,6 +1754,7 @@ export class Renderer {
 
   _drawRocketSmoke(ctx, smoke) {
     const conv = this.conv;
+    const img  = this._smokeImg?.complete ? this._smokeImg : null;
     for (const s of smoke) {
       let radius, alpha;
       if (s.t < 0.18) {
@@ -1765,10 +1774,20 @@ export class Renderer {
         alpha  = Math.max(0, 0.5 * (1 - frac));
       }
       if (radius <= 0) continue;
-      ctx.beginPath();
-      ctx.arc(s.x * conv, s.y * conv, radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha.toFixed(3)})`;
-      ctx.fill();
+      const px   = s.x * conv;
+      const py   = s.y * conv;
+      const size = radius * 2;
+      if (img) {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(img, px - radius, py - radius, size, size);
+        ctx.globalAlpha = 1;
+      } else {
+        // Fallback to arc while sprite loads
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha.toFixed(3)})`;
+        ctx.fill();
+      }
     }
   }
 
