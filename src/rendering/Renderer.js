@@ -1,5 +1,6 @@
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
+import { WormholeParticles } from './WormholeParticles.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
@@ -35,6 +36,7 @@ export class Renderer {
     this._svgOverlayCache     = new Map(); // planet → [{img, rotation, alpha}]
     this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
+    this._wormholeParticles   = new Map(); // planet → WormholeParticles
   }
 
   setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
@@ -118,6 +120,12 @@ export class Renderer {
     this._svgOverlayCache.clear();
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
+    this._wormholeParticles.clear();
+    for (const planet of planets) {
+      if (planet.shading === ShadingStyle.WORMHOLE && planet.radius <= 100) {
+        this._wormholeParticles.set(planet, new WormholeParticles(planet, planet.particleConfig));
+      }
+    }
 
     const ATMOS_COLS = [
       [ 60, 120, 220], [ 80, 160, 255],  // blues
@@ -346,12 +354,11 @@ export class Renderer {
   }
 
   _drawLive(ctx, gameState) {
-    // Animated wormhole pulse (time-based, overlaid on static background layer)
+    // Wormhole particle spirals
     const now = Date.now() / 1000;
-    for (const planet of this._planets) {
-      if (planet.shading === ShadingStyle.WORMHOLE) {
-        this._drawWormholePulse(ctx, planet, now);
-      }
+    for (const [planet, particles] of this._wormholeParticles) {
+      particles.update(now);
+      particles.draw(ctx, this.conv);
     }
 
     // Pulsar expanding pressure rings
@@ -1439,33 +1446,6 @@ export class Renderer {
       ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255,255,200,${(0.3 - t) * 3})`;
       ctx.fill();
-    }
-  }
-
-  // ----------------------------------------------------------------
-  // Wormhole pulse — animated ring overlay drawn every frame
-  // ----------------------------------------------------------------
-
-  _drawWormholePulse(ctx, planet, t) {
-    const cx = planet.position.x * this.conv;
-    const cy = planet.position.y * this.conv;
-    const r  = Math.max(4, planet.radius * 2 * this.conv);
-    const [pr, pg, pb] = planet.colour;
-    const pulse = 0.5 + 0.5 * Math.sin(t * 2.8 + planet.position.x * 0.07);
-    if (planet.radius > 100) {
-      // Giant wormhole — pulse at impactRadius so it matches the drawn ring
-      const vr = (planet.impactRadius ?? 50) * 2 * this.conv;
-      ctx.beginPath();
-      ctx.arc(cx, cy, vr * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
-      ctx.lineWidth   = Math.max(1, vr * 0.12 + vr * 0.08 * pulse);
-      ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * (0.82 + 0.18 * pulse), 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${pr},${pg},${pb},${0.25 + 0.45 * pulse})`;
-      ctx.lineWidth   = Math.max(1, r * 0.12 + r * 0.08 * pulse);
-      ctx.stroke();
     }
   }
 

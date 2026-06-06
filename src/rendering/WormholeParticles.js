@@ -1,0 +1,156 @@
+export const WORMHOLE_PARTICLE_DEFAULTS = {
+  count:         40,    // particles per wormhole
+  spawnMult:     1.55,  // spawn ring = visualRing * spawnMult
+  voidMult:      0.18,  // despawn when r < visualRing * voidMult
+  angularSpeed:  1.1,   // base radians/sec at spawn radius
+  momentumExp:   1.7,   // angSpeed scales as (spawnR/r)^momentumExp
+  inwardFrac:    0.20,  // inward speed = visualRing * inwardFrac per second
+  blobMult:      0.13,  // blob radius = visualRing * blobMult at spawn
+  blobMinMult:   0.03,  // minimum blob radius near centre
+  alphaMax:      0.72,  // max particle opacity
+  alphaFadeMult: 0.40,  // fade starts when r < visualRing * alphaFadeMult
+  hueRange:      35,    // ± degrees of per-particle colour jitter
+  glowLayers:    2,     // concentric gradient passes per blob
+};
+
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360;
+  const c = v * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = v - c;
+  let r, g, b;
+  if      (h < 60)  { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else              { r = c; g = 0; b = x; }
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d > 0) {
+    if      (max === r) h = ((g - b) / d + 6) % 6 * 60;
+    else if (max === g) h = ((b - r) / d + 2) * 60;
+    else                h = ((r - g) / d + 4) * 60;
+  }
+  return [h, max === 0 ? 0 : d / max, max];
+}
+
+export class WormholeParticles {
+  constructor(planet, config = {}) {
+    this._cfg     = { ...WORMHOLE_PARTICLE_DEFAULTS, ...config };
+    this._planet  = planet;
+    this._angles  = new Float32Array(this._cfg.count);
+    this._radii   = new Float32Array(this._cfg.count);
+    this._hueOff  = new Float32Array(this._cfg.count);
+    this._lastT   = null;
+
+    // Scatter initial radii so not all particles start at spawn ring
+    const cfg = this._cfg;
+    for (let i = 0; i < cfg.count; i++) {
+      this._angles[i] = Math.random() * Math.PI * 2;
+      this._radii[i]  = 0; // will be set properly on first update via _respawn
+      this._hueOff[i] = (Math.random() * 2 - 1) * cfg.hueRange;
+    }
+  }
+
+  _respawn(i, spawnR, voidR) {
+    const cfg = this._cfg;
+    this._angles[i] = Math.random() * Math.PI * 2;
+    // Scatter newly spawned particles across the outer half so the field
+    // fills immediately rather than all arriving at once
+    this._radii[i]  = voidR + Math.random() * (spawnR - voidR);
+    this._hueOff[i] = (Math.random() * 2 - 1) * cfg.hueRange;
+  }
+
+  update(nowSec) {
+    if (this._lastT === null) {
+      this._lastT = nowSec;
+      const cfg    = this._cfg;
+      const conv   = this._conv ?? 1;
+      const planet = this._planet;
+      const visualR = Math.max(4, planet.radius * 2 * conv);
+      const spawnR  = visualR * cfg.spawnMult;
+      const voidR   = visualR * cfg.voidMult;
+      for (let i = 0; i < cfg.count; i++) this._respawn(i, spawnR, voidR);
+      return;
+    }
+    const dt = Math.min(nowSec - this._lastT, 0.1); // cap at 100ms
+    this._lastT = nowSec;
+
+    const cfg     = this._cfg;
+    const conv    = this._conv ?? 1;
+    const planet  = this._planet;
+    const visualR = Math.max(4, planet.radius * 2 * conv);
+    const spawnR  = visualR * cfg.spawnMult;
+    const voidR   = visualR * cfg.voidMult;
+    const inward  = visualR * cfg.inwardFrac;
+
+    for (let i = 0; i < cfg.count; i++) {
+      let r = this._radii[i];
+      if (r <= voidR) { this._respawn(i, spawnR, voidR); continue; }
+      // Angular velocity scales with (spawnR/r)^momentumExp
+      const angV = cfg.angularSpeed * Math.pow(spawnR / r, cfg.momentumExp);
+      this._angles[i] += angV * dt;
+      this._radii[i]   = r - inward * dt;
+    }
+  }
+
+  draw(ctx, conv) {
+    this._conv = conv;
+    const cfg     = this._cfg;
+    const planet  = this._planet;
+    const cx      = planet.position.x * conv;
+    const cy      = planet.position.y * conv;
+    const visualR = Math.max(4, planet.radius * 2 * conv);
+    const spawnR  = visualR * cfg.spawnMult;
+    const voidR   = visualR * cfg.voidMult;
+    const blobFull = visualR * cfg.blobMult;
+    const blobMin  = visualR * cfg.blobMinMult;
+
+    const [pr, pg, pb] = planet.colour;
+    const [baseH, baseS, baseV] = rgbToHsv(pr, pg, pb);
+
+    for (let i = 0; i < cfg.count; i++) {
+      const r = this._radii[i];
+      if (r <= voidR) continue;
+
+      const t     = (r - voidR) / (spawnR - voidR); // 0=centre, 1=spawn
+      const blobR = blobMin + (blobFull - blobMin) * t;
+
+      // Fade near centre
+      const fadeT = Math.min(1, r / (visualR * cfg.alphaFadeMult));
+      const alpha = cfg.alphaMax * fadeT;
+
+      const px = cx + Math.cos(this._angles[i]) * r;
+      const py = cy + Math.sin(this._angles[i]) * r;
+
+      const [cr, cg, cb] = hsvToRgb(baseH + this._hueOff[i], baseS, Math.min(1, baseV + 0.15));
+
+      // Draw glowLayers concentric gradients for soft cloud look
+      for (let layer = cfg.glowLayers - 1; layer >= 0; layer--) {
+        const scale  = 1 + layer * 0.7;
+        const layerA = alpha * (1 - layer * 0.45);
+        const grad = ctx.createRadialGradient(px, py, 0, px, py, blobR * scale);
+        // Hot bright core on innermost layer only
+        if (layer === 0) {
+          grad.addColorStop(0,    `rgba(${Math.min(255,cr+60)},${Math.min(255,cg+50)},${Math.min(255,cb+40)},${layerA})`);
+          grad.addColorStop(0.4,  `rgba(${cr},${cg},${cb},${layerA * 0.7})`);
+          grad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
+        } else {
+          grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${layerA * 0.5})`);
+          grad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, blobR * scale, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+    }
+  }
+}
