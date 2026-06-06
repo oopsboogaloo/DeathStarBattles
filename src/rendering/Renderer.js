@@ -38,6 +38,7 @@ export class Renderer {
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
     this._wormholeParticles   = new Map(); // planet → WormholeParticles
     this._smokeImg            = null;
+    this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
     this._loadSmokeSprite();
   }
 
@@ -624,10 +625,20 @@ export class Renderer {
     const img = new Image();
     img.src = 'Images/Cloud1.png';
     this._smokeImg = img;
-    this._smokeOffscreen    = document.createElement('canvas');
-    this._smokeOffscreen.width  = 256;
-    this._smokeOffscreen.height = 256;
-    this._smokeOffCtx = this._smokeOffscreen.getContext('2d');
+  }
+
+  _getTintedSmoke(r, g, b) {
+    const key = `${r},${g},${b}`;
+    if (this._smokeTintCache.has(key)) return this._smokeTintCache.get(key);
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const cx = c.getContext('2d');
+    cx.drawImage(this._smokeImg, 0, 0, 256, 256);
+    cx.globalCompositeOperation = 'source-atop';
+    cx.fillStyle = `rgb(${r},${g},${b})`;
+    cx.fillRect(0, 0, 256, 256);
+    this._smokeTintCache.set(key, c);
+    return c;
   }
 
   async _loadCrackSvgs() {
@@ -1781,18 +1792,10 @@ export class Renderer {
       const px   = s.x * conv;
       const py   = s.y * conv;
       const size = radius * 2;
-      if (img) {
-        // Tint greyscale sprite with team colour via offscreen canvas compositing
-        const oCtx  = this._smokeOffCtx;
-        const oSize = 256;
-        oCtx.clearRect(0, 0, oSize, oSize);
-        oCtx.drawImage(img, 0, 0, oSize, oSize);
-        oCtx.globalCompositeOperation = 'source-atop';
-        oCtx.fillStyle = `rgb(${s.r},${s.g},${s.b})`;
-        oCtx.fillRect(0, 0, oSize, oSize);
-        oCtx.globalCompositeOperation = 'source-over';
+      if (img?.complete) {
+        const tinted = this._getTintedSmoke(s.r, s.g, s.b);
         ctx.globalAlpha = alpha;
-        ctx.drawImage(this._smokeOffscreen, px - radius, py - radius, size, size);
+        ctx.drawImage(tinted, px - radius, py - radius, size, size);
         ctx.globalAlpha = 1;
       } else {
         // Fallback to arc while sprite loads
