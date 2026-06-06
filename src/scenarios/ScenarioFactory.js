@@ -462,8 +462,38 @@ export class ScenarioFactory {
           radius: bigR, density: 0.015,
           type: PlanetType.STAR, colour: col, shading: ShadingStyle.GLOWING,
         }));
-        for (let i = 1; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.08, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+        // Remaining body slots: 50% gas giants, 50% rocky planets, each with 0–3 moons
+        for (let i = 1; i < nPlanets; i++) {
+          const body = rng.next() < 0.5
+            ? makeGasGiant(rng, 1,0,0, 30,15,12, gw,gh, 0.025)
+            : makePlanet(rng, 1,0,0, 20,5,4, gw,gh, 0.08, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY);
+          planets.push(body);
+          const nMoons = rng.nextInt(4); // 0–3
+          for (let m = 0; m < nMoons; m++) {
+            const angle   = rng.next() * Math.PI * 2;
+            const dist    = body.radius + 14 + rng.next() * 30;
+            const mx      = Math.max(8, Math.min(gw - 8, body.position.x + Math.cos(angle) * dist));
+            const my      = Math.max(8, Math.min(gh - 8, body.position.y + Math.sin(angle) * dist));
+            const mRadius = 10 + rng.next() * 7;
+            const nCraters = 3 + rng.nextInt(4);
+            const craterData = [];
+            for (let c = 0; c < nCraters; c++) {
+              const ca = rng.next() * Math.PI * 2;
+              const cd = rng.next() * mRadius * 0.7;
+              const cr = 2 + rng.next() * (mRadius * 0.22);
+              craterData.push({ dx: Math.cos(ca) * cd, dy: Math.sin(ca) * cd, cr });
+            }
+            planets.push(new Planet({
+              position: new Vec2(mx, my), radius: mRadius, density: 0.04,
+              type: PlanetType.MOON, colour: [200, 207, 228], shading: ShadingStyle.ROCKY,
+              craterData, hitCount: 0, crackLines: [],
+            }));
+          }
+        }
+        // Scatter 0–8 asteroids across the field
+        const nAst = rng.nextInt(9);
+        for (let i = 0; i < nAst; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1, richProb));
         break;
       }
 
@@ -579,14 +609,21 @@ export class ScenarioFactory {
 
       // ── 13: Mixture ───────────────────────────────────────────────────────
       case 13: {
-        let initial = Math.floor(nPlanets * (0.6*rng.next() + 0.6*rng.next()));
-        initial = Math.max(1, Math.min(7, initial));
-        for (let i = 0; i < initial; i++) {
-          const col = [Math.floor(rng.next()*30)+215, Math.floor(rng.next()*30)+205, Math.floor(rng.next()*190)+15];
-          planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
+        for (let i = 0; i < nPlanets; i++) {
+          const roll = i === 0 ? 1 : rng.next();
+          if (roll < 0.20)
+            planets.push(makeGasGiant(rng, 1,0,0, 35,20,15, gw,gh, 0.02));
+          else if (roll < 0.40)
+            planets.push(makePlanet(rng, 1,0,0, 28,15,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+          else if (roll < 0.60)
+            planets.push(makeMoon(rng, 1,0,0, gw,gh));
+          else if (roll < 0.80)
+            planets.push(makeCrystalAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
+          else {
+            const col = [Math.floor(rng.next()*30)+215, Math.floor(rng.next()*30)+205, Math.floor(rng.next()*190)+15];
+            planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
+          }
         }
-        for (let i = initial; i < nPlanets; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.1, richProb));
         break;
       }
 

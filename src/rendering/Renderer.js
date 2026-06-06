@@ -129,7 +129,6 @@ export class Renderer {
       if (planet.vertices || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       this._atmosphereCache.set(planet, ATMOS_COLS[Math.floor(Math.random() * ATMOS_COLS.length)]);
     }
-
     this._renderBackground();
     if (!this._simplified) this._loadPlanetOverlays(planets); // async, fire-and-forget
     this._loadCrackSvgs();             // async, fire-and-forget
