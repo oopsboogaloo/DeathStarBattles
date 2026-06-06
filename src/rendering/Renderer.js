@@ -334,9 +334,24 @@ export class Renderer {
       }
     }
 
-    // Gas giants — drawn live so their 50% transparency composites over the background
+    // Gas giants — drawn live so their 50% transparency composites correctly over background.
+    // Base circle in colourA; SVG overlay in colourB replaces old stripe rendering.
     for (const planet of this._planets) {
-      if (planet.shading === ShadingStyle.GAS_GIANT) PlanetRenderer.draw(ctx, planet, this.conv);
+      if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const r  = Math.max(2, planet.radius * this.conv);
+      const [ar, ag, ab] = planet.colour;
+      const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
+      grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
+      grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
+      grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      const overlays = this._svgOverlayCache.get(planet);
+      if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
     }
 
     // Comets — drawn live every frame (they move and are not in the static bg layer)
@@ -591,10 +606,19 @@ export class Renderer {
       for (const def of layerDefs) {
         for (let n = 0; n < (def.count ?? 1); n++) {
           const svgPath = def.svgs[Math.floor(Math.random() * def.svgs.length)];
-          const h = rand(def.colour.h[0], def.colour.h[1]).toFixed(1);
-          const s = rand(def.colour.s[0], def.colour.s[1]).toFixed(1);
-          const l = rand(def.colour.l[0], def.colour.l[1]).toFixed(1);
-          const colour = `hsl(${h},${s}%,${l}%)`;
+
+          let colour;
+          if (typeof def.colour === 'string') {
+            // 'planet' → colourA,  'planetB' → colourB (falls back to colourA if unset)
+            const src = def.colour === 'planetB' ? (planet.colourB ?? planet.colour) : planet.colour;
+            const [r, g, b] = src;
+            colour = `rgb(${r},${g},${b})`;
+          } else {
+            const h = rand(def.colour.h[0], def.colour.h[1]).toFixed(1);
+            const s = rand(def.colour.s[0], def.colour.s[1]).toFixed(1);
+            const l = rand(def.colour.l[0], def.colour.l[1]).toFixed(1);
+            colour = `hsl(${h},${s}%,${l}%)`;
+          }
 
           let rotation = 0;
           if (def.rotation === 'random') rotation = Math.random() * Math.PI * 2;
@@ -603,7 +627,10 @@ export class Renderer {
           try {
             const resp = await fetch(svgPath);
             let text = await resp.text();
-            // Replace all fill colours with randomised colour
+            // Inject colour into SVG root so paths with no explicit fill/stroke inherit it
+            const strokeRoot = def.strokeVisible ? `stroke="${colour}"` : 'stroke="none"';
+            text = text.replace(/(<svg\b)([^>]*)>/i, `$1$2 fill="${colour}" ${strokeRoot}>`);
+            // Also replace any explicit fill/stroke values in path styles
             text = text.replace(/fill\s*:\s*(?!none|transparent|url)[^;}"]+/gi, `fill:${colour}`);
             text = text.replace(/fill="(?!none|transparent|url)[^"]+"/gi,       `fill="${colour}"`);
             if (!def.strokeVisible) {

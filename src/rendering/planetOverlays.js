@@ -29,9 +29,20 @@ export const PLANET_OVERLAYS = {
     },
   ],
 
+  gasGiant: [
+    {
+      svgs:          ['Images/gas1.svg', 'Images/gas2.svg', 'Images/gas3.svg', 'Images/gas4.svg', 'Images/gas5.svg'],
+      count:         1,
+      scale:         1.0,
+      alpha:         0.45,
+      colour:        'planetB',  // use the planet's colourB (band colour) for SVG marks
+      rotation:      'random',
+      strokeVisible: true,
+    },
+  ],
+
   // Uncomment and populate to add overlays for other body types:
   // rocky:     [ ... ],
-  // gasGiant:  [ ... ],
   // asteroid:  [ ... ],
   // crystal:   [ ... ],
   // whiteDwarf:[ ... ],
