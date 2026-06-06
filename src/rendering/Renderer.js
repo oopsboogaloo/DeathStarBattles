@@ -40,6 +40,11 @@ export class Renderer {
     this._smokeImg            = null;
     this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
     this._loadSmokeSprite();
+
+    this._debugOn   = false;
+    this._debugEl   = null;
+    this._fpsPrev   = null;
+    this._fpsSmooth = 0;
   }
 
   setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
@@ -56,6 +61,18 @@ export class Renderer {
     setPlanetRendererSimplified(this._simplified);
   }
   get _simplified() { return this._performance === 'simplified'; }
+
+  setDebugMode(on) {
+    this._debugOn = !!on;
+    if (on && !this._debugEl) {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;top:8px;left:8px;background:rgba(0,0,0,0.55);color:#fff;font:11px/1.7 monospace;padding:5px 9px;border-radius:4px;pointer-events:none;white-space:pre;z-index:9999';
+      document.body.appendChild(d);
+      this._debugEl = d;
+    }
+    if (this._debugEl) this._debugEl.style.display = on ? 'block' : 'none';
+    if (!on) { this._fpsPrev = null; this._fpsSmooth = 0; }
+  }
 
   // ----------------------------------------------------------------
   // Layout
@@ -354,6 +371,31 @@ export class Renderer {
       this._drawLive(ctx, gameState);
       ctx.restore();
     }
+    if (this._debugOn && this._debugEl) this._updateDebugOverlay(gameState);
+  }
+
+  _updateDebugOverlay(gs) {
+    const now = performance.now();
+    if (this._fpsPrev !== null) {
+      const instant   = 1000 / (now - this._fpsPrev);
+      this._fpsSmooth = this._fpsSmooth === 0 ? instant : this._fpsSmooth * 0.9 + instant * 0.1;
+    }
+    this._fpsPrev = now;
+
+    const celestial = gs?.planets?.length ?? 0;
+    const ships     = gs?.teams?.reduce((s, t) => s + t.stations.length, 0) ?? 0;
+    const bullets   = (gs?.activeBullets?.length ?? 0) + (gs?.rockets?.length ?? 0);
+    const sfx       = (gs?.rocketSmoke?.length ?? 0)
+                    + (gs?.cometSmoke?.length ?? 0)
+                    + (gs?.vfxList?.length ?? 0)
+                    + (gs?.activeExplosions?.reduce((s, e) => s + (e.particles?.length ?? 0), 0) ?? 0);
+
+    this._debugEl.textContent =
+      `FPS        ${Math.round(this._fpsSmooth)}\n` +
+      `Celestial  ${celestial}\n` +
+      `Ships      ${ships}\n` +
+      `Bullets    ${bullets}\n` +
+      `SFX        ${sfx}`;
   }
 
   _drawLive(ctx, gameState) {
@@ -1769,7 +1811,7 @@ export class Renderer {
 
   _drawRocketSmoke(ctx, smoke) {
     const conv = this.conv;
-    const img  = this._smokeImg?.complete ? this._smokeImg : null;
+    const img  = this._smokeImg?.complete && this._smokeImg.naturalWidth > 0 ? this._smokeImg : null;
     for (const s of smoke) {
       let radius, alpha;
       if (s.t < 0.18) {
@@ -1792,13 +1834,12 @@ export class Renderer {
       const px   = s.x * conv;
       const py   = s.y * conv;
       const size = radius * 2;
-      if (img?.complete) {
+      if (this._performance === 'experimental' && img) {
         const tinted = this._getTintedSmoke(s.r, s.g, s.b);
         ctx.globalAlpha = alpha;
         ctx.drawImage(tinted, px - radius, py - radius, size, size);
         ctx.globalAlpha = 1;
       } else {
-        // Fallback to arc while sprite loads
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha.toFixed(3)})`;

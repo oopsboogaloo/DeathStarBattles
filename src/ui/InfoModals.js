@@ -542,8 +542,9 @@ export class ScoreModal {
 
 export class AboutModal {
   constructor() {
-    this._wrap   = overlay();
-    const p      = panel('360px');
+    this._wrap         = overlay();
+    this._onDevModeCb  = null;
+    const p            = panel('360px');
     this._wrap.appendChild(p);
 
     const close = () => this.hide();
@@ -556,10 +557,25 @@ export class AboutModal {
 <div style="margin-top:18px;font-size:12px;color:#778;"><a href="mailto:chloe@mammoththoughts.com" style="color:#99b;text-decoration:none;">chloe@mammoththoughts.com</a></div>`;
     p.appendChild(content);
 
+    // Triple-tap anywhere on the panel activates developer mode (mobile-friendly)
+    let _tapCount = 0;
+    let _tapTimer = null;
+    p.addEventListener('click', () => {
+      _tapCount++;
+      clearTimeout(_tapTimer);
+      _tapTimer = setTimeout(() => { _tapCount = 0; }, 500);
+      if (_tapCount >= 3) {
+        _tapCount = 0;
+        clearTimeout(_tapTimer);
+        this._onDevModeCb?.();
+      }
+    });
+
     this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   }
 
+  onDevMode(cb)  { this._onDevModeCb = cb; }
   show() { this._wrap.style.display = 'flex'; }
   hide() { this._wrap.style.display = 'none'; }
   get element() { return this._wrap; }

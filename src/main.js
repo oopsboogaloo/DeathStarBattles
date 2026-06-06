@@ -64,6 +64,7 @@ document.body.appendChild(aimControls.element);
 // ── Info modals ───────────────────────────────────────────────────────────────
 
 const aboutModal        = new AboutModal();
+aboutModal.onDevMode(() => _toggleDevMode());
 const instructionsModal = new InstructionsModal();
 const educationModal    = new EducationModal();
 const scoreModal        = new ScoreModal();
@@ -673,7 +674,7 @@ function startTPGame(cfg) {
 
 const _ALL_SPECIAL = [
   WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER,
-  WeaponId.ROCKET, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+  WeaponId.ROCKET, WeaponId.ROCKET_POD, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {
@@ -823,13 +824,18 @@ canvas.addEventListener('click', e => {
 
 let _devMode = false;
 
+function _toggleDevMode() {
+  _devMode = !_devMode;
+  panel.setDevMode(_devMode);
+  storyScreen.setDevMode(_devMode);
+  renderer.setDebugMode(_devMode);
+}
+
 window.addEventListener('keydown', e => {
   // Ctrl+Shift+D — toggle developer mode (reveals debug options in config panel)
   if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
     e.preventDefault();
-    _devMode = !_devMode;
-    panel.setDevMode(_devMode);
-    storyScreen.setDevMode(_devMode);
+    _toggleDevMode();
     return;
   }
   if (!loop || isDemo) return;

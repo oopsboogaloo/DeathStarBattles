@@ -110,6 +110,8 @@ export class ConfigPanel {
     this._advancedInner   = null;
     this._collectSubRows  = null; // rows greyed out when collectables === 'off'
     this._devRows         = null; // rows hidden unless dev mode is active
+    this._perfValues      = null; // mutated to include 'experimental' in dev mode
+    this._perfCtrl        = null;
     this._campaignUnlocked = false;
     this._devModeOn        = false;
     this._flatSection     = null;
@@ -365,9 +367,10 @@ export class ConfigPanel {
         v => ({ off: 'Off', glacial: 'Glacial  (1×)', slow: 'Slow  (2×)', normal: 'Normal  (3×)', fast: 'Fast  (5×)', rocket: 'Rocket  (8×)' }[v])));
 
     // Page 3 — Options
+    this._perfValues = ['full', 'simplified'];
     const rowPerformance = this._row('PERFORMANCE',
-      this._cycle('performance', ['full', 'simplified'],
-        v => v === 'full' ? 'Full' : 'Simplified'));
+      this._perfCtrl = this._cycle('performance', this._perfValues,
+        v => ({ full: 'Full', simplified: 'Simplified', experimental: 'Experimental' }[v] ?? v)));
     const rowClustering  = this._row('TEAM CLUSTERING',
       this._cycle('teamClustering', ['off', 'tight', 'moderate', 'loose'],
         v => ({ off: 'Off', tight: 'Tight', moderate: 'Moderate', loose: 'Loose' }[v])));
@@ -692,6 +695,18 @@ export class ConfigPanel {
     this._devBadge.style.display = enabled ? 'inline' : 'none';
     this._devModeOn = enabled;
     this._updateDevRows();
+    if (this._perfValues) {
+      if (enabled) {
+        if (!this._perfValues.includes('experimental')) this._perfValues.push('experimental');
+      } else {
+        const i = this._perfValues.indexOf('experimental');
+        if (i >= 0) this._perfValues.splice(i, 1);
+        if (this._d.performance === 'experimental') {
+          this._d.performance = 'full';
+          this._perfCtrl._refresh();
+        }
+      }
+    }
   }
 
   setCampaignComplete(complete) {
