@@ -624,6 +624,10 @@ export class Renderer {
     const img = new Image();
     img.src = 'Images/Cloud1.png';
     this._smokeImg = img;
+    this._smokeOffscreen    = document.createElement('canvas');
+    this._smokeOffscreen.width  = 256;
+    this._smokeOffscreen.height = 256;
+    this._smokeOffCtx = this._smokeOffscreen.getContext('2d');
   }
 
   async _loadCrackSvgs() {
@@ -1778,8 +1782,17 @@ export class Renderer {
       const py   = s.y * conv;
       const size = radius * 2;
       if (img) {
+        // Tint greyscale sprite with team colour via offscreen canvas compositing
+        const oCtx  = this._smokeOffCtx;
+        const oSize = 256;
+        oCtx.clearRect(0, 0, oSize, oSize);
+        oCtx.drawImage(img, 0, 0, oSize, oSize);
+        oCtx.globalCompositeOperation = 'source-atop';
+        oCtx.fillStyle = `rgb(${s.r},${s.g},${s.b})`;
+        oCtx.fillRect(0, 0, oSize, oSize);
+        oCtx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = alpha;
-        ctx.drawImage(img, px - radius, py - radius, size, size);
+        ctx.drawImage(this._smokeOffscreen, px - radius, py - radius, size, size);
         ctx.globalAlpha = 1;
       } else {
         // Fallback to arc while sprite loads
