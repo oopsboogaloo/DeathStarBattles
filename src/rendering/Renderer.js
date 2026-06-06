@@ -126,7 +126,8 @@ export class Renderer {
       [240, 210,  50], [200, 240,  60],  // yellows
     ];
     for (const planet of planets) {
-      if (planet.vertices || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
+      if (planet.shading !== ShadingStyle.ROCKY && planet.shading !== ShadingStyle.GAS_GIANT) continue;
+      if (planet.type === PlanetType.MOON || planet.vertices) continue;
       this._atmosphereCache.set(planet, ATMOS_COLS[Math.floor(Math.random() * ATMOS_COLS.length)]);
     }
     this._renderBackground();
@@ -147,7 +148,7 @@ export class Renderer {
     }
     // Pass 1b: atmosphere glow rings (drawn before solid body so planet covers interior)
     if (!this._simplified) for (const planet of this._planets) {
-      if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
+      if (planet.shading !== ShadingStyle.ROCKY || planet.type === PlanetType.MOON || planet.vertices) continue;
       this._drawAtmosphere(ctx, planet);
     }
     // Pass 2: solid bodies on top
