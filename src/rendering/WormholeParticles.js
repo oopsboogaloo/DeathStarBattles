@@ -11,7 +11,18 @@ export const WORMHOLE_PARTICLE_DEFAULTS = {
   alphaFadeMult: 0.40,  // fade starts when r < visualRing * alphaFadeMult
   hueRange:      35,    // ± degrees of per-particle colour jitter
   glowLayers:    2,     // concentric gradient passes per blob
+  arms:          2,     // number of spiral arms (0 = uniform)
+  armSpread:     0.55,  // angular std-dev around each arm in radians
+  armRotSpeed:   0.08,  // arm rotation speed in radians/sec
 };
+
+function gaussRand() {
+  // Box-Muller transform — returns a standard normal sample
+  let u, v;
+  do { u = Math.random(); } while (u === 0);
+  do { v = Math.random(); } while (v === 0);
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
 
 function hsvToRgb(h, s, v) {
   h = ((h % 360) + 360) % 360;
@@ -45,23 +56,33 @@ export class WormholeParticles {
   constructor(planet, config = {}) {
     this._cfg     = { ...WORMHOLE_PARTICLE_DEFAULTS, ...config };
     this._planet  = planet;
-    this._angles  = new Float32Array(this._cfg.count);
-    this._radii   = new Float32Array(this._cfg.count);
-    this._hueOff  = new Float32Array(this._cfg.count);
-    this._lastT   = null;
+    this._angles   = new Float32Array(this._cfg.count);
+    this._radii    = new Float32Array(this._cfg.count);
+    this._hueOff   = new Float32Array(this._cfg.count);
+    this._lastT    = null;
+    this._armAngle = Math.random() * Math.PI * 2; // initial arm rotation offset
 
     // Scatter initial radii so not all particles start at spawn ring
     const cfg = this._cfg;
     for (let i = 0; i < cfg.count; i++) {
-      this._angles[i] = Math.random() * Math.PI * 2;
-      this._radii[i]  = 0; // will be set properly on first update via _respawn
+      this._angles[i] = this._spawnAngle();
+      this._radii[i]  = 0; // set properly on first update via _respawn
       this._hueOff[i] = (Math.random() * 2 - 1) * cfg.hueRange;
     }
   }
 
+  _spawnAngle() {
+    const cfg = this._cfg;
+    if (!cfg.arms) return Math.random() * Math.PI * 2;
+    // Pick a random arm and add gaussian noise around it
+    const arm = Math.floor(Math.random() * cfg.arms);
+    const armBase = this._armAngle + (arm / cfg.arms) * Math.PI * 2;
+    return armBase + gaussRand() * cfg.armSpread;
+  }
+
   _respawn(i, spawnR, voidR) {
     const cfg = this._cfg;
-    this._angles[i] = Math.random() * Math.PI * 2;
+    this._angles[i] = this._spawnAngle();
     // Scatter newly spawned particles across the outer half so the field
     // fills immediately rather than all arriving at once
     this._radii[i]  = voidR + Math.random() * (spawnR - voidR);
@@ -81,7 +102,8 @@ export class WormholeParticles {
       return;
     }
     const dt = Math.min(nowSec - this._lastT, 0.1); // cap at 100ms
-    this._lastT = nowSec;
+    this._lastT    = nowSec;
+    this._armAngle += this._cfg.armRotSpeed * dt;
 
     const cfg     = this._cfg;
     const conv    = this._conv ?? 1;
