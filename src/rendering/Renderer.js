@@ -354,11 +354,13 @@ export class Renderer {
   }
 
   _drawLive(ctx, gameState) {
-    // Wormhole particle spirals
+    // Wormhole particle spirals (skipped in simplified mode)
     const now = Date.now() / 1000;
-    for (const [planet, particles] of this._wormholeParticles) {
-      particles.update(now);
-      particles.draw(ctx, this.conv);
+    if (!this._simplified) {
+      for (const [planet, particles] of this._wormholeParticles) {
+        particles.update(now);
+        particles.draw(ctx, this.conv);
+      }
     }
 
     // Pulsar expanding pressure rings
