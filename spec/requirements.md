@@ -1149,6 +1149,51 @@ The completion reward is shown on the Mission 20 debrief screen with a brief unl
 
 ---
 
+## 16. Non-Functional Requirements
+
+### 16.1 Frame Rate
+
+The game must sustain **60 fps** on all target platforms during normal gameplay, including scenarios with many planets, active bullets, rocket smoke, and wormhole particles simultaneously.
+
+| Platform | Target | Minimum acceptable |
+|---|---|---|
+| Desktop PC (Chrome/Firefox) | 60 fps | 60 fps |
+| Android phone/tablet (Chrome) | 60 fps | 45 fps |
+| iPad (Safari / WKWebView) | 60 fps | 45 fps |
+
+"Normal gameplay" is defined as: up to 15 planets (including up to 6 gas giants and 3 wormholes), 4 teams × 2 stations, up to 8 simultaneous bullets in flight, rocket smoke active, and wormhole particles active. The `full` performance mode must meet this target on all three platforms.
+
+### 16.2 Performance Modes
+
+The game must provide at least two user-selectable performance modes:
+
+- **Full** — all visual effects enabled (bloom explosions, fireball particles, wormhole particles, gas giant blur). Must hit 60 fps on the platforms above.
+- **Simplified** — reduced effects (classic arc explosions, no wormhole particles, no gas giant blur). Provides headroom for low-end devices or user preference.
+
+Two additional modes are available in developer mode only (`Ctrl+Shift+D`):
+
+- **Experimental** — full effects rendered with bitmaps on desktop, automatically falls back to circles on iOS (detected via user agent). Intended for visual quality testing.
+- **Exp iPad** — full effects always rendered as circles, regardless of platform. Intended for performance testing on iPad.
+
+### 16.3 Developer Mode
+
+A hidden developer mode must be accessible via `Ctrl+Shift+D` on keyboard, or by triple-tap on the About panel (for mobile access without a keyboard). Dev mode:
+
+- Reveals the `Experimental` and `Exp iPad` performance options in the config panel.
+- Unlocks all story missions regardless of completion state.
+- Displays a real-time stats overlay (toggled separately) showing: FPS, planet count, station count, bullet count, and a combined SFX particle count covering all active particle arrays (rocket smoke, comet smoke, wormhole particles, bloom particles, fireballs, fireball smoke).
+- All dev-mode options reset to hidden if dev mode is toggled off during a session.
+- Dev mode state is not persisted across sessions.
+
+### 16.4 Rendering Constraints
+
+- No per-frame `document.createElement('canvas')` calls. All offscreen canvases must be allocated at game start or on viewport resize.
+- No `ctx.filter` assignments during the live draw loop. Blur and filter effects must be baked into pre-rendered canvases at setup time.
+- No `createRadialGradient()` calls during the live draw loop. All gradients used for static or near-static elements (gas giant spheres, atmosphere halos, wormhole rings) must be pre-computed.
+- Canvas-to-canvas `drawImage` of frequently-reused sources should use `ImageBitmap` where the source is immutable, to avoid GPU pipeline flushes in Chrome.
+
+---
+
 ## 14. Out of Scope (v1)
 
 - Sound / music
