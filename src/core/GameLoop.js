@@ -1740,21 +1740,17 @@ export class GameLoop {
       this.gs.shipExplosionBloom = this.gs.shipExplosionBloom.filter(p => p.t < 1);
 
       for (const fb of this.gs.fireballs) {
-        // Constant pull toward nearest planet — distance-independent so arc is
-        // always visible regardless of how far the explosion was from any planet
-        let nearestDist = Infinity, nearestPlanet = null;
         for (const planet of this.gs.planets) {
           if (planet.destroyed) continue;
-          const dx = planet.position.x - fb.x;
-          const dy = planet.position.y - fb.y;
-          const d  = dx * dx + dy * dy;
-          if (d < nearestDist) { nearestDist = d; nearestPlanet = planet; }
-        }
-        if (nearestPlanet) {
-          const dist = Math.sqrt(nearestDist);
-          const PULL = 0.04;
-          fb.vx += (nearestPlanet.position.x - fb.x) / dist * PULL;
-          fb.vy += (nearestPlanet.position.y - fb.y) / dist * PULL;
+          const dx    = planet.position.x - fb.x;
+          const dy    = planet.position.y - fb.y;
+          const rSq   = dx * dx + dy * dy;
+          if (rSq < 0.01) continue;
+          const sign  = dx < 0 ? -1 : 1;
+          const theta = Math.atan(dy / dx);
+          const accel = sign * G * planet.mass / rSq * 2.0;
+          fb.vx += Math.cos(theta) * accel;
+          fb.vy += Math.sin(theta) * accel;
         }
         fb.x += fb.vx;
         fb.y += fb.vy;
