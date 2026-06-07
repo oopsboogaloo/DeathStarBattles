@@ -3,8 +3,6 @@ import { SCENARIO_NAMES, SCENARIO_COUNT } from '../scenarios/scenarioData.js';
 const AI_NAMES  = ['RandBot', 'AimBot', 'CleverBot', 'SuperBot', 'MegaBot'];
 const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT', 'MAMMOTH'];
 
-const PLANET_VALS   = [-1, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-const PLANET_LABELS = ['Random', '3', '4', '5', '6', '7', '8', '9', '10', '15', '20', '25', '30', '35', '40', '45', '50'];
 
 const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
@@ -71,7 +69,6 @@ export class ConfigPanel {
       stationsPerPlayer: 2,
       aiLevel:           3,
       stationSize:       'LARGE',
-      numPlanets:        -1,
       scenarioId:        0,
       mode:              'tournament',
       speed:             'normal',
@@ -351,8 +348,6 @@ export class ConfigPanel {
       this._cycle('stationSize', SIZE_KEYS, v => v[0] + v.slice(1).toLowerCase()));
     const rowCurrentSeed  = this._currentSeedRow();
     const rowOverrideSeed = this._overrideSeedRow();
-    this._planetsCtrl = this._cycle('numPlanets', PLANET_VALS, (v, i) => PLANET_LABELS[i]);
-    const rowPlanets     = this._row('PLANETS', this._planetsCtrl);
     const rowScenario    = this._row('SCENARIO',
       this._cycle('scenarioId', SCENARIO_VALS,
         v => v === 0 ? 'Lucky Dip' : `${v}. ${SCENARIO_NAMES[v]}`));
@@ -417,14 +412,14 @@ export class ConfigPanel {
       this._cycle('tpIncludeAI', [false, true], v => v ? 'On' : 'Off'));
 
     this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
-    this._seedSubRows    = [rowPlanets, rowScenario];
+    this._seedSubRows    = [rowScenario];
     this._devRows        = [rowStartWep];
     rowStartWep.style.display = 'none'; // hidden until dev mode enabled
     this._updateCollectableGrey();
     this._updateSeedGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
-    this._page2Rows = [rowStationSize, rowCurrentSeed, rowOverrideSeed, rowPlanets, rowScenario, rowMode, rowGameSpeed, rowMovement];
+    this._page2Rows = [rowStationSize, rowCurrentSeed, rowOverrideSeed, rowScenario, rowMode, rowGameSpeed, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
@@ -685,8 +680,7 @@ export class ConfigPanel {
       this._humanCtrlRefresh?.();
     }
     if (key === 'performance' && this._d.performance === 'simplified') {
-      if (this._d.numPlanets > 20)  { this._d.numPlanets = 20;  this._planetsCtrl?._refresh(); }
-      if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
+if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
     }
     if (key === 'collectables') this._updateCollectableGrey();
     if (key === 'mode') this._showPage(Math.min(this._currentPage, this._maxPage));
