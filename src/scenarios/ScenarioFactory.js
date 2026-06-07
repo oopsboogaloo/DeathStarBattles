@@ -795,7 +795,7 @@ export class ScenarioFactory {
             planets.push(makePlanet(rng, 1,0,0, 8,8,4, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
           const nAsteroids = Math.floor(rng.next() * 9);  // 0–8
           for (let i = 0; i < nAsteroids; i++)
-            planets.push(makePlanet(rng, 1,0,0, 6,6,3, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
+            planets.push(makeAsteroid(rng, 1,0,0, 6,6,3, gw,gh, 0.07));
         }
         break;
       }
