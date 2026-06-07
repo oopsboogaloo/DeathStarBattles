@@ -1236,7 +1236,7 @@ export class GameLoop {
       this.gs.shipExplosionBloom.push({
         x: ox + Math.cos(angle) * spread,
         y: oy + Math.sin(angle) * spread,
-        maxR: 6 + Math.random() * 8,
+        maxR: 9 + Math.random() * 12,
         t:    0,
         dt:   0.006 + Math.random() * 0.005,
         r: sr, g: sg, b: sb,
@@ -1247,7 +1247,7 @@ export class GameLoop {
     const nFB = 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < nFB; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 3 + Math.random() * 5;
+      const speed = (3 + Math.random() * 5) * 0.2;
       this.gs.fireballs.push({
         x: ox, y: oy,
         vx: Math.cos(angle) * speed,
@@ -1754,12 +1754,23 @@ export class GameLoop {
         fb.x += fb.vx;
         fb.y += fb.vy;
         fb.t += fb.dt;
+
+        // Remove fireball on planet collision
+        let destroyed = false;
+        for (const planet of this.gs.planets) {
+          if (planet.destroyed) continue;
+          const cx = planet.position.x - fb.x;
+          const cy = planet.position.y - fb.y;
+          if (cx * cx + cy * cy < planet.radius * planet.radius) { destroyed = true; break; }
+        }
+        if (destroyed) { fb.t = 1; continue; }
+
         fb.smokeTimer++;
         if (fb.smokeTimer >= 4) {
           fb.smokeTimer = 0;
           this.gs.fireballSmoke.push({
             x: fb.x, y: fb.y,
-            maxR: 2 + Math.random() * 3,
+            maxR: 3 + Math.random() * 4.5,
             t: 0,
             r: fb.r, g: fb.g, b: fb.b,
           });

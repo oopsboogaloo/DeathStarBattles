@@ -1891,7 +1891,7 @@ export class Renderer {
 
     ctx.globalCompositeOperation = 'lighter';
     for (const fb of fireballs) {
-      const radius = (5 + 3 * (1 - fb.t)) * conv;
+      const radius = (7.5 + 4.5 * (1 - fb.t)) * conv;
       const alpha  = Math.max(0, 0.7 * (1 - fb.t));
 
       tctx.clearRect(0, 0, 256, 256);
