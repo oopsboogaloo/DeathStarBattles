@@ -1896,9 +1896,15 @@ export class Renderer {
         const size = radius * 2;
         ctx.drawImage(tc, p.x * conv - radius, p.y * conv - radius, size, size);
       } else {
+        // Halo + core: mimics bitmap falloff without offscreen canvas cost
+        ctx.globalAlpha = alpha * 0.35;
         ctx.beginPath();
         ctx.arc(p.x * conv, p.y * conv, radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+        ctx.fill();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(p.x * conv, p.y * conv, radius * 0.45, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -1936,10 +1942,16 @@ export class Renderer {
         ctx.drawImage(tinted, px - radius, py - radius, size, size);
         ctx.globalAlpha = 1;
       } else {
+        ctx.fillStyle = `rgb(${s.r},${s.g},${s.b})`;
+        ctx.globalAlpha = alpha * 0.35;
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha.toFixed(3)})`;
         ctx.fill();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(px, py, radius * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
     }
   }
@@ -1971,9 +1983,14 @@ export class Renderer {
         const size = radius * 2;
         ctx.drawImage(tc, fb.x * conv - radius, fb.y * conv - radius, size, size);
       } else {
+        ctx.fillStyle = `rgb(${fb.r},${fb.g},${fb.b})`;
+        ctx.globalAlpha = alpha * 0.35;
         ctx.beginPath();
         ctx.arc(fb.x * conv, fb.y * conv, radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgb(${fb.r},${fb.g},${fb.b})`;
+        ctx.fill();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(fb.x * conv, fb.y * conv, radius * 0.45, 0, Math.PI * 2);
         ctx.fill();
       }
     }
