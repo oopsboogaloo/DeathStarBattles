@@ -1747,7 +1747,7 @@ export class GameLoop {
           if (rSq < 0.01) continue;
           const sign  = dx < 0 ? -1 : 1;
           const theta = Math.atan(dy / dx);
-          const accel = sign * G * planet.mass / rSq * 0.06; // no TIMESTEP — visual effect, once per frame
+          const accel = sign * G * planet.mass / rSq * 0.18; // no TIMESTEP — visual effect, once per frame
           fb.vx += Math.cos(theta) * accel;
           fb.vy += Math.sin(theta) * accel;
         }
