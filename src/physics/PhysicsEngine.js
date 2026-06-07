@@ -417,35 +417,37 @@ export class PhysicsEngine {
         break;
 
       default: {
-        // ROCKY, STAR, JOVIAN, WHITE_DWARF, PULSAR — check for surface skim (FR-1)
-        const speed = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);
-        const minSkimSpeed = SKIM_MIN_SPEED_FACTOR * MAX_CANNON_SPEED;
+        // Skim detection applies to stars only (FR-1); all other solid bodies destroy the bullet
+        if (planet.type === PlanetType.STAR) {
+          const speed = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);
+          const minSkimSpeed = SKIM_MIN_SPEED_FACTOR * MAX_CANNON_SPEED;
 
-        if (speed >= minSkimSpeed) {
-          const r   = Math.sqrt(dx * dx + dy * dy) || 1;
-          // Outward unit normal: from planet centre toward bullet
-          const nx  = -dx / r;
-          const ny  = -dy / r;
-          // sin(angle from tangent) = |v̂ · n̂|; skim when ≤ sin(threshold)
-          const sinIncident = Math.abs((bullet.velocity.x * nx + bullet.velocity.y * ny) / speed);
+          if (speed >= minSkimSpeed) {
+            const r   = Math.sqrt(dx * dx + dy * dy) || 1;
+            // Outward unit normal: from planet centre toward bullet
+            const nx  = -dx / r;
+            const ny  = -dy / r;
+            // sin(angle from tangent) = |v̂ · n̂|; skim when ≤ sin(threshold)
+            const sinIncident = Math.abs((bullet.velocity.x * nx + bullet.velocity.y * ny) / speed);
 
-          if (sinIncident <= Math.sin(SKIM_ANGLE_THRESHOLD * Math.PI / 180)) {
-            // Reflect velocity about the outward normal, then shed SKIM_SPEED_REDUCTION (FR-2)
-            const dot    = bullet.velocity.x * nx + bullet.velocity.y * ny;
-            const factor = 1 - SKIM_SPEED_REDUCTION;
-            bullet.velocity = new Vec2(
-              (bullet.velocity.x - 2 * dot * nx) * factor,
-              (bullet.velocity.y - 2 * dot * ny) * factor,
-            );
-            // Push bullet just outside the surface to prevent immediate re-entry
-            bullet.position = new Vec2(
-              planet.position.x + nx * (planet.impactRadius + INIT_DIST),
-              planet.position.y + ny * (planet.impactRadius + INIT_DIST),
-            );
-            bullet.skimCount++;
-            // Signal to GameLoop for stat tracking + particle effect (FR-6, FR-8)
-            bullet._skimEvent = { x: bullet.position.x, y: bullet.position.y, nx, ny, planet };
-            return; // bullet stays ACTIVE — no explosion
+            if (sinIncident <= Math.sin(SKIM_ANGLE_THRESHOLD * Math.PI / 180)) {
+              // Reflect velocity about the outward normal, then shed SKIM_SPEED_REDUCTION (FR-2)
+              const dot    = bullet.velocity.x * nx + bullet.velocity.y * ny;
+              const factor = 1 - SKIM_SPEED_REDUCTION;
+              bullet.velocity = new Vec2(
+                (bullet.velocity.x - 2 * dot * nx) * factor,
+                (bullet.velocity.y - 2 * dot * ny) * factor,
+              );
+              // Push bullet just outside the surface to prevent immediate re-entry
+              bullet.position = new Vec2(
+                planet.position.x + nx * (planet.impactRadius + INIT_DIST),
+                planet.position.y + ny * (planet.impactRadius + INIT_DIST),
+              );
+              bullet.skimCount++;
+              // Signal to GameLoop for stat tracking + particle effect (FR-6, FR-8)
+              bullet._skimEvent = { x: bullet.position.x, y: bullet.position.y, nx, ny, planet };
+              return; // bullet stays ACTIVE — no explosion
+            }
           }
         }
 
