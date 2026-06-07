@@ -1779,12 +1779,14 @@ export class GameLoop {
         fb.smokeTimer++;
         if (fb.smokeTimer >= 4) {
           fb.smokeTimer = 0;
-          this.gs.fireballSmoke.push({
-            x: fb.x, y: fb.y,
-            maxR: 3 + Math.random() * 4.5,
-            t: 0,
-            r: fb.r, g: fb.g, b: fb.b,
-          });
+          for (let e = 0; e < 3; e++) {
+            this.gs.fireballSmoke.push({
+              x: fb.x, y: fb.y,
+              maxR: 3 + Math.random() * 4.5,
+              t: 0,
+              r: fb.r, g: fb.g, b: fb.b,
+            });
+          }
         }
       }
       this.gs.fireballs = this.gs.fireballs.filter(fb => fb.t < 1);
