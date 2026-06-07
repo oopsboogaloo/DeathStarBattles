@@ -1243,9 +1243,10 @@ export class GameLoop {
       });
     }
 
-    // 3–5 fireballs flying outward
+    // 3–5 fireballs flying outward, capped globally at 20
     const nFB = 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < nFB; i++) {
+      if (this.gs.fireballs.length >= 20) break;
       const angle = Math.random() * Math.PI * 2;
       const speed = (3 + Math.random() * 5) * 0.15;
       this.gs.fireballs.push({
@@ -1254,7 +1255,7 @@ export class GameLoop {
         vy: Math.sin(angle) * speed,
         r: sr, g: sg, b: sb,
         t: 0,
-        dt: 0.003 + Math.random() * 0.003,
+        dt: (0.003 + Math.random() * 0.003) * 2.5,
         smokeTimer: 0,
       });
     }
