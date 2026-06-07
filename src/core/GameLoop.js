@@ -1348,14 +1348,18 @@ export class GameLoop {
   // Fragment a destroyed giant asteroid into 25–40 child asteroids.
   // If the parent was rich, all children are rich and 3–6 collectables are spawned.
   _fragmentGiantAsteroid(moon) {
-    const n      = 25 + Math.floor(this.rng.next() * 16); // 25-40
-    const childR = Math.max(8, moon.radius * 0.09);        // small enough that many fit
-    const maxDist = moon.radius - childR;
+    const n       = 25 + Math.floor(this.rng.next() * 16); // 25-40
+    const minR    = Math.max(8,  moon.radius * 0.06);
+    const maxR    = Math.max(16, moon.radius * 0.18);
     const placed  = [];
     for (let attempts = 0; placed.length < n && attempts < n * 40; attempts++) {
-      const angle = this.rng.next() * Math.PI * 2;
-      const dist  = Math.sqrt(this.rng.next()) * maxDist;
-      const pos   = new Vec2(
+      // Bias toward small: square the random value so large rocks are rarer
+      const t      = this.rng.next() ** 2;
+      const childR = minR + t * (maxR - minR);
+      const maxDist = moon.radius - childR;
+      const angle  = this.rng.next() * Math.PI * 2;
+      const dist   = Math.sqrt(this.rng.next()) * maxDist;
+      const pos    = new Vec2(
         moon.position.x + Math.cos(angle) * dist,
         moon.position.y + Math.sin(angle) * dist,
       );
