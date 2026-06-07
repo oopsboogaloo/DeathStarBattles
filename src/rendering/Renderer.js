@@ -420,7 +420,7 @@ export class Renderer {
     if (!this._simplified) {
       for (const [planet, particles] of this._wormholeParticles) {
         particles.update(now);
-        particles.draw(ctx, this.conv);
+        particles.draw(ctx, this.conv, this._useCircles);
       }
     }
 

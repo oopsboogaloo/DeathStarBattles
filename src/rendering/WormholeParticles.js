@@ -10,7 +10,7 @@ export const WORMHOLE_PARTICLE_DEFAULTS = {
   alphaMax:      0.18,  // max particle opacity
   alphaFadeMult: 0.40,  // fade starts when r < visualRing * alphaFadeMult
   hueRange:      35,    // ± degrees of per-particle colour jitter
-  glowLayers:    2,     // concentric gradient passes per blob
+  glowLayers:    2,     // concentric gradient passes per blob (gradient mode only)
   arms:          2,     // number of spiral arms (0 = uniform)
   armSpread:     0.55,  // angular std-dev around each arm in radians
   armRotSpeed:   0.08,  // arm rotation speed in radians/sec
@@ -56,37 +56,48 @@ export class WormholeParticles {
   constructor(planet, config = {}) {
     this._cfg     = { ...WORMHOLE_PARTICLE_DEFAULTS, ...config };
     this._planet  = planet;
-    this._angles   = new Float32Array(this._cfg.count);
-    this._radii    = new Float32Array(this._cfg.count);
-    this._hueOff   = new Float32Array(this._cfg.count);
-    this._lastT    = null;
-    this._armAngle = Math.random() * Math.PI * 2; // initial arm rotation offset
+    this._angles  = new Float32Array(this._cfg.count);
+    this._radii   = new Float32Array(this._cfg.count);
+    this._hueOff  = new Float32Array(this._cfg.count);
+    this._colR    = new Float32Array(this._cfg.count);
+    this._colG    = new Float32Array(this._cfg.count);
+    this._colB    = new Float32Array(this._cfg.count);
+    this._lastT   = null;
+    this._armAngle = Math.random() * Math.PI * 2;
 
-    // Scatter initial radii so not all particles start at spawn ring
+    const [pr, pg, pb] = planet.colour;
+    this._baseHSV = rgbToHsv(pr, pg, pb);
+
     const cfg = this._cfg;
     for (let i = 0; i < cfg.count; i++) {
       this._angles[i] = this._spawnAngle();
       this._radii[i]  = 0; // set properly on first update via _respawn
-      this._hueOff[i] = (Math.random() * 2 - 1) * cfg.hueRange;
+      this._setParticleColour(i);
     }
   }
 
   _spawnAngle() {
     const cfg = this._cfg;
     if (!cfg.arms) return Math.random() * Math.PI * 2;
-    // Pick a random arm and add gaussian noise around it
     const arm = Math.floor(Math.random() * cfg.arms);
     const armBase = this._armAngle + (arm / cfg.arms) * Math.PI * 2;
     return armBase + gaussRand() * cfg.armSpread;
   }
 
-  _respawn(i, spawnR, voidR) {
+  _setParticleColour(i) {
     const cfg = this._cfg;
-    this._angles[i] = this._spawnAngle();
-    // Scatter newly spawned particles across the outer half so the field
-    // fills immediately rather than all arriving at once
-    this._radii[i]  = voidR + Math.random() * (spawnR - voidR);
     this._hueOff[i] = (Math.random() * 2 - 1) * cfg.hueRange;
+    const [h, s, v] = this._baseHSV;
+    const [cr, cg, cb] = hsvToRgb(h + this._hueOff[i], s, Math.min(1, v + 0.15));
+    this._colR[i] = cr;
+    this._colG[i] = cg;
+    this._colB[i] = cb;
+  }
+
+  _respawn(i, spawnR, voidR) {
+    this._angles[i] = this._spawnAngle();
+    this._radii[i]  = voidR + Math.random() * (spawnR - voidR);
+    this._setParticleColour(i);
   }
 
   update(nowSec) {
@@ -101,7 +112,7 @@ export class WormholeParticles {
       for (let i = 0; i < cfg.count; i++) this._respawn(i, spawnR, voidR);
       return;
     }
-    const dt = Math.min(nowSec - this._lastT, 0.1); // cap at 100ms
+    const dt = Math.min(nowSec - this._lastT, 0.1);
     this._lastT    = nowSec;
     this._armAngle += this._cfg.armRotSpeed * dt;
 
@@ -116,14 +127,13 @@ export class WormholeParticles {
     for (let i = 0; i < cfg.count; i++) {
       let r = this._radii[i];
       if (r <= voidR) { this._respawn(i, spawnR, voidR); continue; }
-      // Angular velocity scales with (spawnR/r)^momentumExp
       const angV = cfg.angularSpeed * Math.pow(spawnR / r, cfg.momentumExp);
       this._angles[i] += angV * dt;
       this._radii[i]   = r - inward * dt;
     }
   }
 
-  draw(ctx, conv) {
+  draw(ctx, conv, useCircles = false) {
     this._conv = conv;
     const cfg     = this._cfg;
     const planet  = this._planet;
@@ -135,44 +145,54 @@ export class WormholeParticles {
     const blobFull = visualR * cfg.blobMult;
     const blobMin  = visualR * cfg.blobMinMult;
 
-    const [pr, pg, pb] = planet.colour;
-    const [baseH, baseS, baseV] = rgbToHsv(pr, pg, pb);
-
     for (let i = 0; i < cfg.count; i++) {
       const r = this._radii[i];
       if (r <= voidR) continue;
 
-      const t     = (r - voidR) / (spawnR - voidR); // 0=centre, 1=spawn
+      const t     = (r - voidR) / (spawnR - voidR);
       const blobR = blobMin + (blobFull - blobMin) * t;
-
-      // Fade near centre
       const fadeT = Math.min(1, r / (visualR * cfg.alphaFadeMult));
       const alpha = cfg.alphaMax * fadeT;
 
       const px = cx + Math.cos(this._angles[i]) * r;
       const py = cy + Math.sin(this._angles[i]) * r;
 
-      const [cr, cg, cb] = hsvToRgb(baseH + this._hueOff[i], baseS, Math.min(1, baseV + 0.15));
+      const cr = this._colR[i];
+      const cg = this._colG[i];
+      const cb = this._colB[i];
 
-      // Draw glowLayers concentric gradients for soft cloud look
-      for (let layer = cfg.glowLayers - 1; layer >= 0; layer--) {
-        const scale  = 1 + layer * 0.7;
-        const layerA = alpha * (1 - layer * 0.45);
-        const grad = ctx.createRadialGradient(px, py, 0, px, py, blobR * scale);
-        // Hot bright core on innermost layer only
-        if (layer === 0) {
-          grad.addColorStop(0,    `rgba(${Math.min(255,cr+60)},${Math.min(255,cg+50)},${Math.min(255,cb+40)},${layerA})`);
-          grad.addColorStop(0.4,  `rgba(${cr},${cg},${cb},${layerA * 0.7})`);
-          grad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
-        } else {
-          grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${layerA * 0.5})`);
-          grad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
-        }
+      if (useCircles) {
+        // Halo + core: large dim outer circle + small bright inner circle
+        ctx.fillStyle = `rgb(${Math.round(cr)},${Math.round(cg)},${Math.round(cb)})`;
+        ctx.globalAlpha = alpha * 0.35;
         ctx.beginPath();
-        ctx.arc(px, py, blobR * scale, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
+        ctx.arc(px, py, blobR * 1.7, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(px, py, blobR * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Original: concentric radial gradients for soft cloud look
+        for (let layer = cfg.glowLayers - 1; layer >= 0; layer--) {
+          const scale  = 1 + layer * 0.7;
+          const layerA = alpha * (1 - layer * 0.45);
+          const grad = ctx.createRadialGradient(px, py, 0, px, py, blobR * scale);
+          if (layer === 0) {
+            grad.addColorStop(0,   `rgba(${Math.min(255,cr+60)},${Math.min(255,cg+50)},${Math.min(255,cb+40)},${layerA})`);
+            grad.addColorStop(0.4, `rgba(${cr},${cg},${cb},${layerA * 0.7})`);
+            grad.addColorStop(1,   `rgba(${cr},${cg},${cb},0)`);
+          } else {
+            grad.addColorStop(0,   `rgba(${cr},${cg},${cb},${layerA * 0.5})`);
+            grad.addColorStop(1,   `rgba(${cr},${cg},${cb},0)`);
+          }
+          ctx.beginPath();
+          ctx.arc(px, py, blobR * scale, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+        }
       }
     }
+    ctx.globalAlpha = 1;
   }
 }
