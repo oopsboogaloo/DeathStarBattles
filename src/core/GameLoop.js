@@ -1755,6 +1755,13 @@ export class GameLoop {
         fb.y += fb.vy;
         fb.t += fb.dt;
 
+        // Remove fireball if it drifts far outside the game world
+        const { w: gW, h: gH } = this.renderer.worldSize;
+        const margin = 150;
+        if (fb.x < -margin || fb.x > gW + margin || fb.y < -margin || fb.y > gH + margin) {
+          fb.t = 1; continue;
+        }
+
         // Remove fireball on planet collision
         let destroyed = false;
         for (const planet of this.gs.planets) {

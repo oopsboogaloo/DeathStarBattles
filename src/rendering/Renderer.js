@@ -62,6 +62,15 @@ export class Renderer {
   }
   get _simplified() { return this._performance === 'simplified'; }
 
+  // Returns game-unit dimensions of the visible viewport.
+  get worldSize() { return { w: this._vpW / (this.conv || 1), h: this._vpH / (this.conv || 1) }; }
+
+  // True if a circle at canvas-pixel (px,py) with given pixel radius overlaps the viewport.
+  _isVisible(px, py, radius) {
+    return px + radius >= 0 && px - radius <= this._vpW &&
+           py + radius >= 0 && py - radius <= this._vpH;
+  }
+
   setDebugMode(on) {
     this._debugOn = !!on;
     if (on && !this._debugEl) {
@@ -1483,8 +1492,11 @@ export class Renderer {
     for (const p of particles) {
       const alpha = Math.max(0, 1 - p.t);
       const rad   = Math.max(1, conv * (1.2 - p.t * 0.8));
+      const px    = p.x * conv;
+      const py    = p.y * conv;
+      if (!this._isVisible(px, py, rad)) continue;
       ctx.beginPath();
-      ctx.arc(p.x * conv, p.y * conv, rad, 0, Math.PI * 2);
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${Math.round(p.r)},${Math.round(p.g)},${Math.round(p.b)},${alpha})`;
       ctx.fill();
     }
@@ -1813,8 +1825,11 @@ export class Renderer {
         alpha  = Math.max(0, (s.fast ? 0.45 : 0.6) * (1 - frac));
       }
       if (radius <= 0) continue;
+      const cx = s.x * conv;
+      const cy = s.y * conv;
+      if (!this._isVisible(cx, cy, radius)) continue;
       ctx.beginPath();
-      ctx.arc(s.x * conv, s.y * conv, radius, 0, Math.PI * 2);
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(220,235,255,${alpha.toFixed(3)})`;
       ctx.fill();
     }
@@ -1861,6 +1876,7 @@ export class Renderer {
         radius = p.maxR * Math.max(0, 1.0 - (p.t - 0.25) / 0.75 * 0.95) * conv;
       }
       if (radius <= 0) continue;
+      if (!this._isVisible(p.x * conv, p.y * conv, radius)) continue;
 
       // Alpha: quick fade-in, hold, fade-out
       let alpha;
@@ -1897,6 +1913,7 @@ export class Renderer {
     ctx.globalCompositeOperation = 'lighter';
     for (const fb of fireballs) {
       const radius = (7.5 + 4.5 * (1 - fb.t)) * conv;
+      if (!this._isVisible(fb.x * conv, fb.y * conv, radius)) continue;
       const alpha  = Math.max(0, 0.7 * (1 - fb.t));
 
       tctx.clearRect(0, 0, 256, 256);
@@ -1942,6 +1959,7 @@ export class Renderer {
       if (radius <= 0) continue;
       const px   = s.x * conv;
       const py   = s.y * conv;
+      if (!this._isVisible(px, py, radius)) continue;
       const size = radius * 2;
       if (this._performance === 'experimental' && img) {
         const tinted = this._getTintedSmoke(s.r, s.g, s.b);
