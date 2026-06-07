@@ -17,6 +17,7 @@ export const PlanetType = Object.freeze({
   WORMHOLE_NETWORK: 'wormholeNetwork', // red network — bullet exits via another red wormhole
   COMET:            'comet',           // dynamic body with reduced self-gravity
   MOON:             'moon',            // multi-hit body: 3 hits to destroy; shows cracks
+  GIANT_ASTEROID:   'giantAsteroid',  // enormous multi-hit asteroid: 3 hits, 6-10 children
 });
 
 export const ShadingStyle = Object.freeze({

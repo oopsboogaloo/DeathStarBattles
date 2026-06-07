@@ -408,6 +408,7 @@ export class PhysicsEngine {
         break;
 
       case PlanetType.MOON:
+      case PlanetType.GIANT_ASTEROID:
         // Multi-hit — record the hit; GameLoop handles crack/fragmentation
         bullet.status    = BulletStatus.EXPLODING;
         bullet._hitMoon  = planet;
