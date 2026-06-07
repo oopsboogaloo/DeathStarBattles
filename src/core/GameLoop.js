@@ -1295,7 +1295,8 @@ export class GameLoop {
 
   _handleMoonHit(moon, impactX, impactY) {
     moon.hitCount++;
-    if (moon.hitCount >= 3) {
+    const hitLimit = moon.type === PlanetType.GIANT_ASTEROID ? 6 : 3;
+    if (moon.hitCount >= hitLimit) {
       moon.destroyed = true;
 
       if (moon.type === PlanetType.GIANT_ASTEROID) {
@@ -1308,7 +1309,7 @@ export class GameLoop {
       const idx = this.gs.planets.indexOf(moon);
       if (idx !== -1) this.gs.planets.splice(idx, 1);
     } else {
-      // First or second hit — moons show crack overlays; giant asteroids just absorb the hit
+      // Non-fatal hit — moons show crack overlays; giant asteroids just absorb the hit
       if (moon.type !== PlanetType.GIANT_ASTEROID) {
         if (!moon.crackAngles)   moon.crackAngles   = [];
         if (!moon.crackSvgIdxs) moon.crackSvgIdxs  = [];
@@ -1344,30 +1345,28 @@ export class GameLoop {
     }
   }
 
-  // Fragment a destroyed giant asteroid into 6–10 child asteroids.
+  // Fragment a destroyed giant asteroid into 25–40 child asteroids.
   // If the parent was rich, all children are rich and 3–6 collectables are spawned.
   _fragmentGiantAsteroid(moon) {
-    const n = 6 + Math.floor(this.rng.next() * 5); // 6-10
-    const FACTORS = { 6: 0.25, 7: 0.23, 8: 0.21, 9: 0.20, 10: 0.18 };
-    const childR  = Math.max(10, moon.radius * (FACTORS[n] ?? 0.20));
+    const n      = 25 + Math.floor(this.rng.next() * 16); // 25-40
+    const childR = Math.max(8, moon.radius * 0.09);        // small enough that many fit
     const maxDist = moon.radius - childR;
     const placed  = [];
-    for (let i = 0; i < n; i++) {
+    for (let attempts = 0; placed.length < n && attempts < n * 40; attempts++) {
       const angle = this.rng.next() * Math.PI * 2;
       const dist  = Math.sqrt(this.rng.next()) * maxDist;
       const pos   = new Vec2(
         moon.position.x + Math.cos(angle) * dist,
         moon.position.y + Math.sin(angle) * dist,
       );
-      const r = childR;
-      const overlaps = (cx, cy, cr) => {
-        const ddx = pos.x - cx, ddy = pos.y - cy;
-        return ddx * ddx + ddy * ddy < (r + cr) ** 2;
+      const overlaps = (ex, ey, er) => {
+        const dx = pos.x - ex, dy = pos.y - ey;
+        return dx * dx + dy * dy < (childR + er) ** 2;
       };
       if (this.gs.planets.some(p => p !== moon && !p.destroyed && overlaps(p.position.x, p.position.y, p.impactRadius))) continue;
       if (placed.some(p => overlaps(p.x, p.y, p.r))) continue;
-      placed.push({ x: pos.x, y: pos.y, r });
-      this.gs.planets.push(this._makeChildAsteroid(pos, r, moon.density, moon.rich ?? false));
+      placed.push({ x: pos.x, y: pos.y, r: childR });
+      this.gs.planets.push(this._makeChildAsteroid(pos, childR, moon.density, moon.rich ?? false));
     }
 
     if (moon.rich && this.gs.config?.collectables !== 'off') {
