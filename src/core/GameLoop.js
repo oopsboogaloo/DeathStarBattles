@@ -1,7 +1,8 @@
 import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
-import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G } from '../physics/PhysicsEngine.js';
+import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
+         SKIM_PARTICLE_DURATION } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
@@ -724,6 +725,7 @@ export class GameLoop {
     this.gs.shipExplosionBloom  = [];
     this.gs.fireballs           = [];
     this.gs.fireballSmoke       = [];
+    this.gs.skimParticles       = [];
     this.gs.burstQueue          = [];
     this.gs.pendingLasers = [];
     this.gs.firingStep    = 0;
@@ -1016,6 +1018,15 @@ export class GameLoop {
         if (bullet._hitMoon) {
           this._handleMoonHit(bullet._hitMoon, bullet._hitMoonX, bullet._hitMoonY);
           bullet._hitMoon = null;
+        }
+
+        // Skim event — increment skim stat (FR-8) and spawn particle effect (FR-6)
+        if (bullet._skimEvent) {
+          bullet.owner.stats.skimShots++;
+          if (this._performance !== 'simplified') {
+            this._spawnSkimParticles(bullet._skimEvent);
+          }
+          bullet._skimEvent = null;
         }
 
         if (bullet.lifetime % PRINT_EVERY === 0) {
@@ -1531,6 +1542,35 @@ export class GameLoop {
     });
   }
 
+  // Spawn directional particles emitted perpendicular to the star surface at a skim contact (FR-6).
+  _spawnSkimParticles({ x, y, nx, ny, planet }) {
+    const [pr, pg, pb] = planet.colour;
+    const n   = 8;
+    const dt  = 1 / (SKIM_PARTICLE_DURATION * 60); // advance per rAF frame
+    const fan = Math.PI / 5; // ±36° spread around the outward normal
+
+    for (let i = 0; i < n; i++) {
+      const spread = (Math.random() * 2 - 1) * fan;
+      const cosS   = Math.cos(spread);
+      const sinS   = Math.sin(spread);
+      // Rotate outward normal by spread angle
+      const ax     = nx * cosS - ny * sinS;
+      const ay     = nx * sinS + ny * cosS;
+      const speed  = 1.2 + Math.random() * 2.0;
+      const hue    = Math.random() * 40 - 20;
+      this.gs.skimParticles.push({
+        x, y,
+        vx: ax * speed,
+        vy: ay * speed,
+        t:  0,
+        dt,
+        r: Math.min(255, Math.max(0, pr + hue)),
+        g: Math.min(255, Math.max(0, pg + hue * 0.5)),
+        b: Math.min(255, Math.max(0, pb + hue * 0.2)),
+      });
+    }
+  }
+
   // Build N radial particles at (ox, oy) in game units.
   _makeParticles(ox, oy, r, g, b, n) {
     const out = [];
@@ -1749,6 +1789,12 @@ export class GameLoop {
       ex.particles = ex.particles.filter(p => p.t < 1);
     }
     this.gs.activeExplosions = this.gs.activeExplosions.filter(ex => ex.t < 1 || ex.particles.length > 0);
+
+    // Skim rebound particles — use per-particle dt for tunable duration (FR-6)
+    if (this.gs.skimParticles?.length) {
+      for (const p of this.gs.skimParticles) { p.x += p.vx; p.y += p.vy; p.t += p.dt; }
+      this.gs.skimParticles = this.gs.skimParticles.filter(p => p.t < 1);
+    }
 
     // Experimental bitmap explosions
     if (this._isExperimental) {
@@ -2248,6 +2294,11 @@ export class GameLoop {
         if (bullet._hitMoon) {
           this._handleMoonHit(bullet._hitMoon, bullet._hitMoonX, bullet._hitMoonY);
           bullet._hitMoon = null;
+        }
+
+        if (bullet._skimEvent) {
+          if (this._performance !== 'simplified') this._spawnSkimParticles(bullet._skimEvent);
+          bullet._skimEvent = null;
         }
 
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {

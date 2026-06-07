@@ -20,5 +20,6 @@ export class Bullet {
     this.nearMissed     = new Set();   // stations already counted as near-missed
     this.thinTrail      = false;       // true for spread/burst weapons (lower trail opacity)
     this.maxLifetime    = null;        // null = use BULLET_LIFE; set shorter for blunderbuss
+    this.skimCount      = 0;           // number of surface skims this bullet has performed
   }
 }

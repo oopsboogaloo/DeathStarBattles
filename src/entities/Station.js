@@ -37,6 +37,7 @@ export class StationStats {
     this.nearMisses     = 0;
     this.hyperspaceCount = 0;
     this.totalPower     = 0;
+    this.skimShots      = 0;
   }
 }
 
