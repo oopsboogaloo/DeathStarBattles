@@ -440,7 +440,6 @@ export class Renderer {
       if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
       this._drawAtmosphere(this.mainCtx, planet);
     }
-    if (!this._simplified) ctx.filter = 'blur(3px)';
     for (const planet of this._planets) {
       if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
       const cx    = planet.position.x * this.conv;
@@ -448,7 +447,6 @@ export class Renderer {
       const cache = this._getGasGiantCache(planet);
       ctx.drawImage(cache.canvas, cx - cache.half, cy - cache.half);
     }
-    if (!this._simplified) ctx.filter = 'none';
 
     // Comets — drawn live every frame (they move and are not in the static bg layer)
     for (const planet of gameState.planets) {
@@ -694,13 +692,14 @@ export class Renderer {
 
     const conv   = this.conv;
     const r      = Math.max(2, planet.radius * conv);
-    const margin = 6;
+    const margin = 12; // extra room for blur spread (blur(3px) kernel extends ~9px)
     const size   = Math.ceil(r * 2) + margin * 2;
     const half   = size / 2;
 
     const c    = document.createElement('canvas');
     c.width    = c.height = size;
     const octx = c.getContext('2d');
+    if (!this._simplified) octx.filter = 'blur(3px)';
 
     const [ar, ag, ab] = planet.colour;
     const grad = octx.createRadialGradient(half - r * 0.3, half - r * 0.3, r * 0.05, half, half, r);
