@@ -102,6 +102,22 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Collectable Availability (FR-12)**
   - Included in the tier-2 collectable pool
 
+- [ ] **Septuple Cannon** — Rare variant of the triple cannon. Fires 7 cannon shots simultaneously across a wider arc; grants exactly 1 use when collected. See `spec/septuple-cannon.md`.
+
+  **Weapon Behaviour (FR-1)**
+  - 7 cannon shots fired simultaneously, evenly distributed across the arc
+  - Each shot behaves identically to a standard cannon shot
+
+  **Collectable Grant (FR-2)**
+  - Grants exactly 1 use (not stacked)
+
+  **Rarity (FR-3)**
+  - Rare drop weight; specific tier TBD (OQ-2: pending rarity tier review)
+
+  **Tuneability (NFR-1)** — named constants:
+  - Shot count (default: 7)
+  - Arc width (default: TBD — wider than triple cannon arc; resolve during playtesting — OQ-1)
+
 - [ ] **Pulse Laser** — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
 
   **Weapon Selection UI (FR-1)**
