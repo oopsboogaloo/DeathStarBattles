@@ -718,8 +718,11 @@ export class GameLoop {
     this.gs.rockets       = [];
     this.gs.shields       = [];
     this.gs.rocketBlasts  = [];
-    this.gs.rocketSmoke   = [];
-    this.gs.burstQueue    = [];
+    this.gs.rocketSmoke         = [];
+    this.gs.shipExplosionBloom  = [];
+    this.gs.fireballs           = [];
+    this.gs.fireballSmoke       = [];
+    this.gs.burstQueue          = [];
     this.gs.pendingLasers = [];
     this.gs.firingStep    = 0;
 
@@ -1203,6 +1206,10 @@ export class GameLoop {
 
   // Spawn shockwave + particle burst on a newly-killed station.
   _spawnStationExplosion(station) {
+    if (this._performance === 'experimental') {
+      this._spawnBitmapExplosion(station);
+      return;
+    }
     if (station.role === 'target') {
       station.shockwave = { t: 0, r: 204, g: 17, b: 17 };
       station.particles = [
@@ -1214,6 +1221,43 @@ export class GameLoop {
     const [r, g, b] = station.colour;
     station.shockwave = { t: 0, r, g, b };
     station.particles = this._makeParticles(station.position.x, station.position.y, r, g, b, 16);
+  }
+
+  _spawnBitmapExplosion(station) {
+    const ox = station.position.x;
+    const oy = station.position.y;
+    const [sr, sg, sb] = station.role === 'target' ? [204, 17, 17] : station.colour;
+    station.shockwave = { t: 0, r: sr, g: sg, b: sb };
+
+    // 10 bloom particles scattered around blast centre
+    for (let i = 0; i < 10; i++) {
+      const angle  = Math.random() * Math.PI * 2;
+      const spread = station.radius * (0.2 + Math.random() * 0.4);
+      this.gs.shipExplosionBloom.push({
+        x: ox + Math.cos(angle) * spread,
+        y: oy + Math.sin(angle) * spread,
+        maxR: 6 + Math.random() * 8,
+        t:    0,
+        dt:   0.006 + Math.random() * 0.005,
+        r: sr, g: sg, b: sb,
+      });
+    }
+
+    // 3–5 fireballs flying outward
+    const nFB = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < nFB; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 5;
+      this.gs.fireballs.push({
+        x: ox, y: oy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: sr, g: sg, b: sb,
+        t: 0,
+        dt: 0.003 + Math.random() * 0.003,
+        smokeTimer: 0,
+      });
+    }
   }
 
   // Spawn a freestanding explosion for an asteroid (position in game units).
@@ -1688,6 +1732,46 @@ export class GameLoop {
       ex.particles = ex.particles.filter(p => p.t < 1);
     }
     this.gs.activeExplosions = this.gs.activeExplosions.filter(ex => ex.t < 1 || ex.particles.length > 0);
+
+    // Experimental bitmap explosions
+    if (this._performance === 'experimental') {
+      for (const p of this.gs.shipExplosionBloom) p.t += p.dt;
+      this.gs.shipExplosionBloom = this.gs.shipExplosionBloom.filter(p => p.t < 1);
+
+      for (const fb of this.gs.fireballs) {
+        for (const planet of this.gs.planets) {
+          if (planet.destroyed) continue;
+          const dx   = planet.position.x - fb.x;
+          const dy   = planet.position.y - fb.y;
+          const rSq  = dx * dx + dy * dy;
+          if (rSq < 0.01) continue;
+          const sign  = dx < 0 ? -1 : 1;
+          const theta = Math.atan(dy / dx);
+          const accel = sign * G * planet.mass / rSq;
+          fb.vx += Math.cos(theta) * accel * TIMESTEP;
+          fb.vy += Math.sin(theta) * accel * TIMESTEP;
+        }
+        fb.x += fb.vx;
+        fb.y += fb.vy;
+        fb.t += fb.dt;
+        fb.smokeTimer++;
+        if (fb.smokeTimer >= 4) {
+          fb.smokeTimer = 0;
+          this.gs.fireballSmoke.push({
+            x: fb.x, y: fb.y,
+            maxR: 2 + Math.random() * 3,
+            t: 0,
+            r: fb.r, g: fb.g, b: fb.b,
+          });
+        }
+      }
+      this.gs.fireballs = this.gs.fireballs.filter(fb => fb.t < 1);
+
+      for (let i = this.gs.fireballSmoke.length - 1; i >= 0; i--) {
+        this.gs.fireballSmoke[i].t += 1 / (300 + Math.random() * 400);
+        if (this.gs.fireballSmoke[i].t >= 1) this.gs.fireballSmoke.splice(i, 1);
+      }
+    }
   }
 
   // ─── RESULTS ────────────────────────────────────────────────────────────────

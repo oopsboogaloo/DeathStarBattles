@@ -514,6 +514,13 @@ export class Renderer {
       }
     }
 
+    // Experimental bitmap explosions
+    if (this._performance === 'experimental') {
+      if (gameState.shipExplosionBloom?.length) this._drawShipExplosionBloom(ctx, gameState.shipExplosionBloom);
+      if (gameState.fireballs?.length)          this._drawFireballs(ctx, gameState.fireballs);
+      if (gameState.fireballSmoke?.length)      this._drawRocketSmoke(ctx, gameState.fireballSmoke);
+    }
+
     // Comet + rocket smoke (drawn behind everything else)
     if (gameState.cometSmoke?.length) this._drawCometSmoke(ctx, gameState.cometSmoke);
     if (gameState.rocketSmoke?.length) this._drawRocketSmoke(ctx, gameState.rocketSmoke);
@@ -666,7 +673,10 @@ export class Renderer {
   _loadSmokeSprite() {
     const img = new Image();
     img.src = 'Images/Cloud1.png';
-    this._smokeImg = img;
+    this._smokeImg  = img;
+    this._tintCanvas = document.createElement('canvas');
+    this._tintCanvas.width = this._tintCanvas.height = 256;
+    this._tintCtx   = this._tintCanvas.getContext('2d');
   }
 
   _getTintedSmoke(r, g, b) {
@@ -1803,6 +1813,100 @@ export class Renderer {
       ctx.fillStyle = `rgba(220,235,255,${alpha.toFixed(3)})`;
       ctx.fill();
     }
+  }
+
+  // ----------------------------------------------------------------
+  // Experimental: bitmap bloom particles for ship explosion
+  // ----------------------------------------------------------------
+
+  _drawShipExplosionBloom(ctx, particles) {
+    const conv = this.conv;
+    const img  = this._smokeImg?.complete ? this._smokeImg : null;
+    if (!img) return;
+    const tc   = this._tintCanvas;
+    const tctx = this._tintCtx;
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of particles) {
+      // Colour: ship → white → ship → black
+      let cr, cg, cb;
+      if (p.t < 0.3) {
+        const f = p.t / 0.3;
+        cr = Math.round(lerp(p.r, 255, f));
+        cg = Math.round(lerp(p.g, 255, f));
+        cb = Math.round(lerp(p.b, 255, f));
+      } else if (p.t < 0.6) {
+        const f = (p.t - 0.3) / 0.3;
+        cr = Math.round(lerp(255, p.r, f));
+        cg = Math.round(lerp(255, p.g, f));
+        cb = Math.round(lerp(255, p.b, f));
+      } else {
+        const f = (p.t - 0.6) / 0.4;
+        cr = Math.round(lerp(p.r, 0, f));
+        cg = Math.round(lerp(p.g, 0, f));
+        cb = Math.round(lerp(p.b, 0, f));
+      }
+
+      // Size: expand then contract
+      let radius;
+      if (p.t < 0.25) {
+        radius = p.maxR * (p.t / 0.25) * conv;
+      } else {
+        radius = p.maxR * Math.max(0, 1.0 - (p.t - 0.25) / 0.75 * 0.95) * conv;
+      }
+      if (radius <= 0) continue;
+
+      // Alpha: quick fade-in, hold, fade-out
+      let alpha;
+      if (p.t < 0.1)      alpha = (p.t / 0.1) * 0.8;
+      else if (p.t > 0.7) alpha = ((1 - p.t) / 0.3) * 0.8;
+      else                 alpha = 0.8;
+
+      tctx.clearRect(0, 0, 256, 256);
+      tctx.drawImage(img, 0, 0, 256, 256);
+      tctx.globalCompositeOperation = 'source-atop';
+      tctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+      tctx.fillRect(0, 0, 256, 256);
+      tctx.globalCompositeOperation = 'source-over';
+
+      const size = radius * 2;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(tc, p.x * conv - radius, p.y * conv - radius, size, size);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  // ----------------------------------------------------------------
+  // Experimental: fireball emitters
+  // ----------------------------------------------------------------
+
+  _drawFireballs(ctx, fireballs) {
+    const conv = this.conv;
+    const img  = this._smokeImg?.complete ? this._smokeImg : null;
+    if (!img) return;
+    const tc   = this._tintCanvas;
+    const tctx = this._tintCtx;
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (const fb of fireballs) {
+      const radius = (5 + 3 * (1 - fb.t)) * conv;
+      const alpha  = Math.max(0, 0.7 * (1 - fb.t));
+
+      tctx.clearRect(0, 0, 256, 256);
+      tctx.drawImage(img, 0, 0, 256, 256);
+      tctx.globalCompositeOperation = 'source-atop';
+      tctx.fillStyle = `rgb(${fb.r},${fb.g},${fb.b})`;
+      tctx.fillRect(0, 0, 256, 256);
+      tctx.globalCompositeOperation = 'source-over';
+
+      const size = radius * 2;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(tc, fb.x * conv - radius, fb.y * conv - radius, size, size);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
 
   // ----------------------------------------------------------------

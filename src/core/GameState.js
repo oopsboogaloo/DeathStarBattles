@@ -36,6 +36,9 @@ export class GameState {
     this.rocketBlasts     = [];         // {x,y,maxRadius,currentRadius,owner,hitSet}[]
     this.rocketSmoke      = [];         // {x,y,maxR,t,r,g,b}[] — smoke puff particles
     this.cometSmoke       = [];         // {x,y,maxR,t}[] — white comet tail puffs — active rockets in flight
+    this.shipExplosionBloom = [];       // {x,y,maxR,t,dt,r,g,b}[] — bitmap bloom particles (experimental)
+    this.fireballs          = [];       // {x,y,vx,vy,r,g,b,t,dt,smokeTimer}[] — gravity fireballs (experimental)
+    this.fireballSmoke      = [];       // {x,y,maxR,t,r,g,b}[] — fireball trail puffs (experimental)
     this.shields          = [];         // {station, radius, alive}[] — active Force Shields
     this.burstQueue       = [];         // burst-fire entries: {station,weapon,shotsRemaining,intervalSteps,nextFireStep,angle,power}
     this.pendingLasers    = [];         // {station, angle, delaySteps}[] — lasers waiting to fire
