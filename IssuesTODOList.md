@@ -102,6 +102,34 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Collectable Availability (FR-12)**
   - Included in the tier-2 collectable pool
 
+- [ ] **Pulse Laser** — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
+
+  **Weapon Selection UI (FR-1)**
+  - UI behaves identically to the standard laser (angle selector, no power/timer slider)
+
+  **Firing Sequence (FR-2)**
+  - 9 pulses fired sequentially, ~0.1 s apart
+  - Total sequence duration ~0.8 s (8 intervals)
+
+  **Pulse Arc Distribution (FR-3)**
+  - Angles evenly distributed from (selected − 15°) to (selected + 15°)
+  - Each pulse receives independent random angular jitter (default ±1°, tunable)
+  - Firing order sweeps −15° → +15°
+
+  **Individual Pulse Behaviour (FR-4)**
+  - Each pulse is identical to a standard laser (travel, gravity, damage, destruction rules)
+
+  **Rarity (FR-5)**
+  - Assigned a rare drop weight; specific tier TBD (OQ-1: pending rarity tier system review)
+
+  **Tuneability (NFR-1)** — named constants:
+  - Pulse count (default: 9)
+  - Arc half-width (default: 15°)
+  - Interval between pulses (default: 0.1 s)
+  - Per-pulse jitter range (default: ±1°)
+
+- [ ] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
+
   **Tuneability (NFR-1)** — named constants:
   - Primary shot speed (default: 75% of max cannon power)
   - Primary shot bounce speed retention (default: 60%)
