@@ -1442,6 +1442,226 @@ Force Shield: bots activate Force Shield when they have stock **and** the previo
 
 ---
 
+## 15. Rendering Performance Architecture
+
+This section documents the rendering pipeline design decisions, platform-specific behaviour, and the reasoning behind each optimisation. It supersedes the high-level sketch in §5.
+
+---
+
+### 15.1 Canvas Layer Architecture
+
+The renderer uses three canvases, all the same pixel dimensions:
+
+| Canvas | Updated when | Contents |
+|---|---|---|
+| `bgCanvas` | Once per new game (and on resize) | Stars, all static planet types, SVG overlays, atmosphere glows for rocky planets |
+| `trailsCanvas` | Cleared each turn; trail points appended during fire phase | Bullet/rocket trail polylines |
+| `mainCanvas` | Every rAF frame | Everything else: `drawImage(bg)`, `drawImage(trails)`, live layer |
+
+The live layer draw order within each frame:
+
+1. `drawImage(bgCanvas)` — static background
+2. `drawImage(trailsCanvas)` — accumulated trails
+3. Wormhole particles
+4. Ship explosion bloom + fireballs + fireball smoke
+5. Comet smoke / rocket smoke
+6. Rocket blast zones + force shields
+7. Rockets + trails
+8. **Gas giant combined canvas** — drawn here so bullets/trails are underneath, selling the "fire through the gas giant" effect
+9. Collectables + VFX overlays
+10. Aiming indicator
+11. HUD + overlay
+
+Gas giants are the only planet type deliberately excluded from `bgCanvas`. Every other static body is baked there once. The reason is draw order: gas giants must composite over bullets and trails, so they cannot sit in the background layer.
+
+---
+
+### 15.2 Performance Modes
+
+Four modes, exposed via the config panel. Two are hidden behind `Ctrl+Shift+D` dev mode.
+
+| Mode | Explosion system | Particle rendering | Wormhole particles | Gas giant blur |
+|---|---|---|---|---|
+| `simplified` | Classic arc flash | Arc circles | Skipped entirely | None |
+| `full` | Bloom + fireballs | Halo+core circles | Halo+core circles | Baked in |
+| `experimental` *(dev)* | Bloom + fireballs | Bitmaps (desktop) / circles (iOS) | Gradients (desktop) / circles (iOS) | Skipped |
+| `exp-ipad` *(dev)* | Bloom + fireballs | Halo+core circles | Halo+core circles | Skipped |
+
+`experimental` auto-detects iOS/iPadOS at construction time:
+
+```js
+this._isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+```
+
+The second condition catches modern iPads that report `MacIntel`. When `_isIOS` is true, `experimental` routes through the same circle path as `exp-ipad`.
+
+---
+
+### 15.3 Platform Rendering Characteristics
+
+Understanding why certain approaches are fast or slow on each platform is essential for making correct trade-off decisions.
+
+#### Desktop (Chrome/Firefox — Skia/ANGLE)
+
+- `ctx.arc()` + `fill()` is GPU-accelerated via the Skia rasteriser.
+- `drawImage(canvas)` from an `HTMLCanvasElement` incurs a GPU pipeline flush/sync per call — Chrome cannot statically prove the source hasn't changed since last frame. This is invisible in CPU/GPU task manager but shows as frame time.
+- `drawImage(imageBitmap)` avoids this: `ImageBitmap` is immutable by spec, so Chrome can hold a cached GPU texture with no flush.
+- `ctx.filter = 'blur(Npx)'` is GPU-accelerated but processes the full bounding rectangle of the draw call including transparent pixels. With many large draw calls under a filter, this scales as O(n × area).
+- `createRadialGradient()` is cheap per call; the cost is primarily the `fill()` that samples it.
+
+#### Android (Chrome — Skia/Vulkan or ANGLE)
+
+- Similar to desktop but mobile GPU is weaker.
+- Blur filters can fall back to CPU on low-end devices.
+- Canvas-to-canvas `drawImage` has the same flush issue but is less likely to bottleneck given fewer draw calls.
+
+#### iOS/iPadOS (all browsers — WebKit WKWebView + Metal)
+
+- **All browsers on iOS are WebKit** — Chrome, Firefox, Edge on iOS are all WKWebView wrappers. There is no alternative rendering engine.
+- Canvas 2D is backed by Metal (Apple's GPU API). Every `globalCompositeOperation` change, every `ctx.filter` assignment, and every `createRadialGradient()` call triggers a Metal pipeline state change, which flushes the GPU command encoder.
+- `drawImage(canvas)` from an offscreen canvas forces a Metal encoder commit + new encoder begin, which is expensive.
+- `ctx.arc()` with `fill()` uses native Metal-backed path rendering and is fast — it is a single GPU primitive draw call with no state change.
+- Conclusion: **circles are significantly cheaper than gradients or bitmaps on iOS**. The key principle is to minimise Metal pipeline state changes per frame.
+
+---
+
+### 15.4 Gas Giant Rendering
+
+#### Why gas giants are different
+
+Gas giants are semi-transparent (50% alpha) and must composite correctly over everything drawn before them in the frame, including bullets and trails. This makes them unsuitable for `bgCanvas` (which is drawn before bullets). They are also unsuitable for a simple per-frame draw because of the cost of recreating gradients and applying blur.
+
+#### Combined canvas approach
+
+At game start, viewport resize, and after SVG overlays finish loading, all gas giants are rendered into a single viewport-sized `_gasGiantCanvas`:
+
+1. **Atmosphere halos** (no blur) — one `createRadialGradient` per planet, drawn normally.
+2. **Planet bodies + SVG overlays** — drawn with `ctx.filter = 'blur(3px)'` active on the offscreen context. The blur is baked into the pixel data permanently.
+
+The blur is applied to the **offscreen** context, not the main canvas. This is important: applying `filter = blur` to the main canvas during `drawImage` blurs the full rectangular canvas area including transparent pixels, scaling badly with many gas giants. Baking it into the offscreen canvas means the blur cost is paid once.
+
+After building the canvas, `createImageBitmap(canvas)` is called asynchronously. Once the `ImageBitmap` resolves, it is used in preference to the raw canvas, eliminating Chrome's GPU pipeline flush on the `drawImage` call.
+
+**Per-frame cost**: one `drawImage` call, zero gradients, zero filter state changes.
+
+**Cache invalidation**: the combined canvas is rebuilt when `conv` changes (viewport resize) or when SVG overlays finish loading (detected by checking `overlays[0].img.complete`). It is not rebuilt per-frame even when movement is enabled, since gas giant positions are effectively static (movement is applied to stations, not planets, in normal gameplay).
+
+#### Blur in experimental mode
+
+`experimental` mode skips the blur (the `blurred` flag is false). This is useful for performance testing — removing the blur from the baked canvas reduces the build cost and avoids any residual blur-related overhead in the `drawImage` composite.
+
+---
+
+### 15.5 Wormhole Particle System
+
+#### Architecture (`WormholeParticles`)
+
+Each wormhole planet has a `WormholeParticles` instance. Particle state is stored in three `Float32Array` buffers (`_angles`, `_radii`, `_hueOff`) for cache-friendly access. Per-particle RGB is pre-computed into `_colR`, `_colG`, `_colB` Float32Arrays at spawn time and only recalculated on particle respawn — `hsvToRgb`/`rgbToHsv` is entirely out of the per-frame draw loop.
+
+**Default config**: 80 particles per wormhole, 2 spiral arms, angular velocity scaling as `(spawnR/r)^1.7` (accelerates toward centre).
+
+#### Rendering modes
+
+**Gradient mode** (`experimental` on desktop): 2 concentric `createRadialGradient` passes per particle × 80 particles = 160 gradient objects created per wormhole per frame. Looks best but is expensive on iOS due to Metal pipeline flushes.
+
+**Circle mode** (`full`, `exp-ipad`, `experimental` on iOS): halo+core two-circle pattern — a large dim outer circle at 35% alpha followed by a small bright inner circle at full alpha. No gradients, no compositing state changes. The soft falloff is approximated by the size ratio rather than a gradient.
+
+The draw method accepts a `useCircles` boolean: `particles.draw(ctx, conv, this._useCircles)`.
+
+Wormhole particles are skipped entirely in `simplified` mode.
+
+---
+
+### 15.6 Smoke & SFX Particle Rendering
+
+#### Rocket smoke (`rocketSmoke`)
+
+In `full` and `simplified` modes: arc circles. In `experimental` mode on desktop: Cloud1.png bitmap sprite, tinted to the team colour via a pre-cached offscreen canvas (`_smokeTintCache`). Tinting is performed once per unique RGB key (one per team colour) using `source-atop` composite, then reused every frame. Per-puff tinting at draw time was measured to kill performance even with only a few dozen puffs.
+
+#### Comet smoke (`cometSmoke`)
+
+Always arc circles — no bitmap variant. Comet smoke uses a white/grey palette that doesn't require tinting.
+
+#### Off-screen culling
+
+All particle draw methods check `_isVisible(px, py, radius)` before any draw or tinting operation:
+
+```js
+_isVisible(px, py, radius) {
+  return px + radius >= 0 && px - radius <= this._vpW &&
+         py + radius >= 0 && py - radius <= this._vpH;
+}
+```
+
+This avoids wasted GPU work on particles that are off-screen.
+
+---
+
+### 15.7 Ship Explosion Particle System
+
+The experimental explosion system (`full`, `experimental`, `exp-ipad`) spawns two particle types when a station is destroyed:
+
+#### Bloom particles (`shipExplosionBloom`)
+
+10 particles per explosion. Lifecycle `t: 0→1`. Colour interpolation: ship colour → white → ship colour → black. Size: expands to `maxR` by t=0.25, then contracts. Drawn with `globalCompositeOperation = 'lighter'` (additive blending).
+
+**Bitmap mode** (`experimental` desktop): per-particle tint via shared `_tintCanvas` (cleared and redrawn each particle). Acceptable at 10 particles max.
+
+**Circle mode** (`full`, `exp-ipad`, `experimental` iOS): halo+core circles with the interpolated colour. The outer halo at 35% alpha and inner core at 45% radius give a similar soft centre-bright look to the bitmap without any offscreen canvas work.
+
+#### Fireballs (`fireballs`)
+
+3–5 per explosion, globally capped at 20. Affected by gravity using an inverse-square law applied once per rAF frame (not per physics step). The gravity constant omits `TIMESTEP` since fireballs update at frame rate (≈60Hz) rather than the physics step rate (≈42 steps/frame). Fireballs are removed on planet collision or when they leave the world bounds by more than 150 units.
+
+Fireballs emit smoke puffs (`fireballSmoke`) every ~4 frames. Smoke puffs expand almost instantly to full size then fade slowly — short trail, high particle count during the explosion burst.
+
+**Global cap**: the 20-fireball limit prevents runaway particle counts during multi-station explosions.
+
+---
+
+### 15.8 The Two-Circle (Halo+Core) Pattern
+
+Several effects use the same "halo + core" circle pattern as a zero-cost substitute for radial gradients or bitmap sprites:
+
+```js
+// Outer halo — large, dim
+ctx.fillStyle = `rgb(${r},${g},${b})`;
+ctx.globalAlpha = alpha * 0.35;
+ctx.beginPath();
+ctx.arc(px, py, radius * 1.7, 0, Math.PI * 2);
+ctx.fill();
+
+// Inner core — small, bright
+ctx.globalAlpha = alpha;
+ctx.beginPath();
+ctx.arc(px, py, radius * 0.45, 0, Math.PI * 2);
+ctx.fill();
+```
+
+Used in: wormhole particles (circle mode), bloom particles (circle mode), fireballs (circle mode), fireball smoke (circle mode).
+
+The pattern works because `globalCompositeOperation = 'lighter'` (additive blending) causes the overlapping halo and core to sum their colour values, producing the visual appearance of a bright centre fading to a dim edge — the same falloff that a radial gradient or a soft bitmap sprite would give, at the cost of two arc fills and two alpha assignments.
+
+---
+
+### 15.9 Summary — Per-Frame Cost by Element
+
+| Element | `simplified` | `full` | `experimental` (desktop) | `experimental` (iOS) |
+|---|---|---|---|---|
+| bgCanvas blit | 1 drawImage | 1 drawImage | 1 drawImage | 1 drawImage |
+| Gas giants | 1 drawImage | 1 drawImage | 1 drawImage | 1 drawImage |
+| Wormhole particles (per wormhole) | — | 160 arc fills | 160 gradient creates | 160 arc fills |
+| Ship explosion bloom (per particle) | — | 2 arc fills | 1 tinted drawImage | 2 arc fills |
+| Fireballs (per fireball) | — | 2 arc fills | 1 tinted drawImage | 2 arc fills |
+| Rocket smoke (per puff) | arc fill | arc fill | 1 cached drawImage | arc fill |
+| Filter state changes per frame | 0 | 0 | 0 | 0 |
+| Gradients created per frame | 0 | 0 | 0 | 0 |
+
+No performance mode creates radial gradients or sets `ctx.filter` during the live draw loop. All gradients and blur operations are either pre-baked at game start or occur at particle spawn time, not per-frame.
+
+---
+
 ## 12. Implementation Decisions Log
 
 | # | Question | Decision |
