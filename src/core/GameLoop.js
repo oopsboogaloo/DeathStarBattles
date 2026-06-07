@@ -490,8 +490,8 @@ export class GameLoop {
       const p = this.gs.planets[i];
       if (!p.destroyed) continue;
       this.gs.planets.splice(i, 1);
-      if (p.type === PlanetType.MOON) {
-        continue; // Moon destruction + fragmentation handled in _handleMoonHit
+      if (p.type === PlanetType.MOON || p.type === PlanetType.GIANT_ASTEROID) {
+        continue; // Moon/giant-asteroid destruction + fragmentation handled in _handleMoonHit
       } else if (p.type === PlanetType.COMET) {
         this._spawnCometExplosion(p);
       } else if (p.type === PlanetType.CRYSTAL) {
@@ -1296,42 +1296,93 @@ export class GameLoop {
   _handleMoonHit(moon, impactX, impactY) {
     moon.hitCount++;
     if (moon.hitCount >= 3) {
-      // Third hit — destroy and fragment into 3-5 asteroids
       moon.destroyed = true;
-      const n        = 3 + Math.floor(this.rng.next() * 3); // 3-5
-      const factor   = n <= 3 ? 0.40 : n <= 4 ? 0.35 : 0.30;
-      const childR   = moon.radius * factor;
-      const maxDist  = moon.radius - childR;
-      const placed   = []; // track siblings to avoid inter-child overlap
-      for (let i = 0; i < n; i++) {
-        const angle = this.rng.next() * Math.PI * 2;
-        const dist  = Math.sqrt(this.rng.next()) * maxDist;
-        const pos   = new Vec2(
-          moon.position.x + Math.cos(angle) * dist,
-          moon.position.y + Math.sin(angle) * dist,
-        );
-        // Skip if this child overlaps any existing planet or an already-placed sibling
-        const r = Math.max(8, childR);
-        const overlaps = (cx, cy, cr) => {
-          const ddx = pos.x - cx, ddy = pos.y - cy;
-          return ddx * ddx + ddy * ddy < (r + cr) ** 2;
-        };
-        if (this.gs.planets.some(p => p !== moon && !p.destroyed && overlaps(p.position.x, p.position.y, p.impactRadius))) continue;
-        if (placed.some(p => overlaps(p.x, p.y, p.r))) continue;
-        placed.push({ x: pos.x, y: pos.y, r });
-        // Children have no initial velocity (spec: no initial velocity)
-        const child = this._makeChildAsteroid(pos, r, moon.density, false);
-        this.gs.planets.push(child);
+
+      if (moon.type === PlanetType.GIANT_ASTEROID) {
+        this._fragmentGiantAsteroid(moon);
+      } else {
+        this._fragmentMoon(moon);
       }
+
       this._spawnAsteroidExplosion(moon);
       const idx = this.gs.planets.indexOf(moon);
       if (idx !== -1) this.gs.planets.splice(idx, 1);
     } else {
-      // First or second hit — record impact angle and random SVG index for crack overlay
-      if (!moon.crackAngles)   moon.crackAngles   = [];
-      if (!moon.crackSvgIdxs) moon.crackSvgIdxs  = [];
-      moon.crackAngles.push(Math.atan2(impactY - moon.position.y, impactX - moon.position.x));
-      moon.crackSvgIdxs.push(Math.floor(this.rng.next() * 3));
+      // First or second hit — moons show crack overlays; giant asteroids just absorb the hit
+      if (moon.type !== PlanetType.GIANT_ASTEROID) {
+        if (!moon.crackAngles)   moon.crackAngles   = [];
+        if (!moon.crackSvgIdxs) moon.crackSvgIdxs  = [];
+        moon.crackAngles.push(Math.atan2(impactY - moon.position.y, impactX - moon.position.x));
+        moon.crackSvgIdxs.push(Math.floor(this.rng.next() * 3));
+      }
+    }
+  }
+
+  // Fragment a destroyed moon into 3–5 child asteroids.
+  _fragmentMoon(moon) {
+    const n       = 3 + Math.floor(this.rng.next() * 3); // 3-5
+    const factor  = n <= 3 ? 0.40 : n <= 4 ? 0.35 : 0.30;
+    const childR  = moon.radius * factor;
+    const maxDist = moon.radius - childR;
+    const placed  = [];
+    for (let i = 0; i < n; i++) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const dist  = Math.sqrt(this.rng.next()) * maxDist;
+      const pos   = new Vec2(
+        moon.position.x + Math.cos(angle) * dist,
+        moon.position.y + Math.sin(angle) * dist,
+      );
+      const r = Math.max(8, childR);
+      const overlaps = (cx, cy, cr) => {
+        const ddx = pos.x - cx, ddy = pos.y - cy;
+        return ddx * ddx + ddy * ddy < (r + cr) ** 2;
+      };
+      if (this.gs.planets.some(p => p !== moon && !p.destroyed && overlaps(p.position.x, p.position.y, p.impactRadius))) continue;
+      if (placed.some(p => overlaps(p.x, p.y, p.r))) continue;
+      placed.push({ x: pos.x, y: pos.y, r });
+      this.gs.planets.push(this._makeChildAsteroid(pos, r, moon.density, false));
+    }
+  }
+
+  // Fragment a destroyed giant asteroid into 6–10 child asteroids.
+  // If the parent was rich, all children are rich and 3–6 collectables are spawned.
+  _fragmentGiantAsteroid(moon) {
+    const n = 6 + Math.floor(this.rng.next() * 5); // 6-10
+    const FACTORS = { 6: 0.25, 7: 0.23, 8: 0.21, 9: 0.20, 10: 0.18 };
+    const childR  = Math.max(10, moon.radius * (FACTORS[n] ?? 0.20));
+    const maxDist = moon.radius - childR;
+    const placed  = [];
+    for (let i = 0; i < n; i++) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const dist  = Math.sqrt(this.rng.next()) * maxDist;
+      const pos   = new Vec2(
+        moon.position.x + Math.cos(angle) * dist,
+        moon.position.y + Math.sin(angle) * dist,
+      );
+      const r = childR;
+      const overlaps = (cx, cy, cr) => {
+        const ddx = pos.x - cx, ddy = pos.y - cy;
+        return ddx * ddx + ddy * ddy < (r + cr) ** 2;
+      };
+      if (this.gs.planets.some(p => p !== moon && !p.destroyed && overlaps(p.position.x, p.position.y, p.impactRadius))) continue;
+      if (placed.some(p => overlaps(p.x, p.y, p.r))) continue;
+      placed.push({ x: pos.x, y: pos.y, r });
+      this.gs.planets.push(this._makeChildAsteroid(pos, r, moon.density, moon.rich ?? false));
+    }
+
+    if (moon.rich && this.gs.config?.collectables !== 'off') {
+      const nCols = 3 + Math.floor(this.rng.next() * 4); // 3-6
+      for (let c = 0; c < nCols; c++) {
+        const angle  = this.rng.next() * Math.PI * 2;
+        const dist   = this.rng.next() * moon.radius * 0.8;
+        const colPos = new Vec2(
+          moon.position.x + Math.cos(angle) * dist,
+          moon.position.y + Math.sin(angle) * dist,
+        );
+        const col  = new Collectable(colPos);
+        col.radius = this._collectableRadius();
+        this.gs.collectables.push(col);
+      }
     }
   }
 

@@ -140,6 +140,39 @@ function makeComet(rng, position, velocity) {
   });
 }
 
+// Giant asteroid: diameter ≈ half the shorter screen dimension; 3 hits to shatter
+function makeGiantAsteroid(rng, gw, gh, richProb) {
+  const radius = Math.floor(Math.min(gw, gh) / 4); // radius = ¼ of shorter dimension
+  const cx     = radius + rng.next() * (gw - 2 * radius);
+  const cy     = radius + rng.next() * (gh - 2 * radius);
+  const n      = 8 + Math.floor(rng.next() * 3); // 8-10 vertices — more detailed polygon
+  const vertices      = asteroidVertices(rng, n);
+  const rotation      = rng.next() * Math.PI * 2;
+  const rotationSpeed = (0.02 + rng.next() * 0.08) * Math.PI / 180; // very slow rotation
+  const isRich        = richProb > 0 && rng.next() < richProb;
+  const planet = new Planet({
+    position: new Vec2(cx, cy),
+    radius,
+    density:       0.04,
+    type:          PlanetType.GIANT_ASTEROID,
+    colour:        isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
+    shading:       ShadingStyle.ROCKY,
+    vertices,
+    rotation,
+    rotationSpeed,
+    rich:          isRich,
+    hitCount:      0,
+  });
+  // Pre-compute rotated verts so the renderer has them from frame 0
+  const cos = Math.cos(rotation), sin = Math.sin(rotation);
+  const px = planet.position.x, py = planet.position.y, r = planet.radius;
+  planet._rotatedVerts = vertices.map(v => new Vec2(
+    px + r * (v.x * cos - v.y * sin),
+    py + r * (v.x * sin + v.y * cos),
+  ));
+  return planet;
+}
+
 // Moon body radius: 12–20 game units; generates 3–6 crater positions
 function makeMoon(rng, A, B, C, gw, gh) {
   const radius = 12 + rng.next() * 8; // 12–20
@@ -1083,6 +1116,26 @@ export class ScenarioFactory {
         const remaining = Math.max(0, nPlanets - 1 - nMoons);
         for (let i = 0; i < remaining; i++)
           planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        break;
+      }
+
+      // ── 32: Giant Asteroid ───────────────────────────────────────────────────
+      case 32: {
+        // One enormous asteroid (diameter ≈ half screen height) near the centre
+        const giant = makeGiantAsteroid(rng, gw, gh, richProb);
+        planets.push(giant);
+        // Surround it with 10–30 smaller asteroids placed without overlap
+        const nSmall  = simplified ? (10 + Math.floor(rng.next() * 11))  // 10-20
+                                   : (10 + Math.floor(rng.next() * 21)); // 10-30
+        const minGap  = 10;
+        let   placed  = 0;
+        for (let attempt = 0; placed < nSmall && attempt < nSmall * 20; attempt++) {
+          const ast = makeAsteroid(rng, 1, 0, 0, 15, 5, 3, gw, gh, 0.04, richProb);
+          if (planets.every(p => ast.position.distanceTo(p.position) >= ast.impactRadius + p.impactRadius + minGap)) {
+            planets.push(ast);
+            placed++;
+          }
+        }
         break;
       }
 
