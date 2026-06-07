@@ -145,16 +145,22 @@ function makeGiantAsteroid(rng, gw, gh, richProb) {
   const radius = Math.floor(Math.min(gw, gh) / 4); // radius = ¼ of shorter dimension
   const cx     = radius + rng.next() * (gw - 2 * radius);
   const cy     = radius + rng.next() * (gh - 2 * radius);
-  // 14–20 vertices so the silhouette reads as a complex, craggy rock at this scale.
-  // Jitter capped at 1.0× spacing (vs 1.4× for small asteroids) to avoid edge crossings.
-  const n = 14 + Math.floor(rng.next() * 7);
+  // Two-frequency silhouette: alternating outer peaks (0.65–1.0) and inner valleys
+  // (0.30–0.60) give the shape two distinct rows of rocky features at this scale.
+  // 12–15 peak/valley pairs → 24–30 total vertices.
+  const nPrimary = 12 + Math.floor(rng.next() * 4);
   const vertices = [];
-  for (let i = 0; i < n; i++) {
-    const baseAngle = (2 * Math.PI * i) / n;
-    const jitter    = (rng.next() - 0.5) * (Math.PI / n) * 1.0;
-    const angle     = baseAngle + jitter;
-    const vr        = 0.30 + rng.next() * 0.70;
-    vertices.push(new Vec2(vr * Math.cos(angle), vr * Math.sin(angle)));
+  for (let i = 0; i < nPrimary; i++) {
+    const spacing = (2 * Math.PI) / nPrimary;
+    const jitter  = (rng.next() - 0.5) * spacing * 0.5;
+    // Outer peak
+    const a1  = spacing * i + jitter;
+    const vr1 = 0.65 + rng.next() * 0.35;
+    vertices.push(new Vec2(vr1 * Math.cos(a1), vr1 * Math.sin(a1)));
+    // Inner valley halfway between this peak and the next
+    const a2  = spacing * (i + 0.5) + (rng.next() - 0.5) * spacing * 0.5;
+    const vr2 = 0.30 + rng.next() * 0.30;
+    vertices.push(new Vec2(vr2 * Math.cos(a2), vr2 * Math.sin(a2)));
   }
   const rotation      = rng.next() * Math.PI * 2;
   const rotationSpeed = (0.02 + rng.next() * 0.08) * Math.PI / 180; // very slow rotation
