@@ -688,7 +688,8 @@ export class Renderer {
     const overlays   = this._svgOverlayCache.get(planet);
     const hasOverlay = !!(overlays?.length && overlays[0].img?.complete && overlays[0].img.naturalWidth > 0);
     const cached     = this._gasGiantCache.get(planet);
-    if (cached && cached.conv === this.conv && cached.hasOverlay === hasOverlay) return cached;
+    const blurred    = !this._simplified && this._performance !== 'experimental';
+    if (cached && cached.conv === this.conv && cached.hasOverlay === hasOverlay && cached.blurred === blurred) return cached;
 
     const conv   = this.conv;
     const r      = Math.max(2, planet.radius * conv);
@@ -699,7 +700,7 @@ export class Renderer {
     const c    = document.createElement('canvas');
     c.width    = c.height = size;
     const octx = c.getContext('2d');
-    if (!this._simplified) octx.filter = 'blur(3px)';
+    if (blurred) octx.filter = 'blur(3px)';
 
     const [ar, ag, ab] = planet.colour;
     const grad = octx.createRadialGradient(half - r * 0.3, half - r * 0.3, r * 0.05, half, half, r);
@@ -727,7 +728,7 @@ export class Renderer {
       }
     }
 
-    const entry = { canvas: c, half, conv, hasOverlay };
+    const entry = { canvas: c, half, conv, hasOverlay, blurred };
     this._gasGiantCache.set(planet, entry);
     return entry;
   }
