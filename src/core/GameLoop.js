@@ -1779,7 +1779,7 @@ export class GameLoop {
       this.gs.fireballs = this.gs.fireballs.filter(fb => fb.t < 1);
 
       for (let i = this.gs.fireballSmoke.length - 1; i >= 0; i--) {
-        this.gs.fireballSmoke[i].t += 1 / (300 + Math.random() * 400);
+        this.gs.fireballSmoke[i].t += 30 / (300 + Math.random() * 400);
         if (this.gs.fireballSmoke[i].t >= 1) this.gs.fireballSmoke.splice(i, 1);
       }
     }

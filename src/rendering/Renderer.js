@@ -388,7 +388,10 @@ export class Renderer {
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
                     + (gs?.cometSmoke?.length ?? 0)
                     + (gs?.vfxList?.length ?? 0)
-                    + (gs?.activeExplosions?.reduce((s, e) => s + (e.particles?.length ?? 0), 0) ?? 0);
+                    + (gs?.activeExplosions?.reduce((s, e) => s + (e.particles?.length ?? 0), 0) ?? 0)
+                    + (gs?.shipExplosionBloom?.length ?? 0)
+                    + (gs?.fireballs?.length ?? 0)
+                    + (gs?.fireballSmoke?.length ?? 0);
 
     this._debugEl.textContent =
       `FPS        ${Math.round(this._fpsSmooth)}\n` +
