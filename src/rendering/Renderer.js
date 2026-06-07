@@ -60,7 +60,9 @@ export class Renderer {
     this._performance = mode ?? 'full';
     setPlanetRendererSimplified(this._simplified);
   }
-  get _simplified() { return this._performance === 'simplified'; }
+  get _simplified()     { return this._performance === 'simplified'; }
+  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad'; }
+  get _useCircles()     { return this._performance === 'exp-ipad'; }
 
   // Returns game-unit dimensions of the visible viewport.
   get worldSize() { return { w: this._vpW / (this.conv || 1), h: this._vpH / (this.conv || 1) }; }
@@ -528,8 +530,8 @@ export class Renderer {
       }
     }
 
-    // Experimental bitmap explosions
-    if (this._performance === 'experimental') {
+    // Experimental bitmap explosions (both experimental and exp-ipad)
+    if (this._isExperimental) {
       if (gameState.shipExplosionBloom?.length) this._drawShipExplosionBloom(ctx, gameState.shipExplosionBloom);
       if (gameState.fireballs?.length)          this._drawFireballs(ctx, gameState.fireballs);
       if (gameState.fireballSmoke?.length)      this._drawFireballSmoke(ctx, gameState.fireballSmoke);
@@ -1842,7 +1844,6 @@ export class Renderer {
   _drawShipExplosionBloom(ctx, particles) {
     const conv = this.conv;
     const img  = this._smokeImg?.complete ? this._smokeImg : null;
-    if (!img) return;
     const tc   = this._tintCanvas;
     const tctx = this._tintCtx;
     const lerp = (a, b, t) => a + (b - a) * t;
@@ -1884,16 +1885,22 @@ export class Renderer {
       else if (p.t > 0.7) alpha = ((1 - p.t) / 0.3) * 0.8;
       else                 alpha = 0.8;
 
-      tctx.clearRect(0, 0, 256, 256);
-      tctx.drawImage(img, 0, 0, 256, 256);
-      tctx.globalCompositeOperation = 'source-atop';
-      tctx.fillStyle = `rgb(${cr},${cg},${cb})`;
-      tctx.fillRect(0, 0, 256, 256);
-      tctx.globalCompositeOperation = 'source-over';
-
-      const size = radius * 2;
       ctx.globalAlpha = alpha;
-      ctx.drawImage(tc, p.x * conv - radius, p.y * conv - radius, size, size);
+      if (img && !this._useCircles) {
+        tctx.clearRect(0, 0, 256, 256);
+        tctx.drawImage(img, 0, 0, 256, 256);
+        tctx.globalCompositeOperation = 'source-atop';
+        tctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+        tctx.fillRect(0, 0, 256, 256);
+        tctx.globalCompositeOperation = 'source-over';
+        const size = radius * 2;
+        ctx.drawImage(tc, p.x * conv - radius, p.y * conv - radius, size, size);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x * conv, p.y * conv, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+        ctx.fill();
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
@@ -1923,7 +1930,7 @@ export class Renderer {
       const py   = s.y * conv;
       if (!this._isVisible(px, py, radius)) continue;
       const size = radius * 2;
-      if (img) {
+      if (img && !this._useCircles) {
         const tinted = this._getTintedSmoke(s.r, s.g, s.b);
         ctx.globalAlpha = alpha;
         ctx.drawImage(tinted, px - radius, py - radius, size, size);
@@ -1944,7 +1951,6 @@ export class Renderer {
   _drawFireballs(ctx, fireballs) {
     const conv = this.conv;
     const img  = this._smokeImg?.complete ? this._smokeImg : null;
-    if (!img) return;
     const tc   = this._tintCanvas;
     const tctx = this._tintCtx;
 
@@ -1954,16 +1960,22 @@ export class Renderer {
       if (!this._isVisible(fb.x * conv, fb.y * conv, radius)) continue;
       const alpha  = Math.max(0, 0.7 * (1 - fb.t));
 
-      tctx.clearRect(0, 0, 256, 256);
-      tctx.drawImage(img, 0, 0, 256, 256);
-      tctx.globalCompositeOperation = 'source-atop';
-      tctx.fillStyle = `rgb(${fb.r},${fb.g},${fb.b})`;
-      tctx.fillRect(0, 0, 256, 256);
-      tctx.globalCompositeOperation = 'source-over';
-
-      const size = radius * 2;
       ctx.globalAlpha = alpha;
-      ctx.drawImage(tc, fb.x * conv - radius, fb.y * conv - radius, size, size);
+      if (img && !this._useCircles) {
+        tctx.clearRect(0, 0, 256, 256);
+        tctx.drawImage(img, 0, 0, 256, 256);
+        tctx.globalCompositeOperation = 'source-atop';
+        tctx.fillStyle = `rgb(${fb.r},${fb.g},${fb.b})`;
+        tctx.fillRect(0, 0, 256, 256);
+        tctx.globalCompositeOperation = 'source-over';
+        const size = radius * 2;
+        ctx.drawImage(tc, fb.x * conv - radius, fb.y * conv - radius, size, size);
+      } else {
+        ctx.beginPath();
+        ctx.arc(fb.x * conv, fb.y * conv, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${fb.r},${fb.g},${fb.b})`;
+        ctx.fill();
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
@@ -1999,7 +2011,7 @@ export class Renderer {
       const py   = s.y * conv;
       if (!this._isVisible(px, py, radius)) continue;
       const size = radius * 2;
-      if (this._performance === 'experimental' && img) {
+      if (this._performance === 'experimental' && img && !this._useCircles) {
         const tinted = this._getTintedSmoke(s.r, s.g, s.b);
         ctx.globalAlpha = alpha;
         ctx.drawImage(tinted, px - radius, py - radius, size, size);

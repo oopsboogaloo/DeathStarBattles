@@ -16,6 +16,8 @@ import { AIController }                    from '../ai/AIController.js';
 export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryFast: 168 };
 
 export class GameLoop {
+  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad'; }
+
   constructor({ gameState, physics, renderer, rng, speed = 'normal', performance = 'full' }) {
     this.gs           = gameState;
     this.physics      = physics;
@@ -1206,7 +1208,7 @@ export class GameLoop {
 
   // Spawn shockwave + particle burst on a newly-killed station.
   _spawnStationExplosion(station) {
-    if (this._performance === 'experimental') {
+    if (this._isExperimental) {
       this._spawnBitmapExplosion(station);
       return;
     }
@@ -1735,7 +1737,7 @@ export class GameLoop {
     this.gs.activeExplosions = this.gs.activeExplosions.filter(ex => ex.t < 1 || ex.particles.length > 0);
 
     // Experimental bitmap explosions
-    if (this._performance === 'experimental') {
+    if (this._isExperimental) {
       for (const p of this.gs.shipExplosionBloom) p.t += p.dt;
       this.gs.shipExplosionBloom = this.gs.shipExplosionBloom.filter(p => p.t < 1);
 
