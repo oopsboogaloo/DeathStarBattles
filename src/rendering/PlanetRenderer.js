@@ -299,47 +299,66 @@ export class PlanetRenderer {
 
   // ----------------------------------------------------------------
   // Wormhole — glowing ring with dark void centre
-  // Display radius is 2× physics radius (matches original)
+  // Display radius is 1.8× physics radius
   // ----------------------------------------------------------------
   static _drawWormhole(ctx, planet, conv) {
+    if (planet.radius > 100) {
+      PlanetRenderer._drawGiantWormhole(ctx, planet, conv);
+      return;
+    }
     const cx = planet.position.x * conv;
     const cy = planet.position.y * conv;
     const r  = Math.max(4, planet.radius * 1.8 * conv);
     const [pr, pg, pb] = planet.colour;
 
-    if (planet.radius > 100) {
-      // Giant wormhole — draw at impactRadius so the arc appears at the screen
-      // corner where bullets are actually captured, not at the physics radius.
-      const vr = (planet.impactRadius ?? 50) * 8 * conv;
-      ctx.beginPath();
-      ctx.arc(cx, cy, vr * 0.38, 0, Math.PI * 2);
-      ctx.fillStyle = '#000';
-      ctx.fill();
-      const ringGrad = ctx.createRadialGradient(cx, cy, vr * 0.33, cx, cy, vr);
-      ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
-      ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
-      ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
-      ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
-      ctx.beginPath();
-      ctx.arc(cx, cy, vr, 0, Math.PI * 2);
-      ctx.fillStyle = ringGrad;
-      ctx.fill();
-    } else {
-      // Normal wormhole — full gradient ring at display radius
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
-      ctx.fillStyle = '#000';
-      ctx.fill();
-      const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.33, cx, cy, r);
-      ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
-      ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
-      ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
-      ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = ringGrad;
-      ctx.fill();
-    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.33, cx, cy, r);
+    ringGrad.addColorStop(0,    `rgba(${pr},${pg},${pb},0)`);
+    ringGrad.addColorStop(0.35, `rgba(${pr},${pg},${pb},1)`);
+    ringGrad.addColorStop(0.65, `rgba(${pr},${pg},${pb},0.55)`);
+    ringGrad.addColorStop(1,    `rgba(${pr},${pg},${pb},0)`);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = ringGrad;
+    ctx.fill();
+  }
+
+  // ----------------------------------------------------------------
+  // Giant wormhole — dedicated renderer for radius > 100.
+  // The brightest ring sits exactly at impactRadius (the physics capture
+  // boundary), so the visual precisely matches where bullets teleport.
+  // ----------------------------------------------------------------
+  static _drawGiantWormhole(ctx, planet, conv) {
+    const cx = planet.position.x * conv;
+    const cy = planet.position.y * conv;
+    const ir = (planet.impactRadius ?? 50) * conv;  // capture boundary = peak
+    const [pr, pg, pb] = planet.colour;
+
+    const outerR = ir * 3.5;
+    const t      = ir / outerR;  // normalised position of the ring within gradient
+
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR);
+    grad.addColorStop(0,                          `rgba(${pr},${pg},${pb},0)`);
+    grad.addColorStop(t * 0.75,                   `rgba(${pr},${pg},${pb},0.07)`);
+    grad.addColorStop(t * 0.93,                   `rgba(${pr},${pg},${pb},0.55)`);
+    grad.addColorStop(t,                          `rgba(${pr},${pg},${pb},1.0)`);
+    grad.addColorStop(Math.min(1, t + (1-t)*0.15),`rgba(${pr},${pg},${pb},0.55)`);
+    grad.addColorStop(Math.min(1, t + (1-t)*0.45),`rgba(${pr},${pg},${pb},0.15)`);
+    grad.addColorStop(1,                          `rgba(${pr},${pg},${pb},0)`);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Black void covers everything inside the capture zone
+    ctx.beginPath();
+    ctx.arc(cx, cy, ir * 0.96, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
   }
 
   // ----------------------------------------------------------------

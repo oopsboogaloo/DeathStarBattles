@@ -749,30 +749,50 @@ export class ScenarioFactory {
       // ── 28: Big Wormhole Pair ─────────────────────────────────────────────
       case 28: {
         {
-          // Two paired purple huge wormholes — centres fixed just outside opposite
-          // screen corners so the impact zone always clips into the playfield.
+          const ir = 480;  // capture / visual ring radius (6× the original 80)
+
+          // Centre sits outside the screen corner at distance D along each axis.
+          // The ring reaches the screen only when ir > D*√2, i.e. D < ir/√2 ≈ 0.707*ir.
+          // D varies from 0.30*ir (~54° arc, deeper into play area) to 0.62*ir (~16° arc, tight corner sliver).
+          const D = ir * (0.30 + rng.next() * 0.32);
+
           const bigR = (rng.next()*0.2 + rng.next()*0.2)*gh + 1.5*gh;
-          const margin = 10 + rng.next() * 25; // 10–35 units outside the corner
-          const cx0 = rng.next() < 0.5 ? -margin : gw + margin;
-          const cy0 = rng.next() < 0.5 ? -margin : gh + margin;
+
+          // Pick placement mode: 0=corners, 1=top+bottom, 2=left+right
+          const placement = Math.floor(rng.next() * 3);
+          let cx0, cy0;
+          if (placement === 1) {
+            // Top or bottom edge — x anywhere along the screen width
+            cx0 = rng.next() * gw;
+            cy0 = rng.next() < 0.5 ? -D : gh + D;
+          } else if (placement === 2) {
+            // Left or right edge — y anywhere along the screen height
+            cx0 = rng.next() < 0.5 ? -D : gw + D;
+            cy0 = rng.next() * gh;
+          } else {
+            // Corners
+            cx0 = rng.next() < 0.5 ? -D : gw + D;
+            cy0 = rng.next() < 0.5 ? -D : gh + D;
+          }
           const w0 = new Planet({
             position: new Vec2(cx0, cy0), radius: bigR,
             density: 1000/(bigR*bigR), mass: 100,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
-            impactRadius: 80,
+            impactRadius: ir,
           });
           const w1 = new Planet({
             position: new Vec2(gw - cx0, gh - cy0), radius: bigR,
             density: 1200/(bigR*bigR), mass: 1200,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
-            impactRadius: 80,
+            impactRadius: ir,
           });
           w0.partner = w1; w1.partner = w0;
           planets.push(w0, w1);
-          for (let i = 2; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1,0,0, 20,20,9, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
+          const nRocky = 2 + Math.floor(rng.next() * 4);  // 2–5
+          for (let i = 0; i < nRocky; i++)
+            planets.push(makePlanet(rng, 1,0,0, 8,8,4, gw,gh, 0.07, PlanetType.ROCKY, ASTEROID_COL, ShadingStyle.ROCKY));
         }
         break;
       }
@@ -1081,9 +1101,14 @@ export class ScenarioFactory {
     // No planet-planet overlap — use impactRadius for gameplay-relevant size,
     // falling back to radius. This prevents huge-physics/small-capture planets
     // (e.g. big wormholes) from failing validation due to their physics radius.
+    // Skip pairs where both planets are outside the screen — those are intentional
+    // designs (e.g. screen-edge giant wormholes) that don't need gap enforcement.
     for (let i = 0; i < planets.length; i++) {
       for (let j = i + 1; j < planets.length; j++) {
         const pi = planets[i], pj = planets[j];
+        const piOff = pi.position.x < 0 || pi.position.x > gw || pi.position.y < 0 || pi.position.y > gh;
+        const pjOff = pj.position.x < 0 || pj.position.x > gw || pj.position.y < 0 || pj.position.y > gh;
+        if (piOff && pjOff) continue;
         const ri = pi.impactRadius ?? pi.radius;
         const rj = pj.impactRadius ?? pj.radius;
         const dist = pi.position.distanceTo(pj.position);
@@ -1091,14 +1116,18 @@ export class ScenarioFactory {
       }
     }
 
-    // ≥80 of 400 grid points free (≥20% of play area)
+    // ≥80 of 400 grid points free (≥20% of play area).
+    // Off-screen planets are excluded — their in-screen coverage is intentional design.
+    const inScreen = planets.filter(p =>
+      p.position.x >= 0 && p.position.x <= gw && p.position.y >= 0 && p.position.y <= gh
+    );
     let freeCount = 0;
     for (let i = 0; i < 20; i++) {
       for (let j = 0; j < 20; j++) {
         const px = (i / 20) * gw;
         const py = (j / 20) * gh;
         let free = true;
-        for (const p of planets) {
+        for (const p of inScreen) {
           const pr = p.impactRadius ?? p.radius;
           if (p.position.distanceSqTo(new Vec2(px, py)) < pr * pr) {
             free = false;
