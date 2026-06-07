@@ -61,8 +61,8 @@ export class Renderer {
     setPlanetRendererSimplified(this._simplified);
   }
   get _simplified()     { return this._performance === 'simplified'; }
-  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad'; }
-  get _useCircles()     { return this._performance === 'exp-ipad'; }
+  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
+  get _useCircles()     { return this._performance === 'exp-ipad' || this._performance === 'full'; }
 
   // Returns game-unit dimensions of the visible viewport.
   get worldSize() { return { w: this._vpW / (this.conv || 1), h: this._vpH / (this.conv || 1) }; }

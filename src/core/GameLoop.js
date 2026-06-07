@@ -16,7 +16,7 @@ import { AIController }                    from '../ai/AIController.js';
 export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryFast: 168 };
 
 export class GameLoop {
-  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad'; }
+  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
 
   constructor({ gameState, physics, renderer, rng, speed = 'normal', performance = 'full' }) {
     this.gs           = gameState;
