@@ -419,7 +419,7 @@ export class ConfigPanel {
     this._updateSeedGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
-    this._page2Rows = [rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowMode, rowGameSpeed, rowMovement];
+    this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowGameSpeed, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowWildcard, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
