@@ -24,6 +24,8 @@ export class Renderer {
     this._stars       = [];
     this._planets     = [];
     this._performance = 'full'; // 'full' | 'simplified'
+    this._isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     // Letterbox / pillarbox viewport — updated by resize() and setGameAspect()
     this._gameAspect = null; // null = no lock yet, fill window
@@ -62,7 +64,7 @@ export class Renderer {
   }
   get _simplified()     { return this._performance === 'simplified'; }
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
-  get _useCircles()     { return this._performance === 'exp-ipad' || this._performance === 'full'; }
+  get _useCircles()     { return this._performance === 'exp-ipad' || this._performance === 'full' || (this._performance === 'experimental' && this._isIOS); }
 
   // Returns game-unit dimensions of the visible viewport.
   get worldSize() { return { w: this._vpW / (this.conv || 1), h: this._vpH / (this.conv || 1) }; }
