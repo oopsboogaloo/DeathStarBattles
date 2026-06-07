@@ -33,7 +33,7 @@ export class PlanetRenderer {
     const r  = Math.max(2, planet.radius * conv);
     const [pr, pg, pb] = planet.colour;
 
-    const isAsteroid = planet.type === PlanetType.ASTEROID;
+    const isAsteroid = planet.type === PlanetType.ASTEROID || planet.type === PlanetType.GIANT_ASTEROID;
     const isCrystal  = planet.type === PlanetType.CRYSTAL;
     if ((isAsteroid || isCrystal) && planet._rotatedVerts?.length) {
       const verts = planet._rotatedVerts;
