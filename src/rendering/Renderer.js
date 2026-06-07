@@ -532,7 +532,7 @@ export class Renderer {
     if (this._performance === 'experimental') {
       if (gameState.shipExplosionBloom?.length) this._drawShipExplosionBloom(ctx, gameState.shipExplosionBloom);
       if (gameState.fireballs?.length)          this._drawFireballs(ctx, gameState.fireballs);
-      if (gameState.fireballSmoke?.length)      this._drawRocketSmoke(ctx, gameState.fireballSmoke);
+      if (gameState.fireballSmoke?.length)      this._drawFireballSmoke(ctx, gameState.fireballSmoke);
     }
 
     // Comet + rocket smoke (drawn behind everything else)
@@ -1897,6 +1897,44 @@ export class Renderer {
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
+  }
+
+  // ----------------------------------------------------------------
+  // Experimental: fireball smoke — instant expand, slow fade hold
+  // ----------------------------------------------------------------
+
+  _drawFireballSmoke(ctx, smoke) {
+    const conv = this.conv;
+    const img  = this._smokeImg?.complete ? this._smokeImg : null;
+    for (const s of smoke) {
+      let radius, alpha;
+      if (s.t < 0.03) {
+        // Almost instant bloom to full size
+        radius = s.maxR * (s.t / 0.03) * conv;
+        alpha  = 0.5;
+      } else {
+        // Hold size, slow alpha fade
+        const frac = (s.t - 0.03) / 0.97;
+        radius = s.maxR * conv;
+        alpha  = Math.max(0, 0.5 * (1 - frac));
+      }
+      if (radius <= 0) continue;
+      const px   = s.x * conv;
+      const py   = s.y * conv;
+      if (!this._isVisible(px, py, radius)) continue;
+      const size = radius * 2;
+      if (img) {
+        const tinted = this._getTintedSmoke(s.r, s.g, s.b);
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(tinted, px - radius, py - radius, size, size);
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${s.r},${s.g},${s.b},${alpha.toFixed(3)})`;
+        ctx.fill();
+      }
+    }
   }
 
   // ----------------------------------------------------------------

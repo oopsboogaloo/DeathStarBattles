@@ -1247,7 +1247,7 @@ export class GameLoop {
     const nFB = 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < nFB; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = (3 + Math.random() * 5) * 0.2;
+      const speed = (3 + Math.random() * 5) * 0.1;
       this.gs.fireballs.push({
         x: ox, y: oy,
         vx: Math.cos(angle) * speed,
@@ -1747,7 +1747,7 @@ export class GameLoop {
           if (rSq < 0.01) continue;
           const sign  = dx < 0 ? -1 : 1;
           const theta = Math.atan(dy / dx);
-          const accel = sign * G * planet.mass / rSq;
+          const accel = sign * G * planet.mass / rSq * 4;
           fb.vx += Math.cos(theta) * accel * TIMESTEP;
           fb.vy += Math.sin(theta) * accel * TIMESTEP;
         }
