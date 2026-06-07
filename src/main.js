@@ -454,7 +454,7 @@ function startGame(cfg) {
 
   _applyStartingWeapons(teams, cfg, rng);
 
-  const stars = Renderer.generateStarField(gw, gh);
+  const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined);
   renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
 
   const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
@@ -525,7 +525,7 @@ function startStoryMission(mission) {
   const { gs: gameState, teams } = buildStoryMission(mission, physics, rng);
   gameState.config.bulletPaths = panel.getData().bulletPaths ?? 'off';
 
-  const stars = Renderer.generateStarField(gw, gh);
+  const stars = Renderer.generateStarField(gw, gh, panel.getData().performance === 'simplified' ? 1000 : undefined);
   renderer.drawBackground(stars, gameState.planets);
 
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: mission.settings.gameSpeed ?? 'normal', performance: 'full' });
@@ -632,7 +632,7 @@ function startTPGame(cfg) {
   }
 
   // Draw background
-  const stars = Renderer.generateStarField(gw, gh);
+  const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined);
   renderer.drawBackground(stars, planets, []);
 
   // Build game state

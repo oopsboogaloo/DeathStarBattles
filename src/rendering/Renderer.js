@@ -315,6 +315,7 @@ export class Renderer {
 
   _drawStarField(ctx) {
     const conv = this.conv;
+    ctx.globalCompositeOperation = 'lighter';
 
     for (const star of this._stars) {
       const px = star.gx * conv;
@@ -323,23 +324,31 @@ export class Renderer {
       const a  = star.alpha ?? 1;
       const { red: r, green: g, blue: b } = star;
 
-      // Hot core: nudge toward white for an emissive feel
-      const cr = Math.min(255, r + 60);
-      const cg = Math.min(255, g + 60);
-      const cb = Math.min(255, b + 60);
-
-      // Gradient biased toward the edge — wide bright centre, steep falloff in outer ~25%
       const grad = ctx.createRadialGradient(px, py, 0, px, py, pr);
-      grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${a})`);
-      grad.addColorStop(0.55, `rgba(${r},${g},${b},${a})`);
-      grad.addColorStop(0.82, `rgba(${Math.floor(r * 0.4)},${Math.floor(g * 0.4)},${Math.floor(b * 0.4)},${a * 0.4})`);
-      grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+      if (star.giant) {
+        // Soft diffuse nebula smear — no sharp core, fades from centre outward
+        grad.addColorStop(0,    `rgba(${r},${g},${b},${a * 0.5})`);
+        grad.addColorStop(0.25, `rgba(${r},${g},${b},${a * 0.3})`);
+        grad.addColorStop(0.6,  `rgba(${r},${g},${b},${a * 0.1})`);
+        grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+      } else {
+        // Hot core: nudge toward white for an emissive feel
+        const cr = Math.min(255, r + 60);
+        const cg = Math.min(255, g + 60);
+        const cb = Math.min(255, b + 60);
+        // Wide bright centre, steep falloff in outer ~25%
+        grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${a})`);
+        grad.addColorStop(0.55, `rgba(${r},${g},${b},${a})`);
+        grad.addColorStop(0.82, `rgba(${Math.floor(r * 0.4)},${Math.floor(g * 0.4)},${Math.floor(b * 0.4)},${a * 0.4})`);
+        grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+      }
 
       ctx.beginPath();
       ctx.arc(px, py, pr, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
     }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // ----------------------------------------------------------------
@@ -2341,54 +2350,50 @@ export class Renderer {
   // stars, composited with a light blur for a nebula feel.
   // ----------------------------------------------------------------
 
-  static generateStarField(gameWidth, gameHeight, count = 3500) {
-    // Build a layered value-noise density map on a coarse grid
-    const G = 12; // grid resolution
-    const grid = Array.from({ length: (G + 1) * (G + 1) }, () => Math.random());
-
-    const noise = (nx, ny) => {
-      const ix = Math.floor(nx * G), iy = Math.floor(ny * G);
-      const fx = nx * G - ix,        fy = ny * G - iy;
-      const ux = fx * fx * (3 - 2 * fx); // smoothstep
-      const uy = fy * fy * (3 - 2 * fy);
-      const v00 = grid[ iy      * (G + 1) + ix    ];
-      const v10 = grid[ iy      * (G + 1) + ix + 1];
-      const v01 = grid[(iy + 1) * (G + 1) + ix    ];
-      const v11 = grid[(iy + 1) * (G + 1) + ix + 1];
-      return v00 + (v10 - v00) * ux + ((v01 - v00) + (v00 - v10 - v01 + v11) * ux) * uy;
+  static generateStarField(gameWidth, gameHeight, count = 8000) {
+    // Build a layered value-noise density map — three octaves for large cloud shapes down to fine detail
+    const makeNoise = (G) => {
+      const grid = Array.from({ length: (G + 1) * (G + 1) }, () => Math.random());
+      return (nx, ny) => {
+        const ix = Math.floor(nx * G), iy = Math.floor(ny * G);
+        const fx = nx * G - ix,        fy = ny * G - iy;
+        const ux = fx * fx * (3 - 2 * fx); // smoothstep
+        const uy = fy * fy * (3 - 2 * fy);
+        const v00 = grid[ iy      * (G + 1) + ix    ];
+        const v10 = grid[ iy      * (G + 1) + ix + 1];
+        const v01 = grid[(iy + 1) * (G + 1) + ix    ];
+        const v11 = grid[(iy + 1) * (G + 1) + ix + 1];
+        return v00 + (v10 - v00) * ux + ((v01 - v00) + (v00 - v10 - v01 + v11) * ux) * uy;
+      };
     };
 
-    // Second octave for finer detail
-    const G2 = 28;
-    const grid2 = Array.from({ length: (G2 + 1) * (G2 + 1) }, () => Math.random());
-    const noise2 = (nx, ny) => {
-      const ix = Math.floor(nx * G2), iy = Math.floor(ny * G2);
-      const fx = nx * G2 - ix,         fy = ny * G2 - iy;
-      const ux = fx * fx * (3 - 2 * fx);
-      const uy = fy * fy * (3 - 2 * fy);
-      const v00 = grid2[ iy      * (G2 + 1) + ix    ];
-      const v10 = grid2[ iy      * (G2 + 1) + ix + 1];
-      const v01 = grid2[(iy + 1) * (G2 + 1) + ix    ];
-      const v11 = grid2[(iy + 1) * (G2 + 1) + ix + 1];
-      return v00 + (v10 - v00) * ux + ((v01 - v00) + (v00 - v10 - v01 + v11) * ux) * uy;
-    };
+    const noise1 = makeNoise(5);   // very coarse — large cloud shapes
+    const noise2 = makeNoise(12);  // medium — region structure
+    const noise3 = makeNoise(28);  // fine detail
 
-    const density = (nx, ny) => noise(nx, ny) * 0.65 + noise2(nx, ny) * 0.35;
+    // Blend, then raise to a power to sharpen contrast: dense regions pull stars in hard, voids stay empty
+    const rawDensity = (nx, ny) => noise1(nx, ny) * 0.50 + noise2(nx, ny) * 0.35 + noise3(nx, ny) * 0.15;
+    const density    = (nx, ny) => Math.pow(rawDensity(nx, ny), 3);
 
     const stars = [];
     for (let i = 0; i < count; i++) {
       // Rejection sampling: accept candidate with probability = density at that point
-      let gx, gy;
-      for (let attempt = 0; attempt < 8; attempt++) {
+      let gx, gy, placedDensity = 0.3; // fallback density for randomly-placed stars
+      for (let attempt = 0; attempt < 20; attempt++) {
         const cx = Math.random(), cy = Math.random();
-        if (Math.random() < density(cx, cy)) { gx = cx * gameWidth; gy = cy * gameHeight; break; }
+        const d = density(cx, cy);
+        if (Math.random() < d) { gx = cx * gameWidth; gy = cy * gameHeight; placedDensity = d; break; }
       }
       if (gx === undefined) { gx = Math.random() * gameWidth; gy = Math.random() * gameHeight; }
 
       // Small radii — mostly sub-pixel, occasional slightly larger
-      const gr = Math.random() < 0.85
-        ? 0.4 + Math.random() * 1.0          // tiny (0.4–1.4)
-        : 1.4 + Math.random() * Math.random() * 2.0; // occasional larger (1.4–3.4)
+      // Giants are weighted by local density — sparse areas rarely get large fuzzy smears
+      const isGiant = Math.random() < 0.40 * placedDensity;
+      const gr = isGiant
+        ? (0.4 + Math.random() * 1.0) * 10    // 10%: 10× size (4.0–14.0)
+        : Math.random() < 0.85
+          ? 0.4 + Math.random() * 1.0          // tiny (0.4–1.4)
+          : 1.4 + Math.random() * Math.random() * 2.0; // occasional larger (1.4–3.4)
 
       // Nebula colour palette: cooler, deeper tones biased toward blue
       const palette = Math.random();
@@ -2416,9 +2421,11 @@ export class Renderer {
       }
 
       // Alpha: reduced range for a darker, less distracting background
-      const alpha = 0.18 + Math.random() * 0.32;
+      const alpha = isGiant
+        ? (0.18 + Math.random() * 0.32) / 1.5  // giant stars: 1.5× fainter
+        : 0.18 + Math.random() * 0.32;
 
-      stars.push({ gx, gy, gr, red, green, blue, alpha });
+      stars.push({ gx, gy, gr, red, green, blue, alpha, giant: isGiant });
     }
     return stars;
   }
