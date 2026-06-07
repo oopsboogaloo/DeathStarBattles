@@ -385,13 +385,15 @@ export class Renderer {
     const celestial = gs?.planets?.length ?? 0;
     const ships     = gs?.teams?.reduce((s, t) => s + t.stations.length, 0) ?? 0;
     const bullets   = (gs?.activeBullets?.length ?? 0) + (gs?.rockets?.length ?? 0);
+    const wormholePCount = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
                     + (gs?.cometSmoke?.length ?? 0)
                     + (gs?.vfxList?.length ?? 0)
                     + (gs?.activeExplosions?.reduce((s, e) => s + (e.particles?.length ?? 0), 0) ?? 0)
                     + (gs?.shipExplosionBloom?.length ?? 0)
                     + (gs?.fireballs?.length ?? 0)
-                    + (gs?.fireballSmoke?.length ?? 0);
+                    + (gs?.fireballSmoke?.length ?? 0)
+                    + wormholePCount;
 
     this._debugEl.textContent =
       `FPS        ${Math.round(this._fpsSmooth)}\n` +
