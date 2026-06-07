@@ -350,7 +350,7 @@ function updateButtons(gs) {
 // ─── Game-over handler ────────────────────────────────────────────────────────
 
 function _onGameOver(gs) {
-  if (isDemo) return;
+  if (isDemo) { startGame(DEMO_CONFIG); return; }
   lastGameState = gs;
   _menuPausedLoop = false;
   panel.setCanResume(false);
