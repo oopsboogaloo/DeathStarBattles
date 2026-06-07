@@ -49,6 +49,57 @@ export class PlanetRenderer {
 
       const ldx = -0.62, ldy = -0.78;
 
+      const shade = (nx, ny) => {
+        const f = 0.35 + Math.max(0, nx * ldx + ny * ldy) * 0.85;
+        ctx.fillStyle = `rgb(${Math.min(255, Math.round(pr * f))},${Math.min(255, Math.round(pg * f))},${Math.min(255, Math.round(pb * f))})`;
+      };
+      const outwardNormal = (ax, ay, bx, by) => {
+        const edx = bx - ax, edy = by - ay, len = Math.hypot(edx, edy) || 1;
+        let nx = -edy / len, ny = edx / len;
+        if (((ax + bx) / 2 - cx) * nx + ((ay + by) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny; }
+        return [nx, ny];
+      };
+
+      if (planet.type === PlanetType.GIANT_ASTEROID) {
+        // Staggered mid ring: midpoints of outer edges pulled to 62% of their
+        // centre distance. Mid vertices sit angularly between outer vertices,
+        // so the inner row of triangle faces has genuinely different normals
+        // and shading — producing two visually distinct rows.
+        const mid = outer.map((v, i) => {
+          const j = (i + 1) % n;
+          const mx = (v.x + outer[j].x) / 2, my = (v.y + outer[j].y) / 2;
+          return { x: cx + (mx - cx) * 0.62, y: cy + (my - cy) * 0.62 };
+        });
+        const core = outer.map(v => ({
+          x: cx + (v.x - cx) * 0.32,
+          y: cy + (v.y - cy) * 0.32,
+        }));
+
+        for (let i = 0; i < n; i++) {
+          const j = (i + 1) % n, h = (i - 1 + n) % n;
+          // A — outer face
+          let [nx, ny] = outwardNormal(outer[i].x, outer[i].y, outer[j].x, outer[j].y);
+          shade(nx, ny);
+          ctx.beginPath(); ctx.moveTo(outer[i].x, outer[i].y); ctx.lineTo(outer[j].x, outer[j].y); ctx.lineTo(mid[i].x, mid[i].y); ctx.closePath(); ctx.fill();
+          // B — corner connector
+          [nx, ny] = outwardNormal(mid[h].x, mid[h].y, outer[i].x, outer[i].y);
+          shade(nx, ny);
+          ctx.beginPath(); ctx.moveTo(mid[h].x, mid[h].y); ctx.lineTo(outer[i].x, outer[i].y); ctx.lineTo(mid[i].x, mid[i].y); ctx.closePath(); ctx.fill();
+          // C — inner ledge face
+          [nx, ny] = outwardNormal(mid[h].x, mid[h].y, mid[i].x, mid[i].y);
+          shade(nx, ny);
+          ctx.beginPath(); ctx.moveTo(mid[h].x, mid[h].y); ctx.lineTo(mid[i].x, mid[i].y); ctx.lineTo(core[i].x, core[i].y); ctx.closePath(); ctx.fill();
+        }
+        // Deep inner top face
+        ctx.beginPath();
+        ctx.moveTo(core[0].x, core[0].y);
+        for (let i = 1; i < n; i++) ctx.lineTo(core[i].x, core[i].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgb(${Math.min(255, Math.round(pr * 0.72))},${Math.min(255, Math.round(pg * 0.72))},${Math.min(255, Math.round(pb * 0.72))})`;
+        ctx.fill();
+        return;
+      }
+
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         const edx = outer[j].x - outer[i].x;
