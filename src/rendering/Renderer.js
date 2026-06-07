@@ -39,6 +39,7 @@ export class Renderer {
     this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
     this._wormholeParticles   = new Map(); // planet → WormholeParticles
+    this._gasGiantCache       = new Map(); // planet → {canvas, half, conv, hasOverlay}
     this._smokeImg            = null;
     this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
     this._loadSmokeSprite();
@@ -154,6 +155,7 @@ export class Renderer {
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
     this._wormholeParticles.clear();
+    this._gasGiantCache.clear();
     for (const planet of planets) {
       if (planet.shading === ShadingStyle.WORMHOLE && planet.radius <= 100) {
         this._wormholeParticles.set(planet, new WormholeParticles(planet, planet.particleConfig));
@@ -434,7 +436,6 @@ export class Renderer {
     }
 
     // Gas giants — drawn live so their 50% transparency composites correctly over background.
-    // Base circle in colourA; SVG overlay in colourB replaces old stripe rendering.
     if (!this._simplified) for (const planet of this._planets) {
       if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
       this._drawAtmosphere(this.mainCtx, planet);
@@ -442,22 +443,10 @@ export class Renderer {
     if (!this._simplified) ctx.filter = 'blur(3px)';
     for (const planet of this._planets) {
       if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
-      const cx = planet.position.x * this.conv;
-      const cy = planet.position.y * this.conv;
-      const r  = Math.max(2, planet.radius * this.conv);
-      const [ar, ag, ab] = planet.colour;
-      const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
-      grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
-      grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
-      grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-      if (!this._simplified) {
-        const overlays = this._svgOverlayCache.get(planet);
-        if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
-      }
+      const cx    = planet.position.x * this.conv;
+      const cy    = planet.position.y * this.conv;
+      const cache = this._getGasGiantCache(planet);
+      ctx.drawImage(cache.canvas, cx - cache.half, cy - cache.half);
     }
     if (!this._simplified) ctx.filter = 'none';
 
@@ -695,6 +684,53 @@ export class Renderer {
     this._tintCanvas = document.createElement('canvas');
     this._tintCanvas.width = this._tintCanvas.height = 256;
     this._tintCtx   = this._tintCanvas.getContext('2d');
+  }
+
+  _getGasGiantCache(planet) {
+    const overlays   = this._svgOverlayCache.get(planet);
+    const hasOverlay = !!(overlays?.length && overlays[0].img?.complete && overlays[0].img.naturalWidth > 0);
+    const cached     = this._gasGiantCache.get(planet);
+    if (cached && cached.conv === this.conv && cached.hasOverlay === hasOverlay) return cached;
+
+    const conv   = this.conv;
+    const r      = Math.max(2, planet.radius * conv);
+    const margin = 6;
+    const size   = Math.ceil(r * 2) + margin * 2;
+    const half   = size / 2;
+
+    const c    = document.createElement('canvas');
+    c.width    = c.height = size;
+    const octx = c.getContext('2d');
+
+    const [ar, ag, ab] = planet.colour;
+    const grad = octx.createRadialGradient(half - r * 0.3, half - r * 0.3, r * 0.05, half, half, r);
+    grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
+    grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
+    grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
+    octx.beginPath();
+    octx.arc(half, half, r, 0, Math.PI * 2);
+    octx.fillStyle = grad;
+    octx.fill();
+
+    if (!this._simplified && overlays) {
+      for (const { img, rotation, alpha, scale } of overlays) {
+        if (!img.complete || img.naturalWidth === 0) continue;
+        const imgSize = r * 2 * scale;
+        octx.save();
+        octx.beginPath();
+        octx.arc(half, half, r, 0, Math.PI * 2);
+        octx.clip();
+        octx.globalAlpha = alpha;
+        octx.translate(half, half);
+        octx.rotate(rotation);
+        octx.drawImage(img, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+        octx.restore();
+      }
+    }
+
+    const entry = { canvas: c, half, conv, hasOverlay };
+    this._gasGiantCache.set(planet, entry);
+    return entry;
   }
 
   _getTintedSmoke(r, g, b) {
