@@ -1,6 +1,7 @@
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';
+import { GiantWormholeParticles } from './GiantWormholeParticles.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
@@ -38,7 +39,8 @@ export class Renderer {
     this._svgOverlayCache     = new Map(); // planet → [{img, rotation, alpha}]
     this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
-    this._wormholeParticles   = new Map(); // planet → WormholeParticles
+    this._wormholeParticles      = new Map(); // planet → WormholeParticles
+    this._giantWormholeParticles = new Map(); // planet → GiantWormholeParticles
     this._gasGiantCanvas      = null;      // combined viewport-sized canvas, rebuilt on game start/resize/SVG load
     this._gasGiantBitmap      = null;      // ImageBitmap snapshot for zero-flush drawImage
     this._smokeImg            = null;
@@ -157,11 +159,18 @@ export class Renderer {
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
     this._wormholeParticles.clear();
+    this._giantWormholeParticles.clear();
     this._gasGiantCanvas = null;
     this._gasGiantBitmap = null;
     for (const planet of planets) {
-      if (planet.shading === ShadingStyle.WORMHOLE && planet.radius <= 100) {
-        this._wormholeParticles.set(planet, new WormholeParticles(planet, planet.particleConfig));
+      if (planet.shading === ShadingStyle.WORMHOLE) {
+        if (planet.radius > 100) {
+          this._giantWormholeParticles.set(
+            planet, new GiantWormholeParticles(planet, this.gameWidth, this.gameHeight)
+          );
+        } else {
+          this._wormholeParticles.set(planet, new WormholeParticles(planet, planet.particleConfig));
+        }
       }
     }
 
@@ -447,6 +456,10 @@ export class Renderer {
       for (const [planet, particles] of this._wormholeParticles) {
         particles.update(now);
         particles.draw(ctx, this.conv, this._useCircles);
+      }
+      for (const [planet, particles] of this._giantWormholeParticles) {
+        particles.update(now);
+        particles.draw(ctx, this.conv, this._vpW, this._vpH);
       }
     }
 

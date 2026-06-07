@@ -354,10 +354,14 @@ export class PlanetRenderer {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Black void covers everything inside the capture zone
+    // Void — solid black at centre, fading to transparent exactly at the event
+    // horizon so the transition into the bright ring is smooth, not a hard edge.
+    const voidGrad = ctx.createRadialGradient(cx, cy, ir * 0.70, cx, cy, ir);
+    voidGrad.addColorStop(0, 'rgba(0,0,0,1)');
+    voidGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.beginPath();
-    ctx.arc(cx, cy, ir * 0.96, 0, Math.PI * 2);
-    ctx.fillStyle = '#000';
+    ctx.arc(cx, cy, ir, 0, Math.PI * 2);
+    ctx.fillStyle = voidGrad;
     ctx.fill();
   }
 
