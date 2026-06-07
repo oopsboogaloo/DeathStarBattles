@@ -145,8 +145,17 @@ function makeGiantAsteroid(rng, gw, gh, richProb) {
   const radius = Math.floor(Math.min(gw, gh) / 4); // radius = ¼ of shorter dimension
   const cx     = radius + rng.next() * (gw - 2 * radius);
   const cy     = radius + rng.next() * (gh - 2 * radius);
-  const n      = 8 + Math.floor(rng.next() * 3); // 8-10 vertices — more detailed polygon
-  const vertices      = asteroidVertices(rng, n);
+  // 5-6 vertices with wide radius range so the shape is unmistakably a jagged rock,
+  // not a smooth circle, at the very large screen size
+  const n = 5 + Math.floor(rng.next() * 2);
+  const vertices = [];
+  for (let i = 0; i < n; i++) {
+    const baseAngle = (2 * Math.PI * i) / n;
+    const jitter    = (rng.next() - 0.5) * (Math.PI / n) * 1.4;
+    const angle     = baseAngle + jitter;
+    const vr        = 0.35 + rng.next() * 0.65;
+    vertices.push(new Vec2(vr * Math.cos(angle), vr * Math.sin(angle)));
+  }
   const rotation      = rng.next() * Math.PI * 2;
   const rotationSpeed = (0.02 + rng.next() * 0.08) * Math.PI / 180; // very slow rotation
   const isRich        = richProb > 0 && rng.next() < richProb;
