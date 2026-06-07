@@ -2376,7 +2376,9 @@ export class Renderer {
     const density    = (nx, ny) => Math.pow(rawDensity(nx, ny), 3);
 
     const stars = [];
+    const deadline = Date.now() + 5000;
     for (let i = 0; i < count; i++) {
+      if (i % 100 === 0 && Date.now() > deadline) break;
       // Rejection sampling: accept candidate with probability = density at that point
       let gx, gy, placedDensity = 0.3; // fallback density for randomly-placed stars
       for (let attempt = 0; attempt < 20; attempt++) {

@@ -372,7 +372,10 @@ function _onGameOver(gs) {
 let loop    = null;
 let handler = null;
 
-function startGame(cfg) {
+async function startGame(cfg) {
+  _loadBar.show(0, 'Generating world...');
+  await _yieldFrame();
+
   if (loop) { loop.stop(); loop = null; }
   _menuPausedLoop = false;
   panel.setCanResume(false);
@@ -454,7 +457,14 @@ function startGame(cfg) {
 
   _applyStartingWeapons(teams, cfg, rng);
 
+  _loadBar.update(45, 'Placing stars...');
+  await _yieldFrame();
+
   const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined);
+
+  _loadBar.update(70, 'Rendering...');
+  await _yieldFrame();
+
   renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
 
   const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
@@ -464,6 +474,9 @@ function startGame(cfg) {
   for (const team of teams.filter(t => !t.isHuman)) {
     team.controller = AIController.create(cfg.aiLevel ?? 3, physics);
   }
+
+  _loadBar.update(95, 'Starting...');
+  await _yieldFrame();
 
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   aimControls.setLoop(loop);
@@ -480,6 +493,7 @@ function startGame(cfg) {
 
   handler = new InputHandler({ canvas, loop, renderer });
   loop.start();
+  _loadBar.hide();
 
   updateButtons(gameState);
 }
@@ -488,7 +502,10 @@ function startGame(cfg) {
 
 let _currentStoryMission = null;
 
-function startStoryMission(mission) {
+async function startStoryMission(mission) {
+  _loadBar.show(0, 'Loading mission...');
+  await _yieldFrame();
+
   if (loop) { loop.stop(); loop = null; }
   _menuPausedLoop      = false;
   _prevMode            = null;
@@ -525,8 +542,18 @@ function startStoryMission(mission) {
   const { gs: gameState, teams } = buildStoryMission(mission, physics, rng);
   gameState.config.bulletPaths = panel.getData().bulletPaths ?? 'off';
 
+  _loadBar.update(45, 'Placing stars...');
+  await _yieldFrame();
+
   const stars = Renderer.generateStarField(gw, gh, panel.getData().performance === 'simplified' ? 1000 : undefined);
+
+  _loadBar.update(70, 'Rendering...');
+  await _yieldFrame();
+
   renderer.drawBackground(stars, gameState.planets);
+
+  _loadBar.update(95, 'Starting...');
+  await _yieldFrame();
 
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: mission.settings.gameSpeed ?? 'normal', performance: 'full' });
   aimControls.setLoop(loop);
@@ -539,6 +566,7 @@ function startStoryMission(mission) {
 
   handler = new InputHandler({ canvas, loop, renderer });
   loop.start();
+  _loadBar.hide();
 
   updateButtons(gameState);
 }
@@ -547,7 +575,10 @@ function startStoryMission(mission) {
 
 const MAX_TP_REROLLS = 6;
 
-function startTPGame(cfg) {
+async function startTPGame(cfg) {
+  _loadBar.show(0, 'Generating world...');
+  await _yieldFrame();
+
   if (loop) { loop.stop(); loop = null; }
   _menuPausedLoop = false;
   panel.setCanResume(false);
@@ -632,7 +663,14 @@ function startTPGame(cfg) {
   }
 
   // Draw background
+  _loadBar.update(45, 'Placing stars...');
+  await _yieldFrame();
+
   const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined);
+
+  _loadBar.update(70, 'Rendering...');
+  await _yieldFrame();
+
   renderer.drawBackground(stars, planets, []);
 
   // Build game state
@@ -649,6 +687,9 @@ function startTPGame(cfg) {
   // Build TargetPracticeGame
   const stationList = teams.flatMap(t => t.stations);
   gameState.tpGame  = new TargetPracticeGame({ targets: selectedTargets, totalRounds: rounds, stationList, teams });
+
+  _loadBar.update(95, 'Starting...');
+  await _yieldFrame();
 
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   loop.setTPResultsCallback(() => {
@@ -669,6 +710,7 @@ function startTPGame(cfg) {
   handler = new InputHandler({ canvas, loop, renderer });
   loop.startTP();
   loop.start();
+  _loadBar.hide();
 
   updateButtons(gameState);
 }
@@ -705,6 +747,43 @@ function _applyStartingWeapons(teams, cfg, rng) {
     }
   }
 }
+
+// ─── Loading bar ─────────────────────────────────────────────────────────────
+
+const _loadBar = (() => {
+  const overlay = document.createElement('div');
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.82)',
+    display: 'none', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'monospace', zIndex: '200',
+  });
+  const label = document.createElement('div');
+  Object.assign(label.style, {
+    color: 'rgba(150,170,255,0.7)', fontSize: '12px',
+    letterSpacing: '0.12em', marginBottom: '14px',
+  });
+  const track = document.createElement('div');
+  Object.assign(track.style, {
+    width: '240px', height: '3px',
+    background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden',
+  });
+  const fill = document.createElement('div');
+  Object.assign(fill.style, {
+    height: '100%', background: 'rgba(100,140,255,0.85)',
+    width: '0%', transition: 'width 0.12s ease',
+  });
+  track.appendChild(fill);
+  overlay.append(label, track);
+  document.body.appendChild(overlay);
+  return {
+    show(pct, text) { label.textContent = text; fill.style.width = `${pct}%`; overlay.style.display = 'flex'; },
+    update(pct, text) { if (text) label.textContent = text; fill.style.width = `${pct}%`; },
+    hide() { overlay.style.display = 'none'; fill.style.width = '0%'; },
+  };
+})();
+
+const _yieldFrame = () => new Promise(r => setTimeout(r, 0));
 
 // ─── Demo title + hint overlay ───────────────────────────────────────────────
 
