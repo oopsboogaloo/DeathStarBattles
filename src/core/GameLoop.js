@@ -1302,6 +1302,7 @@ export class GameLoop {
       const factor   = n <= 3 ? 0.40 : n <= 4 ? 0.35 : 0.30;
       const childR   = moon.radius * factor;
       const maxDist  = moon.radius - childR;
+      const placed   = []; // track siblings to avoid inter-child overlap
       for (let i = 0; i < n; i++) {
         const angle = this.rng.next() * Math.PI * 2;
         const dist  = Math.sqrt(this.rng.next()) * maxDist;
@@ -1309,8 +1310,17 @@ export class GameLoop {
           moon.position.x + Math.cos(angle) * dist,
           moon.position.y + Math.sin(angle) * dist,
         );
+        // Skip if this child overlaps any existing planet or an already-placed sibling
+        const r = Math.max(8, childR);
+        const overlaps = (cx, cy, cr) => {
+          const ddx = pos.x - cx, ddy = pos.y - cy;
+          return ddx * ddx + ddy * ddy < (r + cr) ** 2;
+        };
+        if (this.gs.planets.some(p => p !== moon && !p.destroyed && overlaps(p.position.x, p.position.y, p.impactRadius))) continue;
+        if (placed.some(p => overlaps(p.x, p.y, p.r))) continue;
+        placed.push({ x: pos.x, y: pos.y, r });
         // Children have no initial velocity (spec: no initial velocity)
-        const child = this._makeChildAsteroid(pos, Math.max(8, childR), moon.density, false);
+        const child = this._makeChildAsteroid(pos, r, moon.density, false);
         this.gs.planets.push(child);
       }
       this._spawnAsteroidExplosion(moon);
