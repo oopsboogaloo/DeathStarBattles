@@ -3,13 +3,13 @@
 // Only the visible arc of the ring is populated; off-screen positions are culled.
 
 const DEFAULTS = {
-  count:         150,
+  count:         300,
   spawnMult:     1.40,  // spawn ring = impactRadius * spawnMult (game units)
   voidMult:      1.02,  // despawn just outside the event horizon
   angularSpeed:  0.80,  // rad/s at spawn radius
   momentumExp:   1.70,  // angular speed scales as (spawnR / r) ^ momentumExp
   inwardFrac:    0.15,  // inward speed = impactRadius * inwardFrac per second
-  blobRadius:    7,     // particle visual radius in game units (fixed, not fraction of ir)
+  blobRadius:    14,    // particle visual radius in game units (fixed, not fraction of ir)
   alphaMax:      0.30,
   alphaFadeMult: 1.20,  // full alpha once r >= impactRadius * alphaFadeMult; fades inward below
   hueRange:      35,    // ± hue jitter per particle
