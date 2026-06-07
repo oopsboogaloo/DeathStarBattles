@@ -58,13 +58,17 @@ Show the gravity-curved path(s) that the bullets will likely travel. For weapons
 
 ### Menu setting
 
-Config panel option: **BULLET PATHS** with values **OFF / FULL / HALF / QUARTER**.
+Config panel option: **BULLET PATH ASSIST** with values **OFF / MINOR / MAJOR / EXTREME / CHEATING**.
 
-- **OFF** — no path preview drawn (default)
-- **FULL** — path drawn up to 1 screen width in length
-- **HALF** — path drawn up to half a screen width
-- **QUARTER** — path drawn up to a quarter of a screen width
-- **EIGHTH** — path drawn up to an eighth of a screen width
+Clicking cycles upward in assistance level: OFF → Minor → Major → Extreme → Cheating.
+
+| Label | Internal value | Max path length |
+|---|---|---|
+| Off | `off` | No preview |
+| Minor | `eighth` | ⅛ screen width |
+| Major | `quarter` | ¼ screen width |
+| Extreme | `half` | ½ screen width |
+| Cheating | `full` | 1 full screen width |
 
 "Screen width" = 700 game units (the full game coordinate space). Paths are truncated when cumulative path length reaches the limit, regardless of whether the bullet would still be in-flight.
 
@@ -119,7 +123,9 @@ For weapons with a **fixed speed** independent of `station.power` (blaster, blun
 
 ### Status
 
-Not yet implemented. `_computeBulletPreviewPath` exists in `Renderer.js` as infrastructure but is not called. Path preview is disabled for all weapons pending this feature's implementation.
+- **Working.** `_computeBulletPreviewPath` and `_drawBulletPathPreview` are implemented in `Renderer.js` and called during aiming for all applicable weapons.
+- The preview uses a coarse step size (`STEP_SIZE = 20`) which matches the AI simulator. This means the preview may diverge from the actual trajectory near massive bodies, and does not model wormhole teleportation, rift forces, or periodic boundary conditions (Hyperspace scenario). This divergence is intentional — the feature is an aid, not a guarantee.
+- The `bulletPaths` setting must be explicitly stamped onto `gs.config.bulletPaths` when starting a story mission (done in `startStoryMission` in `main.js`), as `StorySetup.js` does not include it in the config it builds.
 
 ---
 
@@ -182,3 +188,68 @@ The short dashed line inside the aim circle that shows the angle+power of the la
 > To be specced separately once Features 1–3 are complete.
 
 The laser aim line should show the actual curved path the beam will travel through gravity, as a dashed arc in team colour. A simulation already exists in `_computeLaserPreviewPath` but has not been confirmed working in-game. Dashed style is reserved for this feature.
+
+---
+
+## Feature 5: Assistance disclosure on results screens
+
+### Goal
+
+When a player completes a game or mission with bullet path assistance active, the results screen notes the level used. This makes the assistance visible at the point of completion rather than hidden.
+
+### Where shown
+
+- **Target practice results screen** — shown between the stats table and the buttons
+- **Story mode debrief screen** — shown below the score/best lines, above the action buttons
+
+### Visual style
+
+- Small italic text in a muted amber colour (`rgba(255,200,80,0.6)`)
+- Text format: `Assistance level... [Label]` where Label is one of: Minor, Major, Extreme, Cheating
+- Hidden entirely when `bulletPaths` is `off`
+
+### Status
+
+- **Working.** Implemented in `TargetPracticeResultsScreen.js` (`_populate`) and `StoryModeScreen.js` (`_buildDebriefView` / `_populateDebrief`).
+
+---
+
+## Feature 6: Story mode score integrity
+
+### Goal
+
+High scores in story mode should only be recorded for runs completed without assistance. Assisted completions are tracked separately so the player can see they have passed a mission, but the achievement is qualified.
+
+### Rules
+
+1. **Clean run** (`bulletPaths === 'off'`): score is recorded as normal; if a prior assisted-only record exists for that mission it is cleared.
+2. **Assisted run, no prior clean score**: the assistance level is recorded if it is equal to or better (less assistance) than any previously stored assisted level for that mission.
+3. **Assisted run, clean score already exists**: the assisted run is ignored entirely — the clean score is not overwritten and no assisted record is stored.
+4. **Assisted run, worse level than stored**: ignored. Only the best (least) assistance level is retained.
+
+### Assistance level ranking (best to worst)
+
+| Label | Internal value | Rank |
+|---|---|---|
+| Minor | `eighth` | 0 (best) |
+| Major | `quarter` | 1 |
+| Extreme | `half` | 2 |
+| Cheating | `full` | 3 (worst) |
+
+### Mission selection card display
+
+| State | Colour | Text |
+|---|---|---|
+| Clean score recorded | Green `#88ee88` | `✓  [score]` |
+| Assisted-only completion | Amber `rgba(255,200,80,0.75)` | `✓  (Minor/Major/Extreme/Cheating assistance)` |
+| Not completed | Dim `#555` | `Not completed` |
+
+A clean score always takes priority over an assisted record — if both exist (possible if a clean score is earned after an assisted pass), only the clean score is shown.
+
+### Persistence
+
+Stored in `localStorage` under key `dsb_story`. The existing `scores` map holds clean scores only. A new `assistedLevel` map holds the best assisted level per mission ID (only present when no clean score exists for that mission).
+
+### Status
+
+- **Working.** Implemented in `StoryPersistence.js` (`recordPass`, `getAssistedLevel`), `StoryModeScreen.js` (`_refresh`, `_missionCard`, `_populateDebrief`), and `main.js` (passes `gs.config.bulletPaths` to `recordPass`).

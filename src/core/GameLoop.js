@@ -928,7 +928,15 @@ export class GameLoop {
         // Boundary
         const { gw, gh } = this.physics;
         const { x, y }   = rocket.position;
-        if (x < -gw || x > 2 * gw || y < -gw || y > gh + gw) { if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]); rocket.status = RocketStatus.DEAD; continue; }
+        if (this.physics.periodicBoundary) {
+          let nx = x, ny = y;
+          if (x < 0 || x > gw) nx = ((x % gw) + gw) % gw;
+          if (y < 0 || y > gh) ny = ((y % gh) + gh) % gh;
+          if (nx !== x || ny !== y) { rocket.position = new Vec2(nx, ny); rocket.trail = []; }
+        } else if (x < -gw || x > 2 * gw || y < -gw || y > gh + gw) {
+          if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]);
+          rocket.status = RocketStatus.DEAD; continue;
+        }
 
         // Shield collision → detonate
         let detonated = false;
@@ -1596,9 +1604,15 @@ export class GameLoop {
 
   _processHyperspace() {
     const { gw, gh } = this.physics;
+    const isHyperscenario = this.gs.config?.scenarioId === 26;
     for (const station of this.gs.allStations) {
-      if (!station.hyperspaceQueued || station.status !== 'active') continue;
-      station.selectedWeapon = WeaponId.CANNON;
+      if (station.status !== 'active') continue;
+      const voluntary = station.hyperspaceQueued;
+      if (voluntary) station.selectedWeapon = WeaponId.CANNON;
+      // Normal: teleport if voluntary. Hyperspace scenario: teleport if NOT voluntary (forced shuffle).
+      // Selecting hyperspace in the hyperspace scenario is an anchor — ship stays put.
+      const shouldTeleport = voluntary ? !isHyperscenario : isHyperscenario;
+      if (!shouldTeleport) continue;
       const oldPos = new Vec2(station.position.x, station.position.y);
       for (let a = 0; a < 300; a++) {
         const pos = new Vec2(this.rng.next() * gw, this.rng.next() * gh);
@@ -2191,8 +2205,9 @@ export class GameLoop {
     this.gs.firingStep    = 0;
 
     for (const station of this._turnOrder) {
-      station.lastAngle = station.angle;
-      station.lastPower = station.power;
+      station.lastAngle  = station.angle;
+      station.lastPower  = station.power;
+      station.lastTrails = [];
       this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
     }
     this.gs.mode = GameMode.TP_FIRING;

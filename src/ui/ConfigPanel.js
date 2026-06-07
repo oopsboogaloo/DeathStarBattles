@@ -129,6 +129,7 @@ export class ConfigPanel {
   onStart(cb)  { this._onStartCb  = cb; }
   onInfo(cb)   { this._onInfoBtn  = cb; }
   onResume(cb) { this._onResumeCb = cb; }
+  getData()    { return this._d; }
 
   setCanResume(bool) {
     this._canResume = bool;
@@ -381,9 +382,9 @@ export class ConfigPanel {
     const rowAimCircle   = this._row('AIM CIRCLE SIZE',
       this._cycle('aimCircleSize', ['smaller', 'regular', 'larger', 'mammoth'],
         v => ({ smaller: '0.5×  Smaller', regular: '1×   Regular', larger: '2×   Larger', mammoth: '3×   Mammoth' }[v])));
-    const rowBulletPaths = this._row('BULLET PATHS',
-      this._cycle('bulletPaths', ['off', 'full', 'half', 'quarter', 'eighth'],
-        v => ({ off: 'Off', full: 'Full  (1 screen)', half: 'Half  (½ screen)', quarter: 'Quarter  (¼ screen)', eighth: 'Eighth  (⅛ screen)' }[v])));
+    const rowBulletPaths = this._row('BULLET PATH ASSIST',
+      this._cycle('bulletPaths', ['off', 'eighth', 'quarter', 'half', 'full'],
+        v => ({ off: 'Off', eighth: 'Minor  (⅛ screen)', quarter: 'Major  (¼ screen)', half: 'Extreme  (½ screen)', full: 'Cheating  (1 screen)' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
 

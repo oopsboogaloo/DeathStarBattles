@@ -304,7 +304,7 @@ export class PlanetRenderer {
   static _drawWormhole(ctx, planet, conv) {
     const cx = planet.position.x * conv;
     const cy = planet.position.y * conv;
-    const r  = Math.max(4, planet.radius * 2 * conv);
+    const r  = Math.max(4, planet.radius * 1.8 * conv);
     const [pr, pg, pb] = planet.colour;
 
     if (planet.radius > 100) {

@@ -18,6 +18,7 @@ export class PhysicsEngine {
   constructor(gameWidth, gameHeight) {
     this.gw = gameWidth;
     this.gh = gameHeight;
+    this.periodicBoundary = false;
   }
 
   // ─── initial bullet state from angle/power/station ────────────────────────
@@ -141,9 +142,17 @@ export class PhysicsEngine {
     );
     bullet.lifetime++;
 
-    // Boundary — bullet leaves extended play area → DEAD (no explosion)
+    // Boundary — wrap (periodic) or kill (normal)
     const { x, y } = bullet.position;
-    if (x < -this.gw || x > 2 * this.gw || y < -this.gw || y > this.gh + this.gw) {
+    if (this.periodicBoundary) {
+      let nx = x, ny = y;
+      if (x < 0 || x > this.gw) nx = ((x % this.gw) + this.gw) % this.gw;
+      if (y < 0 || y > this.gh) ny = ((y % this.gh) + this.gh) % this.gh;
+      if (nx !== x || ny !== y) {
+        bullet.position = new Vec2(nx, ny);
+        bullet.trail = [];
+      }
+    } else if (x < -this.gw || x > 2 * this.gw || y < -this.gw || y > this.gh + this.gw) {
       bullet.status = BulletStatus.DEAD;
     }
 

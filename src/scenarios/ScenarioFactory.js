@@ -221,8 +221,8 @@ export class ScenarioFactory {
     if (scenarioId === 26) { // Hyperspace: 2–4 rifts per SR-06
       const nRifts = rng.nextInt(3) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
-    } else if (scenarioId === 29) { // Rift: 1 rift
-      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+    } else if (scenarioId === 29) { // Rift: 1 rift (double length)
+      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 2));
     } else if (scenarioId === 30) { // Rifts: 2–6 rifts
       const nRifts = rng.nextInt(5) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
@@ -235,16 +235,17 @@ export class ScenarioFactory {
     };
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
     if (threshold > 0 && rn[1] < threshold) {
+      const noGrey = scenarioId === 26;
       if (rn[2] < 0.10) {
         rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
       } else {
-        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance);
+        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey);
       }
       if (rn[4] < 0.35) {
         if (rn[5] < 0.10) {
           rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
         } else {
-          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance);
+          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey);
         }
       }
     }
@@ -442,7 +443,7 @@ export class ScenarioFactory {
       // ── 1: Planetary ──────────────────────────────────────────────────────
       case 1: {
         for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+          planets.push(makePlanet(rng, 0.4,0.4,0.1, 20,20,7, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
         break;
       }
 
@@ -525,8 +526,12 @@ export class ScenarioFactory {
           type: PlanetType.GAS_GIANT, colour: [...colA], colourB: [...colB],
           shading: ShadingStyle.GAS_GIANT,
         }));
-        for (let i = 1; i < nPlanets; i++)
-          planets.push(makeMoon(rng, 1,0,0, gw,gh));
+        for (let i = 1; i < nPlanets; i++) {
+          if (rng.next() < 0.5)
+            planets.push(makeAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05, richProb));
+          else
+            planets.push(makeMoon(rng, 1,0,0, gw,gh));
+        }
         break;
       }
 
@@ -810,8 +815,7 @@ export class ScenarioFactory {
           const colour   = positive
             ? [Math.floor(255 - 40*density), 255, 0]
             : [255, Math.min(255, Math.floor(255 + 50*density)), 0];
-          const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE
-                        : (simplified ? PlanetType.WORMHOLE_NETWORK : PlanetType.WORMHOLE_PLANET);
+          const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE : PlanetType.WORMHOLE_NETWORK;
           const shading = useWormholeShading ? ShadingStyle.WORMHOLE : ShadingStyle.GLOWING;
           planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading));
         }
@@ -1039,12 +1043,8 @@ export class ScenarioFactory {
 
       // ── 30: Rifts — moderate planet mix (rifts injected in create()) ──────────
       case 30: {
-        for (let i = 0; i < nPlanets; i++) {
-          if (i % 3 === 0)
-            planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.05, richProb));
-          else
-            planets.push(makePlanet(rng, 0.8,0.1,0.05, 25,20,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
-        }
+        for (let i = 0; i < nPlanets; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.05, richProb));
         break;
       }
 
@@ -1152,9 +1152,10 @@ export class ScenarioFactory {
 
   // ─── space rift generation (SR-02) ───────────────────────────────────────
 
-  static generateRift(gw, gh, rng, existingPlanets = []) {
+  static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1) {
     const N      = rng.nextInt(9) + 3; // 3–11 segments
-    const margin = RIFT_SEGMENT_LENGTH * (N + 2);
+    const segLen = RIFT_SEGMENT_LENGTH * segmentLengthMult;
+    const margin = segLen * (N + 2);
 
     for (let attempt = 0; attempt < 10; attempt++) {
       let theta = rng.next() * Math.PI * 2;
@@ -1166,8 +1167,8 @@ export class ScenarioFactory {
         theta += (rng.next() * 2 - 1) * (Math.PI / 6); // ±30°
         const prev = vertices[i - 1];
         vertices.push(new Vec2(
-          prev.x + Math.cos(theta) * RIFT_SEGMENT_LENGTH,
-          prev.y + Math.sin(theta) * RIFT_SEGMENT_LENGTH,
+          prev.x + Math.cos(theta) * segLen,
+          prev.y + Math.sin(theta) * segLen,
         ));
       }
 
@@ -1189,7 +1190,7 @@ export class ScenarioFactory {
 
   // ─── bonus random feature injection ─────────────────────────────────────
 
-  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full') {
+  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false) {
     const simplified = performance === 'simplified';
     if (planets.length < 2) return;
 
@@ -1206,11 +1207,15 @@ export class ScenarioFactory {
     } else if (rb < 0.6) {
       candidates = [makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)];
     } else if (rb < 0.70) {
-      // Grey triple — bullet enters one, copies emerge from the other two
-      // Simplified: use red network wormholes instead
-      candidates = simplified
-        ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
-        : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
+      if (noGrey) {
+        candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];
+      } else {
+        // Grey triple — bullet enters one, copies emerge from the other two
+        // Simplified: use red network wormholes instead
+        candidates = simplified
+          ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
+          : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
+      }
     } else if (rb < 0.78) {
       // Wildcard moon (bonus multi-hit body)
       candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];

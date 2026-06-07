@@ -106,7 +106,7 @@ export class WormholeParticles {
       const cfg    = this._cfg;
       const conv   = this._conv ?? 1;
       const planet = this._planet;
-      const visualR = Math.max(4, planet.radius * 2 * conv);
+      const visualR = Math.max(4, planet.radius * 1.8 * conv);
       const spawnR  = visualR * cfg.spawnMult;
       const voidR   = visualR * cfg.voidMult;
       for (let i = 0; i < cfg.count; i++) this._respawn(i, spawnR, voidR);
@@ -119,7 +119,7 @@ export class WormholeParticles {
     const cfg     = this._cfg;
     const conv    = this._conv ?? 1;
     const planet  = this._planet;
-    const visualR = Math.max(4, planet.radius * 2 * conv);
+    const visualR = Math.max(4, planet.radius * 1.8 * conv);
     const spawnR  = visualR * cfg.spawnMult;
     const voidR   = visualR * cfg.voidMult;
     const inward  = visualR * cfg.inwardFrac;
@@ -139,7 +139,7 @@ export class WormholeParticles {
     const planet  = this._planet;
     const cx      = planet.position.x * conv;
     const cy      = planet.position.y * conv;
-    const visualR = Math.max(4, planet.radius * 2 * conv);
+    const visualR = Math.max(4, planet.radius * 1.8 * conv);
     const spawnR  = visualR * cfg.spawnMult;
     const voidR   = visualR * cfg.voidMult;
     const blobFull = visualR * cfg.blobMult;

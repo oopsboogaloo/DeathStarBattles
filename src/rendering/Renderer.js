@@ -148,10 +148,11 @@ export class Renderer {
   // Layer 0 — Background (stars + planets, drawn once per game)
   // ----------------------------------------------------------------
 
-  drawBackground(stars, planets, rifts = []) {
-    this._stars   = stars;
-    this._planets = planets;
-    this._rifts   = rifts;
+  drawBackground(stars, planets, rifts = [], opts = {}) {
+    this._stars       = stars;
+    this._planets     = planets;
+    this._rifts       = rifts;
+    this._noStarField = !!opts.noStarField;
     this._svgOverlayCache.clear();
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
@@ -185,7 +186,7 @@ export class Renderer {
     const ctx = this.bgCtx;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this._vpW, this._vpH);
-    this._drawStarField(ctx);
+    if (!this._noStarField) this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
@@ -225,20 +226,29 @@ export class Renderer {
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
     };
 
-    // Outer glow
+    // Outer glow — multi-pass gradient from wide/transparent to narrow/opaque
     ctx.save();
-    ctx.shadowColor  = '#C060FF';
-    ctx.shadowBlur   = 20;
-    ctx.strokeStyle  = 'rgba(192,96,255,0.3)';
-    ctx.lineWidth    = 28;
-    ctx.lineCap      = 'round';
-    ctx.lineJoin     = 'round';
-    buildPath();
-    ctx.stroke();
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+    const glowPasses = [
+      { width: 80, alpha: 0.02 },
+      { width: 62, alpha: 0.04 },
+      { width: 48, alpha: 0.07 },
+      { width: 36, alpha: 0.11 },
+      { width: 26, alpha: 0.16 },
+      { width: 18, alpha: 0.22 },
+      { width: 10, alpha: 0.28 },
+    ];
+    for (const pass of glowPasses) {
+      ctx.strokeStyle = `rgba(192,96,255,${pass.alpha})`;
+      ctx.lineWidth   = pass.width;
+      buildPath();
+      ctx.stroke();
+    }
     ctx.restore();
 
     // Forked lightning decorations (cosmetic — Math.random() intentional)
-    const nForks = 2 + Math.floor(Math.random() * 3); // 2–4
+    const nForks = 20;
     for (let f = 0; f < nForks; f++) {
       const t     = Math.random();
       const seg   = Math.floor(t * (pts.length - 1));
@@ -717,7 +727,7 @@ export class Renderer {
 
     this._gasGiantCanvas = c;
     this._gasGiantBitmap = null;
-    createImageBitmap(c).then(bm => { this._gasGiantBitmap = bm; });
+    createImageBitmap(c).then(bm => { if (this._gasGiantCanvas === c) this._gasGiantBitmap = bm; });
   }
 
   _getTintedSmoke(r, g, b) {
@@ -1250,8 +1260,8 @@ export class Renderer {
   _computeBulletPreviewPath(station, angleDeg, power, planets, maxLength = Infinity, speedOverride = null) {
     const STEP_SIZE = 20;   // physics steps per preview iteration (matches AI sim)
     const MAX_ITER  = 400;
-    const dt  = TIMESTEP * STEP_SIZE;
-    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    const dt   = TIMESTEP * STEP_SIZE;
+    const rad  = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
     const vScale = speedOverride ?? (power / 1000 + MIN_POWER) * MAX_POWER;
     let px = station.position.x + (station.radius + 1) * Math.sin(rad);
     let py = station.position.y + (station.radius + 1) * Math.cos(rad);
@@ -1271,8 +1281,17 @@ export class Renderer {
         if (rSq < 0.01) continue;
         const sign  = dx < 0 ? -1 : 1;
         const theta = Math.atan(dy / dx);
-        vx += Math.cos(theta) * sign * G * planet.mass / rSq * dt;
-        vy += Math.sin(theta) * sign * G * planet.mass / rSq * dt;
+        const R = planet.impactRadius;
+        let accel;
+        if (planet.type === PlanetType.GAS_GIANT && rSq < R * R) {
+          // Interior: gravity reduces linearly to zero at core (matches PhysicsEngine)
+          const r = Math.sqrt(rSq);
+          accel = sign * G * planet.mass * r / (R * R * R);
+        } else {
+          accel = sign * G * planet.mass / rSq;
+        }
+        vx += Math.cos(theta) * accel * dt;
+        vy += Math.sin(theta) * accel * dt;
       }
       const prevX = px, prevY = py;
       px += vx * dt;

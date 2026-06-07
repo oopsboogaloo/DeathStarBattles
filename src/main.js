@@ -332,7 +332,7 @@ function updateButtons(gs) {
     const ss = gs.storyState;
     if (ss.passed) {
       let data = StoryPersistence.load();
-      data = StoryPersistence.recordPass(ss.mission.id, ss.score, data);
+      data = StoryPersistence.recordPass(ss.mission.id, ss.score, data, gs.config?.bulletPaths ?? 'off');
       StoryPersistence.save(data);
       if (StoryPersistence.isCampaignComplete(data)) panel.setCampaignComplete(true);
     }
@@ -455,10 +455,11 @@ function startGame(cfg) {
   _applyStartingWeapons(teams, cfg, rng);
 
   const stars = Renderer.generateStarField(gw, gh);
-  renderer.drawBackground(stars, planets, rifts);
+  renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
 
   const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
+  if (scenarioId === 26) physics.periodicBoundary = true;
 
   for (const team of teams.filter(t => !t.isHuman)) {
     team.controller = AIController.create(cfg.aiLevel ?? 3, physics);
@@ -504,6 +505,7 @@ function startStoryMission(mission) {
   renderer.clearTrails();
   renderer.setTPVisibleTeam(null);
   renderer.setAimCircleScale(1);
+  renderer.setBulletPathLength(panel.getData().bulletPaths ?? 'off');
 
   _minimalUI = false;
   aimControls.setMinimal(false);
@@ -521,6 +523,7 @@ function startStoryMission(mission) {
   const physics  = new PhysicsEngine(gw, gh);
   const rng      = new RNG(RNG.randomSeed());
   const { gs: gameState, teams } = buildStoryMission(mission, physics, rng);
+  gameState.config.bulletPaths = panel.getData().bulletPaths ?? 'off';
 
   const stars = Renderer.generateStarField(gw, gh);
   renderer.drawBackground(stars, gameState.planets);

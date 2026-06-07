@@ -135,9 +135,10 @@ export class StoryModeScreen {
       });
 
       for (const m of missions) {
-        const unlocked  = this._devMode || StoryPersistence.isUnlocked(m.id, data);
-        const bestScore = StoryPersistence.getBestScore(m.id, data);
-        const card      = this._missionCard(m, unlocked, bestScore);
+        const unlocked      = this._devMode || StoryPersistence.isUnlocked(m.id, data);
+        const bestScore     = StoryPersistence.getBestScore(m.id, data);
+        const assistedLevel = bestScore === null ? StoryPersistence.getAssistedLevel(m.id, data) : null;
+        const card          = this._missionCard(m, unlocked, bestScore, assistedLevel);
         row.appendChild(card);
       }
       this._missionGrid.appendChild(row);
@@ -156,7 +157,7 @@ export class StoryModeScreen {
     }
   }
 
-  _missionCard(mission, unlocked, bestScore) {
+  _missionCard(mission, unlocked, bestScore, assistedLevel = null) {
     const card = el('div', {
       background:   unlocked ? 'rgba(15,20,50,0.85)' : 'rgba(8,8,20,0.6)',
       border:       `1px solid ${unlocked ? 'rgba(80,110,255,0.4)' : 'rgba(50,50,80,0.3)'}`,
@@ -181,6 +182,10 @@ export class StoryModeScreen {
       if (bestScore !== null) {
         score.style.color = '#88ee88';
         score.textContent = `✓  ${bestScore.toLocaleString()}`;
+      } else if (assistedLevel !== null) {
+        const label = { eighth: 'Minor', quarter: 'Major', half: 'Extreme', full: 'Cheating' }[assistedLevel] ?? assistedLevel;
+        score.style.color = 'rgba(255,200,80,0.75)';
+        score.textContent = `✓  (${label} assistance)`;
       } else {
         score.style.color = '#555';
         score.textContent = 'Not completed';
@@ -254,7 +259,8 @@ export class StoryModeScreen {
     this._debriefTitle   = el('div', { fontSize: '16px', color: '#8899ff', marginBottom: '24px', letterSpacing: '1px' });
     this._debriefResult  = el('div', { fontSize: '26px', marginBottom: '16px' });
     this._debriefScore   = el('div', { fontSize: '14px', color: '#aac', marginBottom: '8px' });
-    this._debriefBest    = el('div', { fontSize: '12px', color: '#667', marginBottom: '28px' });
+    this._debriefBest    = el('div', { fontSize: '12px', color: '#667', marginBottom: '12px' });
+    this._debriefAssist  = el('div', { fontSize: '11px', color: 'rgba(255,200,80,0.6)', marginBottom: '20px', fontStyle: 'italic' });
 
     const btnRow        = el('div', { display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' });
     this._retryBtn      = btn('Retry');
@@ -276,7 +282,7 @@ export class StoryModeScreen {
     });
 
     btnRow.append(this._retryBtn, this._selectBtn, this._nextBtn);
-    view.append(this._debriefTitle, this._debriefResult, this._debriefScore, this._debriefBest, btnRow);
+    view.append(this._debriefTitle, this._debriefResult, this._debriefScore, this._debriefBest, this._debriefAssist, btnRow);
     return view;
   }
 
@@ -298,6 +304,15 @@ export class StoryModeScreen {
       this._debriefResult.style.color = '#ee6666';
       this._debriefScore.textContent  = '';
       this._debriefBest.textContent   = best !== null ? `Best: ${best.toLocaleString()}` : '';
+    }
+
+    const bp = gs.config?.bulletPaths;
+    if (bp && bp !== 'off') {
+      const label = { eighth: 'Minor', quarter: 'Major', half: 'Extreme', full: 'Cheating' }[bp] ?? bp;
+      this._debriefAssist.textContent = `Assistance level... ${label}`;
+      this._debriefAssist.style.display = '';
+    } else {
+      this._debriefAssist.style.display = 'none';
     }
 
     const idx  = STORY_MISSIONS.indexOf(mission);

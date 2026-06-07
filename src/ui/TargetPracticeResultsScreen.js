@@ -57,6 +57,15 @@ export class TargetPracticeResultsScreen {
     this._card.appendChild(heading);
 
     this._card.appendChild(this._statsTable(gameState));
+
+    const bp = gameState.config?.bulletPaths;
+    if (bp && bp !== 'off') {
+      const label = { eighth: 'Minor', quarter: 'Major', half: 'Extreme', full: 'Cheating' }[bp] ?? bp;
+      const note = el('div', { fontSize: '11px', color: 'rgba(255,200,80,0.6)', textAlign: 'center', marginBottom: '14px', fontStyle: 'italic' });
+      note.textContent = `Assistance level... ${label}`;
+      this._card.appendChild(note);
+    }
+
     this._card.appendChild(this._buttons());
   }
 
