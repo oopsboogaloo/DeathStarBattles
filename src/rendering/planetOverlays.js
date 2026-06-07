@@ -54,14 +54,14 @@ export const PLANET_OVERLAYS = {
       scale:         1.0,
       alpha:         1.0,
       colour: [
-        [160,  60, 220],  // purple
-        [200,  40,  60],  // red
-        [220,  70,  40],  // orange-red
-        [240, 210,  50],  // yellow
-        [230, 215,  45],  // yellow
-        [ 50, 110, 230],  // blue
-        [ 55, 100, 225],  // blue
-        [150,  45, 215],  // purple
+        [190, 130,  90],  // adobe
+        [215, 190, 150],  // sandstone
+        [155,  85,  65],  // burnt sienna
+        [200, 155, 100],  // warm clay
+        [175, 120,  80],  // terracotta
+        [210, 175, 130],  // pale sand
+        [160,  95,  70],  // rust
+        [220, 200, 165],  // light ochre
       ],
       rotation:      'random',
       strokeVisible: false,
