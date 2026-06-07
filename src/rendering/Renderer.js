@@ -434,6 +434,7 @@ export class Renderer {
     const wormholePCount = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
                     + (gs?.cometSmoke?.length ?? 0)
+                    + (gs?.skimParticles?.length ?? 0)
                     + (gs?.vfxList?.length ?? 0)
                     + (gs?.activeExplosions?.reduce((s, e) => s + (e.particles?.length ?? 0), 0) ?? 0)
                     + (gs?.shipExplosionBloom?.length ?? 0)
@@ -555,6 +556,9 @@ export class Renderer {
     // Comet + rocket smoke (drawn behind everything else)
     if (gameState.cometSmoke?.length) this._drawCometSmoke(ctx, gameState.cometSmoke);
     if (gameState.rocketSmoke?.length) this._drawRocketSmoke(ctx, gameState.rocketSmoke);
+
+    // Skim surface rebound particles (FR-6; non-simplified only — guard in GameLoop, safe to draw always)
+    if (gameState.skimParticles?.length) this._drawParticles(ctx, gameState.skimParticles);
 
     // Rocket blast zones (drawn behind rockets and shields)
     if (gameState.rocketBlasts?.length) this._drawRocketBlasts(ctx, gameState.rocketBlasts);

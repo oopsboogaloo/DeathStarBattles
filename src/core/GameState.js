@@ -39,6 +39,7 @@ export class GameState {
     this.shipExplosionBloom = [];       // {x,y,maxR,t,dt,r,g,b}[] — bitmap bloom particles (experimental)
     this.fireballs          = [];       // {x,y,vx,vy,r,g,b,t,dt,smokeTimer}[] — gravity fireballs (experimental)
     this.fireballSmoke      = [];       // {x,y,maxR,t,r,g,b}[] — fireball trail puffs (experimental)
+    this.skimParticles      = [];       // {x,y,vx,vy,t,dt,r,g,b}[] — surface skim rebound particles
     this.shields          = [];         // {station, radius, alive}[] — active Force Shields
     this.burstQueue       = [];         // burst-fire entries: {station,weapon,shotsRemaining,intervalSteps,nextFireStep,angle,power}
     this.pendingLasers    = [];         // {station, angle, delaySteps}[] — lasers waiting to fire
