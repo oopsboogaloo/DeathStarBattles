@@ -39,7 +39,8 @@ export class Renderer {
     this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
     this._wormholeParticles   = new Map(); // planet → WormholeParticles
-    this._gasGiantCache       = new Map(); // planet → {canvas, half, conv, hasOverlay}
+    this._gasGiantCanvas      = null;      // combined viewport-sized canvas, rebuilt on game start/resize/SVG load
+    this._gasGiantBitmap      = null;      // ImageBitmap snapshot for zero-flush drawImage
     this._smokeImg            = null;
     this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
     this._loadSmokeSprite();
@@ -134,7 +135,7 @@ export class Renderer {
     this.bgCanvas.height    = this._vpH;
     this.trailsCanvas.width  = this._vpW;
     this.trailsCanvas.height = this._vpH;
-    if (this._stars.length) this._renderBackground();
+    if (this._stars.length) { this._renderBackground(); this._buildGasGiantCanvas(); }
   }
 
   // All game positions are in a 700-unit-wide coordinate space.
@@ -155,7 +156,8 @@ export class Renderer {
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
     this._wormholeParticles.clear();
-    this._gasGiantCache.clear();
+    this._gasGiantCanvas = null;
+    this._gasGiantBitmap = null;
     for (const planet of planets) {
       if (planet.shading === ShadingStyle.WORMHOLE && planet.radius <= 100) {
         this._wormholeParticles.set(planet, new WormholeParticles(planet, planet.particleConfig));
@@ -174,6 +176,7 @@ export class Renderer {
       this._atmosphereCache.set(planet, ATMOS_COLS[Math.floor(Math.random() * ATMOS_COLS.length)]);
     }
     this._renderBackground();
+    this._buildGasGiantCanvas();
     if (!this._simplified) this._loadPlanetOverlays(planets); // async, fire-and-forget
     this._loadCrackSvgs();             // async, fire-and-forget
   }
@@ -435,18 +438,9 @@ export class Renderer {
       }
     }
 
-    // Gas giants — drawn live so their 50% transparency composites correctly over background.
-    if (!this._simplified) for (const planet of this._planets) {
-      if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
-      this._drawAtmosphere(this.mainCtx, planet);
-    }
-    for (const planet of this._planets) {
-      if (planet.shading !== ShadingStyle.GAS_GIANT) continue;
-      const cx    = planet.position.x * this.conv;
-      const cy    = planet.position.y * this.conv;
-      const cache = this._getGasGiantCache(planet);
-      ctx.drawImage(cache.canvas, cx - cache.half, cy - cache.half);
-    }
+    // Gas giants — single drawImage of the pre-built combined canvas
+    const ggSource = this._gasGiantBitmap ?? this._gasGiantCanvas;
+    if (ggSource) ctx.drawImage(ggSource, this._ox, this._oy);
 
     // Comets — drawn live every frame (they move and are not in the static bg layer)
     for (const planet of gameState.planets) {
@@ -684,53 +678,46 @@ export class Renderer {
     this._tintCtx   = this._tintCanvas.getContext('2d');
   }
 
-  _getGasGiantCache(planet) {
-    const overlays   = this._svgOverlayCache.get(planet);
-    const hasOverlay = !!(overlays?.length && overlays[0].img?.complete && overlays[0].img.naturalWidth > 0);
-    const cached     = this._gasGiantCache.get(planet);
-    const blurred    = !this._simplified && this._performance !== 'experimental';
-    if (cached && cached.conv === this.conv && cached.hasOverlay === hasOverlay && cached.blurred === blurred) return cached;
+  _buildGasGiantCanvas() {
+    const gasGiants = this._planets.filter(p => p.shading === ShadingStyle.GAS_GIANT);
+    if (!gasGiants.length) { this._gasGiantCanvas = null; this._gasGiantBitmap = null; return; }
 
-    const conv   = this.conv;
-    const r      = Math.max(2, planet.radius * conv);
-    const margin = 12; // extra room for blur spread (blur(3px) kernel extends ~9px)
-    const size   = Math.ceil(r * 2) + margin * 2;
-    const half   = size / 2;
+    const c   = document.createElement('canvas');
+    c.width   = this._vpW;
+    c.height  = this._vpH;
+    const ctx = c.getContext('2d');
 
-    const c    = document.createElement('canvas');
-    c.width    = c.height = size;
-    const octx = c.getContext('2d');
-    if (blurred) octx.filter = 'blur(3px)';
-
-    const [ar, ag, ab] = planet.colour;
-    const grad = octx.createRadialGradient(half - r * 0.3, half - r * 0.3, r * 0.05, half, half, r);
-    grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
-    grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
-    grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
-    octx.beginPath();
-    octx.arc(half, half, r, 0, Math.PI * 2);
-    octx.fillStyle = grad;
-    octx.fill();
-
-    if (!this._simplified && overlays) {
-      for (const { img, rotation, alpha, scale } of overlays) {
-        if (!img.complete || img.naturalWidth === 0) continue;
-        const imgSize = r * 2 * scale;
-        octx.save();
-        octx.beginPath();
-        octx.arc(half, half, r, 0, Math.PI * 2);
-        octx.clip();
-        octx.globalAlpha = alpha;
-        octx.translate(half, half);
-        octx.rotate(rotation);
-        octx.drawImage(img, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
-        octx.restore();
-      }
+    // Atmosphere halos — no blur
+    if (!this._simplified) {
+      for (const planet of gasGiants) this._drawAtmosphere(ctx, planet);
     }
 
-    const entry = { canvas: c, half, conv, hasOverlay, blurred };
-    this._gasGiantCache.set(planet, entry);
-    return entry;
+    // Bodies + SVG overlays — blur baked in (skipped in experimental mode)
+    const blurred = !this._simplified && this._performance !== 'experimental';
+    if (blurred) ctx.filter = 'blur(3px)';
+    for (const planet of gasGiants) {
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const r  = Math.max(2, planet.radius * this.conv);
+      const [ar, ag, ab] = planet.colour;
+      const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
+      grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
+      grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
+      grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      if (!this._simplified) {
+        const overlays = this._svgOverlayCache.get(planet);
+        if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      }
+    }
+    if (blurred) ctx.filter = 'none';
+
+    this._gasGiantCanvas = c;
+    this._gasGiantBitmap = null;
+    createImageBitmap(c).then(bm => { this._gasGiantBitmap = bm; });
   }
 
   _getTintedSmoke(r, g, b) {
@@ -832,6 +819,7 @@ export class Renderer {
     }
     // Re-render background so static-body overlays (rocky planets etc.) appear immediately
     this._renderBackground();
+    this._buildGasGiantCanvas();
   }
 
   _drawSVGOverlay(ctx, planet, entry) {
