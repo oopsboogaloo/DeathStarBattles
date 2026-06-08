@@ -17,6 +17,8 @@ export const WeaponId = Object.freeze({
   BOUNCE_CANNON:      'bounceCannon',
   AUTO_CANNON:        'autoCannon',
   STAR_SHOT:          'starShot',
+  SCATTER_CANNON:     'scatterCannon',
+  SPIRAL:             'spiral',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -36,7 +38,9 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.DUAL_BLASTER,  charges: 1,  label: 'DUAL BLASTER'  },
   { id: WeaponId.BOUNCE_CANNON, charges: 2,  label: 'BOUNCE CANNON' },
   { id: WeaponId.AUTO_CANNON,   charges: 2,  label: 'AUTO CANNON'   },
-  { id: WeaponId.STAR_SHOT,     charges: 1,  label: 'STAR SHOT'     },
+  { id: WeaponId.STAR_SHOT,      charges: 1,  label: 'STAR SHOT'      },
+  { id: WeaponId.SCATTER_CANNON, charges: 2,  label: 'SCATTER CANNON' },
+  { id: WeaponId.SPIRAL,         charges: 1,  label: 'SPIRAL'         },
 ];
 
 // Game-unit radius for collision and rendering.

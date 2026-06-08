@@ -1168,6 +1168,8 @@ export class Renderer {
       case 'bounceCannon':      offsets = [0];                               break;
       case 'autoCannon':        offsets = [-2, 0, 2];                        break;
       case 'starShot':          offsets = [0, 72, 144, 216, 288];            break;
+      case 'scatterCannon':     offsets = [-10, -5, 0, 5, 10];              break;
+      case 'spiral':            offsets = [0, 45, 90, 135, 180, 225, 270, 315]; break;
       default:                  offsets = [0];                   break;
     }
 
@@ -1437,6 +1439,22 @@ export class Renderer {
       case 'bounceCannon':
         shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
+      case 'scatterCannon':
+        shots = [-10, -5, 0, 5, 10].map(dAngle => ({
+          dAngle, speed: null,
+          alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'spiral': {
+        const MAX_V = (800 / 1000 + MIN_POWER) * MAX_POWER;
+        for (let i = 0; i < 8; i++) {
+          const path = this._computeBulletPreviewPath(
+            station, station.angle + i * 45, station.power, planets, maxLen, MAX_V * 0.55,
+          );
+          if (path.length >= 2) this._drawFadingPath(ctx, path, i === 0 ? 0.7 : 0.35, i === 0 ? 1.5 : 1);
+        }
+        return;
+      }
       case 'autoCannon':
         shots = [-2, 0, 2].map(dAngle => ({
           dAngle, speed: null,

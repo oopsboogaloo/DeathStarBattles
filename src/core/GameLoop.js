@@ -811,6 +811,16 @@ export class GameLoop {
           intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
+      } else if (w === WeaponId.SCATTER_CANNON && station.team.spendStock(WeaponId.SCATTER_CANNON)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.scatterTimer = 150;
+        this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.SPIRAL, shotsRemaining: 8, totalShots: 8,
+          intervalSteps: 600, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
       } else if (w === WeaponId.BOUNCE_CANNON && station.team.spendStock(WeaponId.BOUNCE_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
         b.fragBouncy       = true;
@@ -912,6 +922,12 @@ export class GameLoop {
           const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;
           const barrelAngle = shotIdx === 0 ? burst.angle : burst.angle2;
           const b = this._makeBulletVelocity(burst.station, barrelAngle, MAX_V * 0.55);
+          b.thinTrail = true;
+          this.gs.activeBullets.push(b);
+        } else if (burst.weapon === WeaponId.SPIRAL) {
+          const MAX_V   = (800 / 1000 + 0.2) * 0.8;
+          const shotIdx = (burst.totalShots ?? 8) - burst.shotsRemaining;
+          const b = this._makeBulletVelocity(burst.station, burst.angle + shotIdx * 45, MAX_V * 0.55);
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
         } else if (burst.weapon === WeaponId.AUTO_CANNON) {
@@ -1130,6 +1146,12 @@ export class GameLoop {
         if (bullet.fragBouncy && bullet.fragTimer !== null && bullet.status === BulletStatus.ACTIVE) {
           bullet.fragTimer--;
           if (bullet.fragTimer <= 0) this._detonateFragShot(bullet);
+        }
+
+        // Scatter cannon: tick timer and split when it expires
+        if (bullet.scatterTimer !== null && bullet.status === BulletStatus.ACTIVE) {
+          bullet.scatterTimer--;
+          if (bullet.scatterTimer <= 0) this._scatterCannon(bullet);
         }
 
         // Collectable collision — bullet passes through, collectable destroyed
@@ -1851,6 +1873,21 @@ export class GameLoop {
     }
   }
 
+
+  _scatterCannon(bullet) {
+    const speed     = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);
+    const baseAngle = Math.atan2(bullet.velocity.x, bullet.velocity.y) * 180 / Math.PI;
+    for (const dAngle of [-10, -5, 0, 5, 10]) {
+      const rad  = (((baseAngle + dAngle) % 360 + 360) % 360 * Math.PI) / 180;
+      const frag = new Bullet({
+        owner:    bullet.owner,
+        position: new Vec2(bullet.position.x, bullet.position.y),
+        velocity: new Vec2(Math.sin(rad) * speed, Math.cos(rad) * speed),
+      });
+      this.gs.activeBullets.push(frag);
+    }
+    bullet.status = BulletStatus.DEAD;
+  }
 
   _processHyperspace() {
     const { gw, gh } = this.physics;

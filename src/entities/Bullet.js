@@ -26,5 +26,6 @@ export class Bullet {
     this.fragBouncy       = false;       // primary bounces off surfaces instead of exploding
     this.fragFragment     = false;       // fragment bullet spawned on frag shot detonation
     this.bouncePlanetOnly = false;       // bounces off planets but explodes on station contact
+    this.scatterTimer     = null;        // steps until cannon scatter (scatter cannon primary)
   }
 }
