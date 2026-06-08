@@ -118,7 +118,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Shot count (default: 7)
   - Arc width (default: TBD — wider than triple cannon arc; resolve during playtesting — OQ-1)
 
-- [x] **Pulse Laser** *(Tier 2)* — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
+- [x] **Antimatter Laser** *(Tier 3)* — Rare, devastating laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
 
   **Weapon Selection UI (FR-1)**
   - UI behaves identically to the standard laser (angle selector, no power/timer slider)
@@ -136,7 +136,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Each pulse is identical to a standard laser (travel, gravity, damage, destruction rules)
 
   **Rarity (FR-5)**
-  - Assigned a rare drop weight; specific tier TBD (OQ-1: pending rarity tier system review)
+  - Tier 3 drop weight; rare and exciting to find
 
   **Tuneability (NFR-1)** — named constants:
   - Pulse count (default: 9)
