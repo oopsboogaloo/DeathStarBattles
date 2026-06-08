@@ -303,6 +303,33 @@ export class PhysicsEngine {
   // ─── planet impact handler ────────────────────────────────────────────────
 
   _handlePlanetImpact(bullet, planet, dx, dy, planets) {
+    // Quantum Torpedo: pass through solid non-hazard bodies
+    if (bullet.quantumTorpedo) {
+      const isHazard   = planet.type === PlanetType.BLACK_HOLE ||
+                         planet.type === PlanetType.WHITE_HOLE ||
+                         planet.type === PlanetType.STAR       ||
+                         planet.type === PlanetType.WHITE_DWARF;
+      const isWormhole = planet.type === PlanetType.WORMHOLE_PAIRED  ||
+                         planet.type === PlanetType.WORMHOLE_CYCLIC  ||
+                         planet.type === PlanetType.WORMHOLE_RANDOM  ||
+                         planet.type === PlanetType.WORMHOLE_PLANET  ||
+                         planet.type === PlanetType.WORMHOLE_SELF    ||
+                         planet.type === PlanetType.WORMHOLE_NETWORK;
+      if (!isHazard && !isWormhole) {
+        bullet._qtTeleportPlanet = planet;
+        // Destructible small bodies break apart
+        if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL ||
+            planet.type === PlanetType.COMET)    planet.destroyed = true;
+        // Moon / giant asteroid: register crack hit without destroying bullet
+        if (planet.type === PlanetType.MOON || planet.type === PlanetType.GIANT_ASTEROID) {
+          bullet._hitMoon  = planet;
+          bullet._hitMoonX = bullet.position.x;
+          bullet._hitMoonY = bullet.position.y;
+        }
+        return;
+      }
+    }
+
     const sign   = dx < 0 ? -1 : 1;
     const theta  = Math.atan(dy / dx);
     const theta2 = sign < 0 ? theta + Math.PI : theta;

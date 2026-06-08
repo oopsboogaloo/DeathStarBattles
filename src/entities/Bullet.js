@@ -30,5 +30,8 @@ export class Bullet {
     this.gravityMultiplier = 1;          // multiplied into all gravitational acceleration (Mammoth Cannon: 0.25)
     this.sizeMultiplier    = 1;          // multiplied into drawn bullet radius
     this.mammothCannon     = false;      // triggers large area blast on any solid-body hit
+    this.quantumTorpedo    = false;      // teleports through solid non-hazard bodies
+    this._qtTeleportPlanet = null;       // set by PhysicsEngine to signal a pending QT teleport
+    this.gravityCannon     = false;      // exerts gravitational attraction on all nearby bullets
   }
 }

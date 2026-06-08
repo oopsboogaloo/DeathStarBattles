@@ -533,7 +533,10 @@ export class Renderer {
       : gameState.allStations;
     for (const station of stationsToRender) {
       if (station.hyperspaceFlash)        this._drawHyperspaceFlash(ctx, station);
-      if (station.status === 'exploding') this._drawStationExplosion(ctx, station);
+      if (station.status === 'exploding') {
+        if (station.implosion) this._drawStationImplosion(ctx, station);
+        else                   this._drawStationExplosion(ctx, station);
+      }
       if (station.shockwave)              this._drawShockwave(ctx, station.position.x, station.position.y, station.shockwave.t, station.radius * 5, station.shockwave.r, station.shockwave.g, station.shockwave.b);
       if (station.status !== 'dead')      this._drawStation(ctx, station);
       if (!this._simplified && station.particles?.length) this._drawParticles(ctx, station.particles);
@@ -1571,6 +1574,21 @@ export class Renderer {
   // Station explosion — large expanding ring in team colour
   // ----------------------------------------------------------------
 
+  _drawStationImplosion(ctx, station) {
+    const t     = station.explosionT;
+    const scale = Math.max(0, 1 - t * t);  // quad ease-in collapse
+    if (scale <= 0) return;
+    const cx  = station.position.x * this.conv;
+    const cy  = station.position.y * this.conv;
+    const r   = Math.max(1, station.radius * this.conv * scale);
+    const [cr, cg, cb] = station.colour;
+    const bright = t * 220;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgb(${Math.round(Math.min(255, cr + bright))},${Math.round(Math.min(255, cg + bright))},${Math.round(Math.min(255, cb + bright))})`;
+    ctx.fill();
+  }
+
   _drawStationExplosion(ctx, station) {
     const cx    = station.position.x * this.conv;
     const cy    = station.position.y * this.conv;
@@ -2408,6 +2426,7 @@ export class Renderer {
         case 'tripleCannonMuzzle':     this._drawTripleCannonMuzzle(ctx, vfx);      break;
         case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
         case 'glitter':                this._drawGlitter(ctx, vfx);                 break;
+        case 'qtFlash':                this._drawQtFlash(ctx, vfx);                 break;
       }
     }
   }
@@ -2493,6 +2512,32 @@ export class Renderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  // ----------------------------------------------------------------
+  // Quantum Torpedo teleport flash — expanding ring at entry / exit
+  // ----------------------------------------------------------------
+
+  _drawQtFlash(ctx, vfx) {
+    const cx = vfx.x * this.conv;
+    const cy = vfx.y * this.conv;
+    const t  = vfx.t;
+    const r  = t * 18 * this.conv;
+    const ringA  = Math.max(0, 1 - t * 2.2);
+    const flashA = Math.max(0, (0.35 - t) * 3);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, r), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${vfx.r},${vfx.g},${vfx.b},${ringA})`;
+    ctx.lineWidth   = Math.max(1, (1 - t) * 3 * this.conv);
+    ctx.stroke();
+
+    if (flashA > 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(1, r * 0.5), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${flashA})`;
+      ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------

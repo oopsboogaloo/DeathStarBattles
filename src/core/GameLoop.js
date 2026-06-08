@@ -28,6 +28,10 @@ const MAMMOTH_BLAST_SPEED_MULT = 0.4;  // blast expansion speed relative to norm
 const REPULSOR_FIELD_RADIUS    = 50;   // influence radius in game units
 const REPULSOR_FIELD_STRENGTH  = 5;    // multiplier vs standard rift-node repulsion
 
+// Gravity Cannon tuning constants
+const GRAVITY_CANNON_SIZE_MULT = 3;    // bullet draw radius multiplier
+const GRAVITY_CANNON_MASS      = 800;  // gravitational mass exerted on nearby bullets
+
 export class GameLoop {
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
 
@@ -916,6 +920,34 @@ export class GameLoop {
         b.thickTrail        = true;
         b.mammothCannon     = true;
         this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.QUANTUM_TORPEDO && station.team.spendStock(WeaponId.QUANTUM_TORPEDO)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.quantumTorpedo = true;
+        this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.TRIPLE_QUANTUM_TORPEDO && station.team.spendStock(WeaponId.TRIPLE_QUANTUM_TORPEDO)) {
+        for (const dAngle of [-5, 0, 5]) {
+          const b = this._makeBullet(station, station.angle + dAngle, station.power);
+          b.quantumTorpedo = true;
+          this.gs.activeBullets.push(b);
+        }
+        this.gs.vfxList.push({
+          type: 'tripleCannonMuzzle', x: station.position.x, y: station.position.y,
+          angle: station.angle, colour: station.colour, t: 0, duration: 0.3,
+        });
+      } else if (w === WeaponId.QUANTUM_AUTO_CANNON && station.team.spendStock(WeaponId.QUANTUM_AUTO_CANNON)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.QUANTUM_AUTO_CANNON, shotsRemaining: 5, totalShots: 5,
+          intervalSteps: 500, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
+      } else if (w === WeaponId.GRAVITY_CANNON && station.team.spendStock(WeaponId.GRAVITY_CANNON)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.velocity          = new Vec2(b.velocity.x * 0.5, b.velocity.y * 0.5);
+        b.gravityMultiplier = 0.25;
+        b.sizeMultiplier    = GRAVITY_CANNON_SIZE_MULT;
+        b.thickTrail        = true;
+        b.gravityCannon     = true;
+        this.gs.activeBullets.push(b);
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
@@ -1011,6 +1043,11 @@ export class GameLoop {
         } else if (burst.weapon === WeaponId.AUTO_CANNON) {
           const spread = (this.rng.next() * 2 - 1) * 1;
           this.gs.activeBullets.push(this._makeBullet(burst.station, burst.angle + spread, burst.power));
+        } else if (burst.weapon === WeaponId.QUANTUM_AUTO_CANNON) {
+          const spread = (this.rng.next() * 2 - 1) * 1;
+          const b = this._makeBullet(burst.station, burst.angle + spread, burst.power);
+          b.quantumTorpedo = true;
+          this.gs.activeBullets.push(b);
         } else if (burst.weapon === WeaponId.SHOTGUN) {
           const MAX_V      = (800 / 1000 + 0.2) * 0.8;
           const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;
@@ -1194,6 +1231,12 @@ export class GameLoop {
           bullet._hitMoon = null;
         }
 
+        // Quantum Torpedo: teleport through solid body
+        if (bullet._qtTeleportPlanet) {
+          this._handleQuantumTeleport(bullet);
+          bullet._qtTeleportPlanet = null;
+        }
+
         // Skim event — increment skim stat (FR-8) and spawn particle effect (FR-6)
         if (bullet._skimEvent) {
           bullet.owner.stats.skimShots++;
@@ -1273,6 +1316,22 @@ export class GameLoop {
         // Save trail as ghost the moment a bullet leaves the active state
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
           if (bullet.owner.lastTrails) bullet.owner.lastTrails.push([...bullet.trail]);
+        }
+      }
+
+      // Gravity Cannon: each active GC bullet attracts all other bullets
+      for (const gcb of this.gs.activeBullets) {
+        if (!gcb.gravityCannon || gcb.status !== BulletStatus.ACTIVE) continue;
+        for (const b of this.gs.activeBullets) {
+          if (b === gcb || b.status !== BulletStatus.ACTIVE) continue;
+          const gdx   = gcb.position.x - b.position.x;
+          const gdy   = gcb.position.y - b.position.y;
+          const grSq  = Math.max(4, gdx * gdx + gdy * gdy);
+          const gSign = gdx < 0 ? -1 : 1;
+          const gAccel = gSign * G * GRAVITY_CANNON_MASS / grSq;
+          const gTheta = Math.atan(gdy / gdx);
+          b.velocity.x += Math.cos(gTheta) * gAccel * TIMESTEP;
+          b.velocity.y += Math.sin(gTheta) * gAccel * TIMESTEP;
         }
       }
 
@@ -1907,7 +1966,11 @@ export class GameLoop {
 
     target.status     = 'exploding';
     target.explosionT = 0;
-    this._spawnStationExplosion(target);
+    if (bullet.gravityCannon) {
+      target.implosion = true;  // shrink-to-nothing instead of explosion
+    } else {
+      this._spawnStationExplosion(target);
+    }
 
     const shooter = bullet.owner;
     target.stats.killedBy = shooter;
@@ -2011,6 +2074,40 @@ export class GameLoop {
       frag.fragFragment = true;
       this.gs.activeBullets.push(frag);
     }
+  }
+
+  _handleQuantumTeleport(bullet) {
+    const planet = bullet._qtTeleportPlanet;
+    const R = planet.impactRadius;
+
+    const vLen = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);
+    if (vLen < 0.001) { bullet.status = BulletStatus.EXPLODING; return; }
+    const uvx = bullet.velocity.x / vLen;
+    const uvy = bullet.velocity.y / vLen;
+
+    // Ray from bullet's current position (inside planet) forward along velocity.
+    // Find the positive-t exit point on the sphere of radius R.
+    const Dx    = bullet.position.x - planet.position.x;
+    const Dy    = bullet.position.y - planet.position.y;
+    const dotDV = Dx * uvx + Dy * uvy;
+    const disc  = dotDV * dotDV + R * R - (Dx * Dx + Dy * Dy);
+    if (disc < 0) { bullet.status = BulletStatus.EXPLODING; return; }
+
+    const t      = -dotDV + Math.sqrt(disc);
+    const entryX = bullet.position.x;
+    const entryY = bullet.position.y;
+
+    bullet.position = new Vec2(
+      bullet.position.x + uvx * (t + 2),  // 2 extra units past surface
+      bullet.position.y + uvy * (t + 2),
+    );
+    bullet.trail.push(null); // break trail at entry
+    bullet.teleportCount++;
+
+    // VFX: expanding ring at entry and exit
+    const [r, g, b] = bullet.owner.team.colour;
+    this.gs.vfxList.push({ type: 'qtFlash', x: entryX,            y: entryY,            t: 0, duration: 0.5, r, g, b });
+    this.gs.vfxList.push({ type: 'qtFlash', x: bullet.position.x, y: bullet.position.y, t: 0, duration: 0.5, r, g, b });
   }
 
   _scatterCannon(bullet) {

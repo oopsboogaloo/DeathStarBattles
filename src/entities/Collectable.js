@@ -25,6 +25,10 @@ export const WeaponId = Object.freeze({
   ARMOUR:             'armour',
   REPULSOR_FIELD:     'repulsorField',
   MAMMOTH_CANNON:     'mammothCannon',
+  QUANTUM_TORPEDO:        'quantumTorpedo',
+  TRIPLE_QUANTUM_TORPEDO: 'tripleQuantumTorpedo',
+  QUANTUM_AUTO_CANNON:    'quantumAutoCannon',
+  GRAVITY_CANNON:         'gravityCannon',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -53,6 +57,10 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.ARMOUR,          charges: 1,  label: 'ARMOUR'          },
   { id: WeaponId.REPULSOR_FIELD,  charges: 1,  label: 'REPULSOR FIELD'  },
   { id: WeaponId.MAMMOTH_CANNON,  charges: 1,  label: 'MAMMOTH CANNON'  },
+  { id: WeaponId.QUANTUM_TORPEDO,        charges: 1,  label: 'QUANTUM TORPEDO' },
+  { id: WeaponId.TRIPLE_QUANTUM_TORPEDO, charges: 1,  label: 'TRIPLE Q. TORP.'  },
+  { id: WeaponId.QUANTUM_AUTO_CANNON,    charges: 1,  label: 'QUANTUM AUTO-C.'  },
+  { id: WeaponId.GRAVITY_CANNON,         charges: 1,  label: 'GRAVITY CANNON'   },
 ];
 
 // Game-unit radius for collision and rendering.

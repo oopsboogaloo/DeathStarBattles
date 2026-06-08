@@ -65,6 +65,7 @@ export class Station {
     this.stats           = new StationStats();
     this.armourLayers    = 0;            // current count of armour layers
     this.armourFlash     = 0;            // 1→0 flash animation when a layer is absorbed
+    this.implosion       = false;        // killed by gravity cannon — shrinks to nothing
   }
 
   get radius()          { return this.size.radius; }

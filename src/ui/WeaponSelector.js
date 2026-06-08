@@ -27,6 +27,10 @@ const LABELS = {
   [WeaponId.ARMOUR]:            'ARMOUR',
   [WeaponId.REPULSOR_FIELD]:    'REPULSOR FIELD',
   [WeaponId.MAMMOTH_CANNON]:    'MAMMOTH CANNON',
+  [WeaponId.QUANTUM_TORPEDO]:        'QUANTUM TORPEDO',
+  [WeaponId.TRIPLE_QUANTUM_TORPEDO]: 'TRIPLE Q. TORP.',
+  [WeaponId.QUANTUM_AUTO_CANNON]:    'QUANTUM AUTO-C.',
+  [WeaponId.GRAVITY_CANNON]:         'GRAVITY CANNON',
 };
 
 // Weapons that use stock (shown with [n] count)
@@ -39,6 +43,8 @@ const LIMITED = new Set([
   WeaponId.SCATTER_CANNON, WeaponId.SPIRAL,
   WeaponId.RESUPPLY, WeaponId.HEDGEHOG, WeaponId.TEAM_SHIELD,
   WeaponId.ARMOUR, WeaponId.REPULSOR_FIELD, WeaponId.MAMMOTH_CANNON,
+  WeaponId.QUANTUM_TORPEDO, WeaponId.TRIPLE_QUANTUM_TORPEDO,
+  WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
 ]);
 
 export class WeaponSelector {
@@ -134,6 +140,10 @@ export class WeaponSelector {
       WeaponId.ARMOUR,
       WeaponId.REPULSOR_FIELD,
       WeaponId.MAMMOTH_CANNON,
+      WeaponId.QUANTUM_TORPEDO,
+      WeaponId.TRIPLE_QUANTUM_TORPEDO,
+      WeaponId.QUANTUM_AUTO_CANNON,
+      WeaponId.GRAVITY_CANNON,
     ];
 
     // Build visible rows first so we know the total count
