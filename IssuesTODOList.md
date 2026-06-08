@@ -285,7 +285,29 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
 - [ ] **Resupply** *(Tier 2)* — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
 
-- [ ] **Quantum Torpedo** *(Tier 3)* — A torpedo that teleports through solid celestial bodies. On contact with any planet except a gas giant, a teleport VFX plays at the entry point, the torpedo instantly reappears at the straight-line exit point on the far side of the body, and a second VFX plays at the exit point. The torpedo continues on its original trajectory from the exit point and detonates only on station contact. Gas giants are treated normally (torpedo passes through without teleporting). Requires new teleport SFX and exit-point geometry calculation (ray vs sphere intersection for the far side).
+- [ ] **Quantum Torpedo** *(Tier 3)* — Fires and travels like a standard cannon shot but teleports through any solid non-station body it contacts, reappearing on the far side and continuing on its way.
+
+  **Controls & Appearance (FR-1)**
+  - Aimed and fired identically to a cannon shot (angle + power)
+  - Travels subject to gravity in the same way as a cannon shot
+  - Rendered identically to a standard cannon shot — it looks like a normal cannonball
+
+  **Teleport Behaviour (FR-2)**
+  - On contact with any solid non-station body (planet, asteroid, moon): the torpedo teleports
+  - Exit point is computed by casting a ray from the contact point along the torpedo's current velocity vector to find where it exits the far surface of that body
+  - The torpedo instantly reappears at the exit point with the same velocity and continues on its original trajectory
+  - Can teleport multiple times if it subsequently contacts further bodies
+
+  **Teleport VFX (FR-3)**
+  - A brief teleport flash/ripple plays at the entry contact point
+  - A matching flash/ripple plays at the exit point as it reappears
+  - SFX accompanies each teleport
+
+  **Station Contact (FR-4)**
+  - On contact with a station: detonates and destroys the station normally (no teleport — stations are not teleported through)
+
+  **Hazard Contact (FR-5)**
+  - On contact with a star, dwarf star, or black hole: the torpedo is destroyed as normal (no teleport)
 
 - [x] **Bounce Cannon** *(Tier 1)* — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
