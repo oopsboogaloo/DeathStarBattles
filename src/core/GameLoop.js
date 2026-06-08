@@ -865,7 +865,7 @@ export class GameLoop {
         });
       } else if (w === WeaponId.SCATTER_CANNON && station.team.spendStock(WeaponId.SCATTER_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
-        b.scatterTimer = 1350;
+        b.scatterTimer = 2700;
         this.gs.activeBullets.push(b);
       } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
         this.gs.burstQueue.push({
