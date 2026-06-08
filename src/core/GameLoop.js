@@ -1211,6 +1211,7 @@ export class GameLoop {
             if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
           } else if (pl.superLaser) {
             const path = this._simulateSuperLaserPath(pl.station, pl.angle);
+            this.renderer?.rebuildBackground();
             const [slr, slg, slb] = pl.station.team.colour;
             this.gs.vfxList.push({ type: 'superLaserBeam', path, r: slr, g: slg, b: slb, t: 0, duration: pl.vfxDuration ?? SUPER_LASER_BEAM_DURATION });
             if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);

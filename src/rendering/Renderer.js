@@ -224,6 +224,10 @@ export class Renderer {
     for (const rift of this._rifts ?? []) this._drawRift(ctx, rift);
   }
 
+  rebuildBackground() {
+    this._renderBackground();
+  }
+
   _drawRift(ctx, rift) {
     const conv     = this.conv;
     const pts      = rift.vertices.map(v => ({ x: v.x * conv, y: v.y * conv }));
