@@ -54,7 +54,7 @@ export class WeaponSelector {
 
   open(station, anchorEl, gs) {
     this._rebuildRows(station, gs);
-    this.popup.style.display = 'block';
+    this.popup.style.display = this._twoCol ? 'flex' : 'block';
     this._isOpen = true;
     this._position(anchorEl);
   }
@@ -121,15 +121,16 @@ export class WeaponSelector {
       WeaponId.SPIRAL,
     ];
 
+    // Build visible rows first so we know the total count
+    const rows = [];
     for (const weaponId of allWeapons) {
       const isLimited  = LIMITED.has(weaponId);
       const rawStock   = isLimited ? team.getStock(weaponId) : Infinity;
-      // Subtract uses already reserved by other active team stations this turn
       const reserved   = isLimited ? station.team.stations.filter(
         s => s !== station && s.status === 'active' && s.selectedWeapon === weaponId
       ).length : 0;
       const stock      = isLimited ? Math.max(0, rawStock - reserved) : Infinity;
-      if (isLimited && stock <= 0) continue; // hide weapons with no effective stock
+      if (isLimited && stock <= 0) continue;
       const isSelected = station.selectedWeapon === weaponId;
       const lbl        = LABELS[weaponId];
       const suffix     = isLimited ? ` [${stock}]` : ' (∞)';
@@ -150,7 +151,27 @@ export class WeaponSelector {
         this._onSelect?.(weaponId);
         this.close();
       });
-      this.popup.appendChild(row);
+      rows.push(row);
+    }
+
+    const COL_THRESHOLD = 8;
+    if (rows.length > COL_THRESHOLD) {
+      const mid  = Math.ceil(rows.length / 2);
+      const col1 = document.createElement('div');
+      const col2 = document.createElement('div');
+      Object.assign(col1.style, { display: 'flex', flexDirection: 'column' });
+      Object.assign(col2.style, {
+        display: 'flex', flexDirection: 'column',
+        borderLeft: '1px solid rgba(80,110,255,0.3)',
+      });
+      rows.slice(0, mid).forEach(r => col1.appendChild(r));
+      rows.slice(mid).forEach(r => col2.appendChild(r));
+      this.popup.appendChild(col1);
+      this.popup.appendChild(col2);
+      this._twoCol = true;
+    } else {
+      rows.forEach(r => this.popup.appendChild(r));
+      this._twoCol = false;
     }
   }
 }
