@@ -2973,7 +2973,7 @@ export class Renderer {
     const t     = vfx.t;
     const alpha = Math.sin(t * Math.PI);
     const { r, g, b } = vfx;
-    const phase = Date.now() / 250;
+    const phase = -Date.now() / 83;
 
     const AMPLITUDE    = 4.8;  // ± one medium-station radius (= medium station width peak-to-peak)
     const CYCLES       = 10.5;
