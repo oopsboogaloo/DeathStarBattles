@@ -218,7 +218,27 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
-- [ ] **Mind Control Beam** — Laser-like beam; any enemy station it strikes switches to the firing player's team for the remainder of the game (or for a set number of turns).
+- [ ] **Mind Control Beam** — A laser-class weapon that fires an animated sine-wave beam. If the beam strikes an enemy station, that station is permanently converted to the firing team for the rest of the game.
+
+  **Firing & Travel (FR-1)**
+  - Aimed like a standard laser (angle selector, no power control)
+  - The beam travels subject to gravity, identical to a laser
+  - Stops at the first hard surface it contacts (planet, asteroid, moon, station) — does not pass through
+  - Absorbed by stars, dwarf stars, and black holes (same as laser)
+  - Longer charge-up / firing delay than other laser beams to signal its significance
+
+  **Visuals (FR-2)**
+  - Rendered as an animated sine-wave line rather than a straight beam
+  - Drawn in the firing team's colour
+
+  **Conversion (FR-3)**
+  - On contact with an enemy station: the station immediately joins the firing team for the remainder of the game
+  - The converted station's colour changes to the firing team's colour
+  - Converted station is controlled by the same player/AI as the rest of the firing team from the next turn onwards
+  - This counts as a kill for stats purposes
+
+  **Win Condition (FR-4)**
+  - After conversion, check if any opposing team still has active stations; if not, the round ends immediately (converted station may be the last enemy)
 
 - [ ] **Mammoth Cannon** — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
 
