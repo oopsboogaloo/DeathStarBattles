@@ -158,7 +158,16 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [ ] **Dual Blaster** — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
 
-- [ ] **Team Shield** — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not shoot this turn.
+- [ ] **Team Shield** — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not fire a shot this turn.
+
+  **Availability (FR-1)**
+  - Not offered to players in single-station-per-team games (it would always be wasted); suppress it from the weapon selector when the team has only one station configured
+  - A player whose team is down to one surviving station may still hold stock of this weapon and use it in a future turn when reinforcements arrive; it is only hidden at game-setup time based on the configured station count, not dynamically during play
+
+  **Behaviour (FR-2)**
+  - On use: a Force Shield is deployed on every active friendly station (same shield mechanics as the Force Shield weapon)
+  - The station that used Team Shield does not fire any projectile this turn
+  - Consumes one charge
 
 - [ ] **Teleport** — Angle-and-power-controlled hyperspace: the ship travels in the aimed direction for a distance proportional to power, then rematerialises. Player can see a preview of the destination before firing.
 
@@ -222,6 +231,25 @@ Resolved items have been moved to ResolvedTODOList.md.
 - [ ] **Gravity Cannon** — Fires a gravitational anomaly that travels like a cannonball but deflects nearby shots rather than destroying them; fades after a set time.
 
 - [ ] **Repulsor Field** — Deploys a stationary repulsion zone around the firing station for one round that pushes away incoming projectiles; the firing station can still shoot normally this turn.
+
+- [ ] **Armour** — Grants the firing station two armour layers that absorb incoming hits.
+
+  **Armour Layer Appearance (FR-1)**
+  - Each armour layer is rendered as a circular dashed line around the station, slightly larger than the station radius, not animated
+  - Multiple layers are rendered as concentric dashed circles, each at a slightly larger radius than the last so all are visible simultaneously
+
+  **Hit Absorption (FR-2)**
+  - When a projectile contacts a station that has at least one armour layer, the outermost layer absorbs the hit entirely: no explosion, no damage, no associated VFX or SFX from the projectile itself
+  - The absorbed layer plays a brief hit SFX: the dashed ring flashes white and then fades out very quickly (e.g. ~0.2 s)
+  - After the flash the layer is permanently removed; the remaining inner layers shift out to fill the visual gap (or simply remain at their fixed radii)
+
+  **Persistence (FR-3)**
+  - Armour layers persist across turns until consumed by hits
+  - All remaining armour layers are removed at the end of the game (no carry-over between games)
+
+  **Grant (FR-4)**
+  - Each use of Armour grants 2 layers to the firing station
+  - Multiple uses stack: using Armour twice gives 4 layers
 
 ## Polish
 
