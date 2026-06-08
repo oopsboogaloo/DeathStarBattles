@@ -154,6 +154,44 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Fragment speed min (default: 20% of max cannon power) / max (default: 40% of max cannon power)
   - Primary trail thickness multiplier (default: 2×)
 
+## Future Weapons
+
+- [ ] **Dual Blaster** — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
+
+- [ ] **Team Shield** — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not shoot this turn.
+
+- [ ] **Teleport** — Angle-and-power-controlled hyperspace: the ship travels in the aimed direction for a distance proportional to power, then rematerialises. Player can see a preview of the destination before firing.
+
+- [ ] **Electro Stun** — Fires a cone of electric shocks in the aimed direction. Any enemy station caught in the cone is stunned for one turn (cannot move or shoot). No direct damage.
+
+- [ ] **Super Laser** — Star-Wars-style planet-destroying laser. Fires a massive beam that obliterates any planet it passes through. Extremely rare; single use.
+
+- [ ] **Reinforcement Signal** — Calls in backup: at the end of the firing turn, 1 (occasionally 2–3) extra friendly station(s) appear on the map.
+
+- [ ] **Resupply** — Fires a shot that explodes into a cluster of high-tier weapon collectables on detonation, available for any team to collect.
+
+- [ ] **Quantum Torpedo** — A torpedo that phases through planets (no collision with solid bodies) and detonates only on station contact.
+
+- [ ] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
+
+- [ ] **Mind Control Beam** — Laser-like beam; any enemy station it strikes switches to the firing player's team for the remainder of the game (or for a set number of turns).
+
+- [ ] **Mammoth Cannon** — Oversized cannon shot with greatly increased blast radius and mass; tears through planets and causes massive splash damage.
+
+- [ ] **Scatter Cannon** — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
+
+- [ ] **Auto Cannon** — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
+
+- [ ] **Spiral** — Fires blaster shots sequentially in all directions (360° sweep), one per blaster timing interval.
+
+- [ ] **Star Shot** — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
+
+- [ ] **Hedgehog** — Combines a Force Shield with 3 volleys of 7 mini-rockets fired in all directions (21 rockets total). Shield deploys immediately; rocket volleys follow at regular intervals.
+
+- [ ] **Gravity Cannon** — Fires a gravitational anomaly that travels like a cannonball but deflects nearby shots rather than destroying them; fades after a set time.
+
+- [ ] **Repulsor Field** — Deploys a stationary repulsion zone around the firing station for one round that pushes away incoming projectiles; the firing station can still shoot normally this turn.
+
 ## Polish
 
 <!-- e.g. - [ ] Description -->
