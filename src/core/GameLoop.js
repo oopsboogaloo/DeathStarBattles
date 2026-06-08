@@ -817,7 +817,7 @@ export class GameLoop {
         this.gs.activeBullets.push(b);
       } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
         this.gs.burstQueue.push({
-          station, weapon: WeaponId.SPIRAL, shotsRemaining: 8, totalShots: 8,
+          station, weapon: WeaponId.SPIRAL, shotsRemaining: 13, totalShots: 13,
           intervalSteps: 600, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
@@ -926,8 +926,8 @@ export class GameLoop {
           this.gs.activeBullets.push(b);
         } else if (burst.weapon === WeaponId.SPIRAL) {
           const MAX_V   = (800 / 1000 + 0.2) * 0.8;
-          const shotIdx = (burst.totalShots ?? 8) - burst.shotsRemaining;
-          const b = this._makeBulletVelocity(burst.station, burst.angle + shotIdx * 45, MAX_V * 0.55);
+          const shotIdx = (burst.totalShots ?? 13) - burst.shotsRemaining;
+          const b = this._makeBulletVelocity(burst.station, burst.angle + shotIdx * (360 / 13), MAX_V * 0.55);
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
         } else if (burst.weapon === WeaponId.AUTO_CANNON) {

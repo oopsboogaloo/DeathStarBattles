@@ -1169,7 +1169,7 @@ export class Renderer {
       case 'autoCannon':        offsets = [-1, 0, 1];                        break;
       case 'starShot':          offsets = [0, 72, 144, 216, 288];            break;
       case 'scatterCannon':     offsets = [-10, -5, 0, 5, 10];              break;
-      case 'spiral':            offsets = [0, 45, 90, 135, 180, 225, 270, 315]; break;
+      case 'spiral':            offsets = Array.from({length: 13}, (_, i) => i * (360 / 13)); break;
       default:                  offsets = [0];                   break;
     }
 
@@ -1447,9 +1447,9 @@ export class Renderer {
         break;
       case 'spiral': {
         const MAX_V = (800 / 1000 + MIN_POWER) * MAX_POWER;
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 13; i++) {
           const path = this._computeBulletPreviewPath(
-            station, station.angle + i * 45, station.power, planets, maxLen, MAX_V * 0.55,
+            station, station.angle + i * (360 / 13), station.power, planets, maxLen, MAX_V * 0.55,
           );
           if (path.length >= 2) this._drawFadingPath(ctx, path, i === 0 ? 0.7 : 0.35, i === 0 ? 1.5 : 1);
         }
