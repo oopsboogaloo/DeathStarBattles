@@ -177,7 +177,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - A player whose team is down to one surviving station may still hold stock of this weapon and use it in a future turn when reinforcements arrive; it is only hidden at game-setup time based on the configured station count, not dynamically during play
 
   **Behaviour (FR-2)**
-  - On use: a Force Shield is deployed on every active friendly station (same shield mechanics as the Force Shield weapon)
+  - On use: a Force Shield is deployed on every active friendly station including the firing station (same shield mechanics as the Force Shield weapon)
   - The station that used Team Shield does not fire any projectile this turn
   - Consumes one charge
 
@@ -213,7 +213,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
   **Blocking (FR-3)**
   - Lightning is blocked by planets, moons, and asteroids — solid bodies cast a shadow; stations behind them are not hit
-  - Not blocked by stations (lightning passes through friendly stations to hit enemies beyond, or vice versa — TBD during implementation)
+  - Not blocked by stations — lightning passes through all stations (friendly and enemy alike) and can hit any station within the arc, including friendly ones
 
   **Electrified Condition (FR-4)**
   - Any station within the arc and within range that is not shielded by a solid body becomes Electrified
@@ -223,6 +223,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   **Electrified Turn Behaviour (FR-5)**
   - On the Electrified station's next turn: the game automatically fires a cannon shot for it at a random angle and random power; the station cannot move
   - No damage is dealt to the station itself
+  - If the auto-fire shot destroys a station (friendly or enemy) it counts as a normal kill for the electrified station's team
   - The condition expires after one turn; the station returns to normal the turn after
 
   **Human Player UX (FR-6)**
