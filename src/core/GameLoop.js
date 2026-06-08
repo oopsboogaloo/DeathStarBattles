@@ -830,7 +830,7 @@ export class GameLoop {
       } else if (w === WeaponId.AUTO_CANNON && station.team.spendStock(WeaponId.AUTO_CANNON)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.AUTO_CANNON, shotsRemaining: 5, totalShots: 5,
-          intervalSteps: 300, nextFireStep: 0,
+          intervalSteps: 500, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
       } else if (w === WeaponId.STAR_SHOT && station.team.spendStock(WeaponId.STAR_SHOT)) {
@@ -931,7 +931,7 @@ export class GameLoop {
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
         } else if (burst.weapon === WeaponId.AUTO_CANNON) {
-          const spread = (this.rng.next() * 2 - 1) * 2;
+          const spread = (this.rng.next() * 2 - 1) * 1;
           this.gs.activeBullets.push(this._makeBullet(burst.station, burst.angle + spread, burst.power));
         } else if (burst.weapon === WeaponId.SHOTGUN) {
           const MAX_V      = (800 / 1000 + 0.2) * 0.8;
@@ -954,7 +954,7 @@ export class GameLoop {
             spread = -10 + shotIdx * 5;
             speed  = MAX_V * 0.55;
           } else {
-            spread = (this.rng.next() * 2 - 1) * 2.0;
+            spread = (this.rng.next() * 2 - 1) * 4.0;
             speed  = MAX_V * 1.5;
           }
           const b = this._makeBulletVelocity(burst.station, burst.angle + spread, speed);

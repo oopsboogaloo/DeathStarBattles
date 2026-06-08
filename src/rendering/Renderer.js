@@ -1158,7 +1158,7 @@ export class Renderer {
       case 'tripleCannon': offsets = [-5, 0, 5];               break;
       case 'blunderbuss':  offsets = [-15, -7.5, 0, 7.5, 15]; break;
       case 'blaster':      offsets = [-10, -5, 0, 5, 10];     break;
-      case 'minigun':      offsets = [-2, 0, 2];               break;
+      case 'minigun':      offsets = [-4, 0, 4];               break;
       case 'rocketPod':        offsets = [-1, 0, 1];               break;
       case 'septupleCannon':   offsets = [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]; break;
       case 'pulseLaser':       offsets = [-15, 0, 15];            break;
@@ -1166,7 +1166,7 @@ export class Renderer {
       case 'shotgun':           offsets = [-8, 0, 8];                        break;
       case 'dualBlaster':       offsets = [0];                               break;
       case 'bounceCannon':      offsets = [0];                               break;
-      case 'autoCannon':        offsets = [-2, 0, 2];                        break;
+      case 'autoCannon':        offsets = [-1, 0, 1];                        break;
       case 'starShot':          offsets = [0, 72, 144, 216, 288];            break;
       case 'scatterCannon':     offsets = [-10, -5, 0, 5, 10];              break;
       case 'spiral':            offsets = [0, 45, 90, 135, 180, 225, 270, 315]; break;
@@ -1399,7 +1399,7 @@ export class Renderer {
         }));
         break;
       case 'minigun':
-        shots = [-2, 0, 2].map(dAngle => ({
+        shots = [-4, 0, 4].map(dAngle => ({
           dAngle, speed: MAX_V * 1.5,
           alpha: dAngle === 0 ? 0.7 : 0.25, lw: dAngle === 0 ? 1.5 : 1,
         }));
@@ -1456,7 +1456,7 @@ export class Renderer {
         return;
       }
       case 'autoCannon':
-        shots = [-2, 0, 2].map(dAngle => ({
+        shots = [-1, 0, 1].map(dAngle => ({
           dAngle, speed: null,
           alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
         }));
