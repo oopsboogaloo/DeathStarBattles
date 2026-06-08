@@ -218,6 +218,8 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
+- [ ] **Triple Quantum Torpedo** — Fires 3 Quantum Torpedoes simultaneously across a narrow arc, identical to how the Triple Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
+
 - [ ] **Mind Control Beam** — A laser-class weapon that fires an animated sine-wave beam. If the beam strikes an enemy station, that station is permanently converted to the firing team for the rest of the game.
 
   **Firing & Travel (FR-1)**
