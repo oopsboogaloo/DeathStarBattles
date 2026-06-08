@@ -2899,7 +2899,7 @@ export class GameLoop {
     }
     s.selectedWeapon = weaponId;
     if (weaponId === WeaponId.SHOTGUN || weaponId === WeaponId.DUAL_BLASTER) s.angle2 = s.angle;
-    if (weaponId === WeaponId.BLASTER) s.power = Math.max(3, Math.min(15, s.power <= 15 ? s.power : 15));
+    if (weaponId === WeaponId.BLASTER) s.power = (s.power >= 3 && s.power <= 15) ? s.power : 8;
   }
 
   humanAngle(delta) {

@@ -100,15 +100,18 @@ export class InputHandler {
     const angleDeg = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360 * 10) / 10;
 
     const isTwoBarrel = station.selectedWeapon === WeaponId.SHOTGUN || station.selectedWeapon === WeaponId.DUAL_BLASTER;
-    const isPowerFree = isTwoBarrel || station.selectedWeapon === WeaponId.BLASTER;
+    const isBlaster   = station.selectedWeapon === WeaponId.BLASTER;
     if (isTwoBarrel && this._shotgunAimBarrel === 2) {
       station.angle2 = angleDeg;
     } else {
       station.angle = angleDeg;
-      if (!isPowerFree) {
-        // Power — distance maps from arrowMin to boxR → 1 to 800
-        const fraction = Math.max(0, Math.min(1, (dist - arrowMin_px) / (boxR_px - arrowMin_px)));
-        station.power  = Math.round(800 * fraction) + 1;
+      const fraction = Math.max(0, Math.min(1, (dist - arrowMin_px) / (boxR_px - arrowMin_px)));
+      if (isBlaster) {
+        // Distance maps to spread: inner edge = 3°, outer edge = 15°
+        station.power = Math.max(3, Math.min(15, Math.round(3 + fraction * 12)));
+      } else if (!isTwoBarrel) {
+        // Normal power — distance maps from arrowMin to boxR → 1 to 800
+        station.power = Math.round(800 * fraction) + 1;
       }
     }
   }
