@@ -949,9 +949,9 @@ export class GameLoop {
           const MAX_V = (800 / 1000 + 0.2) * 0.8;
           let spread, speed;
           if (burst.weapon === WeaponId.BLASTER) {
-            // Progressive: -10°, -5°, 0°, +5°, +10°
-            const shotIdx = (burst.totalShots ?? 5) - burst.shotsRemaining;
-            spread = -10 + shotIdx * 5;
+            const shotIdx    = (burst.totalShots ?? 5) - burst.shotsRemaining;
+            const halfSpread = burst.power ?? 15;
+            spread = -halfSpread + shotIdx * (halfSpread / 2);
             speed  = MAX_V * 0.55;
           } else {
             spread = (this.rng.next() * 2 - 1) * 4.0;
@@ -2251,6 +2251,7 @@ export class GameLoop {
     }
     s.selectedWeapon = weaponId;
     if (weaponId === WeaponId.SHOTGUN || weaponId === WeaponId.DUAL_BLASTER) s.angle2 = s.angle;
+    if (weaponId === WeaponId.BLASTER) s.power = Math.max(3, Math.min(15, s.power <= 15 ? s.power : 15));
   }
 
   humanAngle(delta) {
@@ -2263,6 +2264,8 @@ export class GameLoop {
     if (!s) return;
     if (s.selectedWeapon === WeaponId.SHOTGUN || s.selectedWeapon === WeaponId.DUAL_BLASTER) {
       s.angle2 = Math.round(((s.angle2 - delta) % 360 + 360) % 360 * 10) / 10;
+    } else if (s.selectedWeapon === WeaponId.BLASTER) {
+      s.power = Math.max(3, Math.min(15, s.power + delta));
     } else {
       s.power = Math.max(1, Math.min(800, s.power + delta));
     }

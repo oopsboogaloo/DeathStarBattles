@@ -2,7 +2,7 @@
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
 
-const NO_POWER_WEAPONS = new Set(['blunderbuss', 'blaster', 'laser', 'pulseLaser']);
+const NO_POWER_WEAPONS = new Set(['blunderbuss', 'laser', 'pulseLaser']);
 
 const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks
@@ -42,6 +42,7 @@ export class AimControls {
     const noPower    = NO_POWER_WEAPONS.has(w);
     const isFragShot   = w === 'fragmentationShot';
     const isShotgun    = w === 'shotgun' || w === 'dualBlaster';
+    const isBlaster    = w === 'blaster';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
@@ -50,6 +51,8 @@ export class AimControls {
         this._powerVal.textContent = `⏱${val}`;
       } else if (isShotgun) {
         this._powerVal.textContent = `∠2 ${(station.angle2 ?? station.angle).toFixed(0)}°`;
+      } else if (isBlaster) {
+        this._powerVal.textContent = `±${station.power}°`;
       } else {
         this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
       }
@@ -60,6 +63,8 @@ export class AimControls {
         this._powerVal.textContent = `Timer: ${val}`;
       } else if (isShotgun) {
         this._powerVal.textContent = `Barrel 2: ${(station.angle2 ?? station.angle).toFixed(1)}°`;
+      } else if (isBlaster) {
+        this._powerVal.textContent = `Spread: ±${station.power}°`;
       } else {
         this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
       }

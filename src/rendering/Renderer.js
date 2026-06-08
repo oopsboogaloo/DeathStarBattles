@@ -1157,7 +1157,7 @@ export class Renderer {
     switch (w) {
       case 'tripleCannon': offsets = [-5, 0, 5];               break;
       case 'blunderbuss':  offsets = [-15, -7.5, 0, 7.5, 15]; break;
-      case 'blaster':      offsets = [-10, -5, 0, 5, 10];     break;
+      case 'blaster': {    const h = station.power ?? 15; offsets = [-h, -h/2, 0, h/2, h]; break; }
       case 'minigun':      offsets = [-4, 0, 4];               break;
       case 'rocketPod':        offsets = [-1, 0, 1];               break;
       case 'septupleCannon':   offsets = [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]; break;
@@ -1386,12 +1386,14 @@ export class Renderer {
           { dAngle:  5, speed: null, alpha: 0.35, lw: 1   },
         ];
         break;
-      case 'blaster':
-        shots = [-10, -5, 0, 5, 10].map(dAngle => ({
+      case 'blaster': {
+        const h = station.power ?? 15;
+        shots = [-h, 0, h].map(dAngle => ({
           dAngle, speed: MAX_V * 0.55,
           alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
         }));
         break;
+      }
       case 'blunderbuss':
         shots = [-15, 0, 15].map(dAngle => ({
           dAngle, speed: MAX_V * 0.275,
