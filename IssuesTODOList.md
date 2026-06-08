@@ -457,6 +457,8 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
   **Hit Absorption (FR-2)**
   - When a projectile contacts a station that has at least one armour layer, the outermost layer absorbs the hit entirely: no explosion, no damage, no associated VFX or SFX from the projectile itself
+  - Area-effect damage (e.g. Mammoth Cannon blast radius, Super Laser proximity explosion) also consumes an armour layer rather than destroying the station
+  - Electro Stun is also blocked by an armour layer — the layer is consumed and the station is not Electrified
   - The absorbed layer plays a brief hit SFX: the dashed ring flashes white and then fades out very quickly (e.g. ~0.2 s)
   - After the flash the layer is permanently removed; the remaining inner layers shift out to fill the visual gap (or simply remain at their fixed radii)
 
