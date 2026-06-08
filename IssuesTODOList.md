@@ -169,7 +169,23 @@ Resolved items have been moved to ResolvedTODOList.md.
   - The station that used Team Shield does not fire any projectile this turn
   - Consumes one charge
 
-- [ ] **Teleport** — Angle-and-power-controlled hyperspace: the ship travels in the aimed direction for a distance proportional to power, then rematerialises. Player can see a preview of the destination before firing.
+- [ ] **Teleport** — Instantly relocates the firing station to a player-designated destination. Uses the angle and power controls: angle sets direction, power maps to distance (max distance = map diagonal). A destination marker is shown in the aim preview so the player can see exactly where they will land before firing.
+
+  **Timing (FR-1)**
+  - The teleport fires at the start of the turn (approximately 1 second in, before other projectiles resolve) — the station disappears from its origin and reappears at the destination immediately, not at end-of-turn.
+
+  **Safe Landing (FR-2)**
+  - The destination is always safe: if the computed arrival point would overlap a planet, asteroid, star, black hole, or any station (friendly or enemy), the destination is nudged to the nearest clear location along the same direction vector.
+  - The station can never materialise inside a solid body.
+
+  **Force Shield on Arrival (FR-3)**
+  - The station materialises with a Force Shield already active, which persists for the remainder of that turn.
+  - This protects it from any projectiles already in flight that might pass through the new location during the same turn.
+
+  **Controls & Preview (FR-4)**
+  - Angle selector sets travel direction as normal.
+  - Power slider sets distance: minimum power → short hop, maximum power → full map diagonal.
+  - Aim preview renders a destination marker (e.g. a ghost/outline of the station) at the computed safe landing point, updating live as angle/power change.
 
 - [ ] **Electro Stun** — Fires a cone of electric shocks in the aimed direction. Any enemy station caught in the cone is stunned for one turn (cannot move or shoot). No direct damage.
 
