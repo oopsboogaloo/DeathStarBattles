@@ -242,17 +242,19 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
   **Beam Travel & Penetration (FR-2)**
   - The beam travels in a straight line in the aimed direction (no gravity deflection — it is too powerful to bend)
-  - Destroys any station, asteroid, comet, or moon it passes through without slowing or stopping — these are obliterated mid-beam
-  - Continues until it hits a planet, star, dwarf star, or black hole
+  - Destroys all enemy stations it passes through; friendly stations are not harmed by the beam itself
+  - Destroys asteroids, comets, and moons it passes through without slowing or stopping
+  - Passes through gas giants without destroying them and without stopping
+  - Continues until it hits a solid planet, star, dwarf star, or black hole
 
   **Planet Destruction (FR-3)**
-  - On contact with a planet: the planet is instantly destroyed
+  - On contact with a solid planet: the planet is instantly destroyed
   - The destroyed planet leaves 3–5 asteroid fragments at the impact site, identical to moon destruction behaviour
-  - A large explosion at the impact point (similar in scale to a rocket explosion) destroys any nearby stations caught in the blast radius
+  - A large explosion at the impact point (similar in scale to a rocket explosion) damages anything — friendly or enemy — caught in the blast radius
 
   **Star / Hazard Contact (FR-4)**
   - On contact with a star, dwarf star, or black hole: the beam is absorbed and stops
-  - A rocket-scale explosion triggers at the contact point, destroying any nearby stations
+  - A rocket-scale explosion triggers at the contact point, damaging anything — friendly or enemy — caught in the blast radius
   - The star/dwarf star/black hole itself is unaffected
 
   **Controls (FR-5)**
