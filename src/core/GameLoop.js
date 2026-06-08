@@ -926,7 +926,7 @@ export class GameLoop {
               shotsRemaining: 1, totalShots: 1,
               intervalSteps: 0,
               nextFireStep: this.gs.firingStep + volley * 200,
-              angle: volley * 30 + shot * 120, power: 400,
+              angle: station.angle + volley * 30 + shot * 120, power: 400,
             });
           }
         }

@@ -9,7 +9,7 @@ const NO_POWER_WEAPONS = new Set([
 ]);
 
 const NO_AIM_WEAPONS = new Set([
-  'resupply', 'hedgehog', 'teamShield', 'armour',
+  'resupply', 'teamShield', 'armour',
 ]);
 
 const HOLD_DELAY    = 350;  // ms before repeat begins

@@ -1192,7 +1192,7 @@ export class Renderer {
         offsets = [-half, 0, half];
         break;
       }
-      case 'hedgehog': offsets = Array.from({length: 12}, (_, i) => (i * 30) - station.angle); break;
+      case 'hedgehog': offsets = Array.from({length: 12}, (_, i) => i * 30); break;
       case 'tripleQuantumTorpedo': offsets = [-5, 0, 5];   break;
       case 'quantumAutoCannon':    offsets = [-1, 0, 1];   break;
       case 'teleport':              offsets = [0]; break; // direction only; destination shown below
@@ -1616,9 +1616,9 @@ export class Renderer {
         return;
       }
       case 'hedgehog': {
-        // 12 rockets at fixed absolute angles 0°, 30°, ..., 330° with fixed power 400
+        // 12 rockets evenly spaced around station.angle with fixed power 400
         for (let i = 0; i < 12; i++) {
-          const path = this._computeRocketPreviewPath(station, i * 30, 400, planets, maxLen);
+          const path = this._computeRocketPreviewPath(station, station.angle + i * 30, 400, planets, maxLen);
           if (path.length >= 2) this._drawFadingPath(ctx, path, 0.55, 1);
         }
         return;
