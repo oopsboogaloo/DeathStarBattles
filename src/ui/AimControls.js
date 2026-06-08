@@ -40,8 +40,8 @@ export class AimControls {
     if (!station) return;
     const w          = station.selectedWeapon;
     const noPower    = NO_POWER_WEAPONS.has(w);
-    const isFragShot = w === 'fragmentationShot';
-    const isShotgun  = w === 'shotgun';
+    const isFragShot   = w === 'fragmentationShot';
+    const isShotgun    = w === 'shotgun' || w === 'dualBlaster';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;

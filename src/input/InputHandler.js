@@ -49,7 +49,8 @@ export class InputHandler {
   _onMouseDown(e) {
     if (this._isHumanAiming()) {
       const station = this.loop?.gs?.activeStation;
-      if (station?.selectedWeapon === WeaponId.SHOTGUN) {
+      const w = station?.selectedWeapon;
+      if (w === WeaponId.SHOTGUN || w === WeaponId.DUAL_BLASTER) {
         this._shotgunAimBarrel = this._shotgunAimBarrel === 1 ? 2 : 1;
       } else {
         this._shotgunAimBarrel = 1;
@@ -98,7 +99,8 @@ export class InputHandler {
     // Angle — atan2(dx, dy) gives clockwise-from-down convention matching physics
     const angleDeg = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360 * 10) / 10;
 
-    if (station.selectedWeapon === WeaponId.SHOTGUN && this._shotgunAimBarrel === 2) {
+    const isTwoBarrel = station.selectedWeapon === WeaponId.SHOTGUN || station.selectedWeapon === WeaponId.DUAL_BLASTER;
+    if (isTwoBarrel && this._shotgunAimBarrel === 2) {
       station.angle2 = angleDeg;
     } else {
       station.angle = angleDeg;

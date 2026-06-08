@@ -811,6 +811,12 @@ export class GameLoop {
           intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
+      } else if (w === WeaponId.DUAL_BLASTER && station.team.spendStock(WeaponId.DUAL_BLASTER)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.DUAL_BLASTER, shotsRemaining: 10, totalShots: 10,
+          intervalSteps: 600, nextFireStep: 0,
+          angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
+        });
       } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
         const MAX_V = (800 / 1000 + 0.2) * 0.8;
         const b = this._makeBulletVelocity(station, station.angle, MAX_V * 0.75);
@@ -885,6 +891,17 @@ export class GameLoop {
           rocket.fuel  = ROCKET_MIN_FUEL + (burst.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
           rocket.blastRadius = ROCKET_BLAST_RADIUS * 0.5;
           this.gs.rockets.push(rocket);
+        } else if (burst.weapon === WeaponId.DUAL_BLASTER) {
+          const MAX_V        = (800 / 1000 + 0.2) * 0.8;
+          const pelletIdx    = (burst.totalShots ?? 10) - burst.shotsRemaining; // 0-9
+          const barrelAngle  = pelletIdx < 5 ? burst.angle : burst.angle2;
+          const spread       = -10 + (pelletIdx % 5) * 5;
+          const b = this._makeBulletVelocity(burst.station, barrelAngle + spread, MAX_V * 0.55);
+          b.thinTrail = true;
+          this.gs.activeBullets.push(b);
+          // Long pause after the last pellet of barrel 1
+          if (pelletIdx === 4) burst.intervalSteps = 900;
+          else                  burst.intervalSteps = 600;
         } else if (burst.weapon === WeaponId.SHOTGUN) {
           const MAX_V      = (800 / 1000 + 0.2) * 0.8;
           const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;
@@ -2166,7 +2183,7 @@ export class GameLoop {
       if (s.team.getStock(weaponId) - reserved <= 0) return;
     }
     s.selectedWeapon = weaponId;
-    if (weaponId === WeaponId.SHOTGUN) s.angle2 = s.angle;
+    if (weaponId === WeaponId.SHOTGUN || weaponId === WeaponId.DUAL_BLASTER) s.angle2 = s.angle;
   }
 
   humanAngle(delta) {
@@ -2177,7 +2194,7 @@ export class GameLoop {
   humanPower(delta) {
     const s = this.gs.activeStation;
     if (!s) return;
-    if (s.selectedWeapon === WeaponId.SHOTGUN) {
+    if (s.selectedWeapon === WeaponId.SHOTGUN || s.selectedWeapon === WeaponId.DUAL_BLASTER) {
       s.angle2 = Math.round(((s.angle2 - delta) % 360 + 360) % 360 * 10) / 10;
     } else {
       s.power = Math.max(1, Math.min(800, s.power + delta));

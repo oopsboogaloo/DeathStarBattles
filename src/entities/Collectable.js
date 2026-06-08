@@ -13,6 +13,7 @@ export const WeaponId = Object.freeze({
   PULSE_LASER:        'pulseLaser',
   FRAGMENTATION_SHOT: 'fragmentationShot',
   SHOTGUN:            'shotgun',
+  DUAL_BLASTER:       'dualBlaster',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -28,7 +29,8 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.SEPTUPLE_CANNON,    charges: 1,  label: 'SEPT. CANNON'  },
   { id: WeaponId.PULSE_LASER,        charges: 1,  label: 'PULSE LASER'   },
   { id: WeaponId.FRAGMENTATION_SHOT, charges: 1,  label: 'FRAG SHOT'     },
-  { id: WeaponId.SHOTGUN,            charges: 1,  label: 'SHOTGUN'        },
+  { id: WeaponId.SHOTGUN,            charges: 1,  label: 'SHOTGUN'       },
+  { id: WeaponId.DUAL_BLASTER,      charges: 1,  label: 'DUAL BLASTER'  },
 ];
 
 // Game-unit radius for collision and rendering.

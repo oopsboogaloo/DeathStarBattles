@@ -15,6 +15,7 @@ const LABELS = {
   [WeaponId.PULSE_LASER]:        'PULSE LASER',
   [WeaponId.FRAGMENTATION_SHOT]: 'FRAG SHOT',
   [WeaponId.SHOTGUN]:            'SHOTGUN',
+  [WeaponId.DUAL_BLASTER]:      'DUAL BLASTER',
 };
 
 // Weapons that use stock (shown with [n] count)
@@ -22,7 +23,7 @@ const LIMITED = new Set([
   WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER, WeaponId.ROCKET,
   WeaponId.ROCKET_POD, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
   WeaponId.SEPTUPLE_CANNON, WeaponId.PULSE_LASER, WeaponId.FRAGMENTATION_SHOT,
-  WeaponId.SHOTGUN,
+  WeaponId.SHOTGUN, WeaponId.DUAL_BLASTER,
 ]);
 
 export class WeaponSelector {
@@ -105,6 +106,7 @@ export class WeaponSelector {
       WeaponId.PULSE_LASER,
       WeaponId.FRAGMENTATION_SHOT,
       WeaponId.SHOTGUN,
+      WeaponId.DUAL_BLASTER,
     ];
 
     for (const weaponId of allWeapons) {
