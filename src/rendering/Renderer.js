@@ -394,6 +394,29 @@ export class Renderer {
       return;
     }
 
+    if (bullet.reinforcementSignal) {
+      const AMPLITUDE  = 4.8;
+      const WAVELENGTH = 30;
+      const dx = cur.x - prev.x;
+      const dy = cur.y - prev.y;
+      const segLen = Math.sqrt(dx * dx + dy * dy);
+      if (segLen === 0) return;
+      const nx = -dy / segLen;   // perpendicular to segment
+      const ny =  dx / segLen;
+      const arcStart = bullet._trailArc ?? 0;
+      const arcEnd   = arcStart + segLen;
+      const w0 = Math.sin(2 * Math.PI * arcStart / WAVELENGTH) * AMPLITUDE;
+      const w1 = Math.sin(2 * Math.PI * arcEnd   / WAVELENGTH) * AMPLITUDE;
+      ctx.beginPath();
+      ctx.moveTo((prev.x + nx * w0) * conv, (prev.y + ny * w0) * conv);
+      ctx.lineTo((cur.x  + nx * w1) * conv, (cur.y  + ny * w1) * conv);
+      ctx.strokeStyle = `rgba(${tr},${tg},${tb},1)`;
+      ctx.lineWidth   = Math.max(1, conv * 0.6);
+      ctx.stroke();
+      bullet._trailArc = arcEnd;
+      return;
+    }
+
     ctx.beginPath();
     ctx.moveTo(prev.x * conv, prev.y * conv);
     ctx.lineTo(cur.x  * conv, cur.y  * conv);

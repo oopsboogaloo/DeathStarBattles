@@ -521,10 +521,11 @@ export class PhysicsEngine {
     const r  = Math.sqrt(dx * dx + dy * dy) || 1;
     const nx = -dx / r;  // outward normal: from planet toward bullet
     const ny = -dy / r;
-    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    const dot       = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    const retention = bullet.bounceRetention ?? FRAG_BOUNCE_RETENTION;
     bullet.velocity = new Vec2(
-      (bullet.velocity.x - 2 * dot * nx) * FRAG_BOUNCE_RETENTION,
-      (bullet.velocity.y - 2 * dot * ny) * FRAG_BOUNCE_RETENTION,
+      (bullet.velocity.x - 2 * dot * nx) * retention,
+      (bullet.velocity.y - 2 * dot * ny) * retention,
     );
     bullet.position = new Vec2(
       bullet.position.x + dx + nx * (surfaceRadius + INIT_DIST),
