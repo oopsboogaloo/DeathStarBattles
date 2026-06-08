@@ -50,11 +50,12 @@ export class PhysicsEngine {
   // Applies Newtonian gravity from all planets, then moves bullet.
   // Handles planet impacts (collision + wormholes) in-step.
 
-  step(bullet, planets, rifts = []) {
+  step(bullet, planets, rifts = [], repulsorFields = []) {
     if (bullet.status !== BulletStatus.ACTIVE) return;
 
     let vx = bullet.velocity.x;
     let vy = bullet.velocity.y;
+    const gMult = bullet.gravityMultiplier ?? 1;
 
     for (const planet of planets) {
       if (planet.destroyed) continue; // already queued for removal this frame
@@ -76,8 +77,8 @@ export class PhysicsEngine {
           const r   = Math.sqrt(rSq);
           accel = sign * G * planet.mass * r / (R * R * R);
         }
-        vx += Math.cos(theta) * accel * TIMESTEP;
-        vy += Math.sin(theta) * accel * TIMESTEP;
+        vx += Math.cos(theta) * accel * TIMESTEP * gMult;
+        vy += Math.sin(theta) * accel * TIMESTEP * gMult;
         continue; // never impacts — no collision check
       }
 
@@ -98,8 +99,8 @@ export class PhysicsEngine {
       const sign  = dx < 0 ? -1 : 1;
       const theta = Math.atan(dy / dx);
       const accel = sign * G * planet.mass / rSq;
-      vx += Math.cos(theta) * accel * TIMESTEP;
-      vy += Math.sin(theta) * accel * TIMESTEP;
+      vx += Math.cos(theta) * accel * TIMESTEP * gMult;
+      vy += Math.sin(theta) * accel * TIMESTEP * gMult;
 
       // Pulsar: outward impulse when bullet crosses an active pressure ring
       if (planet.type === PlanetType.PULSAR && planet.pulsarPulses?.length) {
@@ -128,6 +129,17 @@ export class PhysicsEngine {
         vx += (rdx / d) * F * TIMESTEP;
         vy += (rdy / d) * F * TIMESTEP;
       }
+    }
+
+    // Repulsor field — point repulsion centred on each active station, bullets only
+    for (const rf of repulsorFields) {
+      const rdx = bullet.position.x - rf.station.position.x;
+      const rdy = bullet.position.y - rf.station.position.y;
+      const d   = Math.sqrt(rdx * rdx + rdy * rdy);
+      if (d < 0.01 || d >= rf.influenceRadius) continue;
+      const F = RIFT_REPULSION_STRENGTH * (1 - d / rf.influenceRadius);
+      vx += (rdx / d) * F * TIMESTEP;
+      vy += (rdy / d) * F * TIMESTEP;
     }
 
     // Trick shot: accumulate signed rotation; flag when a full 360° loop is complete

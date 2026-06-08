@@ -724,6 +724,8 @@ const _ALL_SPECIAL = [
   WeaponId.SHOTGUN, WeaponId.DUAL_BLASTER,
   WeaponId.BOUNCE_CANNON, WeaponId.AUTO_CANNON, WeaponId.STAR_SHOT,
   WeaponId.SCATTER_CANNON, WeaponId.SPIRAL,
+  WeaponId.RESUPPLY, WeaponId.HEDGEHOG, WeaponId.TEAM_SHIELD,
+  WeaponId.ARMOUR, WeaponId.REPULSOR_FIELD, WeaponId.MAMMOTH_CANNON,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

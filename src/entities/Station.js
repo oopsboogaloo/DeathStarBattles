@@ -63,6 +63,8 @@ export class Station {
     this.role            = 'human';      // 'human' | 'target' | 'ai'
     this.visualStyle     = 'station';    // 'station' | 'drone'
     this.stats           = new StationStats();
+    this.armourLayers    = 0;            // current count of armour layers
+    this.armourFlash     = 0;            // 1→0 flash animation when a layer is absorbed
   }
 
   get radius()          { return this.size.radius; }

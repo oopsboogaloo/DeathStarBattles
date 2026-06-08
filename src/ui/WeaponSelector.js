@@ -21,6 +21,12 @@ const LABELS = {
   [WeaponId.STAR_SHOT]:         'STAR SHOT',
   [WeaponId.SCATTER_CANNON]:    'SCATTER CANNON',
   [WeaponId.SPIRAL]:            'SPIRAL',
+  [WeaponId.RESUPPLY]:          'RESUPPLY',
+  [WeaponId.HEDGEHOG]:          'HEDGEHOG',
+  [WeaponId.TEAM_SHIELD]:       'TEAM SHIELD',
+  [WeaponId.ARMOUR]:            'ARMOUR',
+  [WeaponId.REPULSOR_FIELD]:    'REPULSOR FIELD',
+  [WeaponId.MAMMOTH_CANNON]:    'MAMMOTH CANNON',
 };
 
 // Weapons that use stock (shown with [n] count)
@@ -31,6 +37,8 @@ const LIMITED = new Set([
   WeaponId.SHOTGUN, WeaponId.DUAL_BLASTER,
   WeaponId.BOUNCE_CANNON, WeaponId.AUTO_CANNON, WeaponId.STAR_SHOT,
   WeaponId.SCATTER_CANNON, WeaponId.SPIRAL,
+  WeaponId.RESUPPLY, WeaponId.HEDGEHOG, WeaponId.TEAM_SHIELD,
+  WeaponId.ARMOUR, WeaponId.REPULSOR_FIELD, WeaponId.MAMMOTH_CANNON,
 ]);
 
 export class WeaponSelector {
@@ -119,6 +127,13 @@ export class WeaponSelector {
       WeaponId.STAR_SHOT,
       WeaponId.SCATTER_CANNON,
       WeaponId.SPIRAL,
+      WeaponId.RESUPPLY,
+      WeaponId.HEDGEHOG,
+      // Team Shield only useful when team has multiple stations
+      ...(team.stations.filter(s => s.status === 'active').length > 1 ? [WeaponId.TEAM_SHIELD] : []),
+      WeaponId.ARMOUR,
+      WeaponId.REPULSOR_FIELD,
+      WeaponId.MAMMOTH_CANNON,
     ];
 
     // Build visible rows first so we know the total count

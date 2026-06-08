@@ -565,6 +565,9 @@ export class Renderer {
     // Rocket blast zones (drawn behind rockets and shields)
     if (gameState.rocketBlasts?.length) this._drawRocketBlasts(ctx, gameState.rocketBlasts);
 
+    // Repulsor fields (drawn behind shields)
+    if (gameState.repulsorFields?.length) this._drawRepulsorFields(ctx, gameState.repulsorFields);
+
     // Force shields
     if (gameState.shields?.length) this._drawShields(ctx, gameState.shields);
 
@@ -973,6 +976,9 @@ export class Renderer {
       this._drawDroneStation(ctx, station);
     } else {
       this._drawNormalStation(ctx, station);
+    }
+    if ((station.armourLayers ?? 0) > 0 || (station.armourFlash ?? 0) > 0) {
+      this._drawArmourRings(ctx, station);
     }
   }
 
@@ -1629,7 +1635,8 @@ export class Renderer {
       const r     = Math.round(tr + (255 - tr) * frac);
       const g     = Math.round(tg + (255 - tg) * frac);
       const b     = Math.round(tb + (255 - tb) * frac);
-      const lw    = Math.max(1, conv * (0.4 + frac * 1.0));
+      const sizeMult = bullet.sizeMultiplier ?? 1;
+      const lw    = Math.max(1, conv * (0.4 + frac * 1.0) * sizeMult);
 
       ctx.beginPath();
       ctx.moveTo(pts[i - 1].x * conv, pts[i - 1].y * conv);
@@ -1684,9 +1691,10 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawBullet(ctx, bullet) {
-    const cx = bullet.position.x * this.conv;
-    const cy = bullet.position.y * this.conv;
-    const r  = Math.max(2, bullet.owner.size.bulletRadius * this.conv);
+    const cx   = bullet.position.x * this.conv;
+    const cy   = bullet.position.y * this.conv;
+    const mult = bullet.sizeMultiplier ?? 1;
+    const r    = Math.max(2, bullet.owner.size.bulletRadius * this.conv * mult);
     const [cr, cg, cb] = bullet.owner.team.colour;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -2243,6 +2251,79 @@ export class Renderer {
       ctx.strokeStyle = `rgba(255,255,255,${(0.9 - t * 0.6).toFixed(3)})`;
       ctx.lineWidth   = Math.max(2, conv * 0.7);
       ctx.stroke();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Armour Rings — dashed rings indicating active armour layers
+  // ----------------------------------------------------------------
+
+  _drawArmourRings(ctx, station) {
+    const conv  = this.conv;
+    const cx    = station.position.x * conv;
+    const cy    = station.position.y * conv;
+    const r     = Math.max(3, station.radius * conv);
+    const [cr, cg, cb] = station.colour;
+    const flash = station.armourFlash ?? 0;
+    const layers = station.armourLayers ?? 0;
+
+    ctx.save();
+    ctx.setLineDash([Math.max(2, r * 0.25), Math.max(2, r * 0.15)]);
+
+    // Flash ring when a layer was just absorbed (shows even at 0 layers)
+    if (flash > 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.25, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,220,80,${flash * 0.9})`;
+      ctx.lineWidth   = Math.max(1.5, conv * 0.6);
+      ctx.stroke();
+    }
+
+    // One dashed ring per remaining layer
+    for (let i = 0; i < layers; i++) {
+      const ringR = r * (1.22 + i * 0.18);
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.75)`;
+      ctx.lineWidth   = Math.max(1, conv * 0.45);
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Repulsor Fields — subtle expanding ring centred on station
+  // ----------------------------------------------------------------
+
+  _drawRepulsorFields(ctx, repulsorFields) {
+    if (!repulsorFields?.length) return;
+    const conv = this.conv;
+    const now  = Date.now() / 1000;
+    for (const rf of repulsorFields) {
+      const cx = rf.station.position.x * conv;
+      const cy = rf.station.position.y * conv;
+      const R  = rf.influenceRadius * conv;
+      const [cr, cg, cb] = rf.station.team.colour;
+
+      // Two pulsing rings at different phases so the field looks animated
+      for (let phase = 0; phase < 2; phase++) {
+        const t     = ((now * 0.7 + phase * 0.5) % 1);
+        const ringR = R * (0.3 + t * 0.7);
+        const alpha = (1 - t) * 0.35;
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+        ctx.lineWidth   = Math.max(1, conv * 0.4);
+        ctx.stroke();
+      }
+
+      // Faint fill
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},0.03)`;
+      ctx.fill();
     }
   }
 

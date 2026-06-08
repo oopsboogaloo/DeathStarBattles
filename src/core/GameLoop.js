@@ -16,6 +16,17 @@ import { AIController }                    from '../ai/AIController.js';
 // Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
 export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryFast: 168 };
 
+// Mammoth Cannon tuning constants
+const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
+const MAMMOTH_BLAST_MULT       = 4;     // blast radius multiplier vs standard rocket
+const MAMMOTH_FRAG_COUNT       = 11;
+const MAMMOTH_FRAG_SPEED_MIN   = 0.30; // fraction of MAX_CANNON_SPEED
+const MAMMOTH_FRAG_SPEED_MAX   = 0.60;
+const MAMMOTH_BLAST_SPEED_MULT = 0.4;  // blast expansion speed relative to normal
+
+// Repulsor Field tuning constants
+const REPULSOR_FIELD_RADIUS    = 50;   // influence radius in game units
+
 export class GameLoop {
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
 
@@ -717,10 +728,11 @@ export class GameLoop {
   }
 
   _fireAll() {
-    this.gs.activeBullets = [];
-    this.gs.rockets       = [];
-    this.gs.shields       = [];
-    this.gs.rocketBlasts  = [];
+    this.gs.activeBullets   = [];
+    this.gs.rockets         = [];
+    this.gs.shields         = [];
+    this.gs.repulsorFields  = [];
+    this.gs.rocketBlasts    = [];
     this.gs.rocketSmoke         = [];
     this.gs.shipExplosionBloom  = [];
     this.gs.fireballs           = [];
@@ -850,6 +862,59 @@ export class GameLoop {
         b.fragTimer  = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
         b.thickTrail = true;
         this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.RESUPPLY && station.team.spendStock(WeaponId.RESUPPLY)) {
+        const count = 3 + Math.floor(this.rng.next() * 3); // 3–5
+        for (let i = 0; i < count; i++) {
+          const ang  = this.rng.next() * Math.PI * 2;
+          const dist = station.radius * (4 + this.rng.next() * 6);
+          const pos  = new Vec2(
+            Math.max(5, Math.min(this.physics.gw - 5, station.position.x + Math.sin(ang) * dist)),
+            Math.max(5, Math.min(this.physics.gh - 5, station.position.y + Math.cos(ang) * dist)),
+          );
+          const col = new Collectable(pos);
+          col.radius = this._collectableRadius();
+          this.gs.collectables.push(col);
+        }
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.HEDGEHOG && station.team.spendStock(WeaponId.HEDGEHOG)) {
+        this.gs.shields.push({ station, radius: station.radius * 1.6, alive: true });
+        for (let volley = 0; volley < 4; volley++) {
+          for (let shot = 0; shot < 3; shot++) {
+            this.gs.burstQueue.push({
+              station, weapon: WeaponId.HEDGEHOG,
+              shotsRemaining: 1, totalShots: 1,
+              intervalSteps: 0,
+              nextFireStep: this.gs.firingStep + volley * 200,
+              angle: volley * 30 + shot * 120, power: 400,
+            });
+          }
+        }
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.TEAM_SHIELD && station.team.spendStock(WeaponId.TEAM_SHIELD)) {
+        for (const s of this.gs.allStations) {
+          if (s.status === 'active' && s.team === station.team) {
+            this.gs.shields.push({ station: s, radius: s.radius * 1.6, alive: true });
+          }
+        }
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.ARMOUR && station.team.spendStock(WeaponId.ARMOUR)) {
+        station.armourLayers += 2;
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.REPULSOR_FIELD && station.team.spendStock(WeaponId.REPULSOR_FIELD)) {
+        this.gs.repulsorFields.push({ station, influenceRadius: REPULSOR_FIELD_RADIUS });
+        this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
+      } else if (w === WeaponId.MAMMOTH_CANNON && station.team.spendStock(WeaponId.MAMMOTH_CANNON)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.velocity         = new Vec2(b.velocity.x * 0.5, b.velocity.y * 0.5);
+        b.gravityMultiplier = 0.25;
+        b.sizeMultiplier    = MAMMOTH_SIZE_MULT;
+        b.thickTrail        = true;
+        b.mammothCannon     = true;
+        this.gs.activeBullets.push(b);
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
@@ -900,7 +965,18 @@ export class GameLoop {
       for (const burst of this.gs.burstQueue) {
         if (this.gs.firingStep < burst.nextFireStep) continue;
 
-        if (burst.weapon === WeaponId.ROCKET_POD) {
+        if (burst.weapon === WeaponId.HEDGEHOG) {
+          const rad    = (((burst.angle % 360) + 360) % 360 * Math.PI) / 180;
+          const pos    = new Vec2(
+            burst.station.position.x + (burst.station.radius + 1) * Math.sin(rad),
+            burst.station.position.y + (burst.station.radius + 1) * Math.cos(rad),
+          );
+          const vel    = new Vec2(ROCKET_LAUNCH_SPEED * Math.sin(rad), ROCKET_LAUNCH_SPEED * Math.cos(rad));
+          const rocket = new Rocket({ owner: burst.station, position: pos, velocity: vel });
+          rocket.fuel  = ROCKET_MIN_FUEL + (burst.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+          rocket.blastRadius = ROCKET_BLAST_RADIUS * 0.5;
+          this.gs.rockets.push(rocket);
+        } else if (burst.weapon === WeaponId.ROCKET_POD) {
           const shotIdx  = (burst.totalShots ?? 8) - burst.shotsRemaining;
           const deviation = (this.rng.next() * 2 - 1) * 1.0;
           const rad       = (((burst.angle + deviation) % 360 + 360) % 360 * Math.PI) / 180;
@@ -1108,7 +1184,7 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
-        this.physics.step(bullet, this.gs.planets, this.gs.rifts);
+        this.physics.step(bullet, this.gs.planets, this.gs.rifts, this.gs.repulsorFields ?? []);
 
         // Moon hit — must check before trail recording since step() may EXPLODE the bullet
         if (bullet._hitMoon) {
@@ -1140,6 +1216,12 @@ export class GameLoop {
         } else {
           for (const _s of this.physics.checkNearMisses(bullet, allStations))
             bullet.owner.stats.nearMisses++;
+        }
+
+        // Mammoth Cannon: spawn area blast when bullet detonates on any impact
+        if (bullet.mammothCannon && bullet.status === BulletStatus.EXPLODING && !bullet._mammothBlasted) {
+          bullet._mammothBlasted = true;
+          this._spawnMammothBlast(bullet);
         }
 
         // Frag shot: tick timer and detonate when it expires
@@ -1343,8 +1425,9 @@ export class GameLoop {
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
     if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && !stationsMoving) {
-      this.gs.shields = [];
-      this.gs.rocketBlasts = [];
+      this.gs.shields       = [];
+      this.gs.repulsorFields = [];
+      this.gs.rocketBlasts  = [];
       this._processHyperspace();
       this._checkWin();
       this._resultsTimer = 240; // ~4 s at 60 fps
@@ -1801,6 +1884,13 @@ export class GameLoop {
     bullet.status = BulletStatus.EXPLODING;
     if (target.status !== 'active') return;
 
+    // Armour absorption — consume one layer instead of destroying the station
+    if ((target.armourLayers ?? 0) > 0) {
+      target.armourLayers--;
+      target.armourFlash = 1.0;
+      return;
+    }
+
     // Capture pre-kill state for kill-type classification
     const aliveTeams = this.gs.aliveTeams;
     const scores     = aliveTeams.map(t => t.stats.score);
@@ -1888,6 +1978,34 @@ export class GameLoop {
     }
   }
 
+  _spawnMammothBlast(bullet) {
+    // Large expanding area blast
+    this.gs.rocketBlasts.push({
+      x: bullet.position.x, y: bullet.position.y,
+      maxRadius:     ROCKET_BLAST_RADIUS * MAMMOTH_BLAST_MULT,
+      currentRadius: 1,
+      owner:         bullet.owner,
+      hitSet:        new Set(),
+    });
+
+    // Spray fragments radially outward
+    const MAX_V    = (800 / 1000 + 0.2) * 0.8;
+    const speedMin = MAX_V * MAMMOTH_FRAG_SPEED_MIN;
+    const speedMax = MAX_V * MAMMOTH_FRAG_SPEED_MAX;
+    const rotOff   = this.rng.next() * Math.PI * 2;
+    for (let i = 0; i < MAMMOTH_FRAG_COUNT; i++) {
+      const angle = rotOff + i * (Math.PI * 2 / MAMMOTH_FRAG_COUNT);
+      const speed = speedMin + this.rng.next() * (speedMax - speedMin);
+      const frag  = new Bullet({
+        owner:    bullet.owner,
+        position: new Vec2(bullet.position.x, bullet.position.y),
+        velocity: new Vec2(speed * Math.sin(angle), speed * Math.cos(angle)),
+      });
+      frag.thinTrail    = true;
+      frag.fragFragment = true;
+      this.gs.activeBullets.push(frag);
+    }
+  }
 
   _scatterCannon(bullet) {
     const speed     = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);
@@ -2042,6 +2160,7 @@ export class GameLoop {
         for (const p of station.particles) { p.x += p.vx; p.y += p.vy; p.t += DT_P; }
         station.particles = station.particles.filter(p => p.t < 1);
       }
+      if (station.armourFlash > 0) station.armourFlash = Math.max(0, station.armourFlash - 0.04);
     }
 
     // Freestanding asteroid explosions
@@ -2540,7 +2659,7 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
-        this.physics.step(bullet, this.gs.planets, this.gs.rifts);
+        this.physics.step(bullet, this.gs.planets, this.gs.rifts, this.gs.repulsorFields ?? []);
 
         if (bullet.lifetime % PRINT_EVERY === 0) {
           bullet.trail.push(new Vec2(bullet.position.x, bullet.position.y));

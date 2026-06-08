@@ -27,5 +27,8 @@ export class Bullet {
     this.fragFragment     = false;       // fragment bullet spawned on frag shot detonation
     this.bouncePlanetOnly = false;       // bounces off planets but explodes on station contact
     this.scatterTimer     = null;        // steps until cannon scatter (scatter cannon primary)
+    this.gravityMultiplier = 1;          // multiplied into all gravitational acceleration (Mammoth Cannon: 0.25)
+    this.sizeMultiplier    = 1;          // multiplied into drawn bullet radius
+    this.mammothCannon     = false;      // triggers large area blast on any solid-body hit
   }
 }

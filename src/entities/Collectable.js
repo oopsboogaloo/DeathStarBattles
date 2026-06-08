@@ -19,6 +19,12 @@ export const WeaponId = Object.freeze({
   STAR_SHOT:          'starShot',
   SCATTER_CANNON:     'scatterCannon',
   SPIRAL:             'spiral',
+  RESUPPLY:           'resupply',
+  HEDGEHOG:           'hedgehog',
+  TEAM_SHIELD:        'teamShield',
+  ARMOUR:             'armour',
+  REPULSOR_FIELD:     'repulsorField',
+  MAMMOTH_CANNON:     'mammothCannon',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -35,12 +41,18 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.ANTIMATTER_LASER,   charges: 1,  label: 'ANTIMATTER LASER' },
   { id: WeaponId.FRAGMENTATION_SHOT, charges: 1,  label: 'FRAG SHOT'     },
   { id: WeaponId.SHOTGUN,            charges: 1,  label: 'SHOTGUN'       },
-  { id: WeaponId.DUAL_BLASTER,  charges: 1,  label: 'DUAL BLASTER'  },
-  { id: WeaponId.BOUNCE_CANNON, charges: 2,  label: 'BOUNCE CANNON' },
-  { id: WeaponId.AUTO_CANNON,   charges: 2,  label: 'AUTO CANNON'   },
-  { id: WeaponId.STAR_SHOT,      charges: 1,  label: 'STAR SHOT'      },
-  { id: WeaponId.SCATTER_CANNON, charges: 2,  label: 'SCATTER CANNON' },
-  { id: WeaponId.SPIRAL,         charges: 1,  label: 'SPIRAL'         },
+  { id: WeaponId.DUAL_BLASTER,    charges: 1,  label: 'DUAL BLASTER'    },
+  { id: WeaponId.BOUNCE_CANNON,   charges: 2,  label: 'BOUNCE CANNON'   },
+  { id: WeaponId.AUTO_CANNON,     charges: 2,  label: 'AUTO CANNON'     },
+  { id: WeaponId.STAR_SHOT,       charges: 1,  label: 'STAR SHOT'       },
+  { id: WeaponId.SCATTER_CANNON,  charges: 2,  label: 'SCATTER CANNON'  },
+  { id: WeaponId.SPIRAL,          charges: 1,  label: 'SPIRAL'          },
+  { id: WeaponId.RESUPPLY,        charges: 1,  label: 'RESUPPLY'        },
+  { id: WeaponId.HEDGEHOG,        charges: 1,  label: 'HEDGEHOG'        },
+  { id: WeaponId.TEAM_SHIELD,     charges: 1,  label: 'TEAM SHIELD'     },
+  { id: WeaponId.ARMOUR,          charges: 1,  label: 'ARMOUR'          },
+  { id: WeaponId.REPULSOR_FIELD,  charges: 1,  label: 'REPULSOR FIELD'  },
+  { id: WeaponId.MAMMOTH_CANNON,  charges: 1,  label: 'MAMMOTH CANNON'  },
 ];
 
 // Game-unit radius for collision and rendering.
