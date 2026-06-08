@@ -566,7 +566,7 @@ export class AboutModal {
       _holdTimer = setTimeout(() => { _holdTimer = null; this._onDevModeCb?.(); }, 2000);
     };
     const _cancelHold = () => { clearTimeout(_holdTimer); _holdTimer = null; };
-    p.addEventListener('touchstart', e => { e.preventDefault(); _startHold(); }, { passive: false });
+    p.addEventListener('touchstart', _startHold);
     p.addEventListener('touchend',    _cancelHold);
     p.addEventListener('touchcancel', _cancelHold);
     p.addEventListener('mousedown',   _startHold);
