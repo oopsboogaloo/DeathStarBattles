@@ -805,6 +805,12 @@ export class GameLoop {
           const jitter    = (this.rng.next() * 2 - 1) * 1.0;
           this.gs.pendingLasers.push({ station, angle: baseAngle + jitter, delaySteps: 50 + i * 60, vfxDuration: 0.75 });
         }
+      } else if (w === WeaponId.SHOTGUN && station.team.spendStock(WeaponId.SHOTGUN)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.SHOTGUN, shotsRemaining: 2, totalShots: 2,
+          intervalSteps: 300, nextFireStep: 0,
+          angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
+        });
       } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
         const MAX_V = (800 / 1000 + 0.2) * 0.8;
         const b = this._makeBulletVelocity(station, station.angle, MAX_V * 0.75);
@@ -820,6 +826,7 @@ export class GameLoop {
       station.lastAngle  = station.angle;
       station.lastPower  = station.power;
       station.lastTrails = [];
+      station.angle2     = station.angle; // reset shotgun barrel 2 for next turn
       station.stats.shots++;
       station.stats.totalPower += station.power;
       station.stats.turns++;
@@ -878,6 +885,18 @@ export class GameLoop {
           rocket.fuel  = ROCKET_MIN_FUEL + (burst.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
           rocket.blastRadius = ROCKET_BLAST_RADIUS * 0.5;
           this.gs.rockets.push(rocket);
+        } else if (burst.weapon === WeaponId.SHOTGUN) {
+          const MAX_V      = (800 / 1000 + 0.2) * 0.8;
+          const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;
+          const barrelAngle = shotIdx === 0 ? burst.angle : burst.angle2;
+          for (let i = 0; i < 6; i++) {
+            const spread = (this.rng.next() * 2 - 1) * 8;
+            const vFrac  = 0.25 + this.rng.next() * 0.05;
+            const b = this._makeBulletVelocity(burst.station, barrelAngle + spread, MAX_V * vFrac);
+            b.thinTrail   = true;
+            b.maxLifetime = Math.floor(BULLET_LIFE * (0.17 + this.rng.next() * 0.06));
+            this.gs.activeBullets.push(b);
+          }
         } else {
           const MAX_V = (800 / 1000 + 0.2) * 0.8;
           let spread, speed;
@@ -2132,6 +2151,7 @@ export class GameLoop {
       if (s.team.getStock(weaponId) - reserved <= 0) return;
     }
     s.selectedWeapon = weaponId;
+    if (weaponId === WeaponId.SHOTGUN) s.angle2 = s.angle;
   }
 
   humanAngle(delta) {
@@ -2141,7 +2161,12 @@ export class GameLoop {
 
   humanPower(delta) {
     const s = this.gs.activeStation;
-    if (s) s.power = Math.max(1, Math.min(800, s.power + delta));
+    if (!s) return;
+    if (s.selectedWeapon === WeaponId.SHOTGUN) {
+      s.angle2 = Math.round(((s.angle2 + delta) % 360 + 360) % 360 * 10) / 10;
+    } else {
+      s.power = Math.max(1, Math.min(800, s.power + delta));
+    }
   }
 
   humanFastFwd() {

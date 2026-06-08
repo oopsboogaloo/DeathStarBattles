@@ -1149,7 +1149,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'pulseLaser']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'pulseLaser', 'shotgun']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1163,7 +1163,8 @@ export class Renderer {
       case 'septupleCannon':   offsets = [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]; break;
       case 'pulseLaser':       offsets = [-15, 0, 15];            break;
       case 'fragmentationShot': offsets = [0];                   break;
-      default:                 offsets = [0];                    break;
+      case 'shotgun':           offsets = [-8, 0, 8];            break;
+      default:                  offsets = [0];                   break;
     }
 
     for (const off of offsets) {
@@ -1176,6 +1177,21 @@ export class Renderer {
       ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
       ctx.lineWidth   = lw;
       ctx.stroke();
+    }
+
+    // Shotgun barrel 2 aim lines (dimmer, at station.angle2)
+    if (w === 'shotgun') {
+      for (const off of [-8, 0, 8]) {
+        const rad   = ((( station.angle2 ?? station.angle) + off) * Math.PI) / 180;
+        const alpha = off === 0 ? 0.60 : 0.28;
+        const lw    = off === 0 ? 1.5  : 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.sin(rad) * lineLen, cy + Math.cos(rad) * lineLen);
+        ctx.strokeStyle = `rgba(200,200,255,${alpha})`;
+        ctx.lineWidth   = lw;
+        ctx.stroke();
+      }
     }
   }
 
@@ -1413,6 +1429,25 @@ export class Renderer {
       case 'fragmentationShot':
         shots = [{ dAngle: 0, speed: MAX_V * 0.75, alpha: 0.7, lw: 1.5 }];
         break;
+      case 'shotgun': {
+        const b2 = station.angle2 ?? station.angle;
+        const shotgunShots = [
+          { baseAngle: station.angle, dAngle: -8, speed: MAX_V * 0.275, alpha: 0.35, lw: 1   },
+          { baseAngle: station.angle, dAngle:  0, speed: MAX_V * 0.275, alpha: 0.70, lw: 1.5 },
+          { baseAngle: station.angle, dAngle:  8, speed: MAX_V * 0.275, alpha: 0.35, lw: 1   },
+          { baseAngle: b2,            dAngle: -8, speed: MAX_V * 0.275, alpha: 0.22, lw: 1   },
+          { baseAngle: b2,            dAngle:  0, speed: MAX_V * 0.275, alpha: 0.45, lw: 1.5 },
+          { baseAngle: b2,            dAngle:  8, speed: MAX_V * 0.275, alpha: 0.22, lw: 1   },
+        ];
+        for (const shot of shotgunShots) {
+          const path = this._computeBulletPreviewPath(
+            station, shot.baseAngle + shot.dAngle, station.power, planets, maxLen, shot.speed,
+          );
+          if (path.length < 2) continue;
+          this._drawFadingPath(ctx, path, shot.alpha, shot.lw);
+        }
+        return;
+      }
       case 'rocketPod':
         return; // self-propelled; no path preview
       case 'forceShield':

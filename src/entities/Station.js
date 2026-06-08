@@ -48,6 +48,7 @@ export class Station {
     this.position        = position;      // Vec2, game units
     this.size            = size;          // StationSize
     this.angle           = 180;           // 0-359, default pointing down
+    this.angle2          = 180;           // shotgun barrel 2 angle; reset to angle each turn
     this.power           = 1;             // 1-800
     this.selectedWeapon  = WeaponId.CANNON; // current turn's weapon choice
     this.velocity         = null;  // Vec2 | null — one-turn movement vector (game units/timestep)

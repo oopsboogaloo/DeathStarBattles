@@ -38,15 +38,18 @@ export class AimControls {
   // Call each frame while aiming so values stay in sync
   update(station) {
     if (!station) return;
-    const w       = station.selectedWeapon;
-    const noPower = NO_POWER_WEAPONS.has(w);
+    const w          = station.selectedWeapon;
+    const noPower    = NO_POWER_WEAPONS.has(w);
     const isFragShot = w === 'fragmentationShot';
+    const isShotgun  = w === 'shotgun';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
       if (isFragShot) {
         const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
         this._powerVal.textContent = `⏱${val}`;
+      } else if (isShotgun) {
+        this._powerVal.textContent = `∠2 ${(station.angle2 ?? station.angle).toFixed(0)}°`;
       } else {
         this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
       }
@@ -55,6 +58,8 @@ export class AimControls {
       if (isFragShot) {
         const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
         this._powerVal.textContent = `Timer: ${val}`;
+      } else if (isShotgun) {
+        this._powerVal.textContent = `Barrel 2: ${(station.angle2 ?? station.angle).toFixed(1)}°`;
       } else {
         this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
       }
