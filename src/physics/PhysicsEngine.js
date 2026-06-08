@@ -317,9 +317,8 @@ export class PhysicsEngine {
                          planet.type === PlanetType.WORMHOLE_NETWORK;
       if (!isHazard && !isWormhole) {
         bullet._qtTeleportPlanet = planet;
-        // Destructible small bodies break apart
-        if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL ||
-            planet.type === PlanetType.COMET)    planet.destroyed = true;
+        // Comets break apart; asteroids and crystals are passed through intact
+        if (planet.type === PlanetType.COMET) planet.destroyed = true;
         // Moon / giant asteroid: register crack hit without destroying bullet
         if (planet.type === PlanetType.MOON || planet.type === PlanetType.GIANT_ASTEROID) {
           bullet._hitMoon  = planet;
