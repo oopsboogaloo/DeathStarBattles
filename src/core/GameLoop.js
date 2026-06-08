@@ -1556,6 +1556,21 @@ export class GameLoop {
         }
       }
 
+      // Collectable hit — laser collects it (passes through)
+      for (const c of this.gs.collectables) {
+        if (!c.alive) continue;
+        const cdx = px - c.position.x, cdy = py - c.position.y;
+        if (cdx * cdx + cdy * cdy < c.radius * c.radius) {
+          c.alive = false;
+          const grant = this._pickCollectableGrant();
+          station.team.addStock(grant.id, grant.charges);
+          if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
+          this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+          const [cr, cg, cb] = station.team.colour;
+          this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+        }
+      }
+
       // Planet hit — asteroids shatter, solid planets stop laser
       let blocked = false;
       for (const planet of this.gs.planets) {
