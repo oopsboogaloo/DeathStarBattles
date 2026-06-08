@@ -442,7 +442,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - A repulsive force is applied to all bullets within range, centred on the firing station
   - Force model: linear falloff from maximum at the station centre to zero at the falloff radius — identical to a Space Rift node
   - Strength is modest: enough to deflect slow or nearby shots but not to halt fast ones outright
-  - Affects all bullets (friendly and enemy alike)
+  - Affects all bullets — friendly, enemy, and the firing station's own outgoing cannon shot
 
   **Duration (FR-3)**
   - The repulsion field persists for the same duration as a Force Shield (one full round — active until the station's next turn)
