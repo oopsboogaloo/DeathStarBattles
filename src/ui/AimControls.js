@@ -65,7 +65,7 @@ export class AimControls {
       } else if (isBlaster) {
         this._powerVal.textContent = `±${station.power}°`;
       } else if (isElectroStun) {
-        const spread = (5 + (station.power - 1) / 799 * 40).toFixed(0);
+        const spread = (45 - (station.power - 1) / 799 * 40).toFixed(0);
         this._powerVal.textContent = `±${spread}°`;
       } else {
         this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
@@ -80,7 +80,7 @@ export class AimControls {
       } else if (isBlaster) {
         this._powerVal.textContent = `Spread: ±${station.power}°`;
       } else if (isElectroStun) {
-        const spread = (5 + (station.power - 1) / 799 * 40).toFixed(0);
+        const spread = (45 - (station.power - 1) / 799 * 40).toFixed(0);
         this._powerVal.textContent = `Spread: ${spread}°`;
       } else {
         this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;

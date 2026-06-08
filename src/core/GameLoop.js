@@ -34,9 +34,9 @@ const GRAVITY_CANNON_MASS      = 800;  // gravitational mass exerted on nearby b
 
 // Electro Stun tuning constants
 const ELECTRO_STUN_BOLTS      = 5;    // forked lightning bolt count per cast
-const ELECTRO_STUN_MIN_SPREAD = 5;    // spread in degrees at minimum power
-const ELECTRO_STUN_MAX_SPREAD = 45;   // spread in degrees at maximum power
-const ELECTRO_STUN_BASE_RANGE = 180;  // max range in game units at minimum spread
+const ELECTRO_STUN_MIN_SPREAD = 5;    // spread in degrees at maximum power (focused)
+const ELECTRO_STUN_MAX_SPREAD = 45;   // spread in degrees at minimum power (wide)
+const ELECTRO_STUN_BASE_RANGE = 900;  // max range in game units at maximum power
 
 // Teleport tuning constants
 const TELEPORT_FIRE_STEP = 600;       // physics steps before teleport executes
@@ -987,10 +987,10 @@ export class GameLoop {
         b.gravityCannon     = true;
         this.gs.activeBullets.push(b);
       } else if (w === WeaponId.ELECTRO_STUN && station.team.spendStock(WeaponId.ELECTRO_STUN)) {
-        const spreadDeg    = ELECTRO_STUN_MIN_SPREAD + (station.power - 1) / 799 * (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD);
+        const t            = (station.power - 1) / 799;
+        const spreadDeg    = ELECTRO_STUN_MAX_SPREAD - t * (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD);
         const halfSpreadRad = (spreadDeg / 2) * Math.PI / 180;
-        const rangeMult    = 1 - (spreadDeg - ELECTRO_STUN_MIN_SPREAD) / (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD) * 0.8;
-        const range        = ELECTRO_STUN_BASE_RANGE * Math.max(0.2, rangeMult);
+        const range        = ELECTRO_STUN_BASE_RANGE * (0.2 + t * 0.8);
         const centerRad    = (station.angle * Math.PI) / 180;
         const centerDirX   = Math.sin(centerRad);
         const centerDirY   = Math.cos(centerRad);

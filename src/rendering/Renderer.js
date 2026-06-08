@@ -1186,9 +1186,9 @@ export class Renderer {
       case 'scatterCannon':     offsets = [0];                               break;
       case 'spiral':            offsets = Array.from({length: 13}, (_, i) => i * (360 / 13)); break;
       case 'electroStun': {
-        // Show arc spread: lines at center ± halfSpread
-        const spreadDeg   = 5 + (station.power - 1) / 799 * 40;
-        const half        = spreadDeg / 2;
+        // High power = narrow spread; low power = wide spread
+        const spreadDeg = 45 - (station.power - 1) / 799 * 40;
+        const half      = spreadDeg / 2;
         offsets = [-half, 0, half];
         break;
       }
