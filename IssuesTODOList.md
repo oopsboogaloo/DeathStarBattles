@@ -170,7 +170,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [ ] **Resupply** — Fires a shot that explodes into a cluster of high-tier weapon collectables on detonation, available for any team to collect.
 
-- [ ] **Quantum Torpedo** — A torpedo that phases through planets (no collision with solid bodies) and detonates only on station contact.
+- [ ] **Quantum Torpedo** — A torpedo that teleports through solid celestial bodies. On contact with any planet except a gas giant, a teleport VFX plays at the entry point, the torpedo instantly reappears at the straight-line exit point on the far side of the body, and a second VFX plays at the exit point. The torpedo continues on its original trajectory from the exit point and detonates only on station contact. Gas giants are treated normally (torpedo passes through without teleporting). Requires new teleport SFX and exit-point geometry calculation (ray vs sphere intersection for the far side).
 
 - [ ] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
