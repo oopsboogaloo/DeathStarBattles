@@ -1611,6 +1611,9 @@ export class Renderer {
         }
         return;
       }
+      case 'repulsorField':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
       case 'forceShield':
         shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
