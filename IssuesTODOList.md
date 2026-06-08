@@ -21,11 +21,11 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 
 
-- [ ] **Rocket Pod** — New collectable weapon: fires 8 rockets in succession at Blaster timing (one per second). Each rocket is a standard Rocket with ½ blast radius and ±1° random angle deviation. Rockets alternate spawning left/right of the station (perpendicular to aim direction, 1× hit-radius offset). 1 charge per collectable. Aim indicator shows 3 representative lines at −1°/0°/+1°; no path preview (self-propelled); ghost trail shows all 8 trails. Mission 11 (Rocket Corps) gets 1 starting Rocket Pod charge for player and AI. See `spec/rocket-pod.md`.
+- [x] **Rocket Pod** — New collectable weapon: fires 8 rockets in succession at Blaster timing (one per second). Each rocket is a standard Rocket with ½ blast radius and ±1° random angle deviation. Rockets alternate spawning left/right of the station (perpendicular to aim direction, 1× hit-radius offset). 1 charge per collectable. Aim indicator shows 3 representative lines at −1°/0°/+1°; no path preview (self-propelled); ghost trail shows all 8 trails. Mission 11 (Rocket Corps) gets 1 starting Rocket Pod charge for player and AI. See `spec/rocket-pod.md`.
 
-- [ ] **Named Seeds** — Allow players to enter a text string as a map seed. The seed deterministically generates the planet layout (count, types, positions, masses, wormhole pairings, asteroid shapes) via a separate PRNG, case-insensitively. Scenario and Planets config options grey out when a seed is active. Seed is shown as the map name in-game. See `spec/named-seeds.md`.
+- [x] **Named Seeds** — Allow players to enter a text string as a map seed. The seed deterministically generates the planet layout (count, types, positions, masses, wormhole pairings, asteroid shapes) via a separate PRNG, case-insensitively. Scenario and Planets config options grey out when a seed is active. Seed is shown as the map name in-game. See `spec/named-seeds.md`.
 
-- [ ] **Moons** — New planet type with multi-hit destruction, crater rendering, and a dedicated scenario.
+- [x] **Moons** — New planet type with multi-hit destruction, crater rendering, and a dedicated scenario.
 
   **Appearance**
   - White/blue colour palette; procedurally generated craters (circular/elliptical, randomised each game) with raised rims and shadowed interiors consistent with the solid-colour aesthetic
@@ -48,7 +48,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Wildcard pool**
   - Moons included in the wildcard candidate list for all scenarios that support wildcards
 
-- [ ] **Space Rift** — New non-solid map object: a piecewise-linear chain of 3–11 connected segments (each ~1 Medium station diameter long, ≤30° turn between segments). Each vertex exerts a linear-falloff repulsive force on bullets, allowing slow shots to be deflected and fast shots to punch through. Background layer renders a forked lightning glow; the rift line itself is a static luminescent polyline. Adds two new scenarios (Rift: 1 rift + sparse planets; Rifts: 2–6 rifts + planets/asteroids) and a 10% wildcard chance. AI trajectory simulation picks up the repulsion automatically. See `spec/space-rift.md`.
+- [x] **Space Rift** — New non-solid map object: a piecewise-linear chain of 3–11 connected segments (each ~1 Medium station diameter long, ≤30° turn between segments). Each vertex exerts a linear-falloff repulsive force on bullets, allowing slow shots to be deflected and fast shots to punch through. Background layer renders a forked lightning glow; the rift line itself is a static luminescent polyline. Adds two new scenarios (Rift: 1 rift + sparse planets; Rifts: 2–6 rifts + planets/asteroids) and a 10% wildcard chance. AI trajectory simulation picks up the repulsion automatically. See `spec/space-rift.md`.
 
 - [ ] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
 
