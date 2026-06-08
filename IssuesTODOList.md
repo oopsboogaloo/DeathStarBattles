@@ -286,7 +286,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   **Win Condition (FR-4)**
   - After conversion, check if any opposing team still has active stations; if not, the round ends immediately (converted station may be the last enemy)
 
-- [ ] **Mammoth Cannon** *(Tier 2)* — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
+- [ ] **Mammoth Cannon** *(Tier 3)* — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
 
   **Projectile (FR-1)**
   - Launched at 50% of the speed a normal cannon shot would have at the same power setting
