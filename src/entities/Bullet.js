@@ -19,7 +19,11 @@ export class Bullet {
     this._angleAccum    = 0;           // accumulated signed rotation (radians)
     this.nearMissed     = new Set();   // stations already counted as near-missed
     this.thinTrail      = false;       // true for spread/burst weapons (lower trail opacity)
+    this.thickTrail     = false;       // true for fragmentation shot primary (2× trail width)
     this.maxLifetime    = null;        // null = use BULLET_LIFE; set shorter for blunderbuss
     this.skimCount      = 0;           // number of surface skims this bullet has performed
+    this.fragTimer      = null;        // physics steps until detonation (fragmentation shot primary)
+    this.fragBouncy     = false;       // primary bounces off surfaces instead of exploding
+    this.fragFragment   = false;       // fragment bullet spawned on frag shot detonation
   }
 }

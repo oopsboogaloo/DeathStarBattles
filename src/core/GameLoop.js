@@ -2,7 +2,7 @@ import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
-         SKIM_PARTICLE_DURATION } from '../physics/PhysicsEngine.js';
+         SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
@@ -791,6 +791,27 @@ export class GameLoop {
           intervalSteps: 200, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+      } else if (w === WeaponId.SEPTUPLE_CANNON && station.team.spendStock(WeaponId.SEPTUPLE_CANNON)) {
+        this.gs.vfxList.push({
+          type: 'tripleCannonMuzzle', x: station.position.x, y: station.position.y,
+          angle: station.angle, colour: station.team.colour, t: 0, duration: 0.25,
+        });
+        for (const dAngle of [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]) {
+          this.gs.activeBullets.push(this._makeBullet(station, station.angle + dAngle, station.power));
+        }
+      } else if (w === WeaponId.PULSE_LASER && station.team.spendStock(WeaponId.PULSE_LASER)) {
+        for (let i = 0; i < 9; i++) {
+          const baseAngle = station.angle - 15 + i * (30 / 8);
+          const jitter    = (this.rng.next() * 2 - 1) * 1.0;
+          this.gs.pendingLasers.push({ station, angle: baseAngle + jitter, delaySteps: 50 + i * 60 });
+        }
+      } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
+        const MAX_V = (800 / 1000 + 0.2) * 0.8;
+        const b = this._makeBulletVelocity(station, station.angle, MAX_V * 0.75);
+        b.fragBouncy = true;
+        b.fragTimer  = Math.round((1 + (station.power - 1) / 799 * 4) * 600);
+        b.thickTrail = true;
+        this.gs.activeBullets.push(b);
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
@@ -1036,10 +1057,20 @@ export class GameLoop {
 
         const hit = this.physics.checkStationCollisions(bullet, allStations);
         if (hit) {
-          this._resolveStationHit(bullet, hit);
+          if (bullet.fragBouncy) {
+            this._fragBounceOffStation(bullet, hit);
+          } else {
+            this._resolveStationHit(bullet, hit);
+          }
         } else {
           for (const _s of this.physics.checkNearMisses(bullet, allStations))
             bullet.owner.stats.nearMisses++;
+        }
+
+        // Frag shot: tick timer and detonate when it expires
+        if (bullet.fragBouncy && bullet.status === BulletStatus.ACTIVE) {
+          bullet.fragTimer--;
+          if (bullet.fragTimer <= 0) this._detonateFragShot(bullet);
         }
 
         // Collectable collision — bullet passes through, collectable destroyed
@@ -1705,6 +1736,47 @@ export class GameLoop {
       target.team.stats.killedBy = shooter; // record for future vengeance
     }
   }
+
+  _fragBounceOffStation(bullet, station) {
+    const dx = station.position.x - bullet.position.x;
+    const dy = station.position.y - bullet.position.y;
+    const r  = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dx / r;
+    const ny = -dy / r;
+    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    bullet.velocity = new Vec2(
+      (bullet.velocity.x - 2 * dot * nx) * FRAG_BOUNCE_RETENTION,
+      (bullet.velocity.y - 2 * dot * ny) * FRAG_BOUNCE_RETENTION,
+    );
+    bullet.position = new Vec2(
+      station.position.x + nx * (station.radius + 1),
+      station.position.y + ny * (station.radius + 1),
+    );
+  }
+
+  _detonateFragShot(bullet) {
+    const MAX_V          = (800 / 1000 + 0.2) * 0.8;
+    const FRAG_SPEED_MIN = MAX_V * 0.20;
+    const FRAG_SPEED_MAX = MAX_V * 0.40;
+    const fragCount      = 11 + Math.floor(this.rng.next() * 3); // 11–13
+    const rotOffset      = this.rng.next() * Math.PI * 2;
+
+    bullet.status = BulletStatus.EXPLODING;
+
+    for (let i = 0; i < fragCount; i++) {
+      const angle = rotOffset + i * (Math.PI * 2 / fragCount);
+      const speed = FRAG_SPEED_MIN + this.rng.next() * (FRAG_SPEED_MAX - FRAG_SPEED_MIN);
+      const frag  = new Bullet({
+        owner:    bullet.owner,
+        position: new Vec2(bullet.position.x, bullet.position.y),
+        velocity: new Vec2(speed * Math.sin(angle), speed * Math.cos(angle)),
+      });
+      frag.thinTrail    = true;
+      frag.fragFragment = true;
+      this.gs.activeBullets.push(frag);
+    }
+  }
+
 
   _processHyperspace() {
     const { gw, gh } = this.physics;

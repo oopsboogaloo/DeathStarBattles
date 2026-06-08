@@ -395,7 +395,9 @@ export class Renderer {
     ctx.lineTo(cur.x  * conv, cur.y  * conv);
     const alpha = bullet.thinTrail ? 0.28 : 1;
     ctx.strokeStyle = `rgba(${tr},${tg},${tb},${alpha})`;
-    ctx.lineWidth   = bullet.thinTrail ? Math.max(0.5, conv * 0.3) : Math.max(1, conv * 0.6);
+    ctx.lineWidth   = bullet.thinTrail  ? Math.max(0.5, conv * 0.3)
+                    : bullet.thickTrail ? Math.max(1, conv * 1.2)
+                    : Math.max(1, conv * 0.6);
     ctx.stroke();
   }
 
@@ -1147,7 +1149,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'pulseLaser']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1157,8 +1159,11 @@ export class Renderer {
       case 'blunderbuss':  offsets = [-15, -7.5, 0, 7.5, 15]; break;
       case 'blaster':      offsets = [-10, -5, 0, 5, 10];     break;
       case 'minigun':      offsets = [-2, 0, 2];               break;
-      case 'rocketPod':    offsets = [-1, 0, 1];               break;
-      default:             offsets = [0];                      break;
+      case 'rocketPod':        offsets = [-1, 0, 1];               break;
+      case 'septupleCannon':   offsets = [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]; break;
+      case 'pulseLaser':       offsets = [-15, 0, 15];            break;
+      case 'fragmentationShot': offsets = [0];                   break;
+      default:                 offsets = [0];                    break;
     }
 
     for (const off of offsets) {
@@ -1389,6 +1394,25 @@ export class Renderer {
         if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 1.5);
         return;
       }
+      case 'septupleCannon':
+        shots = [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10].map(dAngle => ({
+          dAngle, speed: null,
+          alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'pulseLaser': {
+        for (const dAngle of [-15, 0, 15]) {
+          const path = this._computeLaserPreviewPath(station, station.angle + dAngle, planets, maxLen);
+          if (path.length >= 2) {
+            const [tr, tg, tb] = station.team.colour;
+            this._drawFadingPath(ctx, path, dAngle === 0 ? 0.7 : 0.25, dAngle === 0 ? 1.5 : 1, `${tr},${tg},${tb}`);
+          }
+        }
+        return;
+      }
+      case 'fragmentationShot':
+        shots = [{ dAngle: 0, speed: MAX_V * 0.75, alpha: 0.7, lw: 1.5 }];
+        break;
       case 'rocketPod':
         return; // self-propelled; no path preview
       case 'forceShield':

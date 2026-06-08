@@ -18,8 +18,9 @@ export const INIT_DIST     = 1.0;   // gap between station surface and bullet sp
 export const MAX_CANNON_SPEED       = (800 / 1000 + MIN_POWER) * MAX_POWER; // = 0.8
 export const SKIM_ANGLE_THRESHOLD   = 20;   // degrees from surface tangent (≤ → skim)
 export const SKIM_MIN_SPEED_FACTOR  = 0.30; // fraction of MAX_CANNON_SPEED required to skim
-export const SKIM_SPEED_REDUCTION   = 0.10; // fraction of speed lost per skim event
-export const SKIM_PARTICLE_DURATION = 0.4;  // seconds for the skim particle effect
+export const SKIM_SPEED_REDUCTION    = 0.10; // fraction of speed lost per skim event
+export const SKIM_PARTICLE_DURATION  = 0.4;  // seconds for the skim particle effect
+export const FRAG_BOUNCE_RETENTION   = 0.6;  // speed retention for fragmentation shot bounce
 
 export class PhysicsEngine {
   constructor(gameWidth, gameHeight) {
@@ -393,7 +394,11 @@ export class PhysicsEngine {
 
       case PlanetType.ASTEROID:
         planet.destroyed = true;
-        bullet.status = BulletStatus.EXPLODING;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        } else {
+          bullet.status = BulletStatus.EXPLODING;
+        }
         break;
 
       case PlanetType.CRYSTAL:
@@ -410,10 +415,14 @@ export class PhysicsEngine {
       case PlanetType.MOON:
       case PlanetType.GIANT_ASTEROID:
         // Multi-hit — record the hit; GameLoop handles crack/fragmentation
-        bullet.status    = BulletStatus.EXPLODING;
         bullet._hitMoon  = planet;
         bullet._hitMoonX = bullet.position.x;
         bullet._hitMoonY = bullet.position.y;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        } else {
+          bullet.status = BulletStatus.EXPLODING;
+        }
         break;
 
       default: {
@@ -451,10 +460,35 @@ export class PhysicsEngine {
           }
         }
 
+        // Frag shot bounces off solid rocky planets; stars and white dwarfs still destroy it (FR-5)
+        if (bullet.fragBouncy &&
+            planet.type !== PlanetType.STAR &&
+            planet.type !== PlanetType.WHITE_DWARF) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+          return;
+        }
+
         bullet.status = BulletStatus.EXPLODING;
         break;
       }
     }
+  }
+
+  // ─── Fragmentation shot inelastic bounce off a surface ───────────────────
+  // dx/dy = planet.position - bullet.position; surfaceRadius = planet.impactRadius
+  _fragBounce(bullet, dx, dy, surfaceRadius) {
+    const r  = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dx / r;  // outward normal: from planet toward bullet
+    const ny = -dy / r;
+    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    bullet.velocity = new Vec2(
+      (bullet.velocity.x - 2 * dot * nx) * FRAG_BOUNCE_RETENTION,
+      (bullet.velocity.y - 2 * dot * ny) * FRAG_BOUNCE_RETENTION,
+    );
+    bullet.position = new Vec2(
+      bullet.position.x + dx + nx * (surfaceRadius + INIT_DIST),
+      bullet.position.y + dy + ny * (surfaceRadius + INIT_DIST),
+    );
   }
 
   // ─── SAT circle-vs-polygon collision (world-space rotated verts) ─────────

@@ -720,6 +720,7 @@ async function startTPGame(cfg) {
 const _ALL_SPECIAL = [
   WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER,
   WeaponId.ROCKET, WeaponId.ROCKET_POD, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+  WeaponId.SEPTUPLE_CANNON, WeaponId.PULSE_LASER, WeaponId.FRAGMENTATION_SHOT,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

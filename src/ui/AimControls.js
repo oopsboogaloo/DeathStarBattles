@@ -2,7 +2,7 @@
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
 
-const NO_POWER_WEAPONS = new Set(['blunderbuss', 'blaster', 'laser']);
+const NO_POWER_WEAPONS = new Set(['blunderbuss', 'blaster', 'laser', 'pulseLaser']);
 
 const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks
@@ -38,14 +38,26 @@ export class AimControls {
   // Call each frame while aiming so values stay in sync
   update(station) {
     if (!station) return;
-    const noPower = NO_POWER_WEAPONS.has(station.selectedWeapon);
+    const w       = station.selectedWeapon;
+    const noPower = NO_POWER_WEAPONS.has(w);
+    const isFragShot = w === 'fragmentationShot';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
-      this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
+      if (isFragShot) {
+        const secs = (1 + (station.power - 1) / 799 * 4).toFixed(1);
+        this._powerVal.textContent = `⏱${secs}s`;
+      } else {
+        this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
+      }
     } else {
       this._angleVal.textContent = `Angle: ${station.angle.toFixed(1)}°`;
-      this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
+      if (isFragShot) {
+        const secs = (1 + (station.power - 1) / 799 * 4).toFixed(1);
+        this._powerVal.textContent = `Timer: ${secs}s`;
+      } else {
+        this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
+      }
     }
   }
 
