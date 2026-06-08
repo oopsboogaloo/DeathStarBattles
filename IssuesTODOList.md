@@ -21,7 +21,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 
 
-- [x] **Rocket Pod** — New collectable weapon: fires 8 rockets in succession at Blaster timing (one per second). Each rocket is a standard Rocket with ½ blast radius and ±1° random angle deviation. Rockets alternate spawning left/right of the station (perpendicular to aim direction, 1× hit-radius offset). 1 charge per collectable. Aim indicator shows 3 representative lines at −1°/0°/+1°; no path preview (self-propelled); ghost trail shows all 8 trails. Mission 11 (Rocket Corps) gets 1 starting Rocket Pod charge for player and AI. See `spec/rocket-pod.md`.
+- [x] **Rocket Pod** *(Tier 2)* — New collectable weapon: fires 8 rockets in succession at Blaster timing (one per second). Each rocket is a standard Rocket with ½ blast radius and ±1° random angle deviation. Rockets alternate spawning left/right of the station (perpendicular to aim direction, 1× hit-radius offset). 1 charge per collectable. Aim indicator shows 3 representative lines at −1°/0°/+1°; no path preview (self-propelled); ghost trail shows all 8 trails. Mission 11 (Rocket Corps) gets 1 starting Rocket Pod charge for player and AI. See `spec/rocket-pod.md`.
 
 - [x] **Named Seeds** — Allow players to enter a text string as a map seed. The seed deterministically generates the planet layout (count, types, positions, masses, wormhole pairings, asteroid shapes) via a separate PRNG, case-insensitively. Scenario and Planets config options grey out when a seed is active. Seed is shown as the map name in-game. See `spec/named-seeds.md`.
 
@@ -50,7 +50,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] **Space Rift** — New non-solid map object: a piecewise-linear chain of 3–11 connected segments (each ~1 Medium station diameter long, ≤30° turn between segments). Each vertex exerts a linear-falloff repulsive force on bullets, allowing slow shots to be deflected and fast shots to punch through. Background layer renders a forked lightning glow; the rift line itself is a static luminescent polyline. Adds two new scenarios (Rift: 1 rift + sparse planets; Rifts: 2–6 rifts + planets/asteroids) and a 10% wildcard chance. AI trajectory simulation picks up the repulsion automatically. See `spec/space-rift.md`.
 
-- [x] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
+- [x] **Fragmentation Shot** *(Tier 2)* — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
 
   **Weapon Selection UI (FR-1)**
   - Replaces the power slider with a timer slider (range: 1–5 s)
@@ -102,7 +102,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Collectable Availability (FR-12)**
   - Included in the tier-2 collectable pool
 
-- [x] **Septuple Cannon** — Rare variant of the triple cannon. Fires 7 cannon shots simultaneously across a wider arc; grants exactly 1 use when collected. See `spec/septuple-cannon.md`.
+- [x] **Septuple Cannon** *(Tier 2)* — Rare variant of the triple cannon. Fires 7 cannon shots simultaneously across a wider arc; grants exactly 1 use when collected. See `spec/septuple-cannon.md`.
 
   **Weapon Behaviour (FR-1)**
   - 7 cannon shots fired simultaneously, evenly distributed across the arc
@@ -118,7 +118,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Shot count (default: 7)
   - Arc width (default: TBD — wider than triple cannon arc; resolve during playtesting — OQ-1)
 
-- [x] **Pulse Laser** — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
+- [x] **Pulse Laser** *(Tier 2)* — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
 
   **Weapon Selection UI (FR-1)**
   - UI behaves identically to the standard laser (angle selector, no power/timer slider)
@@ -156,9 +156,21 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Future Weapons
 
-- [x] **Dual Blaster** — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
+### Collectable Weapon Tiers
 
-- [ ] **Team Shield** — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not fire a shot this turn.
+Collectables are assigned a tier that governs drop rarity and starting-weapon eligibility.
+
+**Tier 1 — Common.** Stronger than the basic cannon but never game-changers on their own. These are the bread-and-butter upgrades players will see often. Candidates for being offered as starting weapons outside dev mode once the tier system is fully tuned.
+
+**Tier 2 — Rare.** Deadly and highly desirable. A tier-2 weapon meaningfully swings a round; players will fight over them. Some tier-2 weapons appear in story-mode missions as scripted pickups.
+
+**Tier 3 — Exceptional.** Game-changing or genuinely unusual. Each tier-3 weapon should feel exciting to discover and dramatic in effect — converting enemies, spawning reinforcements, warping gravity, destroying planets. These are rare enough that seeing one mid-match is an event.
+
+---
+
+- [x] **Dual Blaster** *(Tier 1)* — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
+
+- [ ] **Team Shield** *(Tier 2)* — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not fire a shot this turn.
 
   **Availability (FR-1)**
   - Not offered to players in single-station-per-team games (it would always be wasted); suppress it from the weapon selector when the team has only one station configured
@@ -169,7 +181,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - The station that used Team Shield does not fire any projectile this turn
   - Consumes one charge
 
-- [ ] **Teleport** — Instantly relocates the firing station to a player-designated destination. Uses the angle and power controls: angle sets direction, power maps to distance (max distance = map diagonal). A destination marker is shown in the aim preview so the player can see exactly where they will land before firing.
+- [ ] **Teleport** *(Tier 2)* — Instantly relocates the firing station to a player-designated destination. Uses the angle and power controls: angle sets direction, power maps to distance (max distance = map diagonal). A destination marker is shown in the aim preview so the player can see exactly where they will land before firing.
 
   **Timing (FR-1)**
   - The teleport fires at the start of the turn (approximately 1 second in, before other projectiles resolve) — the station disappears from its origin and reappears at the destination immediately, not at end-of-turn.
@@ -187,11 +199,11 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Power slider sets distance: minimum power → short hop, maximum power → full map diagonal.
   - Aim preview renders a destination marker (e.g. a ghost/outline of the station) at the computed safe landing point, updating live as angle/power change.
 
-- [ ] **Electro Stun** — Fires a cone of electric shocks in the aimed direction. Any enemy station caught in the cone is stunned for one turn (cannot move or shoot). No direct damage.
+- [ ] **Electro Stun** *(Tier 2)* — Fires a cone of electric shocks in the aimed direction. Any enemy station caught in the cone is stunned for one turn (cannot move or shoot). No direct damage.
 
-- [ ] **Super Laser** — Star-Wars-style planet-destroying laser. Fires a massive beam that obliterates any planet it passes through. Extremely rare; single use.
+- [ ] **Super Laser** *(Tier 3)* — Star-Wars-style planet-destroying laser. Fires a massive beam that obliterates any planet it passes through. Extremely rare; single use.
 
-- [ ] **Reinforcement Signal** — Fires a directional distress signal that travels across the map; if it reaches a screen edge a reinforcement ship is beamed in there at end of turn.
+- [ ] **Reinforcement Signal** *(Tier 3)* — Fires a directional distress signal that travels across the map; if it reaches a screen edge a reinforcement ship is beamed in there at end of turn.
 
   **Projectile (FR-1)**
   - The signal is an animated waveform-like line rendered in the firing team's colour, travelling in the aimed direction
@@ -212,15 +224,17 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Only one reinforcement spawns per signal (the first edge contact counts; signal is then consumed)
   - The new station enters with default loadout and is controlled by the same player/AI as the rest of the team
 
-- [ ] **Resupply** — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
+- [ ] **Resupply** *(Tier 2)* — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
 
-- [ ] **Quantum Torpedo** — A torpedo that teleports through solid celestial bodies. On contact with any planet except a gas giant, a teleport VFX plays at the entry point, the torpedo instantly reappears at the straight-line exit point on the far side of the body, and a second VFX plays at the exit point. The torpedo continues on its original trajectory from the exit point and detonates only on station contact. Gas giants are treated normally (torpedo passes through without teleporting). Requires new teleport SFX and exit-point geometry calculation (ray vs sphere intersection for the far side).
+- [ ] **Quantum Torpedo** *(Tier 3)* — A torpedo that teleports through solid celestial bodies. On contact with any planet except a gas giant, a teleport VFX plays at the entry point, the torpedo instantly reappears at the straight-line exit point on the far side of the body, and a second VFX plays at the exit point. The torpedo continues on its original trajectory from the exit point and detonates only on station contact. Gas giants are treated normally (torpedo passes through without teleporting). Requires new teleport SFX and exit-point geometry calculation (ray vs sphere intersection for the far side).
 
-- [x] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
+- [x] **Bounce Cannon** *(Tier 1)* — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
-- [ ] **Triple Quantum Torpedo** — Fires 3 Quantum Torpedoes simultaneously across a narrow arc, identical to how the Triple Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
+- [ ] **Triple Quantum Torpedo** *(Tier 3)* — Fires 3 Quantum Torpedoes simultaneously across a narrow arc, identical to how the Triple Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
 
-- [ ] **Mind Control Beam** — A laser-class weapon that fires an animated sine-wave beam. If the beam strikes an enemy station, that station is permanently converted to the firing team for the rest of the game.
+- [ ] **Quantum Auto Cannon** *(Tier 3)* — Fires 5 Quantum Torpedoes in rapid succession with small random angular deviation, identical to how the Auto Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
+
+- [ ] **Mind Control Beam** *(Tier 3)* — A laser-class weapon that fires an animated sine-wave beam. If the beam strikes an enemy station, that station is permanently converted to the firing team for the rest of the game.
 
   **Firing & Travel (FR-1)**
   - Aimed like a standard laser (angle selector, no power control)
@@ -242,7 +256,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Win Condition (FR-4)**
   - After conversion, check if any opposing team still has active stations; if not, the round ends immediately (converted station may be the last enemy)
 
-- [ ] **Mammoth Cannon** — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
+- [ ] **Mammoth Cannon** *(Tier 2)* — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
 
   **Projectile (FR-1)**
   - Launched at 50% of the speed a normal cannon shot would have at the same power setting
@@ -275,15 +289,15 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Fragment speed min (default: 30% of max cannon power) / max (default: 60%)
   - Explosion animation speed multiplier (default: 0.4× normal speed)
 
-- [x] **Scatter Cannon** — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
+- [x] **Scatter Cannon** *(Tier 1)* — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
 
-- [x] **Auto Cannon** — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
+- [x] **Auto Cannon** *(Tier 1)* — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
 
-- [x] **Spiral** — Fires blaster shots sequentially in all directions (360° sweep), one per blaster timing interval.
+- [x] **Spiral** *(Tier 1)* — Fires blaster shots sequentially in all directions (360° sweep), one per blaster timing interval.
 
-- [x] **Star Shot** — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
+- [x] **Star Shot** *(Tier 1)* — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
 
-- [ ] **Hedgehog** — High-tier weapon. Deploys a Force Shield on the firing station and then fires 12 rockets outward in all directions across 4 rapid volleys.
+- [ ] **Hedgehog** *(Tier 2)* — High-tier weapon. Deploys a Force Shield on the firing station and then fires 12 rockets outward in all directions across 4 rapid volleys.
 
   **Shield (FR-1)**
   - A Force Shield deploys on the firing station immediately when Hedgehog is used, before any rockets fire
@@ -305,7 +319,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Rarity (FR-4)**
   - High-tier / rare collectable; grants 1 charge per pickup
 
-- [ ] **Gravity Cannon** — Fires a large slow-moving gravitational mass along a standard cannon trajectory. Its own gravity warps the paths of other projectiles nearby, and it kills stations with a dramatic implosion rather than an explosion.
+- [ ] **Gravity Cannon** *(Tier 3)* — Fires a large slow-moving gravitational mass along a standard cannon trajectory. Its own gravity warps the paths of other projectiles nearby, and it kills stations with a dramatic implosion rather than an explosion.
 
   **Trajectory (FR-1)**
   - Follows the exact same arc as a normal cannon shot at the same angle and power, but traverses it at half speed
@@ -333,7 +347,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Gravity coefficient multiplier (default: 0.25× normal)
   - Gravitational mass (default: comet-scale constant, TBD during tuning)
 
-- [ ] **Repulsor Field** — Like Force Shield, this weapon allows the firing station to also fire a cannon shot on the same turn. In addition, a modest repulsive force field is applied centred on the station, identical in behaviour to a Space Rift node (linear-falloff repulsion on nearby bullets). This deflects incoming projectiles that pass close to the station.
+- [ ] **Repulsor Field** *(Tier 1)* — Like Force Shield, this weapon allows the firing station to also fire a cannon shot on the same turn. In addition, a modest repulsive force field is applied centred on the station, identical in behaviour to a Space Rift node (linear-falloff repulsion on nearby bullets). This deflects incoming projectiles that pass close to the station.
 
   **Cannon Shot (FR-1)**
   - The station fires a normal cannon shot this turn (same as Force Shield behaviour — weapon does not consume the firing action)
@@ -350,7 +364,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Visuals (FR-4)**
   - Visual treatment TBD; should communicate an active repulsion zone around the station (e.g. a faint pulsing ring or distortion effect)
 
-- [ ] **Armour** — Grants the firing station two armour layers that absorb incoming hits.
+- [ ] **Armour** *(Tier 1)* — Grants the firing station two armour layers that absorb incoming hits.
 
   **Armour Layer Appearance (FR-1)**
   - Each armour layer is rendered as a circular dashed line around the station, slightly larger than the station radius, not animated
