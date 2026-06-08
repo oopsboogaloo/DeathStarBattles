@@ -413,8 +413,8 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - Uses standard angle and power controls
 
   **Gravitational Mass (FR-2)**
-  - The projectile exerts its own gravitational attraction on other bullets in flight, with a mass comparable to a comet
-  - This will visibly bend the trajectories of nearby shots (friendly and enemy alike) toward the projectile as it passes
+  - The projectile exerts its own gravitational attraction on all bullets in flight — friendly, enemy, and its own team's — with a mass comparable to a comet
+  - This will visibly bend the trajectories of any nearby shots toward the projectile as it passes
 
   **Visuals (FR-3)**
   - Rendered as a large projectile (similar scale to Mammoth Cannon)
