@@ -808,7 +808,7 @@ export class GameLoop {
       } else if (w === WeaponId.SHOTGUN && station.team.spendStock(WeaponId.SHOTGUN)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.SHOTGUN, shotsRemaining: 2, totalShots: 2,
-          intervalSteps: 300, nextFireStep: 0,
+          intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
       } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
@@ -2178,7 +2178,7 @@ export class GameLoop {
     const s = this.gs.activeStation;
     if (!s) return;
     if (s.selectedWeapon === WeaponId.SHOTGUN) {
-      s.angle2 = Math.round(((s.angle2 + delta) % 360 + 360) % 360 * 10) / 10;
+      s.angle2 = Math.round(((s.angle2 - delta) % 360 + 360) % 360 * 10) / 10;
     } else {
       s.power = Math.max(1, Math.min(800, s.power + delta));
     }
