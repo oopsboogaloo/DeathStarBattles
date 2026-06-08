@@ -557,15 +557,21 @@ export class AboutModal {
 <div style="margin-top:18px;font-size:12px;color:#778;"><a href="mailto:chloe@mammoththoughts.com" style="color:#99b;text-decoration:none;">chloe@mammoththoughts.com</a></div>`;
     p.appendChild(content);
 
-    // Click-and-hold for 2 s anywhere on the panel activates developer mode
+    // Click-and-hold for 2 s anywhere on the panel activates developer mode.
+    // Uses touch/mouse events directly — pointer events are avoided because iOS
+    // fires pointercancel on long press, which would kill the timer.
     let _holdTimer = null;
-    p.addEventListener('pointerdown', () => {
+    const _startHold = () => {
+      clearTimeout(_holdTimer);
       _holdTimer = setTimeout(() => { _holdTimer = null; this._onDevModeCb?.(); }, 2000);
-    });
+    };
     const _cancelHold = () => { clearTimeout(_holdTimer); _holdTimer = null; };
-    p.addEventListener('pointerup',     _cancelHold);
-    p.addEventListener('pointerleave',  _cancelHold);
-    p.addEventListener('pointercancel', _cancelHold);
+    p.addEventListener('touchstart', e => { e.preventDefault(); _startHold(); }, { passive: false });
+    p.addEventListener('touchend',    _cancelHold);
+    p.addEventListener('touchcancel', _cancelHold);
+    p.addEventListener('mousedown',   _startHold);
+    p.addEventListener('mouseup',     _cancelHold);
+    p.addEventListener('mouseleave',  _cancelHold);
 
     this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
