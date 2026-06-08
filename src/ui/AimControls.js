@@ -123,41 +123,30 @@ export class AimControls {
   _makeBtn(label, action, maxRate = MAX_RATE) {
     const btn = el('button', {
       background:   'rgba(10,10,25,0.82)',
-      border:       '1px solid rgba(255,255,255,0.32)',
+      border:       '1px solid rgba(255,255,255,0.28)',
       borderRadius: '4px',
-      color:        '#dde',
+      color:        '#ccd',
       fontFamily:   'monospace',
       fontSize:     '16px',
       padding:      '5px 14px',
       cursor:       'pointer',
       userSelect:   'none',
-      transition:   'background 0.1s, transform 0.07s',
+      boxShadow:    'none',
+      transition:   'background 0.1s, transform 0.07s, box-shadow 0.1s, border-color 0.1s, color 0.1s',
     });
     btn.textContent = label;
 
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = 'rgba(40,45,90,0.95)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'rgba(10,10,25,0.82)';
-      btn.style.transform  = 'scale(1)';
-      this._stopHold();
-    });
-    btn.addEventListener('mousedown', e => {
-      e.preventDefault();
-      btn.style.transform = 'scale(0.9)';
-      this._startHold(action, maxRate);
-    });
-    btn.addEventListener('mouseup', () => {
-      btn.style.transform = 'scale(1)';
-      this._stopHold();
-    });
+    const setIdle    = () => { btn.style.background = 'rgba(10,10,25,0.82)';  btn.style.border = '1px solid rgba(255,255,255,0.28)'; btn.style.boxShadow = 'none';                             btn.style.color = '#ccd'; btn.style.transform = 'scale(1)'; };
+    const setHover   = () => { btn.style.background = 'rgba(45,55,140,0.95)'; btn.style.border = '1px solid rgba(160,170,255,0.65)'; btn.style.boxShadow = '0 0 8px rgba(110,130,255,0.45)';  btn.style.color = '#eef'; };
+    const setPressed = () => { btn.style.background = 'rgba(70,85,210,0.98)'; btn.style.border = '1px solid rgba(210,220,255,0.85)'; btn.style.boxShadow = '0 0 14px rgba(130,150,255,0.65)'; btn.style.color = '#fff'; btn.style.transform = 'scale(0.91)'; };
+
+    btn.addEventListener('mouseenter', () => { setHover(); });
+    btn.addEventListener('mouseleave', () => { setIdle(); this._stopHold(); });
+    btn.addEventListener('mousedown',  e => { e.preventDefault(); setPressed(); this._startHold(action, maxRate); });
+    btn.addEventListener('mouseup',    () => { setHover(); this._stopHold(); });
     // Touch support
-    btn.addEventListener('touchstart', e => {
-      e.preventDefault();
-      this._startHold(action, maxRate);
-    }, { passive: false });
-    btn.addEventListener('touchend', () => this._stopHold());
+    btn.addEventListener('touchstart', e => { e.preventDefault(); setPressed(); this._startHold(action, maxRate); }, { passive: false });
+    btn.addEventListener('touchend',   () => { setIdle(); this._stopHold(); });
 
     return btn;
   }
