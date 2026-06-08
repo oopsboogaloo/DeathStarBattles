@@ -2976,7 +2976,7 @@ export class Renderer {
     const phase = Date.now() / 800;
 
     const AMPLITUDE    = 4.8;  // ± one medium-station radius (= medium station width peak-to-peak)
-    const CYCLES       = 3.5;
+    const CYCLES       = 10.5;
     const POINT_SPACING = 2;   // game units between sub-sampled points (~12 pts/cycle)
 
     // Linearly sub-sample the physics path so the sine wave is smooth
