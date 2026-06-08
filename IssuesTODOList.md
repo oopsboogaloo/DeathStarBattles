@@ -231,7 +231,36 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - The auto-fire resolves automatically; the player can only acknowledge and end their turn
   - The condition lasts exactly one turn regardless of player type
 
-- [ ] **Super Laser** *(Tier 3)* — Star-Wars-style planet-destroying laser. Fires a massive beam that obliterates any planet it passes through. Extremely rare; single use.
+- [ ] **Super Laser** *(Tier 3)* — An iconic, devastating superweapon. Multiple convergence beams assemble at a focal point and then fire a single catastrophic beam in the aimed direction. Destroys everything in its path short of stars and black holes.
+
+  **Firing VFX (FR-1)**
+  - On activation: several thin beams (the convergence beams) animate rapidly assembling inward to a focal point just ahead of the station, in the aimed direction
+  - After a short charge-up, the focal point erupts into the main beam — a thick, blinding, particle-rich laser that fires along the aim angle
+  - The overall look references the Death Star superlaser aesthetic: dramatic convergence → single devastating discharge
+  - Accompanied by impressive SFX and glowing particle effects throughout the charge and firing sequence
+
+  **Beam Travel & Penetration (FR-2)**
+  - The beam travels in a straight line in the aimed direction (no gravity deflection — it is too powerful to bend)
+  - Destroys any station, asteroid, comet, or moon it passes through without slowing or stopping — these are obliterated mid-beam
+  - Continues until it hits a planet, star, dwarf star, or black hole
+
+  **Planet Destruction (FR-3)**
+  - On contact with a planet: the planet is instantly destroyed
+  - The destroyed planet leaves 3–5 asteroid fragments at the impact site, identical to moon destruction behaviour
+  - A large explosion at the impact point (similar in scale to a rocket explosion) destroys any nearby stations caught in the blast radius
+
+  **Star / Hazard Contact (FR-4)**
+  - On contact with a star, dwarf star, or black hole: the beam is absorbed and stops
+  - A rocket-scale explosion triggers at the contact point, destroying any nearby stations
+  - The star/dwarf star/black hole itself is unaffected
+
+  **Controls (FR-5)**
+  - Angle selector only — no power control (beam always travels at full extent)
+  - No aim path preview (the beam is straight and unaffected by gravity)
+
+  **Rarity (FR-6)**
+  - Extremely rare; grants exactly 1 charge per collectable
+  - Tier 3 drop weight
 
 - [ ] **Reinforcement Signal** *(Tier 3)* — Fires a directional distress signal that travels across the map; if it reaches a screen edge a reinforcement ship is beamed in there at end of turn.
 
