@@ -46,6 +46,13 @@ const SUPER_LASER_CHARGE_STEPS  = 800;  // physics steps of charge-up before bea
 const SUPER_LASER_BEAM_DURATION = 2.5;  // VFX duration for main beam (seconds)
 const SUPER_LASER_CONV_DURATION = 0.45; // VFX duration for convergence beams (seconds)
 
+// Mind Control Beam tuning constants
+const MIND_CONTROL_DELAY_STEPS  = 1200; // physics steps of charge-up before beam fires
+
+// Reinforcement Signal tuning constants
+const REINF_SIGNAL_GRAVITY_MULT = 0.2;
+const REINF_SIGNAL_SPEED_MULT   = 0.5;
+
 export class GameLoop {
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
 
@@ -770,9 +777,10 @@ export class GameLoop {
     this.gs.fireballSmoke       = [];
     this.gs.skimParticles       = [];
     this.gs.burstQueue          = [];
-    this.gs.pendingLasers    = [];
-    this.gs.pendingTeleports = [];
-    this.gs.firingStep       = 0;
+    this.gs.pendingLasers         = [];
+    this.gs.pendingTeleports      = [];
+    this.gs.pendingReinforcements = [];
+    this.gs.firingStep            = 0;
 
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
@@ -1041,6 +1049,20 @@ export class GameLoop {
         this.gs.pendingLasers.push({ station, angle: station.angle,
           delaySteps: SUPER_LASER_CHARGE_STEPS, superLaser: true,
           vfxDuration: SUPER_LASER_BEAM_DURATION });
+      } else if (w === WeaponId.REINFORCEMENT_SIGNAL && station.team.spendStock(WeaponId.REINFORCEMENT_SIGNAL)) {
+        const MAX_V = (800 / 1000 + 0.2) * 0.8;
+        const b = this._makeBulletVelocity(station, station.angle, MAX_V * REINF_SIGNAL_SPEED_MULT);
+        b.gravityMultiplier   = REINF_SIGNAL_GRAVITY_MULT;
+        b.fragBouncy          = true;
+        b.reinforcementSignal = true;
+        this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.MIND_CONTROL_BEAM && station.team.spendStock(WeaponId.MIND_CONTROL_BEAM)) {
+        const [mr, mg, mb] = station.team.colour;
+        this.gs.vfxList.push({ type: 'mindControlCharge',
+          x: station.position.x, y: station.position.y, angle: station.angle,
+          r: mr, g: mg, b: mb, t: 0, duration: 0.5 });
+        this.gs.pendingLasers.push({ station, angle: station.angle,
+          delaySteps: MIND_CONTROL_DELAY_STEPS, mindControlBeam: true });
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
@@ -1179,7 +1201,12 @@ export class GameLoop {
       for (const pl of this.gs.pendingLasers) {
         pl.delaySteps--;
         if (pl.delaySteps <= 0) {
-          if (pl.superLaser) {
+          if (pl.mindControlBeam) {
+            const path = this._simulateMindControlPath(pl.station, pl.angle);
+            const [mr, mg, mb] = pl.station.team.colour;
+            this.gs.vfxList.push({ type: 'mindControlBeam', path, r: mr, g: mg, b: mb, t: 0, duration: 1.5 });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          } else if (pl.superLaser) {
             const path = this._simulateSuperLaserPath(pl.station, pl.angle);
             const [slr, slg, slb] = pl.station.team.colour;
             this.gs.vfxList.push({ type: 'superLaserBeam', path, r: slr, g: slg, b: slb, t: 0, duration: pl.vfxDuration ?? SUPER_LASER_BEAM_DURATION });
@@ -1341,6 +1368,20 @@ export class GameLoop {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
         this.physics.step(bullet, this.gs.planets, this.gs.rifts, this.gs.repulsorFields ?? []);
+
+        // Reinforcement Signal: detect when it exits the map boundary
+        if (bullet.reinforcementSignal && bullet.status === BulletStatus.ACTIVE) {
+          const { gw, gh } = this.physics;
+          const { x, y } = bullet.position;
+          if (x < 0 || x > gw || y < 0 || y > gh) {
+            const edgeX = Math.max(0, Math.min(gw, x));
+            const edgeY = Math.max(0, Math.min(gh, y));
+            this.gs.pendingReinforcements.push({ team: bullet.owner.team, x: edgeX, y: edgeY });
+            bullet.status = BulletStatus.DEAD;
+            if (bullet.owner.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
+            continue;
+          }
+        }
 
         // Moon hit — must check before trail recording since step() may EXPLODE the bullet
         if (bullet._hitMoon) {
@@ -1606,6 +1647,10 @@ export class GameLoop {
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
     if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && teleportsGone && !stationsMoving) {
+      for (const reinf of this.gs.pendingReinforcements ?? []) {
+        this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y);
+      }
+      this.gs.pendingReinforcements = [];
       this.gs.shields        = [];
       this.gs.repulsorFields = [];
       this.gs.rocketBlasts   = [];
@@ -2035,6 +2080,121 @@ export class GameLoop {
     }
 
     return path;
+  }
+
+  // Simulate mind control beam path: gravity-affected, stops at first hard surface or station.
+  // Converts the first enemy station it hits; friendly stations block it without conversion.
+  _simulateMindControlPath(station, angleDeg) {
+    const LASER_SPEED   = 160;
+    const LASER_GRAVITY = 1.0;
+    const MAX_STEPS     = 200;
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    let px = station.position.x + (station.radius + 1) * Math.sin(rad);
+    let py = station.position.y + (station.radius + 1) * Math.cos(rad);
+    let vx = LASER_SPEED * Math.sin(rad);
+    let vy = LASER_SPEED * Math.cos(rad);
+    const path  = [new Vec2(px, py)];
+    const proxy = { owner: station, status: 'active', teleportCount: 0, trickShotDone: false };
+    const { gw, gh } = this.physics;
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const dx  = planet.position.x - px;
+        const dy  = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        const accel = sign * LASER_GRAVITY * G * planet.mass / rSq;
+        vx += Math.cos(theta) * accel * TIMESTEP;
+        vy += Math.sin(theta) * accel * TIMESTEP;
+      }
+      const px0 = px, py0 = py;
+      px += vx * TIMESTEP;
+      py += vy * TIMESTEP;
+      path.push(new Vec2(px, py));
+
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      // Station hit — swept segment check
+      let stationBlocked = false;
+      for (const s of this.gs.allStations) {
+        if (s.status !== 'active' || s === station) continue;
+        const sdx = px0 - s.position.x, sdy = py0 - s.position.y;
+        const segDx = px - px0, segDy = py - py0;
+        const a    = segDx * segDx + segDy * segDy;
+        const b    = 2 * (sdx * segDx + sdy * segDy);
+        const c    = sdx * sdx + sdy * sdy - s.radius * s.radius;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a);
+        const t2 = (-b + sq) / (2 * a);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) {
+          if (s.team !== station.team) this._convertStation(station, s);
+          stationBlocked = true;
+          break;
+        }
+      }
+      if (stationBlocked) break;
+
+      // Planet hit — asteroids shatter, solid planets stop beam
+      let blocked = false;
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const R  = planet.impactRadius;
+        const dx = planet.position.x - px;
+        const dy = planet.position.y - py;
+        if (dx * dx + dy * dy < R * R) {
+          if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
+            planet.destroyed = true;
+            this._spawnAsteroidExplosion(planet);
+          } else if (planet.type !== PlanetType.GAS_GIANT) {
+            blocked = true;
+          }
+          break;
+        }
+      }
+      if (blocked) break;
+    }
+    return path;
+  }
+
+  // Transfer an enemy station to the firing station's team.
+  _convertStation(firingStation, target) {
+    const oldTeam = target.team;
+    const newTeam = firingStation.team;
+    const idx = oldTeam.stations.indexOf(target);
+    if (idx !== -1) oldTeam.stations.splice(idx, 1);
+    newTeam.stations.push(target);
+    target.team  = newTeam;
+    target.role  = newTeam.isHuman ? 'human' : 'ai';
+    target.mindControlFlash = 1.0;
+    firingStation.stats.kills++;
+    newTeam.stats.kills++;
+    newTeam.stats.score++;
+    oldTeam.stats.score--;
+  }
+
+  // Spawn a new friendly station at the map edge where the reinforcement signal exited.
+  _spawnReinforcementStation(team, x, y) {
+    const { gw, gh } = this.physics;
+    const size = StationSize.SMALL;
+    const r    = size.radius;
+    const safeX = Math.max(r + 1, Math.min(gw - r - 1, x));
+    const safeY = Math.max(r + 1, Math.min(gh - r - 1, y));
+    const id    = `reinf_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const newStation = new Station({
+      id,
+      team,
+      position: new Vec2(safeX, safeY),
+      size,
+    });
+    newStation.role = team.isHuman ? 'human' : 'ai';
+    const [r1, g1, b1] = team.colour;
+    newStation.shockwave = { t: 0, r: r1, g: g1, b: b1 };
+    team.stations.push(newStation);
   }
 
   // Find a safe teleport destination along the travel direction.
@@ -2528,6 +2688,7 @@ export class GameLoop {
       }
       if (station.armourFlash     > 0) station.armourFlash     = Math.max(0, station.armourFlash     - 0.04);
       if (station.electrifiedFlash > 0) station.electrifiedFlash = Math.max(0, station.electrifiedFlash - 0.012);
+      if (station.mindControlFlash > 0) station.mindControlFlash = Math.max(0, station.mindControlFlash - 0.02);
     }
 
     // Freestanding asteroid explosions
@@ -2713,6 +2874,7 @@ export class GameLoop {
       WeaponId.MINIGUN,
       WeaponId.FORCE_SHIELD,
       WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
+      WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
     ];
     const available = allOrder.filter(w => {
       if (w === WeaponId.CANNON || w === WeaponId.HYPERSPACE) return true;

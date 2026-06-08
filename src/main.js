@@ -729,6 +729,7 @@ const _ALL_SPECIAL = [
   WeaponId.QUANTUM_TORPEDO, WeaponId.TRIPLE_QUANTUM_TORPEDO,
   WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
   WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
+  WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

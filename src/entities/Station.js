@@ -68,6 +68,7 @@ export class Station {
     this.implosion       = false;        // killed by gravity cannon — shrinks to nothing
     this.electrified     = false;        // auto-fires cannon next turn
     this.electrifiedFlash = 0;           // 1→0 overlay animation
+    this.mindControlFlash = 0;           // 1→0 overlay animation when converted by mind control
   }
 
   get radius()          { return this.size.radius; }

@@ -34,6 +34,8 @@ const LABELS = {
   [WeaponId.ELECTRO_STUN]:           'ELECTRO STUN',
   [WeaponId.TELEPORT]:               'TELEPORT',
   [WeaponId.SUPER_LASER]:            'SUPER LASER',
+  [WeaponId.REINFORCEMENT_SIGNAL]:   'REINF. SIGNAL',
+  [WeaponId.MIND_CONTROL_BEAM]:      'MIND CONTROL',
 };
 
 // Weapons that use stock (shown with [n] count)
@@ -49,6 +51,7 @@ const LIMITED = new Set([
   WeaponId.QUANTUM_TORPEDO, WeaponId.TRIPLE_QUANTUM_TORPEDO,
   WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
   WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
+  WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
 ]);
 
 export class WeaponSelector {
@@ -151,6 +154,8 @@ export class WeaponSelector {
       WeaponId.ELECTRO_STUN,
       WeaponId.TELEPORT,
       WeaponId.SUPER_LASER,
+      WeaponId.REINFORCEMENT_SIGNAL,
+      WeaponId.MIND_CONTROL_BEAM,
     ];
 
     // Build visible rows first so we know the total count

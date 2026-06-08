@@ -986,6 +986,9 @@ export class Renderer {
     if ((station.electrifiedFlash ?? 0) > 0) {
       this._drawElectrifiedOverlay(ctx, station);
     }
+    if ((station.mindControlFlash ?? 0) > 0) {
+      this._drawMindControlFlash(ctx, station);
+    }
   }
 
   _drawNormalStation(ctx, station) {
@@ -1161,7 +1164,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster', 'superLaser']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster', 'superLaser', 'reinforcementSignal', 'mindControlBeam']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1189,8 +1192,10 @@ export class Renderer {
         offsets = [-half, 0, half];
         break;
       }
-      case 'teleport':    offsets = [0]; break; // direction only; destination shown below
-      default:            offsets = [0]; break;
+      case 'teleport':              offsets = [0]; break; // direction only; destination shown below
+      case 'reinforcementSignal':   offsets = [0]; break;
+      case 'mindControlBeam':       offsets = [0]; break;
+      default:                      offsets = [0]; break;
     }
 
     for (const off of offsets) {
@@ -1559,6 +1564,16 @@ export class Renderer {
       }
       case 'rocketPod':
         return; // self-propelled; no path preview
+      case 'reinforcementSignal':
+        return; // reaches edge of map; no useful path preview
+      case 'mindControlBeam': {
+        const path = this._computeLaserPreviewPath(station, station.angle, planets, maxLen);
+        if (path.length >= 2) {
+          const [tr, tg, tb] = station.team.colour;
+          this._drawFadingPath(ctx, path, 0.6, 1.5, `${tr},${tg},${tb}`);
+        }
+        return;
+      }
       case 'forceShield':
         shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
@@ -1769,6 +1784,22 @@ export class Renderer {
     const mult = bullet.sizeMultiplier ?? 1;
     const r    = Math.max(2, bullet.owner.size.bulletRadius * this.conv * mult);
     const [cr, cg, cb] = bullet.owner.team.colour;
+
+    if (bullet.reinforcementSignal) {
+      // Pulsing radio-wave rings
+      const pulse = (Date.now() / 400) % 1;
+      for (let i = 0; i < 3; i++) {
+        const t     = (pulse + i / 3) % 1;
+        const ringR = r * (1 + t * 2.5);
+        const alpha = (1 - t) * 0.6;
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+        ctx.lineWidth   = Math.max(1, r * 0.25);
+        ctx.stroke();
+      }
+    }
+
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
@@ -2411,6 +2442,39 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // Mind control flash — rippling colour wash on a converted station
+  // ----------------------------------------------------------------
+
+  _drawMindControlFlash(ctx, station) {
+    const conv  = this.conv;
+    const cx    = station.position.x * conv;
+    const cy    = station.position.y * conv;
+    const r     = Math.max(3, station.radius * conv);
+    const alpha = station.mindControlFlash ?? 0;
+    if (alpha <= 0) return;
+
+    const [cr, cg, cb] = station.team.colour;
+
+    ctx.save();
+    // Expanding ripple rings
+    for (let i = 0; i < 3; i++) {
+      const t     = Math.max(0, alpha - i * 0.25);
+      const ringR = r * (1.1 + i * 0.35 + (1 - alpha) * 0.8);
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(t * 0.7).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, r * 0.12);
+      ctx.stroke();
+    }
+    // Overlay wash
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${cr},${cg},${cb},${(alpha * 0.45).toFixed(3)})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
   // Repulsor Fields — subtle expanding ring centred on station
   // ----------------------------------------------------------------
 
@@ -2530,6 +2594,8 @@ export class Renderer {
         case 'teleportFlash':          this._drawTeleportFlash(ctx, vfx);           break;
         case 'superLaserConverge':     this._drawSuperLaserConverge(ctx, vfx);      break;
         case 'superLaserBeam':         this._drawSuperLaserBeam(ctx, vfx);          break;
+        case 'mindControlCharge':      this._drawMindControlCharge(ctx, vfx);       break;
+        case 'mindControlBeam':        this._drawMindControlBeam(ctx, vfx);         break;
       }
     }
   }
@@ -2802,6 +2868,87 @@ export class Renderer {
     for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
     ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
     ctx.lineWidth   = 3;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Mind Control Charge — brief glowing aura around the station
+  // ----------------------------------------------------------------
+
+  _drawMindControlCharge(ctx, vfx) {
+    const cx    = vfx.x * this.conv;
+    const cy    = vfx.y * this.conv;
+    const t     = vfx.t;
+    const alpha = Math.sin(t * Math.PI) * 0.75;
+    const R     = (40 + t * 30) * this.conv;
+    const { r, g, b } = vfx;
+
+    ctx.save();
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    grad.addColorStop(0,   `rgba(${r},${g},${b},${(alpha * 0.8).toFixed(3)})`);
+    grad.addColorStop(0.5, `rgba(${r},${g},${b},${(alpha * 0.3).toFixed(3)})`);
+    grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Mind Control Beam — animated sine-wave laser in team colour
+  // ----------------------------------------------------------------
+
+  _drawMindControlBeam(ctx, vfx) {
+    if (!vfx.path?.length) return;
+    const conv  = this.conv;
+    const t     = vfx.t;
+    const alpha = Math.sin(t * Math.PI);
+    const { r, g, b } = vfx;
+    const now   = Date.now() / 600;
+
+    ctx.save();
+
+    // Outer glow
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.2).toFixed(3)})`;
+    ctx.lineWidth   = 14;
+    ctx.stroke();
+
+    // Animated sine wave overlay
+    if (vfx.path.length >= 2) {
+      ctx.beginPath();
+      for (let i = 0; i < vfx.path.length; i++) {
+        const px0 = vfx.path[Math.max(0, i - 1)];
+        const pt  = vfx.path[i];
+        // Perpendicular offset for sine wave
+        const segDx = i < vfx.path.length - 1
+          ? vfx.path[i + 1].x - pt.x : pt.x - px0.x;
+        const segDy = i < vfx.path.length - 1
+          ? vfx.path[i + 1].y - pt.y : pt.y - px0.y;
+        const len   = Math.sqrt(segDx * segDx + segDy * segDy) || 1;
+        const nx    = -segDy / len;
+        const ny    =  segDx / len;
+        const wave  = Math.sin(i * 0.5 + now) * 4 * conv * (1 - t * 0.5);
+        const sx    = pt.x * conv + nx * wave;
+        const sy    = pt.y * conv + ny * wave;
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.85).toFixed(3)})`;
+      ctx.lineWidth   = 2.5;
+      ctx.stroke();
+    }
+
+    // White core
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(255,255,255,${(alpha * 0.5).toFixed(3)})`;
+    ctx.lineWidth   = 1.5;
     ctx.stroke();
 
     ctx.restore();

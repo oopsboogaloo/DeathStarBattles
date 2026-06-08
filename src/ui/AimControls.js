@@ -5,6 +5,7 @@
 const NO_POWER_WEAPONS = new Set([
   'blunderbuss', 'laser', 'antimatterLaser',
   'resupply', 'hedgehog', 'teamShield', 'armour', 'superLaser',
+  'reinforcementSignal', 'mindControlBeam',
 ]);
 
 const NO_AIM_WEAPONS = new Set([
