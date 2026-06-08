@@ -303,7 +303,33 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Rarity (FR-4)**
   - High-tier / rare collectable; grants 1 charge per pickup
 
-- [ ] **Gravity Cannon** — Fires a gravitational anomaly that travels like a cannonball but deflects nearby shots rather than destroying them; fades after a set time.
+- [ ] **Gravity Cannon** — Fires a large slow-moving gravitational mass along a standard cannon trajectory. Its own gravity warps the paths of other projectiles nearby, and it kills stations with a dramatic implosion rather than an explosion.
+
+  **Trajectory (FR-1)**
+  - Follows the exact same arc as a normal cannon shot at the same angle and power, but traverses it at half speed
+  - Achieved by launching at half the normal initial velocity with gravity coefficient reduced to ¼ normal — the path is identical, the timing is doubled
+  - Uses standard angle and power controls
+
+  **Gravitational Mass (FR-2)**
+  - The projectile exerts its own gravitational attraction on other bullets in flight, with a mass comparable to a comet
+  - This will visibly bend the trajectories of nearby shots (friendly and enemy alike) toward the projectile as it passes
+
+  **Visuals (FR-3)**
+  - Rendered as a large projectile (similar scale to Mammoth Cannon)
+  - Leaves a thick trail; no fireball effect (distinct from Mammoth Cannon)
+
+  **Impact (FR-4)**
+  - Destroyed on contact with any solid body (planet, asteroid, moon, star, dwarf star, black hole, or station)
+  - No explosion on destruction
+
+  **Station Kill (FR-5)**
+  - When the projectile contacts a station, the station is destroyed via a fast implosion: the station rapidly shrinks to nothing with no outward explosion
+  - Counts as a normal kill for stats
+
+  **Tuneability (NFR-1)** — named constants:
+  - Speed multiplier (default: 0.5× cannon speed)
+  - Gravity coefficient multiplier (default: 0.25× normal)
+  - Gravitational mass (default: comet-scale constant, TBD during tuning)
 
 - [ ] **Repulsor Field** — Deploys a stationary repulsion zone around the firing station for one round that pushes away incoming projectiles; the firing station can still shoot normally this turn.
 
