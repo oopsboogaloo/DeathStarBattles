@@ -212,7 +212,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Only one reinforcement spawns per signal (the first edge contact counts; signal is then consumed)
   - The new station enters with default loadout and is controlled by the same player/AI as the rest of the team
 
-- [ ] **Resupply** — Fires a shot that explodes into a cluster of high-tier weapon collectables on detonation, available for any team to collect.
+- [ ] **Resupply** — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
 
 - [ ] **Quantum Torpedo** — A torpedo that teleports through solid celestial bodies. On contact with any planet except a gas giant, a teleport VFX plays at the entry point, the torpedo instantly reappears at the straight-line exit point on the far side of the body, and a second VFX plays at the exit point. The torpedo continues on its original trajectory from the exit point and detonates only on station contact. Gas giants are treated normally (torpedo passes through without teleporting). Requires new teleport SFX and exit-point geometry calculation (ray vs sphere intersection for the far side).
 
