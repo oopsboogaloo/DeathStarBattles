@@ -786,10 +786,13 @@ export class GameLoop {
       if (station.status !== 'active') continue;
       const w = station.selectedWeapon;
 
+      station.lastTrails = null; // clear previous ghost trails before this turn's action
+
       if (w === WeaponId.HYPERSPACE) continue; // teleports after firing phase
       if (w === WeaponId.FORCE_SHIELD && station.team.spendStock(WeaponId.FORCE_SHIELD)) {
         this.gs.shields.push({ station, radius: station.radius * 1.6, alive: true });
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
+        station.lastTrails = []; // allow bullet trail to accumulate
         station.stats.turns++;
         continue;
       }
