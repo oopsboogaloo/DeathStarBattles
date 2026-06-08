@@ -191,7 +191,26 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [ ] **Super Laser** — Star-Wars-style planet-destroying laser. Fires a massive beam that obliterates any planet it passes through. Extremely rare; single use.
 
-- [ ] **Reinforcement Signal** — Calls in backup: at the end of the firing turn, 1 (occasionally 2–3) extra friendly station(s) appear on the map.
+- [ ] **Reinforcement Signal** — Fires a directional distress signal that travels across the map; if it reaches a screen edge a reinforcement ship is beamed in there at end of turn.
+
+  **Projectile (FR-1)**
+  - The signal is an animated waveform-like line rendered in the firing team's colour, travelling in the aimed direction
+  - Angle selector sets direction; no power control (power is fixed)
+  - Travel speed: 50% of max cannon speed
+  - Gravity influence: 0.2× the normal gravity ratio (low inertia — travels mostly straight but curves slightly)
+
+  **Reflection & Absorption (FR-2)**
+  - Reflects off all hard surfaces (planets, asteroids, moons, stations) using the same elastic bounce as other reflecting projectiles
+  - Absorbed and destroyed on contact with a star, dwarf star, or black hole — no reinforcement triggered
+
+  **Wormholes (FR-3)**
+  - Passes through wormholes and exits from the paired wormhole, continuing in the same direction
+
+  **Reinforcement Spawn (FR-4)**
+  - If the signal reaches any screen edge it triggers a reinforcement: at the end of that turn, one extra friendly station is beamed in at the point where the signal crossed the edge
+  - Available even in single-station-per-team games (unlike Team Shield)
+  - Only one reinforcement spawns per signal (the first edge contact counts; signal is then consumed)
+  - The new station enters with default loadout and is controlled by the same player/AI as the rest of the team
 
 - [ ] **Resupply** — Fires a shot that explodes into a cluster of high-tier weapon collectables on detonation, available for any team to collect.
 
