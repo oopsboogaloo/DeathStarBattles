@@ -1168,7 +1168,7 @@ export class Renderer {
       case 'bounceCannon':      offsets = [0];                               break;
       case 'autoCannon':        offsets = [-1, 0, 1];                        break;
       case 'starShot':          offsets = [0, 72, 144, 216, 288];            break;
-      case 'scatterCannon':     offsets = [-10, -5, 0, 5, 10];              break;
+      case 'scatterCannon':     offsets = [0];                               break;
       case 'spiral':            offsets = Array.from({length: 13}, (_, i) => i * (360 / 13)); break;
       default:                  offsets = [0];                   break;
     }
@@ -1440,10 +1440,7 @@ export class Renderer {
         shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
       case 'scatterCannon':
-        shots = [-10, -5, 0, 5, 10].map(dAngle => ({
-          dAngle, speed: null,
-          alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
-        }));
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
       case 'spiral': {
         const MAX_V = (800 / 1000 + MIN_POWER) * MAX_POWER;
