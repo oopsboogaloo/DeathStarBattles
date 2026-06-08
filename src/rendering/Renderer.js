@@ -1164,7 +1164,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster', 'superLaser', 'reinforcementSignal', 'mindControlBeam']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster', 'superLaser', 'reinforcementSignal', 'mindControlBeam', 'hedgehog']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1192,6 +1192,7 @@ export class Renderer {
         offsets = [-half, 0, half];
         break;
       }
+      case 'hedgehog': offsets = Array.from({length: 12}, (_, i) => (i * 30) - station.angle); break;
       case 'tripleQuantumTorpedo': offsets = [-5, 0, 5];   break;
       case 'quantumAutoCannon':    offsets = [-1, 0, 1];   break;
       case 'teleport':              offsets = [0]; break; // direction only; destination shown below
@@ -1599,8 +1600,29 @@ export class Renderer {
         }
         return;
       }
-      case 'rocketPod':
-        return; // self-propelled; no path preview
+      case 'rocketPod': {
+        // Two wings: rockets alternate left/right perpendicular to aim direction
+        const rad    = (((station.angle % 360) + 360) % 360 * Math.PI) / 180;
+        const offset = station.radius * 2;
+        const perpX  = -Math.cos(rad), perpY = Math.sin(rad);
+        const mkProxy = (sign) => ({
+          position: { x: station.position.x + sign * perpX * offset, y: station.position.y + sign * perpY * offset },
+          radius: 0, team: station.team, size: station.size,
+        });
+        const pathL = this._computeRocketPreviewPath(mkProxy(+1), station.angle, station.power, planets, maxLen);
+        const pathR = this._computeRocketPreviewPath(mkProxy(-1), station.angle, station.power, planets, maxLen);
+        if (pathL.length >= 2) this._drawFadingPath(ctx, pathL, 0.7,  1.5);
+        if (pathR.length >= 2) this._drawFadingPath(ctx, pathR, 0.45, 1.5);
+        return;
+      }
+      case 'hedgehog': {
+        // 12 rockets at fixed absolute angles 0°, 30°, ..., 330° with fixed power 400
+        for (let i = 0; i < 12; i++) {
+          const path = this._computeRocketPreviewPath(station, i * 30, 400, planets, maxLen);
+          if (path.length >= 2) this._drawFadingPath(ctx, path, 0.55, 1);
+        }
+        return;
+      }
       case 'reinforcementSignal':
         return; // reaches edge of map; no useful path preview
       case 'mindControlBeam': {
