@@ -1376,7 +1376,7 @@ export class GameLoop {
           if (x < 0 || x > gw || y < 0 || y > gh) {
             const edgeX = Math.max(0, Math.min(gw, x));
             const edgeY = Math.max(0, Math.min(gh, y));
-            this.gs.pendingReinforcements.push({ team: bullet.owner.team, x: edgeX, y: edgeY });
+            this.gs.pendingReinforcements.push({ team: bullet.owner.team, x: edgeX, y: edgeY, size: bullet.owner.size });
             bullet.status = BulletStatus.DEAD;
             if (bullet.owner.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
             continue;
@@ -1648,7 +1648,7 @@ export class GameLoop {
       allStations.some(s => s.status === 'active' && s.velocity);
     if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && teleportsGone && !stationsMoving) {
       for (const reinf of this.gs.pendingReinforcements ?? []) {
-        this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y);
+        this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y, reinf.size);
       }
       this.gs.pendingReinforcements = [];
       this.gs.shields        = [];
@@ -2178,9 +2178,8 @@ export class GameLoop {
   }
 
   // Spawn a new friendly station at the map edge where the reinforcement signal exited.
-  _spawnReinforcementStation(team, x, y) {
+  _spawnReinforcementStation(team, x, y, size = StationSize.LARGE) {
     const { gw, gh } = this.physics;
-    const size = StationSize.SMALL;
     const r    = size.radius;
     const safeX = Math.max(r + 1, Math.min(gw - r - 1, x));
     const safeY = Math.max(r + 1, Math.min(gh - r - 1, y));
