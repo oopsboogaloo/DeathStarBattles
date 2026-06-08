@@ -1154,6 +1154,21 @@ export class GameLoop {
           if (bullet.scatterTimer <= 0) this._scatterCannon(bullet);
         }
 
+        // Stuck detection for bouncing bullets — explode if barely moved over 2 seconds
+        if (bullet.bouncePlanetOnly && bullet.status === BulletStatus.ACTIVE && bullet.lifetime % 120 === 0) {
+          if (bullet._stuckPos) {
+            const dx = bullet.position.x - bullet._stuckPos.x;
+            const dy = bullet.position.y - bullet._stuckPos.y;
+            if (dx * dx + dy * dy < 4) {
+              bullet._stuckCount = (bullet._stuckCount ?? 0) + 1;
+              if (bullet._stuckCount >= 10) bullet.status = BulletStatus.EXPLODING;
+            } else {
+              bullet._stuckCount = 0;
+            }
+          }
+          bullet._stuckPos = new Vec2(bullet.position.x, bullet.position.y);
+        }
+
         // Collectable collision — bullet passes through, collectable destroyed
         const hitCollectable = this.physics.checkCollectableCollision(bullet, this.gs.collectables);
         if (hitCollectable) {
