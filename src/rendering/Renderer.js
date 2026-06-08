@@ -2975,24 +2975,39 @@ export class Renderer {
     const { r, g, b } = vfx;
     const phase = Date.now() / 800;
 
-    const AMPLITUDE = 4.8;  // ± one medium-station radius (= medium station width peak-to-peak)
-    const CYCLES    = 3.5;
+    const AMPLITUDE    = 4.8;  // ± one medium-station radius (= medium station width peak-to-peak)
+    const CYCLES       = 3.5;
+    const POINT_SPACING = 2;   // game units between sub-sampled points (~12 pts/cycle)
+
+    // Linearly sub-sample the physics path so the sine wave is smooth
+    const raw = vfx.path;
+    const dense = [raw[0]];
+    for (let i = 1; i < raw.length; i++) {
+      const ax = raw[i - 1].x, ay = raw[i - 1].y;
+      const bx = raw[i].x,     by = raw[i].y;
+      const dx = bx - ax,      dy = by - ay;
+      const n  = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / POINT_SPACING));
+      for (let s = 1; s <= n; s++) {
+        const f = s / n;
+        dense.push({ x: ax + dx * f, y: ay + dy * f });
+      }
+    }
 
     // Cumulative arc length for uniform wavelength regardless of point spacing
     const arc = [0];
-    for (let i = 1; i < vfx.path.length; i++) {
-      const dx = vfx.path[i].x - vfx.path[i - 1].x;
-      const dy = vfx.path[i].y - vfx.path[i - 1].y;
+    for (let i = 1; i < dense.length; i++) {
+      const dx = dense[i].x - dense[i - 1].x;
+      const dy = dense[i].y - dense[i - 1].y;
       arc.push(arc[i - 1] + Math.sqrt(dx * dx + dy * dy));
     }
     const totalArc = arc[arc.length - 1] || 1;
 
     // Pre-compute transverse-sine-wave canvas coordinates
-    const pts = vfx.path.map((pt, i) => {
-      const segDx = i < vfx.path.length - 1
-        ? vfx.path[i + 1].x - pt.x : pt.x - vfx.path[i - 1].x;
-      const segDy = i < vfx.path.length - 1
-        ? vfx.path[i + 1].y - pt.y : pt.y - vfx.path[i - 1].y;
+    const pts = dense.map((pt, i) => {
+      const segDx = i < dense.length - 1
+        ? dense[i + 1].x - pt.x : pt.x - dense[i - 1].x;
+      const segDy = i < dense.length - 1
+        ? dense[i + 1].y - pt.y : pt.y - dense[i - 1].y;
       const len  = Math.sqrt(segDx * segDx + segDy * segDy) || 1;
       const nx   = -segDy / len;
       const ny   =  segDx / len;
