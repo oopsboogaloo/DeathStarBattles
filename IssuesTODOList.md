@@ -284,7 +284,8 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - If the signal reaches any screen edge it triggers a reinforcement: at the end of that turn, one extra friendly station is beamed in at the point where the signal crossed the edge
   - Available even in single-station-per-team games (unlike Team Shield)
   - Only one reinforcement spawns per signal (the first edge contact counts; signal is then consumed)
-  - The new station enters with default loadout and is controlled by the same player/AI as the rest of the team
+  - The new station arrives with no weapons of its own; it shares the team's existing weapon stock as normal
+  - Controlled by the same player/AI as the rest of the team
 
 - [ ] **Resupply** *(Tier 2)* — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
 
