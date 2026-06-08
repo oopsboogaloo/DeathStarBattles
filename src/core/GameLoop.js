@@ -319,7 +319,7 @@ export class GameLoop {
         if (station.position.distanceSqTo(c.position) >= (station.radius + c.radius) ** 2) continue;
         c.alive = false;
         const grant = this._pickCollectableGrant();
-        station.team.addStock(grant.weaponId, grant.count);
+        station.team.addStock(grant.id, grant.charges);
         if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
         this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
         const [cr, cg, cb] = station.team.colour;
@@ -933,7 +933,15 @@ export class GameLoop {
           if (rSq < 0.01) continue;
           const sign  = dx < 0 ? -1 : 1;
           const theta = Math.atan(dy / dx);
-          const accel = sign * G * planet.mass / rSq;
+          const R     = planet.impactRadius;
+          let accel;
+          if (planet.type === PlanetType.GAS_GIANT && rSq < R * R) {
+            // Interior of gas giant: gravity reduces linearly to zero at core (matches bullet physics)
+            const r = Math.sqrt(rSq);
+            accel = sign * G * planet.mass * r / (R * R * R);
+          } else {
+            accel = sign * G * planet.mass / rSq;
+          }
           rocket.velocity = new Vec2(
             rocket.velocity.x + Math.cos(theta) * accel * TIMESTEP,
             rocket.velocity.y + Math.sin(theta) * accel * TIMESTEP,
