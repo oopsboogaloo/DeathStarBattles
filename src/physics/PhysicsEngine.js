@@ -440,8 +440,10 @@ export class PhysicsEngine {
         break;
 
       case PlanetType.CRYSTAL:
-        // Bullet passes through — asteroid shatters but bullet continues
         planet.destroyed = true;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        }
         break;
 
       case PlanetType.COMET:
