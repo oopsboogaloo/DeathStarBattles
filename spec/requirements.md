@@ -134,13 +134,13 @@ Selected weapon resets to Cannon at the start of each turn.
 
 Weapons are grouped into three tiers that govern their drop probability from collectables. Higher tiers are rarer.
 
-| Tier | Name | Drop weight |
+| Tier | Name | Drop chance |
 |---|---|---|
-| 1 | Common | 3 |
-| 2 | Uncommon | 2 |
-| 3 | Rare | 1 |
+| 1 | Common | 80% |
+| 2 | Uncommon | 16% |
+| 3 | Rare | 4% |
 
-A weapon is chosen by picking a random entry from the weighted pool of all weapons.
+A tier is rolled first at the stated probability, then a weapon is chosen uniformly at random from all weapons in that tier.
 
 **Tier 1 — Common**
 

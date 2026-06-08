@@ -2661,7 +2661,11 @@ export class GameLoop {
       const match = WEAPON_GRANTS.find(g => g.id === wid);
       if (match) return match;
     }
-    return WEAPON_GRANTS[Math.floor(this.rng.next() * WEAPON_GRANTS.length)];
+    // Tier weights: 1=80%, 2=16%, 3=4%
+    const r = this.rng.next();
+    const tier = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
+    const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
+    return pool[Math.floor(this.rng.next() * pool.length)];
   }
 
   humanDismissDialog() {
