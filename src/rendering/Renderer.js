@@ -1192,6 +1192,8 @@ export class Renderer {
         offsets = [-half, 0, half];
         break;
       }
+      case 'tripleQuantumTorpedo': offsets = [-5, 0, 5];   break;
+      case 'quantumAutoCannon':    offsets = [-1, 0, 1];   break;
       case 'teleport':              offsets = [0]; break; // direction only; destination shown below
       case 'reinforcementSignal':   offsets = [0]; break;
       case 'mindControlBeam':       offsets = [0]; break;
@@ -1287,9 +1289,8 @@ export class Renderer {
     ctx.restore();
   }
 
-  _computeLaserPreviewPath(station, angleDeg, planets, maxLength = Infinity) {
+  _computeLaserPreviewPath(station, angleDeg, planets, maxLength = Infinity, gravityMult = 1.0) {
     const LASER_SPEED   = 160;
-    const LASER_GRAVITY = 1.0;
     const MAX_STEPS     = 200;
     const gw = this.gameWidth;
     const gh = this.gameHeight;
@@ -1309,8 +1310,8 @@ export class Renderer {
         if (rSq < 0.01) continue;
         const sign  = dx < 0 ? -1 : 1;
         const theta = Math.atan(dy / dx);
-        vx += Math.cos(theta) * sign * LASER_GRAVITY * G * planet.mass / rSq * TIMESTEP;
-        vy += Math.sin(theta) * sign * LASER_GRAVITY * G * planet.mass / rSq * TIMESTEP;
+        vx += Math.cos(theta) * sign * gravityMult * G * planet.mass / rSq * TIMESTEP;
+        vy += Math.sin(theta) * sign * gravityMult * G * planet.mass / rSq * TIMESTEP;
       }
       const prevX = px, prevY = py;
       px += vx * TIMESTEP;
@@ -1380,7 +1381,7 @@ export class Renderer {
   }
 
   // Simulate a regular bullet arc for aim preview (coarse steps, same gravity as physics engine)
-  _computeBulletPreviewPath(station, angleDeg, power, planets, maxLength = Infinity, speedOverride = null) {
+  _computeBulletPreviewPath(station, angleDeg, power, planets, maxLength = Infinity, speedOverride = null, gravityMult = 1.0) {
     const STEP_SIZE = 20;   // physics steps per preview iteration (matches AI sim)
     const MAX_ITER  = 400;
     const dt   = TIMESTEP * STEP_SIZE;
@@ -1413,8 +1414,8 @@ export class Renderer {
         } else {
           accel = sign * G * planet.mass / rSq;
         }
-        vx += Math.cos(theta) * accel * dt;
-        vy += Math.sin(theta) * accel * dt;
+        vx += Math.cos(theta) * accel * gravityMult * dt;
+        vy += Math.sin(theta) * accel * gravityMult * dt;
       }
       const prevX = px, prevY = py;
       px += vx * dt;
@@ -1559,6 +1560,42 @@ export class Renderer {
           );
           if (path.length < 2) continue;
           this._drawFadingPath(ctx, path, shot.alpha, shot.lw);
+        }
+        return;
+      }
+      case 'mammothCannon': {
+        // Half speed, quarter gravity
+        const speed = ((station.power / 1000 + MIN_POWER) * MAX_POWER) * 0.5;
+        const path  = this._computeBulletPreviewPath(station, station.angle, station.power, planets, maxLen, speed, 0.25);
+        if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 2.5);
+        return;
+      }
+      case 'gravityCannon': {
+        // Half speed, quarter gravity
+        const speed = ((station.power / 1000 + MIN_POWER) * MAX_POWER) * 0.5;
+        const path  = this._computeBulletPreviewPath(station, station.angle, station.power, planets, maxLen, speed, 0.25);
+        if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 2.5);
+        return;
+      }
+      case 'quantumTorpedo':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'tripleQuantumTorpedo':
+        shots = [
+          { dAngle: -5, speed: null, alpha: 0.35, lw: 1   },
+          { dAngle:  0, speed: null, alpha: 0.7,  lw: 1.5 },
+          { dAngle:  5, speed: null, alpha: 0.35, lw: 1   },
+        ];
+        break;
+      case 'quantumAutoCannon':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'superLaser': {
+        // Straight-line beam — no gravity deflection
+        const path = this._computeLaserPreviewPath(station, station.angle, planets, maxLen, 0);
+        if (path.length >= 2) {
+          const [tr, tg, tb] = station.team.colour;
+          this._drawFadingPath(ctx, path, 0.7, 1.5, `${tr},${tg},${tb}`);
         }
         return;
       }
