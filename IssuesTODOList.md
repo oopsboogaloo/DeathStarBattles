@@ -176,7 +176,38 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [ ] **Mind Control Beam** — Laser-like beam; any enemy station it strikes switches to the firing player's team for the remainder of the game (or for a set number of turns).
 
-- [ ] **Mammoth Cannon** — Oversized cannon shot with greatly increased blast radius and mass; tears through planets and causes massive splash damage.
+- [ ] **Mammoth Cannon** — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
+
+  **Projectile (FR-1)**
+  - Launched at 50% of the speed a normal cannon shot would have at the same power setting
+  - Follows identical gravitational physics to a cannon shot (same path, just slower)
+  - Bullet is rendered significantly larger than a standard cannonball (size defined as a named constant multiplier; default 3×)
+  - Leaves a thick trail (same flag as Fragmentation Shot primary)
+  - Continuous fireball particle effects emit from the bullet during flight — glowing embers/sparks in orange/yellow/red that drift and fade, making the projectile look alive and dangerous
+
+  **Impact (FR-2)**
+  - On contact with any station or solid body, triggers a large, slow-expanding explosion
+  - Explosion radius is significantly wider than a standard cannon blast (default 4× blast radius constant)
+  - The explosion animation plays at a slower speed than normal to emphasise scale
+  - Clears a wide area: anything within the blast radius is destroyed
+
+  **Fragmentation (FR-3)**
+  - On detonation, 11 fragments are spawned at the impact point
+  - Fragment velocity: random directions across 360°, random speed 30–60% of max cannon power
+  - Fragments behave like standard cannon bullets (subject to gravity, destroy stations on contact)
+  - Single random rotational offset applied to the spread (same pattern as Fragmentation Shot)
+
+  **Rarity & Acquisition (FR-4)**
+  - Rare drop; grants exactly 1 charge per collectable
+  - Included in the tier-2/rare collectable pool
+
+  **Tuneability (NFR-1)** — named constants:
+  - Speed multiplier (default: 0.5× cannon speed)
+  - Bullet size multiplier (default: 3×)
+  - Blast radius multiplier (default: 4×)
+  - Fragment count (default: 11)
+  - Fragment speed min (default: 30% of max cannon power) / max (default: 60%)
+  - Explosion animation speed multiplier (default: 0.4× normal speed)
 
 - [ ] **Scatter Cannon** — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
 
