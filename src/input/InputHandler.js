@@ -1,10 +1,12 @@
 import { GameMode } from '../core/GameState.js';
+import { WeaponId } from '../entities/Collectable.js';
 
 export class InputHandler {
   constructor({ canvas, loop, renderer }) {
-    this.canvas   = canvas;
-    this.loop     = loop;
-    this.renderer = renderer;
+    this.canvas            = canvas;
+    this.loop              = loop;
+    this.renderer          = renderer;
+    this._shotgunAimBarrel = 1;
     this._bind();
   }
 
@@ -44,7 +46,18 @@ export class InputHandler {
   // ─── mouse aiming ─────────────────────────────────────────────────────────
   // Click or drag within the aiming circle to set angle and power.
 
-  _onMouseDown(e) { this._tryAim(e); }
+  _onMouseDown(e) {
+    if (this._isHumanAiming()) {
+      const station = this.loop?.gs?.activeStation;
+      const w = station?.selectedWeapon;
+      if (w === WeaponId.SHOTGUN || w === WeaponId.DUAL_BLASTER) {
+        this._shotgunAimBarrel = this._shotgunAimBarrel === 1 ? 2 : 1;
+      } else {
+        this._shotgunAimBarrel = 1;
+      }
+    }
+    this._tryAim(e);
+  }
 
   _onMouseMove(e) {
     if (e.buttons === 1) this._tryAim(e);  // only while left button held
@@ -84,11 +97,23 @@ export class InputHandler {
     if (dist <= stationR_px || dist > 1.25 * boxR_px) return;
 
     // Angle — atan2(dx, dy) gives clockwise-from-down convention matching physics
-    station.angle = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360 * 10) / 10;
+    const angleDeg = Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360 * 10) / 10;
 
-    // Power — distance maps from arrowMin to boxR → 1 to 800
-    const fraction = Math.max(0, Math.min(1, (dist - arrowMin_px) / (boxR_px - arrowMin_px)));
-    station.power  = Math.round(800 * fraction) + 1;
+    const isTwoBarrel = station.selectedWeapon === WeaponId.SHOTGUN || station.selectedWeapon === WeaponId.DUAL_BLASTER;
+    const isBlaster   = station.selectedWeapon === WeaponId.BLASTER;
+    if (isTwoBarrel && this._shotgunAimBarrel === 2) {
+      station.angle2 = angleDeg;
+    } else {
+      station.angle = angleDeg;
+      const fraction = Math.max(0, Math.min(1, (dist - arrowMin_px) / (boxR_px - arrowMin_px)));
+      if (isBlaster) {
+        // Distance maps to spread: inner edge = 3°, outer edge = 15°
+        station.power = Math.max(3, Math.min(15, Math.round(3 + fraction * 12)));
+      } else if (!isTwoBarrel) {
+        // Normal power — distance maps from arrowMin to boxR → 1 to 800
+        station.power = Math.round(800 * fraction) + 1;
+      }
+    }
   }
 
   _isHumanAiming() {

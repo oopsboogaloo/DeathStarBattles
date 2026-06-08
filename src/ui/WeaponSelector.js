@@ -9,14 +9,49 @@ const LABELS = {
   [WeaponId.ROCKET]:        'ROCKET',
   [WeaponId.ROCKET_POD]:    'ROCKET POD',
   [WeaponId.BLASTER]:       'BLASTER',
-  [WeaponId.MINIGUN]:       'MINIGUN',
-  [WeaponId.FORCE_SHIELD]:  'FORCE SHIELD',
+  [WeaponId.MINIGUN]:            'MINIGUN',
+  [WeaponId.FORCE_SHIELD]:       'FORCE SHIELD',
+  [WeaponId.SEPTUPLE_CANNON]:    'SEPT. CANNON',
+  [WeaponId.ANTIMATTER_LASER]:   'ANTIMATTER LASER',
+  [WeaponId.FRAGMENTATION_SHOT]: 'FRAG SHOT',
+  [WeaponId.SHOTGUN]:            'SHOTGUN',
+  [WeaponId.DUAL_BLASTER]:      'DUAL BLASTER',
+  [WeaponId.BOUNCE_CANNON]:     'BOUNCE CANNON',
+  [WeaponId.AUTO_CANNON]:       'AUTO CANNON',
+  [WeaponId.STAR_SHOT]:         'STAR SHOT',
+  [WeaponId.SCATTER_CANNON]:    'SCATTER CANNON',
+  [WeaponId.SPIRAL]:            'SPIRAL',
+  [WeaponId.RESUPPLY]:          'RESUPPLY',
+  [WeaponId.HEDGEHOG]:          'HEDGEHOG',
+  [WeaponId.TEAM_SHIELD]:       'TEAM SHIELD',
+  [WeaponId.ARMOUR]:            'ARMOUR',
+  [WeaponId.REPULSOR_FIELD]:    'REPULSOR FIELD',
+  [WeaponId.MAMMOTH_CANNON]:    'MAMMOTH CANNON',
+  [WeaponId.QUANTUM_TORPEDO]:        'QUANTUM TORPEDO',
+  [WeaponId.TRIPLE_QUANTUM_TORPEDO]: 'TRIPLE Q. TORP.',
+  [WeaponId.QUANTUM_AUTO_CANNON]:    'QUANTUM AUTO-C.',
+  [WeaponId.GRAVITY_CANNON]:         'GRAVITY CANNON',
+  [WeaponId.ELECTRO_STUN]:           'ELECTRO STUN',
+  [WeaponId.TELEPORT]:               'TELEPORT',
+  [WeaponId.SUPER_LASER]:            'SUPER LASER',
+  [WeaponId.REINFORCEMENT_SIGNAL]:   'REINF. SIGNAL',
+  [WeaponId.MIND_CONTROL_BEAM]:      'MIND CONTROL',
 };
 
 // Weapons that use stock (shown with [n] count)
 const LIMITED = new Set([
   WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER, WeaponId.ROCKET,
   WeaponId.ROCKET_POD, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+  WeaponId.SEPTUPLE_CANNON, WeaponId.ANTIMATTER_LASER, WeaponId.FRAGMENTATION_SHOT,
+  WeaponId.SHOTGUN, WeaponId.DUAL_BLASTER,
+  WeaponId.BOUNCE_CANNON, WeaponId.AUTO_CANNON, WeaponId.STAR_SHOT,
+  WeaponId.SCATTER_CANNON, WeaponId.SPIRAL,
+  WeaponId.RESUPPLY, WeaponId.HEDGEHOG, WeaponId.TEAM_SHIELD,
+  WeaponId.ARMOUR, WeaponId.REPULSOR_FIELD, WeaponId.MAMMOTH_CANNON,
+  WeaponId.QUANTUM_TORPEDO, WeaponId.TRIPLE_QUANTUM_TORPEDO,
+  WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
+  WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
+  WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
 ]);
 
 export class WeaponSelector {
@@ -40,7 +75,7 @@ export class WeaponSelector {
 
   open(station, anchorEl, gs) {
     this._rebuildRows(station, gs);
-    this.popup.style.display = 'block';
+    this.popup.style.display = this._twoCol ? 'flex' : 'block';
     this._isOpen = true;
     this._position(anchorEl);
   }
@@ -95,17 +130,44 @@ export class WeaponSelector {
       WeaponId.BLASTER,
       WeaponId.MINIGUN,
       WeaponId.FORCE_SHIELD,
+      WeaponId.SEPTUPLE_CANNON,
+      WeaponId.ANTIMATTER_LASER,
+      WeaponId.FRAGMENTATION_SHOT,
+      WeaponId.SHOTGUN,
+      WeaponId.DUAL_BLASTER,
+      WeaponId.BOUNCE_CANNON,
+      WeaponId.AUTO_CANNON,
+      WeaponId.STAR_SHOT,
+      WeaponId.SCATTER_CANNON,
+      WeaponId.SPIRAL,
+      WeaponId.RESUPPLY,
+      WeaponId.HEDGEHOG,
+      // Team Shield only useful when team has multiple stations
+      ...(team.stations.filter(s => s.status === 'active').length > 1 ? [WeaponId.TEAM_SHIELD] : []),
+      WeaponId.ARMOUR,
+      WeaponId.REPULSOR_FIELD,
+      WeaponId.MAMMOTH_CANNON,
+      WeaponId.QUANTUM_TORPEDO,
+      WeaponId.TRIPLE_QUANTUM_TORPEDO,
+      WeaponId.QUANTUM_AUTO_CANNON,
+      WeaponId.GRAVITY_CANNON,
+      WeaponId.ELECTRO_STUN,
+      WeaponId.TELEPORT,
+      WeaponId.SUPER_LASER,
+      WeaponId.REINFORCEMENT_SIGNAL,
+      WeaponId.MIND_CONTROL_BEAM,
     ];
 
+    // Build visible rows first so we know the total count
+    const rows = [];
     for (const weaponId of allWeapons) {
       const isLimited  = LIMITED.has(weaponId);
       const rawStock   = isLimited ? team.getStock(weaponId) : Infinity;
-      // Subtract uses already reserved by other active team stations this turn
       const reserved   = isLimited ? station.team.stations.filter(
         s => s !== station && s.status === 'active' && s.selectedWeapon === weaponId
       ).length : 0;
       const stock      = isLimited ? Math.max(0, rawStock - reserved) : Infinity;
-      if (isLimited && stock <= 0) continue; // hide weapons with no effective stock
+      if (isLimited && stock <= 0) continue;
       const isSelected = station.selectedWeapon === weaponId;
       const lbl        = LABELS[weaponId];
       const suffix     = isLimited ? ` [${stock}]` : ' (∞)';
@@ -126,7 +188,27 @@ export class WeaponSelector {
         this._onSelect?.(weaponId);
         this.close();
       });
-      this.popup.appendChild(row);
+      rows.push(row);
+    }
+
+    const COL_THRESHOLD = 8;
+    if (rows.length > COL_THRESHOLD) {
+      const mid  = Math.ceil(rows.length / 2);
+      const col1 = document.createElement('div');
+      const col2 = document.createElement('div');
+      Object.assign(col1.style, { display: 'flex', flexDirection: 'column' });
+      Object.assign(col2.style, {
+        display: 'flex', flexDirection: 'column',
+        borderLeft: '1px solid rgba(80,110,255,0.3)',
+      });
+      rows.slice(0, mid).forEach(r => col1.appendChild(r));
+      rows.slice(mid).forEach(r => col2.appendChild(r));
+      this.popup.appendChild(col1);
+      this.popup.appendChild(col2);
+      this._twoCol = true;
+    } else {
+      rows.forEach(r => this.popup.appendChild(r));
+      this._twoCol = false;
     }
   }
 }

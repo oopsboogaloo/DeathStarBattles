@@ -557,19 +557,21 @@ export class AboutModal {
 <div style="margin-top:18px;font-size:12px;color:#778;"><a href="mailto:chloe@mammoththoughts.com" style="color:#99b;text-decoration:none;">chloe@mammoththoughts.com</a></div>`;
     p.appendChild(content);
 
-    // Triple-tap anywhere on the panel activates developer mode (mobile-friendly)
-    let _tapCount = 0;
-    let _tapTimer = null;
-    p.addEventListener('click', () => {
-      _tapCount++;
-      clearTimeout(_tapTimer);
-      _tapTimer = setTimeout(() => { _tapCount = 0; }, 500);
-      if (_tapCount >= 3) {
-        _tapCount = 0;
-        clearTimeout(_tapTimer);
-        this._onDevModeCb?.();
-      }
-    });
+    // Click-and-hold for 2 s anywhere on the panel activates developer mode.
+    // Uses touch/mouse events directly — pointer events are avoided because iOS
+    // fires pointercancel on long press, which would kill the timer.
+    let _holdTimer = null;
+    const _startHold = () => {
+      clearTimeout(_holdTimer);
+      _holdTimer = setTimeout(() => { _holdTimer = null; this._onDevModeCb?.(); }, 2000);
+    };
+    const _cancelHold = () => { clearTimeout(_holdTimer); _holdTimer = null; };
+    p.addEventListener('touchstart', _startHold);
+    p.addEventListener('touchend',    _cancelHold);
+    p.addEventListener('touchcancel', _cancelHold);
+    p.addEventListener('mousedown',   _startHold);
+    p.addEventListener('mouseup',     _cancelHold);
+    p.addEventListener('mouseleave',  _cancelHold);
 
     this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });

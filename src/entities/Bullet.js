@@ -19,7 +19,19 @@ export class Bullet {
     this._angleAccum    = 0;           // accumulated signed rotation (radians)
     this.nearMissed     = new Set();   // stations already counted as near-missed
     this.thinTrail      = false;       // true for spread/burst weapons (lower trail opacity)
+    this.thickTrail     = false;       // true for fragmentation shot primary (2× trail width)
     this.maxLifetime    = null;        // null = use BULLET_LIFE; set shorter for blunderbuss
     this.skimCount      = 0;           // number of surface skims this bullet has performed
+    this.fragTimer        = null;        // physics steps until detonation (fragmentation shot primary)
+    this.fragBouncy       = false;       // primary bounces off surfaces instead of exploding
+    this.fragFragment     = false;       // fragment bullet spawned on frag shot detonation
+    this.bouncePlanetOnly = false;       // bounces off planets but explodes on station contact
+    this.scatterTimer     = null;        // steps until cannon scatter (scatter cannon primary)
+    this.gravityMultiplier = 1;          // multiplied into all gravitational acceleration (Mammoth Cannon: 0.25)
+    this.sizeMultiplier    = 1;          // multiplied into drawn bullet radius
+    this.mammothCannon     = false;      // triggers large area blast on any solid-body hit
+    this.quantumTorpedo    = false;      // teleports through solid non-hazard bodies
+    this._qtTeleportPlanet = null;       // set by PhysicsEngine to signal a pending QT teleport
+    this.gravityCannon     = false;      // exerts gravitational attraction on all nearby bullets
   }
 }

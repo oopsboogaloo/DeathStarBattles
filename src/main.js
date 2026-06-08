@@ -720,6 +720,16 @@ async function startTPGame(cfg) {
 const _ALL_SPECIAL = [
   WeaponId.TRIPLE_CANNON, WeaponId.BLUNDERBUSS, WeaponId.LASER,
   WeaponId.ROCKET, WeaponId.ROCKET_POD, WeaponId.BLASTER, WeaponId.MINIGUN, WeaponId.FORCE_SHIELD,
+  WeaponId.SEPTUPLE_CANNON, WeaponId.ANTIMATTER_LASER, WeaponId.FRAGMENTATION_SHOT,
+  WeaponId.SHOTGUN, WeaponId.DUAL_BLASTER,
+  WeaponId.BOUNCE_CANNON, WeaponId.AUTO_CANNON, WeaponId.STAR_SHOT,
+  WeaponId.SCATTER_CANNON, WeaponId.SPIRAL,
+  WeaponId.RESUPPLY, WeaponId.HEDGEHOG, WeaponId.TEAM_SHIELD,
+  WeaponId.ARMOUR, WeaponId.REPULSOR_FIELD, WeaponId.MAMMOTH_CANNON,
+  WeaponId.QUANTUM_TORPEDO, WeaponId.TRIPLE_QUANTUM_TORPEDO,
+  WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
+  WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
+  WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

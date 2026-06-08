@@ -2,7 +2,15 @@
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
 
-const NO_POWER_WEAPONS = new Set(['blunderbuss', 'blaster', 'laser']);
+const NO_POWER_WEAPONS = new Set([
+  'blunderbuss', 'laser', 'antimatterLaser',
+  'resupply', 'hedgehog', 'teamShield', 'armour', 'superLaser',
+  'reinforcementSignal', 'mindControlBeam',
+]);
+
+const NO_AIM_WEAPONS = new Set([
+  'resupply', 'teamShield', 'armour',
+]);
 
 const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks
@@ -38,14 +46,45 @@ export class AimControls {
   // Call each frame while aiming so values stay in sync
   update(station) {
     if (!station) return;
-    const noPower = NO_POWER_WEAPONS.has(station.selectedWeapon);
+    const w          = station.selectedWeapon;
+    const noPower    = NO_POWER_WEAPONS.has(w);
+    const noAim      = NO_AIM_WEAPONS.has(w);
+    const isFragShot   = w === 'fragmentationShot';
+    const isShotgun    = w === 'shotgun' || w === 'dualBlaster';
+    const isBlaster    = w === 'blaster';
+    const isElectroStun = w === 'electroStun';
+    this._angleGroup.style.visibility = noAim ? 'hidden' : 'visible';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
-      this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
+      if (isFragShot) {
+        const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
+        this._powerVal.textContent = `⏱${val}`;
+      } else if (isShotgun) {
+        this._powerVal.textContent = `∠2 ${(station.angle2 ?? station.angle).toFixed(0)}°`;
+      } else if (isBlaster) {
+        this._powerVal.textContent = `±${station.power}°`;
+      } else if (isElectroStun) {
+        const spread = (45 - (station.power - 1) / 799 * 40).toFixed(0);
+        this._powerVal.textContent = `±${spread}°`;
+      } else {
+        this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
+      }
     } else {
       this._angleVal.textContent = `Angle: ${station.angle.toFixed(1)}°`;
-      this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
+      if (isFragShot) {
+        const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
+        this._powerVal.textContent = `Timer: ${val}`;
+      } else if (isShotgun) {
+        this._powerVal.textContent = `Barrel 2: ${(station.angle2 ?? station.angle).toFixed(1)}°`;
+      } else if (isBlaster) {
+        this._powerVal.textContent = `Spread: ±${station.power}°`;
+      } else if (isElectroStun) {
+        const spread = (45 - (station.power - 1) / 799 * 40).toFixed(0);
+        this._powerVal.textContent = `Spread: ${spread}°`;
+      } else {
+        this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
+      }
     }
   }
 
@@ -63,7 +102,7 @@ export class AimControls {
     });
 
     // Angle group (left)
-    const angleGroup = el('div', {
+    const angleGroup = this._angleGroup = el('div', {
       display: 'flex', alignItems: 'center', gap: '5px',
       pointerEvents: 'auto', marginLeft: '14px',
     });
@@ -101,41 +140,30 @@ export class AimControls {
   _makeBtn(label, action, maxRate = MAX_RATE) {
     const btn = el('button', {
       background:   'rgba(10,10,25,0.82)',
-      border:       '1px solid rgba(255,255,255,0.32)',
+      border:       '1px solid rgba(255,255,255,0.28)',
       borderRadius: '4px',
-      color:        '#dde',
+      color:        '#ccd',
       fontFamily:   'monospace',
       fontSize:     '16px',
       padding:      '5px 14px',
       cursor:       'pointer',
       userSelect:   'none',
-      transition:   'background 0.1s, transform 0.07s',
+      boxShadow:    'none',
+      transition:   'background 0.1s, transform 0.07s, box-shadow 0.1s, border-color 0.1s, color 0.1s',
     });
     btn.textContent = label;
 
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = 'rgba(40,45,90,0.95)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'rgba(10,10,25,0.82)';
-      btn.style.transform  = 'scale(1)';
-      this._stopHold();
-    });
-    btn.addEventListener('mousedown', e => {
-      e.preventDefault();
-      btn.style.transform = 'scale(0.9)';
-      this._startHold(action, maxRate);
-    });
-    btn.addEventListener('mouseup', () => {
-      btn.style.transform = 'scale(1)';
-      this._stopHold();
-    });
+    const setIdle    = () => { btn.style.background = 'rgba(10,10,25,0.82)';  btn.style.border = '1px solid rgba(255,255,255,0.28)'; btn.style.boxShadow = 'none';                             btn.style.color = '#ccd'; btn.style.transform = 'scale(1)'; };
+    const setHover   = () => { btn.style.background = 'rgba(45,55,140,0.95)'; btn.style.border = '1px solid rgba(160,170,255,0.65)'; btn.style.boxShadow = '0 0 8px rgba(110,130,255,0.45)';  btn.style.color = '#eef'; };
+    const setPressed = () => { btn.style.background = 'rgba(70,85,210,0.98)'; btn.style.border = '1px solid rgba(210,220,255,0.85)'; btn.style.boxShadow = '0 0 14px rgba(130,150,255,0.65)'; btn.style.color = '#fff'; btn.style.transform = 'scale(0.91)'; };
+
+    btn.addEventListener('mouseenter', () => { setHover(); });
+    btn.addEventListener('mouseleave', () => { setIdle(); this._stopHold(); });
+    btn.addEventListener('mousedown',  e => { e.preventDefault(); setPressed(); this._startHold(action, maxRate); });
+    btn.addEventListener('mouseup',    () => { setHover(); this._stopHold(); });
     // Touch support
-    btn.addEventListener('touchstart', e => {
-      e.preventDefault();
-      this._startHold(action, maxRate);
-    }, { passive: false });
-    btn.addEventListener('touchend', () => this._stopHold());
+    btn.addEventListener('touchstart', e => { e.preventDefault(); setPressed(); this._startHold(action, maxRate); }, { passive: false });
+    btn.addEventListener('touchend',   () => { setIdle(); this._stopHold(); });
 
     return btn;
   }

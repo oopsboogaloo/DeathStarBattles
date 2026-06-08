@@ -106,7 +106,7 @@ Selected weapon resets to Cannon at the start of each turn.
 - Not affected by gravity; do not stop bullets — a bullet passes straight through and the collectable is destroyed
 - Spawn probability is configurable (see §10); maximum 3 collectables on the map simultaneously
 - Do not spawn in the Hyperspace scenario
-- When a bullet destroys a collectable: the bullet continues on its trajectory; the collecting team receives charges of a **randomly chosen weapon** (equal probability across all special weapons); a shatter VFX plays at the collectable position; the weapon name fades in/out in the bullet owner's team colour
+- When a bullet destroys a collectable: the bullet continues on its trajectory; the collecting team receives charges of a **randomly chosen weapon** (weighted by tier — see §4.7); a shatter VFX plays at the collectable position; the weapon name fades in/out in the bullet owner's team colour
 - A rocket blast also destroys collectables within its blast radius, granting the weapon to the rocket owner's team
 - The weapon type is decided at collection time, not at spawn
 - When a Rich Asteroid fragments, the collectable **replaces** one child fragment — it does not spawn on top of a child
@@ -129,6 +129,66 @@ Selected weapon resets to Cannon at the start of each turn.
 - Randbot and Aimbot use a random probability check before spending stock
 - Cleverbot, Superbot, and Megabot factor stock use into their existing shot-selection logic
 - Superbot and Megabot opportunistically aim for collectables when selecting targets
+
+### 4.7 Weapon Tiers
+
+Weapons are grouped into three tiers that govern their drop probability from collectables. Higher tiers are rarer.
+
+| Tier | Name | Drop chance |
+|---|---|---|
+| 1 | Common | 80% |
+| 2 | Uncommon | 16% |
+| 3 | Rare | 4% |
+
+A tier is rolled first at the stated probability, then a weapon is chosen uniformly at random from all weapons in that tier.
+
+**Tier 1 — Common**
+
+| Weapon |
+|---|
+| Triple Cannon |
+| Plasma Blunderbuss |
+| Rocket |
+| Blaster |
+| Force Shield |
+| Bounce Cannon |
+| Scatter Cannon |
+| Resupply |
+| Quantum Torpedo |
+
+**Tier 2 — Uncommon**
+
+| Weapon |
+|---|
+| Laser |
+| Rocket Pod |
+| Minigun |
+| Septuple Cannon |
+| Frag Shot |
+| Shotgun |
+| Dual Blaster |
+| Star Shot |
+| Spiral |
+| Team Shield |
+| Armour |
+| Repulsor Field |
+| Electro Stun |
+| Teleport |
+| Auto Cannon |
+| Triple Quantum Torpedo |
+
+**Tier 3 — Rare**
+
+| Weapon |
+|---|
+| Antimatter Laser |
+| Mammoth Cannon |
+| Quantum Auto-Cannon |
+| Gravity Cannon |
+| Super Laser |
+| Reinforcement Signal |
+| Mind Control Beam |
+| Hedgehog |
 
 ---
 

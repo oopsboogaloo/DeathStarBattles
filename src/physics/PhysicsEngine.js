@@ -18,8 +18,9 @@ export const INIT_DIST     = 1.0;   // gap between station surface and bullet sp
 export const MAX_CANNON_SPEED       = (800 / 1000 + MIN_POWER) * MAX_POWER; // = 0.8
 export const SKIM_ANGLE_THRESHOLD   = 20;   // degrees from surface tangent (≤ → skim)
 export const SKIM_MIN_SPEED_FACTOR  = 0.30; // fraction of MAX_CANNON_SPEED required to skim
-export const SKIM_SPEED_REDUCTION   = 0.10; // fraction of speed lost per skim event
-export const SKIM_PARTICLE_DURATION = 0.4;  // seconds for the skim particle effect
+export const SKIM_SPEED_REDUCTION    = 0.10; // fraction of speed lost per skim event
+export const SKIM_PARTICLE_DURATION  = 0.4;  // seconds for the skim particle effect
+export const FRAG_BOUNCE_RETENTION   = 0.6;  // speed retention for fragmentation shot bounce
 
 export class PhysicsEngine {
   constructor(gameWidth, gameHeight) {
@@ -49,11 +50,12 @@ export class PhysicsEngine {
   // Applies Newtonian gravity from all planets, then moves bullet.
   // Handles planet impacts (collision + wormholes) in-step.
 
-  step(bullet, planets, rifts = []) {
+  step(bullet, planets, rifts = [], repulsorFields = []) {
     if (bullet.status !== BulletStatus.ACTIVE) return;
 
     let vx = bullet.velocity.x;
     let vy = bullet.velocity.y;
+    const gMult = bullet.gravityMultiplier ?? 1;
 
     for (const planet of planets) {
       if (planet.destroyed) continue; // already queued for removal this frame
@@ -75,8 +77,8 @@ export class PhysicsEngine {
           const r   = Math.sqrt(rSq);
           accel = sign * G * planet.mass * r / (R * R * R);
         }
-        vx += Math.cos(theta) * accel * TIMESTEP;
-        vy += Math.sin(theta) * accel * TIMESTEP;
+        vx += Math.cos(theta) * accel * TIMESTEP * gMult;
+        vy += Math.sin(theta) * accel * TIMESTEP * gMult;
         continue; // never impacts — no collision check
       }
 
@@ -97,8 +99,8 @@ export class PhysicsEngine {
       const sign  = dx < 0 ? -1 : 1;
       const theta = Math.atan(dy / dx);
       const accel = sign * G * planet.mass / rSq;
-      vx += Math.cos(theta) * accel * TIMESTEP;
-      vy += Math.sin(theta) * accel * TIMESTEP;
+      vx += Math.cos(theta) * accel * TIMESTEP * gMult;
+      vy += Math.sin(theta) * accel * TIMESTEP * gMult;
 
       // Pulsar: outward impulse when bullet crosses an active pressure ring
       if (planet.type === PlanetType.PULSAR && planet.pulsarPulses?.length) {
@@ -127,6 +129,17 @@ export class PhysicsEngine {
         vx += (rdx / d) * F * TIMESTEP;
         vy += (rdy / d) * F * TIMESTEP;
       }
+    }
+
+    // Repulsor field — point repulsion centred on each active station, bullets only
+    for (const rf of repulsorFields) {
+      const rdx = bullet.position.x - rf.station.position.x;
+      const rdy = bullet.position.y - rf.station.position.y;
+      const d   = Math.sqrt(rdx * rdx + rdy * rdy);
+      if (d < 0.01 || d >= rf.influenceRadius) continue;
+      const F = RIFT_REPULSION_STRENGTH * (rf.strength ?? 1) * (1 - d / rf.influenceRadius);
+      vx += (rdx / d) * F * TIMESTEP;
+      vy += (rdy / d) * F * TIMESTEP;
     }
 
     // Trick shot: accumulate signed rotation; flag when a full 360° loop is complete
@@ -290,6 +303,32 @@ export class PhysicsEngine {
   // ─── planet impact handler ────────────────────────────────────────────────
 
   _handlePlanetImpact(bullet, planet, dx, dy, planets) {
+    // Quantum Torpedo: pass through solid non-hazard bodies
+    if (bullet.quantumTorpedo) {
+      const isHazard   = planet.type === PlanetType.BLACK_HOLE ||
+                         planet.type === PlanetType.WHITE_HOLE ||
+                         planet.type === PlanetType.STAR       ||
+                         planet.type === PlanetType.WHITE_DWARF;
+      const isWormhole = planet.type === PlanetType.WORMHOLE_PAIRED  ||
+                         planet.type === PlanetType.WORMHOLE_CYCLIC  ||
+                         planet.type === PlanetType.WORMHOLE_RANDOM  ||
+                         planet.type === PlanetType.WORMHOLE_PLANET  ||
+                         planet.type === PlanetType.WORMHOLE_SELF    ||
+                         planet.type === PlanetType.WORMHOLE_NETWORK;
+      if (!isHazard && !isWormhole) {
+        bullet._qtTeleportPlanet = planet;
+        // Comets break apart; asteroids and crystals are passed through intact
+        if (planet.type === PlanetType.COMET) planet.destroyed = true;
+        // Moon / giant asteroid: register crack hit without destroying bullet
+        if (planet.type === PlanetType.MOON || planet.type === PlanetType.GIANT_ASTEROID) {
+          bullet._hitMoon  = planet;
+          bullet._hitMoonX = bullet.position.x;
+          bullet._hitMoonY = bullet.position.y;
+        }
+        return;
+      }
+    }
+
     const sign   = dx < 0 ? -1 : 1;
     const theta  = Math.atan(dy / dx);
     const theta2 = sign < 0 ? theta + Math.PI : theta;
@@ -393,7 +432,11 @@ export class PhysicsEngine {
 
       case PlanetType.ASTEROID:
         planet.destroyed = true;
-        bullet.status = BulletStatus.EXPLODING;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        } else {
+          bullet.status = BulletStatus.EXPLODING;
+        }
         break;
 
       case PlanetType.CRYSTAL:
@@ -410,10 +453,14 @@ export class PhysicsEngine {
       case PlanetType.MOON:
       case PlanetType.GIANT_ASTEROID:
         // Multi-hit — record the hit; GameLoop handles crack/fragmentation
-        bullet.status    = BulletStatus.EXPLODING;
         bullet._hitMoon  = planet;
         bullet._hitMoonX = bullet.position.x;
         bullet._hitMoonY = bullet.position.y;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        } else {
+          bullet.status = BulletStatus.EXPLODING;
+        }
         break;
 
       default: {
@@ -451,10 +498,36 @@ export class PhysicsEngine {
           }
         }
 
+        // Frag shot bounces off solid rocky planets; stars and white dwarfs still destroy it (FR-5)
+        // Bounce cannon (bouncePlanetOnly) also bounces off stars and white dwarfs
+        if (bullet.fragBouncy &&
+            (bullet.bouncePlanetOnly ||
+             (planet.type !== PlanetType.STAR && planet.type !== PlanetType.WHITE_DWARF))) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+          return;
+        }
+
         bullet.status = BulletStatus.EXPLODING;
         break;
       }
     }
+  }
+
+  // ─── Fragmentation shot inelastic bounce off a surface ───────────────────
+  // dx/dy = planet.position - bullet.position; surfaceRadius = planet.impactRadius
+  _fragBounce(bullet, dx, dy, surfaceRadius) {
+    const r  = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dx / r;  // outward normal: from planet toward bullet
+    const ny = -dy / r;
+    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    bullet.velocity = new Vec2(
+      (bullet.velocity.x - 2 * dot * nx) * FRAG_BOUNCE_RETENTION,
+      (bullet.velocity.y - 2 * dot * ny) * FRAG_BOUNCE_RETENTION,
+    );
+    bullet.position = new Vec2(
+      bullet.position.x + dx + nx * (surfaceRadius + INIT_DIST),
+      bullet.position.y + dy + ny * (surfaceRadius + INIT_DIST),
+    );
   }
 
   // ─── SAT circle-vs-polygon collision (world-space rotated verts) ─────────

@@ -48,6 +48,7 @@ export class Station {
     this.position        = position;      // Vec2, game units
     this.size            = size;          // StationSize
     this.angle           = 180;           // 0-359, default pointing down
+    this.angle2          = 180;           // shotgun barrel 2 angle; reset to angle each turn
     this.power           = 1;             // 1-800
     this.selectedWeapon  = WeaponId.CANNON; // current turn's weapon choice
     this.velocity         = null;  // Vec2 | null — one-turn movement vector (game units/timestep)
@@ -62,6 +63,12 @@ export class Station {
     this.role            = 'human';      // 'human' | 'target' | 'ai'
     this.visualStyle     = 'station';    // 'station' | 'drone'
     this.stats           = new StationStats();
+    this.armourLayers    = 0;            // current count of armour layers
+    this.armourFlash     = 0;            // 1→0 flash animation when a layer is absorbed
+    this.implosion       = false;        // killed by gravity cannon — shrinks to nothing
+    this.electrified     = false;        // auto-fires cannon next turn
+    this.electrifiedFlash = 0;           // 1→0 overlay animation
+    this.mindControlFlash = 0;           // 1→0 overlay animation when converted by mind control
   }
 
   get radius()          { return this.size.radius; }
