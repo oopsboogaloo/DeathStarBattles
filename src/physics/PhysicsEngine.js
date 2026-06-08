@@ -499,9 +499,10 @@ export class PhysicsEngine {
         }
 
         // Frag shot bounces off solid rocky planets; stars and white dwarfs still destroy it (FR-5)
+        // Bounce cannon (bouncePlanetOnly) also bounces off stars and white dwarfs
         if (bullet.fragBouncy &&
-            planet.type !== PlanetType.STAR &&
-            planet.type !== PlanetType.WHITE_DWARF) {
+            (bullet.bouncePlanetOnly ||
+             (planet.type !== PlanetType.STAR && planet.type !== PlanetType.WHITE_DWARF))) {
           this._fragBounce(bullet, dx, dy, planet.impactRadius);
           return;
         }
