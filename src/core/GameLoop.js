@@ -811,6 +811,22 @@ export class GameLoop {
           intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
+      } else if (w === WeaponId.BOUNCE_CANNON && station.team.spendStock(WeaponId.BOUNCE_CANNON)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.fragBouncy       = true;
+        b.bouncePlanetOnly = true;
+        b.thickTrail       = true;
+        this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.AUTO_CANNON && station.team.spendStock(WeaponId.AUTO_CANNON)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.AUTO_CANNON, shotsRemaining: 5, totalShots: 5,
+          intervalSteps: 300, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
+      } else if (w === WeaponId.STAR_SHOT && station.team.spendStock(WeaponId.STAR_SHOT)) {
+        for (let i = 0; i < 5; i++) {
+          this.gs.activeBullets.push(this._makeBullet(station, station.angle + i * 72, station.power));
+        }
       } else if (w === WeaponId.DUAL_BLASTER && station.team.spendStock(WeaponId.DUAL_BLASTER)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.DUAL_BLASTER, shotsRemaining: 2, totalShots: 2,
@@ -898,6 +914,9 @@ export class GameLoop {
           const b = this._makeBulletVelocity(burst.station, barrelAngle, MAX_V * 0.55);
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
+        } else if (burst.weapon === WeaponId.AUTO_CANNON) {
+          const spread = (this.rng.next() * 2 - 1) * 2;
+          this.gs.activeBullets.push(this._makeBullet(burst.station, burst.angle + spread, burst.power));
         } else if (burst.weapon === WeaponId.SHOTGUN) {
           const MAX_V      = (800 / 1000 + 0.2) * 0.8;
           const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;
@@ -1097,7 +1116,7 @@ export class GameLoop {
 
         const hit = this.physics.checkStationCollisions(bullet, allStations);
         if (hit) {
-          if (bullet.fragBouncy) {
+          if (bullet.fragBouncy && !bullet.bouncePlanetOnly) {
             this._fragBounceOffStation(bullet, hit);
           } else {
             this._resolveStationHit(bullet, hit);
@@ -1108,7 +1127,7 @@ export class GameLoop {
         }
 
         // Frag shot: tick timer and detonate when it expires
-        if (bullet.fragBouncy && bullet.status === BulletStatus.ACTIVE) {
+        if (bullet.fragBouncy && bullet.fragTimer !== null && bullet.status === BulletStatus.ACTIVE) {
           bullet.fragTimer--;
           if (bullet.fragTimer <= 0) this._detonateFragShot(bullet);
         }

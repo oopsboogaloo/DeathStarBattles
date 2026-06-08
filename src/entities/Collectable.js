@@ -14,6 +14,9 @@ export const WeaponId = Object.freeze({
   FRAGMENTATION_SHOT: 'fragmentationShot',
   SHOTGUN:            'shotgun',
   DUAL_BLASTER:       'dualBlaster',
+  BOUNCE_CANNON:      'bounceCannon',
+  AUTO_CANNON:        'autoCannon',
+  STAR_SHOT:          'starShot',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -30,7 +33,10 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.PULSE_LASER,        charges: 1,  label: 'PULSE LASER'   },
   { id: WeaponId.FRAGMENTATION_SHOT, charges: 1,  label: 'FRAG SHOT'     },
   { id: WeaponId.SHOTGUN,            charges: 1,  label: 'SHOTGUN'       },
-  { id: WeaponId.DUAL_BLASTER,      charges: 1,  label: 'DUAL BLASTER'  },
+  { id: WeaponId.DUAL_BLASTER,  charges: 1,  label: 'DUAL BLASTER'  },
+  { id: WeaponId.BOUNCE_CANNON, charges: 2,  label: 'BOUNCE CANNON' },
+  { id: WeaponId.AUTO_CANNON,   charges: 2,  label: 'AUTO CANNON'   },
+  { id: WeaponId.STAR_SHOT,     charges: 1,  label: 'STAR SHOT'     },
 ];
 
 // Game-unit radius for collision and rendering.

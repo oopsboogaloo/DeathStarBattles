@@ -1165,6 +1165,9 @@ export class Renderer {
       case 'fragmentationShot': offsets = [0];                   break;
       case 'shotgun':           offsets = [-8, 0, 8];                        break;
       case 'dualBlaster':       offsets = [0];                               break;
+      case 'bounceCannon':      offsets = [0];                               break;
+      case 'autoCannon':        offsets = [-2, 0, 2];                        break;
+      case 'starShot':          offsets = [0, 72, 144, 216, 288];            break;
       default:                  offsets = [0];                   break;
     }
 
@@ -1430,6 +1433,20 @@ export class Renderer {
       }
       case 'fragmentationShot':
         shots = [{ dAngle: 0, speed: MAX_V * 0.75, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'bounceCannon':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'autoCannon':
+        shots = [-2, 0, 2].map(dAngle => ({
+          dAngle, speed: null,
+          alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'starShot':
+        shots = [0, 72, 144, 216, 288].map(dAngle => ({
+          dAngle, speed: null, alpha: 0.7, lw: 1.5,
+        }));
         break;
       case 'dualBlaster': {
         const MAX_V = (800 / 1000 + MIN_POWER) * MAX_POWER;

@@ -22,8 +22,9 @@ export class Bullet {
     this.thickTrail     = false;       // true for fragmentation shot primary (2× trail width)
     this.maxLifetime    = null;        // null = use BULLET_LIFE; set shorter for blunderbuss
     this.skimCount      = 0;           // number of surface skims this bullet has performed
-    this.fragTimer      = null;        // physics steps until detonation (fragmentation shot primary)
-    this.fragBouncy     = false;       // primary bounces off surfaces instead of exploding
-    this.fragFragment   = false;       // fragment bullet spawned on frag shot detonation
+    this.fragTimer        = null;        // physics steps until detonation (fragmentation shot primary)
+    this.fragBouncy       = false;       // primary bounces off surfaces instead of exploding
+    this.fragFragment     = false;       // fragment bullet spawned on frag shot detonation
+    this.bouncePlanetOnly = false;       // bounces off planets but explodes on station contact
   }
 }
