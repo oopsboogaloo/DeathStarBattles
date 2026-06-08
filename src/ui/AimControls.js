@@ -45,16 +45,16 @@ export class AimControls {
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
       if (isFragShot) {
-        const secs = (1 + (station.power - 1) / 799 * 4).toFixed(1);
-        this._powerVal.textContent = `⏱${secs}s`;
+        const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
+        this._powerVal.textContent = `⏱${val}`;
       } else {
         this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
       }
     } else {
       this._angleVal.textContent = `Angle: ${station.angle.toFixed(1)}°`;
       if (isFragShot) {
-        const secs = (1 + (station.power - 1) / 799 * 4).toFixed(1);
-        this._powerVal.textContent = `Timer: ${secs}s`;
+        const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
+        this._powerVal.textContent = `Timer: ${val}`;
       } else {
         this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
       }

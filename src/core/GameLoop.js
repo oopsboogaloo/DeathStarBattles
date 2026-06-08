@@ -803,13 +803,13 @@ export class GameLoop {
         for (let i = 0; i < 9; i++) {
           const baseAngle = station.angle - 15 + i * (30 / 8);
           const jitter    = (this.rng.next() * 2 - 1) * 1.0;
-          this.gs.pendingLasers.push({ station, angle: baseAngle + jitter, delaySteps: 50 + i * 60 });
+          this.gs.pendingLasers.push({ station, angle: baseAngle + jitter, delaySteps: 50 + i * 60, vfxDuration: 0.75 });
         }
       } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
         const MAX_V = (800 / 1000 + 0.2) * 0.8;
         const b = this._makeBulletVelocity(station, station.angle, MAX_V * 0.75);
         b.fragBouncy = true;
-        b.fragTimer  = Math.round((1 + (station.power - 1) / 799 * 4) * 600);
+        b.fragTimer  = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
         b.thickTrail = true;
         this.gs.activeBullets.push(b);
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
@@ -905,7 +905,7 @@ export class GameLoop {
         pl.delaySteps--;
         if (pl.delaySteps <= 0) {
           const path = this._simulateLaserPath(pl.station, pl.angle);
-          this.gs.vfxList.push({ type: 'laserPath', path, colour: pl.station.team.colour, t: 0, duration: 1.5 });
+          this.gs.vfxList.push({ type: 'laserPath', path, colour: pl.station.team.colour, t: 0, duration: pl.vfxDuration ?? 1.5 });
           if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
         }
       }
