@@ -199,7 +199,37 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - Power slider sets distance: minimum power → short hop, maximum power → full map diagonal.
   - Aim preview renders a destination marker (e.g. a ghost/outline of the station) at the computed safe landing point, updating live as angle/power change.
 
-- [ ] **Electro Stun** *(Tier 2)* — Fires a cone of electric shocks in the aimed direction. Any enemy station caught in the cone is stunned for one turn (cannot move or shoot). No direct damage.
+- [ ] **Electro Stun** *(Tier 2)* — Fires a fan of forked lightning across an aimed arc. Any station hit becomes Electrified for their next turn: they auto-fire a random cannon shot and cannot move or act.
+
+  **Controls (FR-1)**
+  - Left control: angle (direction the arc is centred on), as normal
+  - Right control: spread — adjustable from 5° (tight, long-range) to 45° (wide, short-range)
+  - As spread increases, effective range decreases proportionally; a narrow beam reaches far, a wide fan reaches close
+
+  **Lightning Visuals (FR-2)**
+  - Fires multiple forked lightning bolts that together fill the arc segment
+  - Each bolt is crudely modelled — jagged/branching, not straight — rendered in the firing team's colour with a glow effect
+  - Lightning is not a persistent projectile; it resolves instantly on firing (like a laser)
+
+  **Blocking (FR-3)**
+  - Lightning is blocked by planets, moons, and asteroids — solid bodies cast a shadow; stations behind them are not hit
+  - Not blocked by stations (lightning passes through friendly stations to hit enemies beyond, or vice versa — TBD during implementation)
+
+  **Electrified Condition (FR-4)**
+  - Any station within the arc and within range that is not shielded by a solid body becomes Electrified
+  - An animated lightning effect plays over the station for the remainder of that turn and the following turn as a visual indicator
+  - Electrified is a generalised status condition; other weapons or phenomena may also inflict it
+
+  **Electrified Turn Behaviour (FR-5)**
+  - On the Electrified station's next turn: the game automatically fires a cannon shot for it at a random angle and random power; the station cannot move
+  - No damage is dealt to the station itself
+  - The condition expires after one turn; the station returns to normal the turn after
+
+  **Human Player UX (FR-6)**
+  - If the Electrified station belongs to a human player, their turn still comes up normally
+  - The UI displays an "Electrified" message; all aim and move controls are disabled
+  - The auto-fire resolves automatically; the player can only acknowledge and end their turn
+  - The condition lasts exactly one turn regardless of player type
 
 - [ ] **Super Laser** *(Tier 3)* — Star-Wars-style planet-destroying laser. Fires a massive beam that obliterates any planet it passes through. Extremely rare; single use.
 
