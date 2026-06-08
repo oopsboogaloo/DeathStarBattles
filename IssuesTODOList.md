@@ -331,7 +331,22 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Gravity coefficient multiplier (default: 0.25× normal)
   - Gravitational mass (default: comet-scale constant, TBD during tuning)
 
-- [ ] **Repulsor Field** — Deploys a stationary repulsion zone around the firing station for one round that pushes away incoming projectiles; the firing station can still shoot normally this turn.
+- [ ] **Repulsor Field** — Like Force Shield, this weapon allows the firing station to also fire a cannon shot on the same turn. In addition, a modest repulsive force field is applied centred on the station, identical in behaviour to a Space Rift node (linear-falloff repulsion on nearby bullets). This deflects incoming projectiles that pass close to the station.
+
+  **Cannon Shot (FR-1)**
+  - The station fires a normal cannon shot this turn (same as Force Shield behaviour — weapon does not consume the firing action)
+
+  **Repulsion (FR-2)**
+  - A repulsive force is applied to all bullets within range, centred on the firing station
+  - Force model: linear falloff from maximum at the station centre to zero at the falloff radius — identical to a Space Rift node
+  - Strength is modest: enough to deflect slow or nearby shots but not to halt fast ones outright
+  - Affects all bullets (friendly and enemy alike)
+
+  **Duration (FR-3)**
+  - The repulsion field persists for the same duration as a Force Shield (one full round — active until the station's next turn)
+
+  **Visuals (FR-4)**
+  - Visual treatment TBD; should communicate an active repulsion zone around the station (e.g. a faint pulsing ring or distortion effect)
 
 - [ ] **Armour** — Grants the firing station two armour layers that absorb incoming hits.
 
