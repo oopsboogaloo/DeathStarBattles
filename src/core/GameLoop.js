@@ -813,8 +813,8 @@ export class GameLoop {
         });
       } else if (w === WeaponId.DUAL_BLASTER && station.team.spendStock(WeaponId.DUAL_BLASTER)) {
         this.gs.burstQueue.push({
-          station, weapon: WeaponId.DUAL_BLASTER, shotsRemaining: 10, totalShots: 10,
-          intervalSteps: 600, nextFireStep: 0,
+          station, weapon: WeaponId.DUAL_BLASTER, shotsRemaining: 2, totalShots: 2,
+          intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
       } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
@@ -892,16 +892,12 @@ export class GameLoop {
           rocket.blastRadius = ROCKET_BLAST_RADIUS * 0.5;
           this.gs.rockets.push(rocket);
         } else if (burst.weapon === WeaponId.DUAL_BLASTER) {
-          const MAX_V        = (800 / 1000 + 0.2) * 0.8;
-          const pelletIdx    = (burst.totalShots ?? 10) - burst.shotsRemaining; // 0-9
-          const barrelAngle  = pelletIdx < 5 ? burst.angle : burst.angle2;
-          const spread       = -10 + (pelletIdx % 5) * 5;
-          const b = this._makeBulletVelocity(burst.station, barrelAngle + spread, MAX_V * 0.55);
+          const MAX_V      = (800 / 1000 + 0.2) * 0.8;
+          const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;
+          const barrelAngle = shotIdx === 0 ? burst.angle : burst.angle2;
+          const b = this._makeBulletVelocity(burst.station, barrelAngle, MAX_V * 0.55);
           b.thinTrail = true;
           this.gs.activeBullets.push(b);
-          // Long pause after the last pellet of barrel 1
-          if (pelletIdx === 4) burst.intervalSteps = 900;
-          else                  burst.intervalSteps = 600;
         } else if (burst.weapon === WeaponId.SHOTGUN) {
           const MAX_V      = (800 / 1000 + 0.2) * 0.8;
           const shotIdx    = (burst.totalShots ?? 2) - burst.shotsRemaining;

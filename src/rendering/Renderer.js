@@ -1164,7 +1164,7 @@ export class Renderer {
       case 'pulseLaser':       offsets = [-15, 0, 15];            break;
       case 'fragmentationShot': offsets = [0];                   break;
       case 'shotgun':           offsets = [-8, 0, 8];                        break;
-      case 'dualBlaster':       offsets = [-10, -5, 0, 5, 10];              break;
+      case 'dualBlaster':       offsets = [0];                               break;
       default:                  offsets = [0];                   break;
     }
 
@@ -1182,7 +1182,7 @@ export class Renderer {
 
     // Two-barrel weapons: barrel 2 aim lines (dimmer, at station.angle2)
     if (w === 'shotgun' || w === 'dualBlaster') {
-      const barrel2Offsets = w === 'shotgun' ? [-8, 0, 8] : [-10, -5, 0, 5, 10];
+      const barrel2Offsets = w === 'shotgun' ? [-8, 0, 8] : [0];
       for (const off of barrel2Offsets) {
         const rad   = ((( station.angle2 ?? station.angle) + off) * Math.PI) / 180;
         const alpha = off === 0 ? 0.60 : 0.28;
@@ -1434,15 +1434,10 @@ export class Renderer {
       case 'dualBlaster': {
         const MAX_V = (800 / 1000 + MIN_POWER) * MAX_POWER;
         const b2    = station.angle2 ?? station.angle;
-        for (const [baseAngle, bright] of [[station.angle, true], [b2, false]]) {
-          for (const dAngle of [-10, 0, 10]) {
-            const path = this._computeBulletPreviewPath(
-              station, baseAngle + dAngle, station.power, planets, maxLen, MAX_V * 0.55,
-            );
-            if (path.length < 2) continue;
-            this._drawFadingPath(ctx, path, bright ? (dAngle === 0 ? 0.7 : 0.35) : (dAngle === 0 ? 0.45 : 0.22), dAngle === 0 ? 1.5 : 1);
-          }
-        }
+        const path1 = this._computeBulletPreviewPath(station, station.angle, station.power, planets, maxLen, MAX_V * 0.55);
+        const path2 = this._computeBulletPreviewPath(station, b2,            station.power, planets, maxLen, MAX_V * 0.55);
+        if (path1.length >= 2) this._drawFadingPath(ctx, path1, 0.7,  1.5);
+        if (path2.length >= 2) this._drawFadingPath(ctx, path2, 0.45, 1.5);
         return;
       }
       case 'shotgun': {
