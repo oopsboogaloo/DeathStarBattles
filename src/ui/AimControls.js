@@ -2,7 +2,7 @@
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
 
-const NO_POWER_WEAPONS = new Set(['blunderbuss', 'laser', 'pulseLaser']);
+const NO_POWER_WEAPONS = new Set(['blunderbuss', 'laser', 'antimatterLaser']);
 
 const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks

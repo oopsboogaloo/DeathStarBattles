@@ -1149,7 +1149,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'pulseLaser', 'shotgun', 'dualBlaster']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1161,7 +1161,7 @@ export class Renderer {
       case 'minigun':      offsets = [-4, 0, 4];               break;
       case 'rocketPod':        offsets = [-1, 0, 1];               break;
       case 'septupleCannon':   offsets = [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]; break;
-      case 'pulseLaser':       offsets = [-15, 0, 15];            break;
+      case 'antimatterLaser':  offsets = [-15, 0, 15];            break;
       case 'fragmentationShot': offsets = [0];                   break;
       case 'shotgun':           offsets = [-8, 0, 8];                        break;
       case 'dualBlaster':       offsets = [0];                               break;
@@ -1425,7 +1425,7 @@ export class Renderer {
           alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
         }));
         break;
-      case 'pulseLaser': {
+      case 'antimatterLaser': {
         for (const dAngle of [-15, 0, 15]) {
           const path = this._computeLaserPreviewPath(station, station.angle + dAngle, planets, maxLen);
           if (path.length >= 2) {

@@ -799,7 +799,7 @@ export class GameLoop {
         for (const dAngle of [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]) {
           this.gs.activeBullets.push(this._makeBullet(station, station.angle + dAngle, station.power));
         }
-      } else if (w === WeaponId.PULSE_LASER && station.team.spendStock(WeaponId.PULSE_LASER)) {
+      } else if (w === WeaponId.ANTIMATTER_LASER && station.team.spendStock(WeaponId.ANTIMATTER_LASER)) {
         for (let i = 0; i < 9; i++) {
           const baseAngle = station.angle - 15 + i * (30 / 8);
           const jitter    = (this.rng.next() * 2 - 1) * 1.0;
