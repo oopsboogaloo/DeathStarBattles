@@ -66,6 +66,8 @@ export class Station {
     this.armourLayers    = 0;            // current count of armour layers
     this.armourFlash     = 0;            // 1→0 flash animation when a layer is absorbed
     this.implosion       = false;        // killed by gravity cannon — shrinks to nothing
+    this.electrified     = false;        // auto-fires cannon next turn
+    this.electrifiedFlash = 0;           // 1→0 overlay animation
   }
 
   get radius()          { return this.size.radius; }

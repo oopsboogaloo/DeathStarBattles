@@ -728,6 +728,7 @@ const _ALL_SPECIAL = [
   WeaponId.ARMOUR, WeaponId.REPULSOR_FIELD, WeaponId.MAMMOTH_CANNON,
   WeaponId.QUANTUM_TORPEDO, WeaponId.TRIPLE_QUANTUM_TORPEDO,
   WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
+  WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

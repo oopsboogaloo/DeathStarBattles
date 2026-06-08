@@ -29,6 +29,9 @@ export const WeaponId = Object.freeze({
   TRIPLE_QUANTUM_TORPEDO: 'tripleQuantumTorpedo',
   QUANTUM_AUTO_CANNON:    'quantumAutoCannon',
   GRAVITY_CANNON:         'gravityCannon',
+  ELECTRO_STUN:           'electroStun',
+  TELEPORT:               'teleport',
+  SUPER_LASER:            'superLaser',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -61,6 +64,9 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.TRIPLE_QUANTUM_TORPEDO, charges: 1,  label: 'TRIPLE Q. TORP.'  },
   { id: WeaponId.QUANTUM_AUTO_CANNON,    charges: 1,  label: 'QUANTUM AUTO-C.'  },
   { id: WeaponId.GRAVITY_CANNON,         charges: 1,  label: 'GRAVITY CANNON'   },
+  { id: WeaponId.ELECTRO_STUN,          charges: 1,  label: 'ELECTRO STUN'     },
+  { id: WeaponId.TELEPORT,              charges: 1,  label: 'TELEPORT'         },
+  { id: WeaponId.SUPER_LASER,           charges: 1,  label: 'SUPER LASER'      },
 ];
 
 // Game-unit radius for collision and rendering.

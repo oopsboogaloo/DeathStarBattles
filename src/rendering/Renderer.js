@@ -983,6 +983,9 @@ export class Renderer {
     if ((station.armourLayers ?? 0) > 0 || (station.armourFlash ?? 0) > 0) {
       this._drawArmourRings(ctx, station);
     }
+    if ((station.electrifiedFlash ?? 0) > 0) {
+      this._drawElectrifiedOverlay(ctx, station);
+    }
   }
 
   _drawNormalStation(ctx, station) {
@@ -1158,7 +1161,7 @@ export class Renderer {
     if (this._bulletPathMaxLength > 0) this._drawBulletPathPreview(ctx, station, gameState);
 
     // Aim lines — one per bullet angle, centre line stronger than flanking
-    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster']);
+    const noPower = new Set(['blunderbuss', 'blaster', 'laser', 'antimatterLaser', 'shotgun', 'dualBlaster', 'superLaser']);
     const displayPower = noPower.has(w) ? 800 : station.power;
     const lineLen      = r + (boxR - r) * (displayPower / 800);
 
@@ -1179,7 +1182,15 @@ export class Renderer {
       case 'starShot':          offsets = [0, 72, 144, 216, 288];            break;
       case 'scatterCannon':     offsets = [0];                               break;
       case 'spiral':            offsets = Array.from({length: 13}, (_, i) => i * (360 / 13)); break;
-      default:                  offsets = [0];                   break;
+      case 'electroStun': {
+        // Show arc spread: lines at center ± halfSpread
+        const spreadDeg   = 5 + (station.power - 1) / 799 * 40;
+        const half        = spreadDeg / 2;
+        offsets = [-half, 0, half];
+        break;
+      }
+      case 'teleport':    offsets = [0]; break; // direction only; destination shown below
+      default:            offsets = [0]; break;
     }
 
     for (const off of offsets) {
@@ -1208,6 +1219,50 @@ export class Renderer {
         ctx.lineWidth   = lw;
         ctx.stroke();
       }
+    }
+
+    // Teleport destination preview: ghost station outline + dotted line
+    if (w === 'teleport') {
+      const gw = this.gameWidth, gh = this.gameHeight;
+      const maxDist = Math.sqrt(gw * gw + gh * gh);
+      const tpDist  = (station.power / 800) * maxDist;
+      const tpRad   = (station.angle * Math.PI) / 180;
+      const destGX  = Math.max(station.radius, Math.min(gw - station.radius,
+        station.position.x + Math.sin(tpRad) * tpDist));
+      const destGY  = Math.max(station.radius, Math.min(gh - station.radius,
+        station.position.y + Math.cos(tpRad) * tpDist));
+      const destPX  = destGX * this.conv;
+      const destPY  = destGY * this.conv;
+      // Dotted line
+      ctx.save();
+      ctx.setLineDash([5, 7]);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(destPX, destPY);
+      ctx.strokeStyle = 'rgba(100,200,255,0.5)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+      ctx.restore();
+      // Ghost station circle
+      ctx.save();
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(destPX, destPY, Math.max(3, station.radius * this.conv), 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(100,200,255,0.7)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+      // Cross hair at destination
+      const mr = Math.max(3, station.radius * this.conv) * 0.45;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(destPX - mr, destPY);
+      ctx.lineTo(destPX + mr, destPY);
+      ctx.moveTo(destPX, destPY - mr);
+      ctx.lineTo(destPX, destPY + mr);
+      ctx.strokeStyle = 'rgba(100,200,255,0.5)';
+      ctx.lineWidth   = 1;
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -2312,6 +2367,50 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
+  // Electrified station overlay — flickering arcs and outer ring
+  // ----------------------------------------------------------------
+
+  _drawElectrifiedOverlay(ctx, station) {
+    const conv  = this.conv;
+    const cx    = station.position.x * conv;
+    const cy    = station.position.y * conv;
+    const r     = Math.max(3, station.radius * conv);
+    const alpha = (station.electrifiedFlash ?? 0);
+    if (alpha <= 0) return;
+
+    ctx.save();
+    // Outer pulsing ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(140,210,255,${(alpha * 0.45).toFixed(3)})`;
+    ctx.lineWidth   = Math.max(1, r * 0.07);
+    ctx.stroke();
+
+    // Flickering jagged arcs
+    const numArcs = 3;
+    for (let i = 0; i < numArcs; i++) {
+      const startAngle = Math.random() * Math.PI * 2;
+      const arcLen     = 0.4 + Math.random() * 0.8;
+      const pts = [];
+      for (let a = startAngle; a <= startAngle + arcLen; a += 0.1) {
+        const jitter = (Math.random() - 0.5) * r * 0.18;
+        pts.push([
+          cx + Math.cos(a) * (r * 1.25 + jitter),
+          cy + Math.sin(a) * (r * 1.25 + jitter),
+        ]);
+      }
+      if (pts.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p][0], pts[p][1]);
+      ctx.strokeStyle = `rgba(180,230,255,${(alpha * 0.7).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, r * 0.06);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
   // Repulsor Fields — subtle expanding ring centred on station
   // ----------------------------------------------------------------
 
@@ -2427,6 +2526,10 @@ export class Renderer {
         case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
         case 'glitter':                this._drawGlitter(ctx, vfx);                 break;
         case 'qtFlash':                this._drawQtFlash(ctx, vfx);                 break;
+        case 'electroStun':            this._drawElectroStun(ctx, vfx);             break;
+        case 'teleportFlash':          this._drawTeleportFlash(ctx, vfx);           break;
+        case 'superLaserConverge':     this._drawSuperLaserConverge(ctx, vfx);      break;
+        case 'superLaserBeam':         this._drawSuperLaserBeam(ctx, vfx);          break;
       }
     }
   }
@@ -2538,6 +2641,170 @@ export class Renderer {
       ctx.fillStyle = `rgba(255,255,255,${flashA})`;
       ctx.fill();
     }
+  }
+
+  // ----------------------------------------------------------------
+  // Electro Stun — flickering forked lightning bolts
+  // ----------------------------------------------------------------
+
+  _drawElectroStun(ctx, vfx) {
+    const conv  = this.conv;
+    const cx    = vfx.x * conv;
+    const cy    = vfx.y * conv;
+    const alpha = Math.max(0, 1 - vfx.t * 1.8);
+    if (alpha <= 0) return;
+    const { r, g, b } = vfx;
+    const numBolts = vfx.numBolts;
+    const rangeConv = vfx.range * conv;
+
+    ctx.save();
+    for (let i = 0; i < numBolts; i++) {
+      const boltAngle = numBolts > 1
+        ? vfx.angle - vfx.spreadRad + (i / (numBolts - 1)) * vfx.spreadRad * 2
+        : vfx.angle;
+      const segs   = 6 + Math.floor(Math.random() * 4);
+      const segLen = rangeConv / segs;
+      const mainDX = Math.sin(boltAngle), mainDY = Math.cos(boltAngle);
+      const perpDX = -mainDY,              perpDY = mainDX;
+      let bx = cx, by = cy;
+      const pts = [[bx, by]];
+      for (let s = 0; s < segs; s++) {
+        const jitter = (Math.random() - 0.5) * segLen * 1.0;
+        bx += mainDX * segLen + perpDX * jitter;
+        by += mainDY * segLen + perpDY * jitter;
+        pts.push([bx, by]);
+      }
+      // Colour glow
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p][0], pts[p][1]);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.5).toFixed(3)})`;
+      ctx.lineWidth   = 7;
+      ctx.stroke();
+      // White core
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p][0], pts[p][1]);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Teleport flash — expanding ring at origin and destination
+  // ----------------------------------------------------------------
+
+  _drawTeleportFlash(ctx, vfx) {
+    const cx = vfx.x * this.conv;
+    const cy = vfx.y * this.conv;
+    const t  = vfx.t;
+    const r  = t * 22 * this.conv;
+    const ringA  = Math.max(0, 1 - t * 2);
+    const flashA = Math.max(0, (0.45 - t) * 3);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, r), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${vfx.r},${vfx.g},${vfx.b},${ringA})`;
+    ctx.lineWidth   = Math.max(1, (1 - t) * 3.5 * this.conv);
+    ctx.stroke();
+
+    if (flashA > 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(1, r * 0.45), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,230,255,${flashA})`;
+      ctx.fill();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Super Laser convergence — thin beams assembling at focal point
+  // ----------------------------------------------------------------
+
+  _drawSuperLaserConverge(ctx, vfx) {
+    const conv   = this.conv;
+    const cx     = vfx.x * conv;
+    const cy     = vfx.y * conv;
+    const t      = vfx.t;
+    const alpha  = Math.min(1, t * 4) * Math.max(0, 1 - (t - 0.5) * 4);
+    if (alpha <= 0) return;
+    const rad    = (vfx.angle * Math.PI) / 180;
+    const focalD = 18 * conv;
+    const focalX = cx + Math.sin(rad) * focalD;
+    const focalY = cy + Math.cos(rad) * focalD;
+    const { r, g, b } = vfx;
+
+    ctx.save();
+    const numBeams = 6;
+    for (let i = 0; i < numBeams; i++) {
+      const beamAngle = (i / numBeams) * Math.PI * 2;
+      const beamDist  = (1 - t * 0.85) * 45 * conv;
+      const startX    = cx + Math.cos(beamAngle) * beamDist;
+      const startY    = cy + Math.sin(beamAngle) * beamDist;
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(focalX, focalY);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.55).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, (1 - t * 0.5) * 2.5);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(focalX, focalY);
+      ctx.strokeStyle = `rgba(255,255,255,${(alpha * 0.28).toFixed(3)})`;
+      ctx.lineWidth   = 1;
+      ctx.stroke();
+    }
+
+    // Pulsing focal dot
+    const pulseR = (2 + Math.sin(t * Math.PI * 14) * 1.5) * conv;
+    ctx.beginPath();
+    ctx.arc(focalX, focalY, Math.max(2, pulseR), 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${(alpha * 0.9).toFixed(3)})`;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Super Laser beam — thick devastating straight-line beam
+  // ----------------------------------------------------------------
+
+  _drawSuperLaserBeam(ctx, vfx) {
+    if (!vfx.path?.length) return;
+    const conv  = this.conv;
+    const t     = vfx.t;
+    const alpha = Math.sin(t * Math.PI);
+    const { r, g, b } = vfx;
+
+    ctx.save();
+    // Outer glow
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.22).toFixed(3)})`;
+    ctx.lineWidth   = 22;
+    ctx.stroke();
+
+    // Mid glow
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.65).toFixed(3)})`;
+    ctx.lineWidth   = 9;
+    ctx.stroke();
+
+    // White core
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.lineWidth   = 3;
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------

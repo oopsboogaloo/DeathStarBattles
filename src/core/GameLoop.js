@@ -32,6 +32,20 @@ const REPULSOR_FIELD_STRENGTH  = 5;    // multiplier vs standard rift-node repul
 const GRAVITY_CANNON_SIZE_MULT = 3;    // bullet draw radius multiplier
 const GRAVITY_CANNON_MASS      = 800;  // gravitational mass exerted on nearby bullets
 
+// Electro Stun tuning constants
+const ELECTRO_STUN_BOLTS      = 5;    // forked lightning bolt count per cast
+const ELECTRO_STUN_MIN_SPREAD = 5;    // spread in degrees at minimum power
+const ELECTRO_STUN_MAX_SPREAD = 45;   // spread in degrees at maximum power
+const ELECTRO_STUN_BASE_RANGE = 180;  // max range in game units at minimum spread
+
+// Teleport tuning constants
+const TELEPORT_FIRE_STEP = 600;       // physics steps before teleport executes
+
+// Super Laser tuning constants
+const SUPER_LASER_CHARGE_STEPS  = 800;  // physics steps of charge-up before beam fires
+const SUPER_LASER_BEAM_DURATION = 2.5;  // VFX duration for main beam (seconds)
+const SUPER_LASER_CONV_DURATION = 0.45; // VFX duration for convergence beams (seconds)
+
 export class GameLoop {
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
 
@@ -691,6 +705,18 @@ export class GameLoop {
     while (this._turnIdx < this._turnOrder.length) {
       const station = this._turnOrder[this._turnIdx];
 
+      // Electrified: auto-fire a random cannon shot regardless of team type
+      if (station.electrified) {
+        station.electrified    = false;
+        station.angle          = Math.floor(Math.random() * 360);
+        station.power          = Math.floor(Math.random() * 700) + 100;
+        station.selectedWeapon = WeaponId.CANNON;
+        station.velocity       = null;
+        this._setActive(station);
+        this._turnIdx++;
+        continue;
+      }
+
       if (!station.team.isHuman) {
         let action;
         if (station.team.controller) {
@@ -744,8 +770,9 @@ export class GameLoop {
     this.gs.fireballSmoke       = [];
     this.gs.skimParticles       = [];
     this.gs.burstQueue          = [];
-    this.gs.pendingLasers = [];
-    this.gs.firingStep    = 0;
+    this.gs.pendingLasers    = [];
+    this.gs.pendingTeleports = [];
+    this.gs.firingStep       = 0;
 
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
@@ -948,6 +975,72 @@ export class GameLoop {
         b.thickTrail        = true;
         b.gravityCannon     = true;
         this.gs.activeBullets.push(b);
+      } else if (w === WeaponId.ELECTRO_STUN && station.team.spendStock(WeaponId.ELECTRO_STUN)) {
+        const spreadDeg    = ELECTRO_STUN_MIN_SPREAD + (station.power - 1) / 799 * (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD);
+        const halfSpreadRad = (spreadDeg / 2) * Math.PI / 180;
+        const rangeMult    = 1 - (spreadDeg - ELECTRO_STUN_MIN_SPREAD) / (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD) * 0.8;
+        const range        = ELECTRO_STUN_BASE_RANGE * Math.max(0.2, rangeMult);
+        const centerRad    = (station.angle * Math.PI) / 180;
+        const centerDirX   = Math.sin(centerRad);
+        const centerDirY   = Math.cos(centerRad);
+
+        for (const target of this.gs.allStations) {
+          if (target === station || target.status !== 'active') continue;
+          const dx   = target.position.x - station.position.x;
+          const dy   = target.position.y - station.position.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > range || dist < 0.001) continue;
+          // Arc check via dot product
+          if ((dx / dist) * centerDirX + (dy / dist) * centerDirY < Math.cos(halfSpreadRad)) continue;
+          // Line-of-sight block by solid planets
+          let blocked = false;
+          for (const planet of this.gs.planets) {
+            if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
+            if (planet.type === PlanetType.WORMHOLE_PAIRED || planet.type === PlanetType.WORMHOLE_CYCLIC ||
+                planet.type === PlanetType.WORMHOLE_RANDOM || planet.type === PlanetType.WORMHOLE_PLANET ||
+                planet.type === PlanetType.WORMHOLE_SELF   || planet.type === PlanetType.WORMHOLE_NETWORK) continue;
+            const pdx  = planet.position.x - station.position.x;
+            const pdy  = planet.position.y - station.position.y;
+            const u    = Math.max(0, Math.min(1, (pdx * dx + pdy * dy) / (dist * dist)));
+            const cdx  = pdx - u * dx;
+            const cdy  = pdy - u * dy;
+            if (cdx * cdx + cdy * cdy < planet.impactRadius * planet.impactRadius) { blocked = true; break; }
+          }
+          if (blocked) continue;
+          // Apply effect (armour absorbs)
+          if ((target.armourLayers ?? 0) > 0) {
+            target.armourLayers--;
+            target.armourFlash = 1.0;
+          } else {
+            target.electrified      = true;
+            target.electrifiedFlash = 1.0;
+          }
+        }
+        const [er, eg, eb] = station.team.colour;
+        this.gs.vfxList.push({ type: 'electroStun', x: station.position.x, y: station.position.y,
+          angle: centerRad, spreadRad: halfSpreadRad, range,
+          numBolts: ELECTRO_STUN_BOLTS, r: er, g: eg, b: eb, t: 0, duration: 0.6 });
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.TELEPORT && station.team.spendStock(WeaponId.TELEPORT)) {
+        const { gw, gh }  = this.physics;
+        const maxDist     = Math.sqrt(gw * gw + gh * gh);
+        const dist        = (station.power / 800) * maxDist;
+        const rad         = (station.angle * Math.PI) / 180;
+        const rawX        = station.position.x + Math.sin(rad) * dist;
+        const rawY        = station.position.y + Math.cos(rad) * dist;
+        const [safeX, safeY] = this._findSafeTeleportDest(station, rawX, rawY, gw, gh);
+        this.gs.pendingTeleports.push({ station, destX: safeX, destY: safeY, fireStep: TELEPORT_FIRE_STEP });
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.SUPER_LASER && station.team.spendStock(WeaponId.SUPER_LASER)) {
+        const [slr, slg, slb] = station.team.colour;
+        this.gs.vfxList.push({ type: 'superLaserConverge',
+          x: station.position.x, y: station.position.y, angle: station.angle,
+          r: slr, g: slg, b: slb, t: 0, duration: SUPER_LASER_CONV_DURATION });
+        this.gs.pendingLasers.push({ station, angle: station.angle,
+          delaySteps: SUPER_LASER_CHARGE_STEPS, superLaser: true,
+          vfxDuration: SUPER_LASER_BEAM_DURATION });
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
@@ -1086,12 +1179,36 @@ export class GameLoop {
       for (const pl of this.gs.pendingLasers) {
         pl.delaySteps--;
         if (pl.delaySteps <= 0) {
-          const path = this._simulateLaserPath(pl.station, pl.angle);
-          this.gs.vfxList.push({ type: 'laserPath', path, colour: pl.station.team.colour, t: 0, duration: pl.vfxDuration ?? 1.5 });
-          if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          if (pl.superLaser) {
+            const path = this._simulateSuperLaserPath(pl.station, pl.angle);
+            const [slr, slg, slb] = pl.station.team.colour;
+            this.gs.vfxList.push({ type: 'superLaserBeam', path, r: slr, g: slg, b: slb, t: 0, duration: pl.vfxDuration ?? SUPER_LASER_BEAM_DURATION });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          } else {
+            const path = this._simulateLaserPath(pl.station, pl.angle);
+            this.gs.vfxList.push({ type: 'laserPath', path, colour: pl.station.team.colour, t: 0, duration: pl.vfxDuration ?? 1.5 });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          }
         }
       }
       this.gs.pendingLasers = this.gs.pendingLasers.filter(pl => pl.delaySteps > 0);
+
+      // ── Pending teleports ─────────────────────────────────────────────────────
+      for (let pti = this.gs.pendingTeleports.length - 1; pti >= 0; pti--) {
+        const pt = this.gs.pendingTeleports[pti];
+        if (this.gs.firingStep < pt.fireStep) continue;
+        const { gw, gh } = this.physics;
+        const oldX = pt.station.position.x, oldY = pt.station.position.y;
+        pt.station.position = new Vec2(
+          Math.max(pt.station.radius, Math.min(gw - pt.station.radius, pt.destX)),
+          Math.max(pt.station.radius, Math.min(gh - pt.station.radius, pt.destY)),
+        );
+        this.gs.shields.push({ station: pt.station, radius: pt.station.radius * 1.6, alive: true });
+        const [tr, tg, tb] = pt.station.team.colour;
+        this.gs.vfxList.push({ type: 'teleportFlash', x: oldX,                 y: oldY,                 r: tr, g: tg, b: tb, t: 0, duration: 0.5 });
+        this.gs.vfxList.push({ type: 'teleportFlash', x: pt.station.position.x, y: pt.station.position.y, r: tr, g: tg, b: tb, t: 0, duration: 0.5 });
+        this.gs.pendingTeleports.splice(pti, 1);
+      }
 
       // ── Rocket physics ────────────────────────────────────────────────────────
       for (const rocket of this.gs.rockets) {
@@ -1479,18 +1596,20 @@ export class GameLoop {
 
     this._advanceExplosionEffects();
 
-    // All resolved → RESULTS (wait for moving stations, burst queue, pending lasers, and rockets)
+    // All resolved → RESULTS (wait for moving stations, burst queue, pending lasers, teleports, and rockets)
     const bulletsGone    = this.gs.activeBullets.length === 0;
     const rocketsGone    = this.gs.rockets.length === 0;
     const blastsGone     = this.gs.rocketBlasts.length === 0;
     const burstsGone     = this.gs.burstQueue.length === 0;
     const lasersGone     = this.gs.pendingLasers.length === 0;
+    const teleportsGone  = (this.gs.pendingTeleports?.length ?? 0) === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && !stationsMoving) {
-      this.gs.shields       = [];
+    if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && teleportsGone && !stationsMoving) {
+      this.gs.shields        = [];
       this.gs.repulsorFields = [];
-      this.gs.rocketBlasts  = [];
+      this.gs.rocketBlasts   = [];
+      this.gs.pendingTeleports = [];
       this._processHyperspace();
       this._checkWin();
       this._resultsTimer = 240; // ~4 s at 60 fps
@@ -1806,6 +1925,150 @@ export class GameLoop {
       if (blocked) break;
     }
     return path;
+  }
+
+  // Simulate super laser path: straight line, no gravity.
+  // Kills enemies, destroys asteroids/moons/comets, passes through gas giants + friendlies.
+  _simulateSuperLaserPath(station, angleDeg) {
+    const { gw, gh } = this.physics;
+    const MAX_STEPS  = 1200;
+    const STEP       = 4;
+    const rad  = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    const ddx  = Math.sin(rad), ddy = Math.cos(rad);
+    let px = station.position.x + (station.radius + 1) * ddx;
+    let py = station.position.y + (station.radius + 1) * ddy;
+    const path = [new Vec2(px, py)];
+    const proxy = { owner: station, status: 'active', teleportCount: 0, trickShotDone: false };
+    const hitStations = new Set();
+    const moonsToDestroy = [];
+    let solidPlanetHit = null;
+    let hazardHitPos   = null;
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      px += ddx * STEP;
+      py += ddy * STEP;
+      path.push(new Vec2(px, py));
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      // Enemy station hits
+      for (const s of this.gs.allStations) {
+        if (s.status !== 'active' || hitStations.has(s) || s.team === station.team) continue;
+        const sdx = s.position.x - px, sdy = s.position.y - py;
+        if (sdx * sdx + sdy * sdy < s.radius * s.radius) {
+          hitStations.add(s);
+          this._resolveStationHit(proxy, s);
+        }
+      }
+
+      // Planet hits
+      let blocked = false;
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const pdx = planet.position.x - px, pdy = planet.position.y - py;
+        if (pdx * pdx + pdy * pdy >= planet.impactRadius * planet.impactRadius) continue;
+        if (planet.type === PlanetType.GAS_GIANT) continue;
+        if (planet.type === PlanetType.WORMHOLE_PAIRED || planet.type === PlanetType.WORMHOLE_CYCLIC ||
+            planet.type === PlanetType.WORMHOLE_RANDOM || planet.type === PlanetType.WORMHOLE_PLANET ||
+            planet.type === PlanetType.WORMHOLE_SELF   || planet.type === PlanetType.WORMHOLE_NETWORK) continue;
+        if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
+          planet.destroyed = true; continue;
+        }
+        if (planet.type === PlanetType.COMET) {
+          planet.destroyed = true; continue;
+        }
+        if (planet.type === PlanetType.MOON || planet.type === PlanetType.GIANT_ASTEROID) {
+          if (!moonsToDestroy.includes(planet)) moonsToDestroy.push(planet);
+          planet.destroyed = true; continue;
+        }
+        if (planet.type === PlanetType.STAR || planet.type === PlanetType.BLACK_HOLE ||
+            planet.type === PlanetType.WHITE_DWARF || planet.type === PlanetType.PULSAR ||
+            planet.type === PlanetType.WHITE_HOLE) {
+          hazardHitPos = { x: px, y: py };
+          blocked = true; break;
+        }
+        // Solid planet: destroy, fragment, stop beam
+        solidPlanetHit = planet;
+        blocked = true; break;
+      }
+      if (blocked) break;
+
+      // Collectables
+      for (const c of this.gs.collectables) {
+        if (!c.alive) continue;
+        const cdx = px - c.position.x, cdy = py - c.position.y;
+        if (cdx * cdx + cdy * cdy < c.radius * c.radius) {
+          c.alive = false;
+          const grant = this._pickCollectableGrant();
+          station.team.addStock(grant.id, grant.charges);
+          if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
+          this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+          const [cr, cg, cb] = station.team.colour;
+          this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+        }
+      }
+    }
+
+    // Fragment moons destroyed along the path
+    for (const moon of moonsToDestroy) {
+      const idx = this.gs.planets.indexOf(moon);
+      if (idx !== -1) this.gs.planets.splice(idx, 1);
+      if (moon.type === PlanetType.GIANT_ASTEROID) this._fragmentGiantAsteroid(moon);
+      else this._fragmentMoon(moon);
+      this._spawnAsteroidExplosion(moon);
+    }
+
+    // Solid planet destruction + fragment + blast
+    if (solidPlanetHit) {
+      const planet = solidPlanetHit;
+      const idx = this.gs.planets.indexOf(planet);
+      if (idx !== -1) this.gs.planets.splice(idx, 1);
+      this._fragmentMoon(planet);
+      this._spawnAsteroidExplosion(planet);
+      this.gs.rocketBlasts.push({ x: planet.position.x, y: planet.position.y,
+        maxRadius: ROCKET_BLAST_RADIUS * 2, currentRadius: 1, owner: station, hitSet: new Set() });
+    }
+
+    // Hazard contact: blast at contact point
+    if (hazardHitPos) {
+      this.gs.rocketBlasts.push({ x: hazardHitPos.x, y: hazardHitPos.y,
+        maxRadius: ROCKET_BLAST_RADIUS * 2, currentRadius: 1, owner: station, hitSet: new Set() });
+    }
+
+    return path;
+  }
+
+  // Find a safe teleport destination along the travel direction.
+  _findSafeTeleportDest(station, rawX, rawY, gw, gh) {
+    const sr  = station.radius;
+    const clampX = x => Math.max(sr, Math.min(gw - sr, x));
+    const clampY = y => Math.max(sr, Math.min(gh - sr, y));
+    let cx = clampX(rawX), cy = clampY(rawY);
+
+    const isClear = (x, y) => {
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
+        const dx = planet.position.x - x, dy = planet.position.y - y;
+        if (dx * dx + dy * dy < (planet.impactRadius + sr + 1) ** 2) return false;
+      }
+      for (const s of this.gs.allStations) {
+        if (s === station || s.status !== 'active') continue;
+        const dx = s.position.x - x, dy = s.position.y - y;
+        if (dx * dx + dy * dy < (s.radius + sr + 1) ** 2) return false;
+      }
+      return true;
+    };
+
+    if (isClear(cx, cy)) return [cx, cy];
+
+    // Spiral outward from the raw destination to find a clear spot
+    for (let r = 2; r <= 60; r += 2) {
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+        const tx = clampX(cx + Math.cos(a) * r);
+        const ty = clampY(cy + Math.sin(a) * r);
+        if (isClear(tx, ty)) return [tx, ty];
+      }
+    }
+    return [cx, cy]; // fallback: overlapping position
   }
 
   // Explode a rocket at its current position, applying blast damage.
@@ -2263,7 +2526,8 @@ export class GameLoop {
         for (const p of station.particles) { p.x += p.vx; p.y += p.vy; p.t += DT_P; }
         station.particles = station.particles.filter(p => p.t < 1);
       }
-      if (station.armourFlash > 0) station.armourFlash = Math.max(0, station.armourFlash - 0.04);
+      if (station.armourFlash     > 0) station.armourFlash     = Math.max(0, station.armourFlash     - 0.04);
+      if (station.electrifiedFlash > 0) station.electrifiedFlash = Math.max(0, station.electrifiedFlash - 0.012);
     }
 
     // Freestanding asteroid explosions
@@ -2448,6 +2712,7 @@ export class GameLoop {
       WeaponId.BLASTER,
       WeaponId.MINIGUN,
       WeaponId.FORCE_SHIELD,
+      WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
     ];
     const available = allOrder.filter(w => {
       if (w === WeaponId.CANNON || w === WeaponId.HYPERSPACE) return true;
