@@ -306,9 +306,7 @@ export class PhysicsEngine {
     // Quantum Torpedo: pass through solid non-hazard bodies
     if (bullet.quantumTorpedo) {
       const isHazard   = planet.type === PlanetType.BLACK_HOLE ||
-                         planet.type === PlanetType.WHITE_HOLE ||
-                         planet.type === PlanetType.STAR       ||
-                         planet.type === PlanetType.WHITE_DWARF;
+                         planet.type === PlanetType.WHITE_HOLE;
       const isWormhole = planet.type === PlanetType.WORMHOLE_PAIRED  ||
                          planet.type === PlanetType.WORMHOLE_CYCLIC  ||
                          planet.type === PlanetType.WORMHOLE_RANDOM  ||
