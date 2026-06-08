@@ -281,7 +281,27 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] **Star Shot** — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
 
-- [ ] **Hedgehog** — Combines a Force Shield with 3 volleys of 7 mini-rockets fired in all directions (21 rockets total). Shield deploys immediately; rocket volleys follow at regular intervals.
+- [ ] **Hedgehog** — High-tier weapon. Deploys a Force Shield on the firing station and then fires 12 rockets outward in all directions across 4 rapid volleys.
+
+  **Shield (FR-1)**
+  - A Force Shield deploys on the firing station immediately when Hedgehog is used, before any rockets fire
+
+  **Rocket Volleys (FR-2)**
+  - 4 volleys of 3 rockets fire in quick succession after the shield deploys
+  - Each volley is a triangular spread: 3 rockets equally spaced at 120° from each other
+  - Each successive volley is rotated 30° from the previous, so all 12 rockets travel in distinct directions with no overlap:
+    - Volley 1: 0°, 120°, 240°
+    - Volley 2: 30°, 150°, 270°
+    - Volley 3: 60°, 180°, 300°
+    - Volley 4: 90°, 210°, 330°
+  - No angle or power input — rockets always fire outward in all directions
+
+  **Rocket Behaviour (FR-3)**
+  - Each rocket uses the same reduced-impact stats as Rocket Pod rockets (½ standard blast radius)
+  - Otherwise identical to standard rockets (self-propelled, gravity-affected, standard rocket visuals and SFX)
+
+  **Rarity (FR-4)**
+  - High-tier / rare collectable; grants 1 charge per pickup
 
 - [ ] **Gravity Cannon** — Fires a gravitational anomaly that travels like a cannonball but deflects nearby shots rather than destroying them; fades after a set time.
 
