@@ -26,6 +26,7 @@ const MAMMOTH_BLAST_SPEED_MULT = 0.4;  // blast expansion speed relative to norm
 
 // Repulsor Field tuning constants
 const REPULSOR_FIELD_RADIUS    = 50;   // influence radius in game units
+const REPULSOR_FIELD_STRENGTH  = 5;    // multiplier vs standard rift-node repulsion
 
 export class GameLoop {
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
@@ -905,7 +906,7 @@ export class GameLoop {
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.REPULSOR_FIELD && station.team.spendStock(WeaponId.REPULSOR_FIELD)) {
-        this.gs.repulsorFields.push({ station, influenceRadius: REPULSOR_FIELD_RADIUS });
+        this.gs.repulsorFields.push({ station, influenceRadius: REPULSOR_FIELD_RADIUS, strength: REPULSOR_FIELD_STRENGTH });
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
       } else if (w === WeaponId.MAMMOTH_CANNON && station.team.spendStock(WeaponId.MAMMOTH_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
@@ -967,9 +968,10 @@ export class GameLoop {
 
         if (burst.weapon === WeaponId.HEDGEHOG) {
           const rad    = (((burst.angle % 360) + 360) % 360 * Math.PI) / 180;
+          const spawnR = burst.station.radius * 1.6 + 2; // outside the force shield
           const pos    = new Vec2(
-            burst.station.position.x + (burst.station.radius + 1) * Math.sin(rad),
-            burst.station.position.y + (burst.station.radius + 1) * Math.cos(rad),
+            burst.station.position.x + spawnR * Math.sin(rad),
+            burst.station.position.y + spawnR * Math.cos(rad),
           );
           const vel    = new Vec2(ROCKET_LAUNCH_SPEED * Math.sin(rad), ROCKET_LAUNCH_SPEED * Math.cos(rad));
           const rocket = new Rocket({ owner: burst.station, position: pos, velocity: vel });
@@ -1305,7 +1307,7 @@ export class GameLoop {
     // Advance expanding rocket blasts (once per rAF frame, not per physics step)
     for (let i = this.gs.rocketBlasts.length - 1; i >= 0; i--) {
       const blast = this.gs.rocketBlasts[i];
-      blast.currentRadius += blast.maxRadius / 22; // expand over ~22 frames
+      blast.currentRadius += blast.maxRadius / 22 * (blast.speed ?? 1);
 
       const r2    = blast.currentRadius * blast.currentRadius;
       const proxy = { owner: blast.owner, status: 'active', teleportCount: 0, trickShotDone: false };
@@ -1315,10 +1317,12 @@ export class GameLoop {
         const dx = s.position.x - blast.x, dy = s.position.y - blast.y;
         if (dx * dx + dy * dy < r2) { blast.hitSet.add(s); this._resolveStationHit(proxy, s); }
       }
-      for (const b of this.gs.activeBullets) {
-        if (b.status !== BulletStatus.ACTIVE || blast.hitSet.has(b)) continue;
-        const dx = b.position.x - blast.x, dy = b.position.y - blast.y;
-        if (dx * dx + dy * dy < r2) { blast.hitSet.add(b); b.status = BulletStatus.DEAD; }
+      if (!blast.noKillBullets) {
+        for (const b of this.gs.activeBullets) {
+          if (b.status !== BulletStatus.ACTIVE || blast.hitSet.has(b)) continue;
+          const dx = b.position.x - blast.x, dy = b.position.y - blast.y;
+          if (dx * dx + dy * dy < r2) { blast.hitSet.add(b); b.status = BulletStatus.DEAD; }
+        }
       }
       for (const p of this.gs.planets) {
         if (p.destroyed || blast.hitSet.has(p)) continue;
@@ -1979,11 +1983,13 @@ export class GameLoop {
   }
 
   _spawnMammothBlast(bullet) {
-    // Large expanding area blast
+    // Large expanding area blast — slow so fragments can escape
     this.gs.rocketBlasts.push({
       x: bullet.position.x, y: bullet.position.y,
       maxRadius:     ROCKET_BLAST_RADIUS * MAMMOTH_BLAST_MULT,
       currentRadius: 1,
+      speed:         MAMMOTH_BLAST_SPEED_MULT,  // expands at 40% normal rate
+      noKillBullets: true,                      // let own fragments clear the zone
       owner:         bullet.owner,
       hitSet:        new Set(),
     });

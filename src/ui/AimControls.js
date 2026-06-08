@@ -7,6 +7,10 @@ const NO_POWER_WEAPONS = new Set([
   'resupply', 'hedgehog', 'teamShield', 'armour',
 ]);
 
+const NO_AIM_WEAPONS = new Set([
+  'resupply', 'hedgehog', 'teamShield', 'armour',
+]);
+
 const HOLD_DELAY    = 350;  // ms before repeat begins
 const TICK_MS       = 80;   // ms between repeat ticks
 const MAX_RATE      = 10;   // max repetitions per tick for power buttons
@@ -43,9 +47,11 @@ export class AimControls {
     if (!station) return;
     const w          = station.selectedWeapon;
     const noPower    = NO_POWER_WEAPONS.has(w);
+    const noAim      = NO_AIM_WEAPONS.has(w);
     const isFragShot   = w === 'fragmentationShot';
     const isShotgun    = w === 'shotgun' || w === 'dualBlaster';
     const isBlaster    = w === 'blaster';
+    this._angleGroup.style.visibility = noAim ? 'hidden' : 'visible';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
       this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
@@ -88,7 +94,7 @@ export class AimControls {
     });
 
     // Angle group (left)
-    const angleGroup = el('div', {
+    const angleGroup = this._angleGroup = el('div', {
       display: 'flex', alignItems: 'center', gap: '5px',
       pointerEvents: 'auto', marginLeft: '14px',
     });
