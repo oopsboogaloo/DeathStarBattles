@@ -334,11 +334,12 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   **Conversion (FR-3)**
   - On contact with an enemy station: the station immediately joins the firing team for the remainder of the game
   - The converted station's colour changes to the firing team's colour
-  - Converted station is controlled by the same player/AI as the rest of the firing team from the next turn onwards
+  - If the firing player is human, they gain direct and full control of the converted station from the next turn onwards — it behaves as a second station under their command
+  - If the firing player is AI, the converted station is controlled by that AI
   - This counts as a kill for stats purposes
 
   **Win Condition (FR-4)**
-  - After conversion, check if any opposing team still has active stations; if not, the round ends immediately (converted station may be the last enemy)
+  - If conversion leaves an opposing team with no remaining stations, the round ends at the end of that turn in the normal way — no immediate termination mid-turn
 
 - [ ] **Mammoth Cannon** *(Tier 3)* — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
 
