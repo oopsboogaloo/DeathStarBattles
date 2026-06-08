@@ -50,7 +50,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] **Space Rift** — New non-solid map object: a piecewise-linear chain of 3–11 connected segments (each ~1 Medium station diameter long, ≤30° turn between segments). Each vertex exerts a linear-falloff repulsive force on bullets, allowing slow shots to be deflected and fast shots to punch through. Background layer renders a forked lightning glow; the rift line itself is a static luminescent polyline. Adds two new scenarios (Rift: 1 rift + sparse planets; Rifts: 2–6 rifts + planets/asteroids) and a 10% wildcard chance. AI trajectory simulation picks up the repulsion automatically. See `spec/space-rift.md`.
 
-- [ ] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
+- [x] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
 
   **Weapon Selection UI (FR-1)**
   - Replaces the power slider with a timer slider (range: 1–5 s)
@@ -102,7 +102,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   **Collectable Availability (FR-12)**
   - Included in the tier-2 collectable pool
 
-- [ ] **Septuple Cannon** — Rare variant of the triple cannon. Fires 7 cannon shots simultaneously across a wider arc; grants exactly 1 use when collected. See `spec/septuple-cannon.md`.
+- [x] **Septuple Cannon** — Rare variant of the triple cannon. Fires 7 cannon shots simultaneously across a wider arc; grants exactly 1 use when collected. See `spec/septuple-cannon.md`.
 
   **Weapon Behaviour (FR-1)**
   - 7 cannon shots fired simultaneously, evenly distributed across the arc
@@ -118,7 +118,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Shot count (default: 7)
   - Arc width (default: TBD — wider than triple cannon arc; resolve during playtesting — OQ-1)
 
-- [ ] **Pulse Laser** — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
+- [x] **Pulse Laser** — Rare, powerful laser variant. Fires 9 laser pulses sequentially, sweeping across a ±15° arc around the selected angle, with slight random jitter per pulse. See `spec/pulse-laser.md`.
 
   **Weapon Selection UI (FR-1)**
   - UI behaves identically to the standard laser (angle selector, no power/timer slider)
@@ -144,7 +144,7 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Interval between pulses (default: 0.1 s)
   - Per-pulse jitter range (default: ±1°)
 
-- [ ] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
+- [x] **Fragmentation Shot** — New collectable weapon. The primary shot bounces inelastically off planets, stations, and asteroids, and explodes after a set timer into a lethal spread of fragments that behave like blaster bullets. See `spec/fragmentation-shot.md`.
 
   **Tuneability (NFR-1)** — named constants:
   - Primary shot speed (default: 75% of max cannon power)
@@ -156,7 +156,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Future Weapons
 
-- [ ] **Dual Blaster** — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
+- [x] **Dual Blaster** — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
 
 - [ ] **Team Shield** — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not fire a shot this turn.
 
@@ -181,7 +181,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [ ] **Quantum Torpedo** — A torpedo that teleports through solid celestial bodies. On contact with any planet except a gas giant, a teleport VFX plays at the entry point, the torpedo instantly reappears at the straight-line exit point on the far side of the body, and a second VFX plays at the exit point. The torpedo continues on its original trajectory from the exit point and detonates only on station contact. Gas giants are treated normally (torpedo passes through without teleporting). Requires new teleport SFX and exit-point geometry calculation (ray vs sphere intersection for the far side).
 
-- [ ] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
+- [x] **Bounce Cannon** — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
 - [ ] **Mind Control Beam** — Laser-like beam; any enemy station it strikes switches to the firing player's team for the remainder of the game (or for a set number of turns).
 
@@ -218,13 +218,13 @@ Resolved items have been moved to ResolvedTODOList.md.
   - Fragment speed min (default: 30% of max cannon power) / max (default: 60%)
   - Explosion animation speed multiplier (default: 0.4× normal speed)
 
-- [ ] **Scatter Cannon** — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
+- [x] **Scatter Cannon** — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
 
-- [ ] **Auto Cannon** — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
+- [x] **Auto Cannon** — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
 
-- [ ] **Spiral** — Fires blaster shots sequentially in all directions (360° sweep), one per blaster timing interval.
+- [x] **Spiral** — Fires blaster shots sequentially in all directions (360° sweep), one per blaster timing interval.
 
-- [ ] **Star Shot** — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
+- [x] **Star Shot** — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
 
 - [ ] **Hedgehog** — Combines a Force Shield with 3 volleys of 7 mini-rockets fired in all directions (21 rockets total). Shield deploys immediately; rocket volleys follow at regular intervals.
 
