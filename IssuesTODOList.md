@@ -321,7 +321,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
 - [x] **Scatter Cannon** *(Tier 1)* — Standard cannon shot that fragments into 5 sub-shots shortly after leaving the barrel, each travelling at a slightly different angle.
 
-- [x] **Auto Cannon** *(Tier 1)* — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
+- [x] **Auto Cannon** *(Tier 2)* — Fires 5 cannon shots in rapid succession, each with a small random angular deviation from the aimed direction.
 
 - [x] **Spiral** *(Tier 1)* — Fires blaster shots sequentially in all directions (360° sweep), one per blaster timing interval.
 
