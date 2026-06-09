@@ -155,3 +155,103 @@ Full start-to-finish playable game with UI.
 | 8 | Full game flow: demo → config → play → game over |
 | 9 | Scoring, stats, tournament mode |
 | 10 | Animations, polish, edge cases, cross-browser |
+| 11 | Balance tweaks, new options, rift interactions |
+| 12 | Frozen condition + Electrostar + Magnetar |
+| 13 | Gravitational time dilation (black holes / white dwarfs) |
+| 14 | Space Mammoth SVG sprite system |
+
+---
+
+## Phase 11 — Balance Tweaks, New Options & Rift Interactions
+
+Minor adjustments to existing systems and small new player-facing options.
+
+### 11.1 Planet tuning
+
+- [ ] **11.1** White Dwarfs scenario — audit default planet count; reduce to keep the field readable. Bias spawn placement toward the edges/periphery of the map rather than centre-heavy.
+- [ ] **11.2** Black Holes scenario — cap typical count at 2–3; reduce the tail end of the random range so extreme counts (4+) are very rare.
+- [ ] **11.3** Pulsars — reduce the radius of effect to 60% of current value. Narrow the frequency range so some pulsars are very low frequency (slow pulse) and some are moderate; remove the high-frequency end so no pulsar feels frantic.
+
+### 11.2 Tournament & game options
+
+- [ ] **11.4** Tournament prizes — reduce rate and/or magnitude so prizes feel notable rather than constant. Review current config values and step them down; verify that a typical 10-game tournament doesn't drown everyone in weapons.
+- [ ] **11.5** Turn limit option — add a configurable turn limit to the config panel (Options page). When the limit is reached and no winner has been found, the game ends and the team with the most surviving stations wins (or a draw if tied). Show a countdown in the HUD from turn `limit − 5` onward.
+- [ ] **11.6** Resign game option — add a Resign button (accessible from the in-game menu or a small canvas button). Resigning eliminates the resigning team's remaining stations immediately; in tournament mode it scores as a loss with 0 survivors.
+- [ ] **11.7** Tournament: surviving teams claim collectables — add a tournament option. When enabled, at the end of a game all collectables remaining on the map are distributed as random weapons to the surviving teams (one collectable per team, round-robin if multiple collectables). Uses the standard 80/16/4% weapon tier weighting.
+- [ ] **11.8** Modest starting weapons for non-dev mode — add "Minimal" to the Starting Weapons config option (currently hidden behind campaign completion). Minimal = 1 Triple Cannon per team. This makes the option visible to all players; the existing richer tiers (One at Random, Minor, One of Each, etc.) remain gated behind campaign completion as before.
+
+### 11.3 Rift interactions
+
+- [ ] **11.9** Rifts — reduce effect strength slightly (tune the force constant). Halve the range at which rifts influence bullets.
+- [ ] **11.10** Ships bounce off rifts — when a moving station (movement speed ≠ Off) reaches the edge of a rift's influence radius, reflect its movement vector elastically so it cannot cross into or through the rift. Treat the rift boundary as an elastic wall for station movement only; bullet trajectories are unaffected.
+- [ ] **11.11** Stations pushed by pulsars and white dwarfs — when movement is enabled, pulsars and white dwarfs apply a small outward push to stations within their gravitational radius each turn, nudging them away. Magnitude should be subtle — enough to slowly drift a parked station but not enough to fling it across the map.
+
+---
+
+## Phase 12 — Frozen Condition, Electrostar & Magnetar
+
+Three new additions: a ship status condition and two new stellar body types.
+
+### 12.1 Frozen condition
+
+- [ ] **12.1** Add `frozen` stack counter to `Station` (integer 0–3, capped at triple frozen). Frozen is distinct from `DEAD` / `EXPLODING` — the station is still alive and visible.
+- [ ] **12.2** Aiming phase: if `station.frozen > 0`, skip all angle/power input (keyboard, mouse, sliders). HUD replaces Angle/Power display with a centred label: `FROZEN` / `DOUBLE FROZEN` / `TRIPLE FROZEN` in the team colour. Only the End Turn button is active. AI stations in the frozen state skip their action and end their turn immediately.
+- [ ] **12.3** Fire phase: frozen stations do not fire and do not execute movement. Their `frozen` counter decrements by 1 at the end of the turn (so a single-frozen station is unfrozen next turn).
+- [ ] **12.4** Frozen VFX — while `frozen > 0`, cover the station with white particle sparks on Layer 2. Particles spawn at the start of the frozen turn and fade individually over the turn duration, leaving the station visible underneath. Particle count scales with freeze stack (more = more dramatic).
+- [ ] **12.5** Frozen comet interaction — comets no longer destroy stations on contact. Instead they apply `frozen += 1` (capped at 3) and pass through. Update collision handling and requirements doc accordingly.
+- [ ] **12.6** Team Shield and Armour still operate for frozen stations (the ship is immobilised, not defenceless). Document this in the frozen state spec.
+- [ ] **12.7** Edge cases: a frozen station that is also hit by a bullet behaves normally (takes damage / is destroyed). Frozen does not grant immunity.
+
+### 12.2 Electrostar
+
+- [ ] **12.8** Add `ELECTROSTAR` to `PlanetType` enum. Appearance: compact neutron star body (similar to a white dwarf) with visible electric arc tendrils radiating from the surface. Gravity: 20% of white dwarf mass at equal radius.
+- [ ] **12.9** Arc lightning mechanic: approximately once per turn (with some randomness ±30%), the Electrostar fires an arc in a random direction. The arc travels in a straight line from the star surface outward to 3× the star's radius. Any station the arc touches receives `electrified += 1`.
+- [ ] **12.10** Electrified condition — same stack model as frozen (0–3, triple max). While electrified, the station's angle and power are randomised each turn (the player cannot control them); the station fires and moves at these random values. HUD shows `ELECTRIFIED` / `DOUBLE ELECTRIFIED` / `TRIPLE ELECTRIFIED`. Electrified counter decrements by 1 per turn. Implement this properly for both human and AI stations (the existing shock weapon electrified behaviour needs to be brought in line with this spec — audit and fix).
+- [ ] **12.11** Electrostar rendering — animated electric arcs: short branching strokes radiating from the star surface, redrawn each frame with randomised branch points to give a sparkling/crackling appearance. Colour: bright cyan/white.
+- [ ] **12.12** Add Electrostar to the wildcard planet pool (random bonus stellar object injection, §6.1 of requirements).
+- [ ] **12.13** Add Electrostar scenario: 1–2 Electrostars placed amongst a standard asteroid field. Add to the scenario table in requirements and `scenarioData.js`.
+
+### 12.3 Magnetar
+
+- [ ] **12.14** Add `MAGNETAR` to `PlanetType` enum. Appearance: dense neutron star with visible looping magnetic field line overlay (animated). Gravity: 20% of white dwarf mass at equal radius (low, like Electrostar).
+- [ ] **12.15** Magnetic force mechanic: unlike simple radial gravity, Magnetar exerts a **looping magnetic field** force on bullets. The field follows a dipole pattern — bullets are deflected laterally (perpendicular to the radial direction) depending on their position relative to the field poles. This produces curved, looping trajectories rather than simple infall. Tune the field constant so the effect is strong enough to be visibly interesting but not so strong it makes the game unplayable. Document the force formula in design.md.
+- [ ] **12.16** Magnetar field line animation — draw a set of looping arc curves around the Magnetar (the classic dipole field-line pattern) on the background layer. Lines should animate (slowly rotating or pulsing) to communicate the magnetic field. Colour: warm amber/gold to distinguish from electric-blue Electrostar.
+- [ ] **12.17** Add Magnetar to the wildcard planet pool.
+- [ ] **12.18** Add Magnetar scenario: 1–2 Magnetars placed amongst a standard asteroid field. Add to scenario table in requirements and `scenarioData.js`.
+
+---
+
+## Phase 13 — Gravitational Time Dilation
+
+Improves the visual quality of bullet paths near black holes and white dwarfs without increasing global computation costs. Grounded in a relativistic narrative.
+
+- [ ] **13.1** Add an `eventHorizonRadius` property to black hole and white dwarf planets. This is a small inner radius (smaller than the existing `radius`) within which bullets are absorbed. For black holes: `eventHorizonRadius ≈ 0.15 × radius`. For white dwarfs: `eventHorizonRadius ≈ 0.25 × radius`.
+- [ ] **13.2** Time dilation factor — compute `dilationFactor` for each active bullet each physics step:
+  - For each black hole / white dwarf within range, compute `r = distance(bullet, planet)`.
+  - The dilation zone begins at `3 × eventHorizonRadius` and falls linearly to `0` at `eventHorizonRadius`.
+  - `dilationFactor = clamp((r − eventHorizonRadius) / (2 × eventHorizonRadius), 0, 1)`
+  - Use the minimum dilation factor across all nearby dilating bodies.
+- [ ] **13.3** Apply dilation to bullet step: multiply the effective `TIMESTEP` by `dilationFactor` for that bullet for that step. Compensate by multiplying the gravitational acceleration by `1 / dilationFactor` (so the bullet follows the same physical path — only the simulation step size changes, producing more trail sample points near the horizon).
+- [ ] **13.4** Trail sampling: because the effective timestep is smaller near the horizon, trail points are recorded more densely there, producing a visibly smoother curved path — the cosmetic goal of the feature.
+- [ ] **13.5** Event horizon absorption: if `r < eventHorizonRadius`, the bullet does not explode. Instead it transitions to a `FADING` state: no explosion VFX, the trail end fades to transparent over ~0.5 seconds. This replaces the current silent vanish behaviour.
+- [ ] **13.6** Bullets ending their turn inside the dilation zone (but outside the event horizon) do not explode at turn end — they continue into the next turn still affected. Bullets that have been inside the zone for more than `BULLET_LIFE` steps are silently removed (existing timeout still applies).
+- [ ] **13.6a** AI simulation (`PhysicsEngine.simulate()`) is explicitly exempt from time dilation. AI fast-step trajectories run at full speed regardless of proximity to black holes or white dwarfs. Dilation is a visual/cosmetic effect applied only to real-time bullet physics, not to AI path prediction.
+- [ ] **13.7** Education / tutorial text — add a short paragraph to the game's About or Instructions panel explaining the time dilation effect in accessible language ("near a black hole, time itself slows — you can watch bullets freeze as they approach the event horizon").
+- [ ] **13.8** Update `requirements.md` §5 (Planet Types) and `design.md` §4 (Physics Engine) to document the event horizon radius, dilation zone, and fading absorption behaviour.
+
+---
+
+## Phase 14 — Space Mammoth SVG Sprite System
+
+Replaces the procedural Death Star station renderer with a vector sprite system driven by pre-converted SVG artwork. Full spec in `spec/space-mammoth-sprite-spec.md`.
+
+- [ ] **14.1** Write `scripts/build-sprites.mjs` — Node script that parses a source SVG, extracts path data and keyframe annotations, resolves team colour placeholders, and emits a `*.sprite.js` module.
+- [ ] **14.2** Author `assets/mammoth-saucer.svg` — the master artwork file. Must conform to the layer naming and placeholder colour conventions in the sprite spec.
+- [ ] **14.3** Run the build script against the artwork; commit the generated `src/rendering/sprites/mammoth-saucer.sprite.js` to the repo.
+- [ ] **14.4** `src/rendering/sprites/spriteUtils.js` — implement `_interpolateKeyframes()`, `_resolveColor()`, `_drawMorphLayer()`, `_drawTransformLayer()` helpers.
+- [ ] **14.5** `src/rendering/sprites/SpriteRenderer.js` — implement `initSprite(sprite)` (builds `Path2D` objects at load), `drawStation(ctx, sprite, x, y, screenRadius, teamColors, animPhase)`, and the detail-level LOD check (hide mammoth at Micro/Tiny).
+- [ ] **14.6** Wire `SpriteRenderer.drawStation()` into the main `Renderer.drawFrame()` in place of the existing `drawStation()` death-star implementation.
+- [ ] **14.7** Populate `team.spriteColors` for all 12 teams — primary = team colour, secondary = derived complementary shade (static lookup table).
+- [ ] **14.8** Verify on iPad: confirm 12-station game sustains 60fps; confirm no `ctx.filter`, no `createRadialGradient`, no per-frame `Path2D` construction in the hot path.
+- [ ] **14.9** Remove the procedural Death Star `drawStation` code from `Renderer.js` once sprite system is proven.
+- [ ] **14.10** Update `requirements.md` §11.4 (Station Visual Design) and `design.md` §5.4 to reference the sprite system and retire the Death Star description.
