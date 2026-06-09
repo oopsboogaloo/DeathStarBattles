@@ -45,10 +45,10 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.ROCKET,             charges: 1, label: 'ROCKET',          tier: 1 },
   { id: WeaponId.BLASTER,            charges: 3, label: 'BLASTER',         tier: 1 },
   { id: WeaponId.FORCE_SHIELD,       charges: 2, label: 'FORCE SHIELD',    tier: 1 },
-  { id: WeaponId.BOUNCE_CANNON,      charges: 2, label: 'BOUNCE CANNON',   tier: 1 },
+  { id: WeaponId.BOUNCE_CANNON,      charges: 4, label: 'BOUNCE CANNON',   tier: 1 },
   { id: WeaponId.SCATTER_CANNON,     charges: 2, label: 'SCATTER CANNON',  tier: 1 },
   { id: WeaponId.RESUPPLY,           charges: 1, label: 'RESUPPLY',        tier: 1 },
-  { id: WeaponId.QUANTUM_TORPEDO,    charges: 1, label: 'QUANTUM TORPEDO', tier: 1 },
+  { id: WeaponId.QUANTUM_TORPEDO,    charges: 3, label: 'QUANTUM TORPEDO', tier: 1 },
   // ── Tier 2 — Uncommon ─────────────────────────────────────────────────────
   { id: WeaponId.LASER,              charges: 1, label: 'LASER',           tier: 2 },
   { id: WeaponId.ROCKET_POD,         charges: 1, label: 'ROCKET POD',      tier: 2 },
@@ -65,7 +65,7 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.ELECTRO_STUN,       charges: 1, label: 'ELECTRO STUN',    tier: 2 },
   { id: WeaponId.TELEPORT,           charges: 1, label: 'TELEPORT',        tier: 2 },
   { id: WeaponId.AUTO_CANNON,        charges: 2, label: 'AUTO CANNON',     tier: 2 },
-  { id: WeaponId.TRIPLE_QUANTUM_TORPEDO, charges: 1, label: 'TRIPLE Q. TORP.', tier: 2 },
+  { id: WeaponId.TRIPLE_QUANTUM_TORPEDO, charges: 3, label: 'TRIPLE Q. TORP.', tier: 2 },
   // ── Tier 3 — Rare ─────────────────────────────────────────────────────────
   { id: WeaponId.ANTIMATTER_LASER,      charges: 1, label: 'ANTIMATTER LASER', tier: 3 },
   { id: WeaponId.MAMMOTH_CANNON,        charges: 1, label: 'MAMMOTH CANNON',   tier: 3 },
