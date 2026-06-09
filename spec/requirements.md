@@ -144,51 +144,52 @@ A tier is rolled first at the stated probability, then a weapon is chosen unifor
 
 **Tier 1 — Common**
 
-| Weapon |
-|---|
-| Triple Cannon |
-| Plasma Blunderbuss |
-| Rocket |
-| Blaster |
-| Force Shield |
-| Bounce Cannon |
-| Scatter Cannon |
-| Resupply |
-| Quantum Torpedo |
+| Weapon | Charges per pickup |
+|---|---|
+| Triple Cannon | 3 |
+| Plasma Blunderbuss | 2 |
+| Rocket | 1 |
+| Blaster | 3 |
+| Force Shield | 2 |
+| Bounce Cannon | 4 |
+| Scatter Cannon | 2 |
+| Resupply | 1 |
+| Quantum Torpedo | 3 |
 
 **Tier 2 — Uncommon**
 
-| Weapon |
-|---|
-| Laser |
-| Rocket Pod |
-| Minigun |
-| Septuple Cannon |
-| Frag Shot |
-| Shotgun |
-| Dual Blaster |
-| Star Shot |
-| Spiral |
-| Team Shield |
-| Armour |
-| Repulsor Field |
-| Electro Stun |
-| Teleport |
-| Auto Cannon |
-| Triple Quantum Torpedo |
+| Weapon | Charges per pickup |
+|---|---|
+| Laser | 1 |
+| Rocket Pod | 1 |
+| Minigun | 1 |
+| Septuple Cannon | 2 |
+| Frag Shot | 2 |
+| Shotgun | 2 |
+| Dual Blaster | 3 |
+| Star Shot | 1 |
+| Spiral | 1 |
+| Team Shield | 1 |
+| Armour | 1 |
+| Repulsor Field | 2 |
+| Teleport | 3 |
+| Auto Cannon | 2 |
+| Triple Quantum Torpedo | 3 |
 
 **Tier 3 — Rare**
 
-| Weapon |
-|---|
-| Antimatter Laser |
-| Mammoth Cannon |
-| Quantum Auto-Cannon |
-| Gravity Cannon |
-| Super Laser |
-| Reinforcement Signal |
-| Mind Control Beam |
-| Hedgehog |
+| Weapon | Charges per pickup |
+|---|---|
+| Antimatter Laser | 1 |
+| Mammoth Cannon | 1 |
+| Quantum Auto-Cannon | 1 |
+| Gravity Cannon | 1 |
+| Super Laser | 1 |
+| Reinforcement Signal | 1 |
+| Mind Control Beam | 1 |
+| Hedgehog | 1 |
+
+> **Note:** Electro Stun exists as a weapon but is excluded from the pickup pool. It can only be granted via developer mode.
 
 ---
 
@@ -200,7 +201,7 @@ All planets exert gravity unless stated otherwise. Planet impact behaviour when 
 |---|---|---|
 | Rocky planet | Brown/tan | Bullet explodes on impact |
 | Asteroid | Dark brown | Bullet explodes on impact; fragments into 2–4 child asteroids |
-| Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed |
+| Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed. Exception: **Bounce Cannon** reflects off elastically and smashes the asteroid (bullet survives). |
 | Rich Asteroid | Blue-brown | Same as Asteroid; additionally spawns one Collectable on destruction. Only appears when Collectables setting is ON (5% of asteroids). |
 | Star | Yellow/orange | Bullet explodes on impact |
 | White Dwarf | White | Bullet explodes on impact; very small radius, very high density |
@@ -231,7 +232,7 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 |---|---|---|
 | 1 | Planetary | Rocky planets randomly placed |
 | 2 | Asteroids | Many small asteroids (density low, mass low) |
-| 3 | Crystal Asteroids | Like Asteroids but all asteroids are Crystal type — bullets pass through |
+| 3 | Crystal Asteroids | Like Asteroids but all asteroids are Crystal type — bullets pass through; Bounce Cannon reflects off and smashes them |
 | 4 | Star System | One central star + rocky planets |
 | 5 | Binary Star | Two stars + rocky bodies |
 | 6 | Jovian | One large gas giant + smaller moons |
@@ -331,6 +332,8 @@ Play one match. The team with surviving stations wins.
 ### 9.2 Tournament
 Play a series of games on a fixed configuration. A cumulative leaderboard tracks wins, kills, suicides, own goals, shots fired, and survival. Scenarios may randomise between games. Awards are shown every 5 games.
 
+When **Tournament Prize** is enabled (see §10 Page 3), a random weapon is awarded after every game — either to the game winner (Minor/Medium/Major/Mammoth settings) or to the last-place team in the standings (Handicap settings). The prize count per game is 1/2/3/5 weapons for the four non-handicap tiers and 1/2/3 for the three handicap tiers. Weapons are selected using the same 80/16/4% tier weighting as pickups and are applied immediately to that team's stock, carrying into the next game. The results screen names each weapon received.
+
 ---
 
 ## 10. Configuration Options
@@ -364,6 +367,7 @@ The config panel always uses a compact 4-page paged layout. Page 1 is always vis
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
 | Bullet paths | Off (default) / Full / Half / Quarter / Eighth | Simulated path preview for current aim — see §11.11 |
 | Minimal UI | Off / On | Reduces HUD text size for smaller screens |
+| T. Prize | None / Minor / Medium / Major / Mammoth / Minor Handicap / Med. Handicap / Maj. Handicap | Only visible in Tournament mode. Awards random weapon(s) after each game; see §9.2 |
 
 ### Page 4 — Collectables
 All sub-options are greyed out and unclickable when Collectables is Off.
