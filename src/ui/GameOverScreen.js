@@ -28,8 +28,8 @@ export class GameOverScreen {
   onContinue(cb) { this._onContinueCb = cb; }
   onNewGame(cb)  { this._onNewGameCb  = cb; }
 
-  show(gameState, tournament) {
-    this._populate(gameState, tournament);
+  show(gameState, tournament, isFinal = false) {
+    this._populate(gameState, tournament, isFinal);
     this.element.style.display = 'flex';
   }
 
@@ -66,7 +66,7 @@ export class GameOverScreen {
 
   // ── Populate ───────────────────────────────────────────────────────────────
 
-  _populate(gameState, tournament) {
+  _populate(gameState, tournament, isFinal = false) {
     this._card.innerHTML = '';
 
     // Winner heading
@@ -89,11 +89,11 @@ export class GameOverScreen {
       const shouldAwards = tournament.shouldShowAwards();
       if (shouldAwards) this._card.appendChild(this._awardsSection(tournament));
       if (tournament.lastRewards) this._card.appendChild(this._rewardsSection(tournament));
-      this._card.appendChild(this._standingsSection(tournament));
+      this._card.appendChild(this._standingsSection(tournament, isFinal));
     }
 
     // Buttons
-    this._card.appendChild(this._buttons(tournament));
+    this._card.appendChild(this._buttons(tournament, isFinal));
   }
 
   _statsTable(gameState) {
@@ -222,14 +222,15 @@ export class GameOverScreen {
     return wrap;
   }
 
-  _standingsSection(tournament) {
+  _standingsSection(tournament, isFinal = false) {
     const wrap = el('div', { marginBottom: '16px' });
 
     const title = el('div', {
       fontSize: '11px', letterSpacing: '0.1em',
       color: 'rgba(150,165,230,0.6)', marginBottom: '6px',
     });
-    title.textContent = `TOURNAMENT STANDINGS  (${tournament.gameIndex} games)`;
+    const finalTag = isFinal ? '  ★ FINAL' : '';
+    title.textContent = `TOURNAMENT STANDINGS  (${tournament.gameIndex} games)${finalTag}`;
     wrap.appendChild(title);
 
     const rows = tournament.sorted;
@@ -251,10 +252,11 @@ export class GameOverScreen {
     return wrap;
   }
 
-  _buttons(tournament) {
+  _buttons(tournament, isFinal = false) {
     const bar = el('div', { display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px' });
 
-    const continueBtn = btn(tournament ? 'Next Game' : 'Play Again', true);
+    const continueLabel = isFinal ? 'End Tournament' : (tournament ? 'Next Game' : 'Play Again');
+    const continueBtn = btn(continueLabel, true);
     continueBtn.addEventListener('click', () => {
       this.hide();
       this._onContinueCb?.();

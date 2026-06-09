@@ -107,7 +107,17 @@ tpResultsScreen.onMainMenu(() => {
 
 gameOverScreen.onContinue(() => {
   if (tournament) {
-    startGame(activeConfig);      // same config, next tournament game
+    const limit   = activeConfig.tournamentGames;
+    const isFinal = limit !== 'keepGoing' && tournament.gameIndex >= limit;
+    if (isFinal) {
+      tournament        = null;
+      _prevWeaponStocks = null;
+      if (loop) { loop.stop(); loop = null; }
+      renderer.setGameAspect(null, null);
+      panel.show();
+    } else {
+      startGame(activeConfig);    // next tournament game
+    }
   } else {
     startGame(activeConfig);      // single game: play again
   }
@@ -370,7 +380,9 @@ function _onGameOver(gs) {
         for (const g of grants) stocks.set(g.id, (stocks.get(g.id) ?? 0) + g.charges);
       }
     }
-    gameOverScreen.show(gs, tournament);
+    const limit   = activeConfig.tournamentGames;
+    const isFinal = limit !== 'keepGoing' && tournament.gameIndex >= limit;
+    gameOverScreen.show(gs, tournament, isFinal);
   } else {
     gameOverScreen.show(gs, null);
   }

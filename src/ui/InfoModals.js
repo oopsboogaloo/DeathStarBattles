@@ -318,8 +318,17 @@ Useful for learning trajectories. Experienced players may prefer Off to keep the
 The game itself is unchanged — only the size of interface elements is affected. Useful on smaller screens or when you want less visual clutter during play.`,
   },
   {
+    title: 'Number of Games',
+    body: `Only available in Tournament mode (Tournament page). How many games to play before the tournament ends.
+
+  Keep Going  — tournament runs indefinitely (default). Use New Game to end manually.
+  5 / 10 / 15 / 20 / 30 / 50  — tournament ends automatically after that many games.
+
+When the final game ends, the results screen shows the complete standings marked ★ FINAL, and the End Tournament button returns to the menu.`,
+  },
+  {
     title: 'Tournament Prize',
-    body: `Only available in Tournament mode. Awards random weapons to a team after each game.
+    body: `Only available in Tournament mode (Tournament page). Awards random weapons to a team after each game.
 
   None            — no reward.
   Minor           — game winner receives 1 random weapon.

@@ -332,7 +332,9 @@ Play one match. The team with surviving stations wins.
 ### 9.2 Tournament
 Play a series of games on a fixed configuration. A cumulative leaderboard tracks wins, kills, suicides, own goals, shots fired, and survival. Scenarios may randomise between games. Awards are shown every 5 games.
 
-When **Tournament Prize** is enabled (see §10 Page 3), a random weapon is awarded after every game — either to the game winner (Minor/Medium/Major/Mammoth settings) or to the last-place team in the standings (Handicap settings). The prize count per game is 1/2/3/5 weapons for the four non-handicap tiers and 1/2/3 for the three handicap tiers. Weapons are selected using the same 80/16/4% tier weighting as pickups and are applied immediately to that team's stock, carrying into the next game. The results screen names each weapon received.
+When **Number of Games** is set to a specific number (see §10 Page 6), the tournament ends automatically after that many games. The final results screen shows standings marked ★ FINAL and an End Tournament button that returns to the menu. The default "Keep Going" setting runs indefinitely.
+
+When **Tournament Prize** is enabled (see §10 Page 6), a random weapon is awarded after every game — either to the game winner (Minor/Medium/Major/Mammoth settings) or to the last-place team in the standings (Handicap settings). The prize count per game is 1/2/3/5 weapons for the four non-handicap tiers and 1/2/3 for the three handicap tiers. Weapons are selected using the same 80/16/4% tier weighting as pickups and are applied immediately to that team's stock, carrying into the next game. The results screen names each weapon received.
 
 ---
 
@@ -367,7 +369,14 @@ The config panel always uses a compact 4-page paged layout. Page 1 is always vis
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
 | Bullet paths | Off (default) / Full / Half / Quarter / Eighth | Simulated path preview for current aim — see §11.11 |
 | Minimal UI | Off / On | Reduces HUD text size for smaller screens |
-| T. Prize | None / Minor / Medium / Major / Mammoth / Minor Handicap / Med. Handicap / Maj. Handicap | Only visible in Tournament mode. Awards random weapon(s) after each game; see §9.2 |
+
+### Page 6 — Tournament
+Only accessible when Mode = Tournament.
+
+| Option | Values | Notes |
+|---|---|---|
+| No. of Games | Keep Going (default) / 5 / 10 / 15 / 20 / 30 / 50 | Tournament ends automatically after the set number of games; final results screen shows ★ FINAL |
+| T. Prize | None / Minor / Medium / Major / Mammoth / Minor Handicap / Med. Handicap / Maj. Handicap | Awards random weapon(s) after each game; see §9.2 |
 
 ### Page 4 — Collectables
 All sub-options are greyed out and unclickable when Collectables is Off.
