@@ -293,7 +293,7 @@ THE SYSTEM SHALL expose a log sink interface injectable at runtime, supporting:
 
 ### Unit Tests
 
-THE SYSTEM SHALL provide a Jest unit test suite covering:
+THE SYSTEM SHALL provide a unit test suite covering:
 - Firing solution serialisation round-trip (serialise then deserialise produces identical object)
 - Game state serialisation round-trip (serialise then deserialise produces identical state)
 - Firing solution validation (valid and invalid inputs)
@@ -306,7 +306,7 @@ THE SYSTEM SHALL provide a Jest unit test suite covering:
 
 ### Integration Tests
 
-THE SYSTEM SHALL provide a Jest integration test suite using a Firebase Emulator instance covering:
+THE SYSTEM SHALL provide an integration test suite using a Firebase Emulator instance covering:
 - Firebase game record creation and retrieval
 - Atomic slot assignment under concurrent join requests
 - Firing solution write and detection
@@ -317,7 +317,7 @@ THE SYSTEM SHALL provide a Jest integration test suite using a Firebase Emulator
 
 ### Multiplayer Simulation Tests
 
-THE SYSTEM SHALL provide headless multiplayer simulation tests runnable under Jest covering the following scenarios:
+THE SYSTEM SHALL provide headless multiplayer simulation tests covering the following scenarios:
 - Two-client game plays to completion
 - Four-client game plays to completion
 - Single-client all-AI game plays to completion
