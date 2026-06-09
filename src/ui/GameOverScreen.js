@@ -88,7 +88,11 @@ export class GameOverScreen {
     if (tournament) {
       const shouldAwards = tournament.shouldShowAwards();
       if (shouldAwards) this._card.appendChild(this._awardsSection(tournament));
-      if (tournament.lastRewards) this._card.appendChild(this._rewardsSection(tournament));
+      if (tournament.lastRewards) {
+        for (const reward of tournament.lastRewards) {
+          this._card.appendChild(this._rewardsSection(reward));
+        }
+      }
       this._card.appendChild(this._standingsSection(tournament, isFinal));
     }
 
@@ -172,22 +176,40 @@ export class GameOverScreen {
     const aw = tournament.awards();
     if (!aw) return wrap;
 
+    const prizesByKey = new Map();
+    if (tournament.lastAwardPrizes) {
+      for (const p of tournament.lastAwardPrizes) prizesByKey.set(p.key, p);
+    }
+
     for (const { key, winner } of aw) {
       const def = AWARD_DEFS[key];
       if (!def || !winner) continue;
       const [r, g, b] = winner.colour;
-      const row = el('div', { display: 'flex', alignItems: 'center', marginBottom: '5px' });
+      const row = el('div', { display: 'flex', alignItems: 'center', marginBottom: '3px' });
       row.innerHTML =
         `<span style="color:rgba(180,190,255,0.55);min-width:110px;font-size:11px;letter-spacing:0.06em">${def.icon} ${def.label}</span>` +
         `<span style="color:rgb(${r},${g},${b});font-weight:bold">${winner.label}</span>` +
         `<span style="color:rgba(150,165,210,0.55);margin-left:8px;font-size:11px">(${winner[def.stat]} ${def.unit})</span>`;
       wrap.appendChild(row);
+
+      const prize = prizesByKey.get(key);
+      if (prize) {
+        for (const grant of prize.grants) {
+          const prizeRow = el('div', { display: 'flex', alignItems: 'center', marginBottom: '3px', fontSize: '11px' });
+          prizeRow.innerHTML =
+            `<span style="min-width:110px"></span>` +
+            `<span style="color:rgba(150,165,230,0.45)">+</span>` +
+            `<span style="color:rgb(${r},${g},${b});margin-left:5px">${grant.label}</span>` +
+            `<span style="color:rgba(150,165,210,0.45);margin-left:6px">×${grant.charges}</span>`;
+          wrap.appendChild(prizeRow);
+        }
+      }
     }
     return wrap;
   }
 
-  _rewardsSection(tournament) {
-    const { teamLabel, teamColour, grants } = tournament.lastRewards;
+  _rewardsSection(reward) {
+    const { type, teamLabel, teamColour, grants } = reward;
     const [r, g, b] = teamColour;
 
     const wrap = el('div', {
@@ -202,7 +224,7 @@ export class GameOverScreen {
       color: 'rgba(200,210,255,0.8)', marginBottom: '10px',
       textShadow: '0 0 12px rgba(120,140,255,0.5)',
     });
-    title.textContent = `⬡  TOURNAMENT PRIZE`;
+    title.textContent = type === 'handicap' ? '⬡  HANDICAP PRIZE' : '⬡  WINNER PRIZE';
     wrap.appendChild(title);
 
     const teamLine = el('div', { marginBottom: '8px', fontSize: '12px' });

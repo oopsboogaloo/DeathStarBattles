@@ -19,10 +19,13 @@ const ALL_AWARD_STATS = [
 
 export class TournamentState {
   constructor() {
-    this.gameIndex     = 0;          // games completed so far
-    this._data         = new Map();  // teamIndex → cumulative data
-    this._awardHistory = [];         // array of string[] — keys shown at each interval
-    this.lastRewards   = null;       // { teamIndex, teamLabel, teamColour, grants } | null
+    this.gameIndex       = 0;          // games completed so far
+    this._data           = new Map();  // teamIndex → cumulative data
+    this._awardHistory   = [];         // array of string[] — keys shown at each interval
+    this.lastRewards     = null;       // { teamIndex, teamLabel, teamColour, grants } | null
+    this.lastAwardPrizes = null;       // [{ key, teamIndex, teamLabel, teamColour, grants }] | null
+    this._cachedAwards      = null;    // memoised awards() result for current gameIndex
+    this._cachedAwardsIndex = -1;
   }
 
   // Ensure entries exist for all teams in the current game
@@ -83,9 +86,12 @@ export class TournamentState {
 
   // Returns array of { key, winner } for the 4 selected awards, or null if no data.
   // Prefers awards not recently shown; records selection in _awardHistory.
+  // Memoised per game index — safe to call multiple times per game.
   awards() {
+    if (this._cachedAwardsIndex === this.gameIndex) return this._cachedAwards;
+
     const teams = [...this._data.values()];
-    if (!teams.length) return null;
+    if (!teams.length) { this._cachedAwards = null; this._cachedAwardsIndex = this.gameIndex; return null; }
 
     const totalKills = teams.reduce((s, t) => s + t.kills, 0) || 1;
     const shownLast   = new Set(this._awardHistory.at(-1) ?? []);
@@ -103,48 +109,88 @@ export class TournamentState {
 
     const selected = candidates.slice(0, 4);
     this._awardHistory.push(selected.map(c => c.key));
-    return selected.map(({ key, winner }) => ({ key, winner }));
+    this._cachedAwards = selected.map(({ key, winner }) => ({ key, winner }));
+    this._cachedAwardsIndex = this.gameIndex;
+    return this._cachedAwards;
   }
 
-  // Pick tournament prize weapons and store in this.lastRewards. Call after recordGame().
-  generateRewards(config, gameState) {
-    this.lastRewards = null;
-    const setting = config?.tournamentPrize ?? 'none';
-    const countMap = { minor: 1, medium: 2, major: 3, mammoth: 5,
-                       minorHandicap: 1, mediumHandicap: 2, majorHandicap: 3 };
+  // Generate award ceremony prizes and store in this.lastAwardPrizes. Call after recordGame().
+  generateAwardPrizes(config) {
+    this.lastAwardPrizes = null;
+    const setting = config?.awardPrizes ?? 'none';
+    if (setting === 'none') return null;
+
+    const tierMap  = { minor: 1, mid: 1, major: 2, mammoth: 2 };
+    const countMap = { minor: 1, mid: 2, major: 1, mammoth: 2 };
+    const tier  = tierMap[setting];
     const count = countMap[setting];
-    if (!count) return null;
+    if (!tier) return null;
 
-    const isHandicap = setting.endsWith('Handicap');
+    const aw = this.awards();
+    if (!aw || !aw.length) return null;
 
-    let recipient;
-    if (isHandicap) {
-      const sorted = this.sorted;
-      if (!sorted.length) return null;
-      recipient = sorted[sorted.length - 1];
-      if (!recipient) return null;
-      // Re-express as { index, label, colour } matching the team object shape
-      recipient = { index: recipient.index, label: recipient.label, colour: recipient.colour };
-    } else {
-      const winner = gameState?.winner;
+    const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
+    this.lastAwardPrizes = aw.map(({ key, winner }) => {
       if (!winner) return null;
-      recipient = { index: winner.index, label: `Team ${winner.index + 1}`, colour: winner.colour };
-    }
+      const grants = Array.from({ length: count }, () =>
+        pool[Math.floor(Math.random() * pool.length)]
+      );
+      return { key, teamIndex: winner.index, teamLabel: winner.label, teamColour: winner.colour, grants };
+    }).filter(Boolean);
 
-    const grants = [];
-    for (let i = 0; i < count; i++) {
+    return this.lastAwardPrizes;
+  }
+
+  // Pick weapons for a prize setting: 'minor' = 1×T1, 'mid' = 1×random, 'mammoth' = 2×random
+  _pickWeapon(setting) {
+    if (setting === 'minor') {
+      const pool = WEAPON_GRANTS.filter(g => g.tier === 1);
+      return [pool[Math.floor(Math.random() * pool.length)]];
+    }
+    const count = setting === 'mammoth' ? 2 : 1;
+    return Array.from({ length: count }, () => {
       const r    = Math.random();
       const tier = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
       const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
-      grants.push(pool[Math.floor(Math.random() * pool.length)]);
+      return pool[Math.floor(Math.random() * pool.length)];
+    });
+  }
+
+  // Generate per-game prizes (winner + handicap) and store in this.lastRewards. Call after recordGame().
+  generateRewards(config, gameState) {
+    this.lastRewards = null;
+    const results = [];
+
+    const winSetting = config?.winnerPrize ?? 'none';
+    if (winSetting !== 'none') {
+      const winner = gameState?.winner;
+      if (winner) {
+        results.push({
+          type: 'winner',
+          teamIndex:  winner.index,
+          teamLabel:  `Team ${winner.index + 1}`,
+          teamColour: winner.colour,
+          grants: this._pickWeapon(winSetting),
+        });
+      }
     }
 
-    this.lastRewards = {
-      teamIndex:  recipient.index,
-      teamLabel:  recipient.label,
-      teamColour: recipient.colour,
-      grants,
-    };
+    const hcSetting = config?.handicapPrize ?? 'none';
+    if (hcSetting !== 'none') {
+      const sorted = this.sorted;
+      if (sorted.length) {
+        const last = sorted[sorted.length - 1];
+        results.push({
+          type: 'handicap',
+          teamIndex:  last.index,
+          teamLabel:  last.label,
+          teamColour: last.colour,
+          grants: this._pickWeapon(hcSetting),
+        });
+      }
+    }
+
+    if (results.length) this.lastRewards = results;
     return this.lastRewards;
   }
 

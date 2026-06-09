@@ -2833,11 +2833,43 @@ export class GameLoop {
         this.gs.mode = GameMode.GAMEOVER;
       } else {
         this.gs.turn++;
-        this.renderer.clearTrails();
-        this._trySpawnCollectable();
-        this._startTurn();
+        this._checkTurnLimit();
+        if (this.gs.winner !== undefined) {
+          this.gs.mode = GameMode.GAMEOVER;
+        } else {
+          this.renderer.clearTrails();
+          this._trySpawnCollectable();
+          this._startTurn();
+        }
       }
     }
+  }
+
+  _checkTurnLimit() {
+    const limit = this.gs.config?.turnLimit;
+    if (!limit || limit === 'off' || this.gs.winner !== undefined) return;
+    if (this.gs.turn < limit) return;
+    const alive = this.gs.aliveTeams;
+    if (!alive.length) { this.gs.winner = null; return; }
+    const counts = alive.map(t => ({ team: t, n: t.stations.filter(s => s.status === 'active').length }));
+    const max    = Math.max(...counts.map(c => c.n));
+    const leaders = counts.filter(c => c.n === max).map(c => c.team);
+    this.gs.winner = leaders.length === 1 ? leaders[0] : null;
+    for (const s of this.gs.allStations) {
+      if (s.status === 'active') s.stats.survived = 1;
+    }
+  }
+
+  // Immediately destroy all of a team's active stations (resign).
+  resignTeam(team) {
+    for (const sta of team.stations) {
+      if (sta.status === 'active') {
+        sta.status     = 'exploding';
+        sta.explosionT = 0;
+        this._spawnStationExplosion(sta);
+      }
+    }
+    this._checkWin();
   }
 
   // ─── human input API (called by InputHandler in Phase 6) ────────────────────

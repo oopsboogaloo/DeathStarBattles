@@ -335,6 +335,24 @@ New entry in the Environment config panel:
 
 ---
 
+## TODO: Thematic Award Prizes
+
+**Status:** Not started — requires Award Prizes feature (§8.3) to exist first
+
+**Idea:** Award prizes are currently random draws from the eligible tier. In future, each award could have a curated weapon pool that fits its theme — making prizes feel like a narrative reward rather than a lucky dip.
+
+**Example thematic pools:**
+- **Bloodlust** (most kills) → aggressive weapons: Rocket Pod, Mammoth Cannon, Super Laser, Triple Quantum Torpedo
+- **Oppression** (most oppression kills) → area-denial: Gravity Cannon, Repulsor Field, Space Mine
+- **Bully** (most bully kills) → debilitating: Electro Stun, Mind Control Beam, Freeze Cannon (if added)
+- **Vengeance** (most vengeance kills) → precision: Guided Missile, Quantum Torpedo, Sniper variants
+
+**Implementation approach:** Add a `thematicPool: WeaponId[]` field to each award definition. When Award Prizes is enabled and a thematic pool is defined, draw from that pool instead of the full tier. The pool should respect tier constraints (Minor/Mid pull from Tier 1 names; Major/Mammoth from Tier 2 names) — or thematic mode could override tier entirely for flavour.
+
+**Why parked:** Requires a curated pool per award that balances flavour vs. fairness. Some awards (Oppression, Bully) can dominate in certain player-count configurations, so consistently rewarding powerful weapons to those winners could snowball. Design the pools when the award frequency and balance of the base game are better understood.
+
+---
+
 ## Star Field — Emissive Halo Bloom
 
 **Status:** Parked — worth revisiting

@@ -21,7 +21,7 @@ import { StoryDialogPopup }     from './ui/StoryDialogPopup.js';
 import { StoryModeScreen }      from './ui/StoryModeScreen.js';
 import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
 import { StoryPersistence }     from './story/StoryPersistence.js';
-import { WeaponId }             from './entities/Collectable.js';
+import { WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
 import { TargetPracticeGame }          from './core/TargetPracticeGame.js';
@@ -78,6 +78,15 @@ document.body.appendChild(optionsHelpModal.element);
 panel.onResume(() => {
   if (_menuPausedLoop && loop?.isPaused) { loop.togglePause(); }
   _menuPausedLoop = false;
+});
+
+panel.onResign(() => {
+  if (!loop) return;
+  const gs   = loop.gs;
+  const team = gs.teams[gs.currentTeamIdx];
+  if (!team) return;
+  if (_menuPausedLoop && loop.isPaused) { loop.togglePause(); _menuPausedLoop = false; }
+  loop.resignTeam(team);
 });
 
 panel.onInfo(which => {
@@ -372,12 +381,46 @@ function _onGameOver(gs) {
     tournament.generateRewards(activeConfig, gs);
     // Snapshot weapon stocks so they carry into the next game
     _prevWeaponStocks = new Map(gs.teams.map(t => [t.index, new Map(t.weaponStock)]));
-    // Apply prize weapons immediately into the carry-over stocks
+    // Apply per-game prize weapons into carry-over stocks
     if (tournament.lastRewards) {
-      const { teamIndex, grants } = tournament.lastRewards;
-      const stocks = _prevWeaponStocks.get(teamIndex);
-      if (stocks) {
-        for (const g of grants) stocks.set(g.id, (stocks.get(g.id) ?? 0) + g.charges);
+      for (const { teamIndex, grants } of tournament.lastRewards) {
+        const stocks = _prevWeaponStocks.get(teamIndex);
+        if (stocks) {
+          for (const g of grants) stocks.set(g.id, (stocks.get(g.id) ?? 0) + g.charges);
+        }
+      }
+    }
+    // Apply award ceremony prizes (every 5 games)
+    if (tournament.shouldShowAwards()) {
+      tournament.generateAwardPrizes(activeConfig);
+      if (tournament.lastAwardPrizes) {
+        for (const { teamIndex, grants } of tournament.lastAwardPrizes) {
+          const stocks = _prevWeaponStocks.get(teamIndex);
+          if (stocks) {
+            for (const g of grants) stocks.set(g.id, (stocks.get(g.id) ?? 0) + g.charges);
+          }
+        }
+      }
+    }
+    // Distribute remaining map collectables to surviving teams
+    if (activeConfig.claimCollectables) {
+      const remaining = gs.collectables.filter(c => c.alive);
+      const survivors = gs.teams.filter(t => t.stations.some(s => s.status === 'active'));
+      if (remaining.length && survivors.length) {
+        // Shuffle survivors randomly
+        for (let i = survivors.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [survivors[i], survivors[j]] = [survivors[j], survivors[i]];
+        }
+        remaining.forEach((_, i) => {
+          const team   = survivors[i % survivors.length];
+          const r      = Math.random();
+          const tier   = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
+          const pool   = WEAPON_GRANTS.filter(g => g.tier === tier);
+          const grant  = pool[Math.floor(Math.random() * pool.length)];
+          const stocks = _prevWeaponStocks.get(team.index);
+          if (stocks) stocks.set(grant.id, (stocks.get(grant.id) ?? 0) + grant.charges);
+        });
       }
     }
     const limit   = activeConfig.tournamentGames;

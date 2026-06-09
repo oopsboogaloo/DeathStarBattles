@@ -702,11 +702,23 @@ export class Renderer {
 
     // Turn counter (top-right corner, unobtrusive) — suppressed in TP mode
     if (gameState.mode !== 'gameover' && !gameState.tpGame) {
-      ctx.font         = `${Math.max(12, Math.floor(this._vpW / 80))}px monospace`;
+      const hudFontSize = Math.max(12, Math.floor(this._vpW / 80));
+      ctx.font         = `${hudFontSize}px monospace`;
       ctx.textAlign    = 'right';
       ctx.textBaseline = 'top';
       ctx.fillStyle    = 'rgba(255,255,255,0.5)';
       ctx.fillText(`Turn ${gameState.turn + 1}`, this._vpW - 10, 10);
+
+      // Turn limit countdown — shown when ≤5 turns remain
+      const limit = gameState.config?.turnLimit;
+      if (limit && limit !== 'off' && gameState.winner === undefined) {
+        const left = limit - gameState.turn;
+        if (left <= 5 && left > 0) {
+          ctx.font      = `bold ${hudFontSize}px monospace`;
+          ctx.fillStyle = left <= 2 ? 'rgba(255,90,70,0.95)' : 'rgba(255,190,60,0.9)';
+          ctx.fillText(left === 1 ? 'LAST TURN' : `${left} TURNS LEFT`, this._vpW - 10, 10 + hudFontSize + 4);
+        }
+      }
     }
   }
 

@@ -1670,4 +1670,316 @@ No performance mode creates radial gradients or sets `ctx.filter` during the liv
 | 2 | Sound | ✅ Out of scope v1 |
 | 3 | Slow-motion step (O while paused) | ✅ Implemented — hold O while paused reduces `SHOW_EVERY` to 1; release restores normal speed |
 | 4 | RNG reproducibility | ✅ Seeded PRNG (mulberry32) used throughout |
+
+---
+
+## 16. Story Mode — Engineering Spec
+
+> For what Story Mode must do, see `requirements.md §13`. For design rationale, see `requirements.md §13.11–13.15`.
+
+### 16.1 Scope
+
+Story Mode is accessed via the **Mode** selector in `ConfigPanel`. It reuses the core physics engine, `GameLoop`, and `Renderer` without modification, adding a data-driven setup layer, UI screens, an in-game objective panel, a mid-turn event dispatch system, and `localStorage` persistence.
+
+**Out of scope:** save/resume of mid-mission state; multiplayer/tournament integration.
+
+### 16.2 New `GameMode` Values
+
+```js
+STORY_SELECT:    'story_select',
+STORY_BRIEFING:  'story_briefing',
+STORY_DEBRIEF:   'story_debrief',
+STORY_DIALOG:    'story_dialog',   // pauses physics loop until dismissed
+```
+
+`STORY_DIALOG` is a transient overlay mode — `GameLoop._advance()` skips all physics processing while it is active, same as `GAMEOVER`.
+
+### 16.3 New Files
+
+| File | Purpose |
+|---|---|
+| `src/story/StoryMissions.js` | `STORY_MISSIONS` constant array — all 20 mission definitions |
+| `src/story/StoryModeState.js` | `StoryModeState` class — runtime story state (objectives, progress, events) |
+| `src/story/StorySetup.js` | `buildStoryMission()` — constructs a `GameState` from a mission definition |
+| `src/story/StoryPersistence.js` | `load/save/recordPass/isCampaignComplete` — localStorage wrapper |
+| `src/ui/StoryModeScreen.js` | DOM UI for mission select, briefing overlay, debrief overlay |
+| `src/ui/StoryObjectivePanel.js` | In-game HUD overlay for objectives + turn counter |
+| `src/ui/StoryDialogPopup.js` | Modal dialog for mid-mission event text |
+
+### 16.4 Modified Files
+
+| File | Changes |
+|---|---|
+| `src/core/GameState.js` | Add 4 new `GameMode` values; add `storyState`, `storyDialogText`, `_storyPrevMode` fields |
+| `src/core/GameLoop.js` | Add `_processStoryEvents()`, `_checkStoryObjectives()`, `_checkStoryFail()`, cannon guard, collectable override |
+| `src/entities/Station.js` | Add `role` field (`'human'/'target'/'ai'`), `visualStyle` field (`'station'/'drone'`) |
+| `src/entities/Team.js` | Add `addStartingWeapons(weaponMap)` helper |
+| `src/rendering/Renderer.js` | Render `visualStyle: 'drone'` stations with angular shape; render pulsing ring for `role: 'target'` |
+| `src/main.js` | Mount `StoryModeScreen`; wire story entry point from mode selector |
+
+### 16.5 `StoryModeState` Class
+
+```js
+export class StoryModeState {
+  constructor(mission) {
+    this.mission      = mission;
+    this.objectives   = [...mission.objectives];
+    this.objectiveMet = new Array(mission.objectives.length).fill(false);
+    this.firedEvents  = new Set();
+    this.collectCount = 0;
+    this.passed       = false;
+    this.failed       = false;
+    this.score        = 0;
+  }
+
+  get allObjectivesMet() { return this.objectiveMet.every(Boolean); }
+
+  addObjective(obj) {
+    this.objectives.push(obj);
+    this.objectiveMet.push(false);
+  }
+
+  evaluate(gs) {
+    for (let i = 0; i < this.objectives.length; i++) {
+      const obj = this.objectives[i];
+      switch (obj.type) {
+        case 'destroy_all':
+          this.objectiveMet[i] = gs.teams.filter((_, ti) => ti !== 0).every(t => !t.isAlive);
+          break;
+        case 'destroy_n':
+          this.objectiveMet[i] = gs.teams[0].stats.kills >= obj.params.count;
+          break;
+        case 'collect_n':
+          this.objectiveMet[i] = this.collectCount >= obj.params.count;
+          break;
+      }
+    }
+  }
+
+  computeScore(gs, turnsUsed) {
+    const f = this.mission.scoring.formula;
+    const kills   = gs.teams[0].stats.kills;
+    const survived = gs.teams[0].stations.filter(s => s.status === 'active').length;
+    switch (f) {
+      case 'turns_remaining': {
+        const maxTurns = this.mission.failConditions.find(f => f.type === 'max_turns')?.turns ?? 20;
+        return Math.max(0, (maxTurns - turnsUsed) * 100);
+      }
+      case 'collectables_score': return Math.max(0, this.collectCount * 200 - turnsUsed * 10);
+      case 'combat_efficiency':  return kills * 200 + survived * 100 - turnsUsed * 5;
+      default: return 0;
+    }
+  }
+}
+```
+
+### 16.6 `GameLoop` Hooks
+
+**`_processStoryEvents()`** — called at top of `_startTurn()`. Iterates `mission.events`; for each event matching `gs.turn` not yet fired: spawns stations (random valid position if `x/y` null, using `_processHyperspace()` placement loop), applies `addStartingWeapons`, adds objectives, queues dialog by setting `gs.storyDialogText` and switching mode to `STORY_DIALOG`.
+
+**`_checkStoryFail()`** — called in `_advanceResults()`. Checks `max_turns` fail condition; sets `ss.failed = true` and transitions to `STORY_DEBRIEF` if turn limit exceeded.
+
+**`_checkStoryObjectives()`** — called after `_checkStoryFail()`. Calls `ss.evaluate(gs)`; checks implicit combat fail (human wiped, enemies remain); on `allObjectivesMet`, sets `ss.passed = true` and transitions to `STORY_DEBRIEF`.
+
+**Cannon guard** — in `_fireAll()` fallback branch and in `WeaponSelector.js`, guard behind `gs.storyState?.mission.settings.cannonEnabled !== false`.
+
+**Collectable override** — in both collection points in `_advanceFiring()`, filter `WEAPON_GRANTS` to the single weapon specified by `mission.settings.collectableWeapon` if set; also increment `ss.collectCount` when the human team collects.
+
+**`_advance()` no-physics case** — add `case GameMode.STORY_DIALOG:` alongside `GAMEOVER` and `TP_RESULTS`.
+
+### 16.7 Mission Setup Builder (`StorySetup.js`)
+
+`buildStoryMission(mission, physics, rng)` returns a configured `{gs, teams}` tuple:
+
+1. Planets from `mission.layout.scenarioId` via `ScenarioFactory.build()` or from `mission.layout.planets[]` with normalised coords converted to game units.
+2. One `Team` per unique team index in `mission.layout.stations`; call `addStartingWeapons` on each; attach `AIController.create(aiLevel)` to AI teams.
+3. One `Station` per station def; set `role` and `visualStyle`.
+4. Construct `GameState`; attach `storyState = new StoryModeState(mission)`.
+5. For `collectablesSpawn === 'fixed'`, construct `Collectable` instances at normalised positions.
+
+### 16.8 UI Components
+
+**`StoryModeScreen`** — manages three sub-views: mission select (scrollable card list, lock state from persistence), briefing (story text + objectives + Start), debrief (COMPLETE/FAILED banner, score breakdown, Retry/Next). Story text uses `{enemyN}` → colour substitution via `substituteColours(text, gs)`.
+
+**`StoryObjectivePanel`** — DOM overlay top-right canvas; `update(storyState, currentTurn)` renders objective checkboxes (`destroy_all` → "Destroy all enemies"; `collect_n` → "Collect N (X/N)") and turn counter ("Turn N / MAX" in amber when approaching limit).
+
+**`StoryDialogPopup`** — semi-transparent centred modal; shows event dialog text with a single "Understood" button; dismissing restores `gs.mode = gs._storyPrevMode` and resumes the loop.
+
+### 16.9 Renderer Changes
+
+**Drone station** — branch on `station.visualStyle === 'drone'`: draw angular hexagonal/diamond shape with flat-black fill, angular notches, thin outer ring in darker team colour. No equatorial band.
+
+**Target ring** — when `station.role === 'target'`: draw dashed circle at `radius × 1.8`, pulsing opacity (0.3–0.7, period ≈ 2s), colour `rgba(180, 30, 30, alpha)`.
+
+### 16.10 Persistence (`StoryPersistence.js`)
+
+Storage key `dsb_story`. Methods: `load()`, `save(data)`, `isUnlocked(missionId, data)`, `getBestScore(missionId, data)`, `recordPass(missionId, score, data)` (unlocks mission + next; updates best score; sets `campaignComplete` when all 20 are in `unlocked`), `isCampaignComplete(data)`. All `localStorage` calls wrapped in try/catch.
+
+### 16.11 `main.js` Wiring
+
+Mode = Story → hide config, show `StoryModeScreen` select view → user picks mission → briefing → Start → `buildStoryMission` → `GameLoop` → loop detects `STORY_DEBRIEF` → `StoryPersistence.recordPass()` + save → show debrief. Retry = full `buildStoryMission` reload. Next Mission = back to select view. `ConfigPanel` reads `campaignComplete` at startup to conditionally show Starting Weapons on Page 4.
+
+### 16.12 Edge Cases
+
+- `destroy_all` with events: event-spawned stations join existing teams; the check (`teams[1+].every(!isAlive)`) evaluates correctly.
+- Multi-team `destroy_all` (M16–M20): AI teams can kill each other — all non-human teams must be eliminated; hiding and letting AI fight is a valid strategy.
+- `_checkWin()` interaction: `_checkWin()` fires before `_checkStoryObjectives()`; ensure `_advanceResults()` checks `gs.mode === STORY_DEBRIEF` and returns before the `GAMEOVER` branch to avoid a mode conflict.
+- Score of 0 on exact last turn (`turns_remaining`): valid pass; poor leaderboard result but not a failure.
+
+---
+
+## 17. Target Practice Mode — Engineering Design
+
+> For what Target Practice must do, see `requirements.md §17`.
+
+### 17.1 New Files
+
+| File | Purpose |
+|---|---|
+| `src/entities/PracticeTarget.js` | Target entity: `id`, `position (Vec2)`, `radius` |
+| `src/core/TargetPracticeSetup.js` | Station placement, target placement, feasibility simulation |
+| `src/core/TargetPracticeGame.js` | Per-game state: target sets, round tracking, per-station scoring |
+| `src/ui/TargetPracticeResultsScreen.js` | DOM results overlay (mirrors `GameOverScreen`) |
+
+### 17.2 Modified Files
+
+| File | Changes |
+|---|---|
+| `src/core/GameState.js` | New `GameMode` constants; new `tpGame` field |
+| `src/core/GameLoop.js` | New `_advanceTPAiming()`, `_tpFireAll()`, `_advanceTPFiring()` methods |
+| `src/physics/PhysicsEngine.js` | `stepTargetPractice()` — pass-through hit detection + accuracy |
+| `src/rendering/Renderer.js` | `drawTarget()`, glitter VFX, `_tpVisibleStationId` filtering |
+| `src/ui/ConfigPanel.js` | Mode `'target-practice'`; Page 5 TARGET PRACTICE |
+| `src/main.js` | Wire TP start flow |
+| `src/scenarios/scenarioData.js` | Export `TARGET_PRACTICE_SCENARIOS = [1, 2, 3, 6, 4, 19]` |
+
+### 17.3 New `GameMode` Values
+
+```js
+TP_SETUP:   'tp_setup',    // feasibility sim running
+TP_AIMING:  'tp_aiming',   // active station is aiming
+TP_FIRING:  'tp_firing',   // active station's bullet in flight
+TP_RESULTS: 'tp_results',  // results screen shown
+```
+
+New field on `GameState`: `this.tpGame = null; // TargetPracticeGame | null`
+
+### 17.4 `TargetPracticeSetup`
+
+Stateless static helper called once per game from `main.js`.
+
+**`placeStations(config, planets, gameW, gameH)`** — determines landscape/portrait orientation, picks random edge, computes evenly-spaced positions with 2× station-radius padding, steps inward up to 200px per station to avoid planet overlap.
+
+**`placeTargets(config, planets, stations, gameW, gameH)`** — divides map into a grid (cell side ≈ 4× target radius), excludes station-edge strip, shuffles and fills until 2N targets placed without planet overlap; returns `null` on failure (triggers scenario re-roll).
+
+**`runFeasibility(stations, candidates, planets, physics, gameW, gameH)`** — shared trace budget of 200 total traces across all `(station, candidate)` pairs (`tracesPerPair = max(1, floor(200 / pairs.length))`). Calls `SimBot._findBestShot` with a duck-typed mock target `{position, radius, id, team: null}`. Returns `{hitMatrix, selectedTargets}` where `selectedTargets` is N targets chosen by priority rules (most-stations-hit first).
+
+**Scenario re-roll:** if `placeTargets()` returns `null`, increment counter, try a different scenario. After 6 consecutive failures, fall back to Planetary (scenario 1) with N halved.
+
+### 17.5 `TargetPracticeGame`
+
+```js
+class TargetPracticeGame {
+  targets       // PracticeTarget[N]
+  totalRounds   // from config
+  currentRound  // 1-indexed
+  stationList   // Station[] — all stations in turn order
+  teamData      // Map<teamIndex, TeamTPData>
+}
+
+class TeamTPData {
+  targetDestroyed  // boolean[N] — shared by all stations on team
+  hits             // { stationId, targetIdx, accuracy }[]
+  finishedRound    // number | null — round when all N cleared
+}
+```
+
+A team with `finishedRound !== null` is excluded from `_turnOrder` in subsequent rounds.
+
+### 17.6 Turn Model
+
+Target Practice uses **simultaneous fire** — all stations on all teams aim, then all bullets fly at once — exactly like normal mode.
+
+**`_startTPTurn()`** — sets `_turnOrder` to all active stations, resets weapons to `CANNON`, transitions to `TP_AIMING`.
+
+**`_advanceTPAiming()`** — mirrors `_advanceAiming()`. AI stations call `_tpAIAim()` (picks a random surviving target, calls `_findBestShot` via a duck-typed mock); human stations wait for input. When all stations have aimed, call `_tpFireAll()`.
+
+**`_tpFireAll()`** — creates one `Bullet` per station, sets `gs.mode = TP_FIRING`.
+
+**`_advanceTPFiring()`** — runs `physics.step()` per bullet each tick; checks pass-through hit detection; on hit calls `tp.recordHit()`; pushes glitter VFX. When `activeBullets` empty: increments round; if past `totalRounds`, transitions to `TP_RESULTS`; otherwise calls `_startTPTurn()`.
+
+### 17.7 Pass-Through Hit Detection (`PhysicsEngine.stepTargetPractice`)
+
+Identical to `step()` for gravity and planet collision. Additionally, after position update, checks each surviving target:
+
+```
+dx = target.position.x − bullet.position.x
+dy = target.position.y − bullet.position.y
+if sqrt(dx² + dy²) <= target.radius → register hit (do NOT destroy bullet)
+```
+
+**Accuracy:**
+```
+toCenter = target.position − bullet.position (at moment of entry)
+θ = angleBetween(bullet.velocity, toCenter)  (degrees, via acos of dot product)
+accuracy = max(0, 1 − θ / 90)
+```
+
+Only the first hit per target per station counts; re-entries are ignored by skipping targets already in `teamData.targetDestroyed`.
+
+### 17.8 Renderer — Targets and Visibility
+
+**`drawTarget(ctx, target)`** — five concentric rings, outside in: white → red → white → red → white bullseye. Each ring width = `radius / 5`.
+
+**Glitter VFX** — on destruction: 24 particles (`type: 'glitter'`) in `gs.vfxList`. Each: random direction (speed 1–4 px/frame), life 0–1 decrementing 0.04/frame, colour randomly from `#fff / #ff4444 / #ffcc00 / #ffaaaa`, size 2–5px.
+
+**Visibility filtering** — in TP modes, only the active station and its team's targets are drawn. Set `_tpVisibleStationId` on `Renderer` before drawing; `drawStations()` and `drawTrails()` check it. Pass only the active team's target set to `drawTarget()` calls.
+
+### 17.9 ConfigPanel — Page 5
+
+Mode row: `single → tournament → target-practice → single`.
+
+Page 5 (TARGET PRACTICE) — only rendered when `_d.mode === 'target-practice'`:
+
+| Label | Values | Default |
+|---|---|---|
+| Targets | 1 / 3 / 5 / 7 / 10 / 20 | 5 |
+| Target Size | Micro / Tiny / Small / Medium / Large / Giant / Mammoth | Medium |
+| Rounds | 1 / 3 / 5 / 7 / 10 | 5 |
+| Include AI | Off / On | Off |
+
+When mode changes away from `'target-practice'`, clamp current page index to 0–3 to prevent user landing on hidden page.
+
+### 17.10 State Machine
+
+```
+ConfigPanel [mode=target-practice] → Start
+  │
+  ▼
+main.js: generate scenario → placeStations → placeTargets (re-roll on null) →
+         runFeasibility → construct TargetPracticeGame → gs.tpGame = game
+         gs.mode = TP_AIMING
+  │
+  ▼
+[TP_AIMING] — active station only, its targets only
+  human: wait for End Turn
+  AI:    _tpAIAim() → advance _turnIdx
+  all aimed → _tpFireAll() → [TP_FIRING]
+  │
+  ▼
+[TP_FIRING] — single-step physics, pass-through hit detection
+  hits recorded, glitter VFX
+  bullets terminate → increment round
+  ├── more rounds → [TP_AIMING]
+  └── all rounds done → [TP_RESULTS]
+  │
+  ▼
+[TP_RESULTS] — TargetPracticeResultsScreen.show(gs)
+  Play Again → re-run from scenario generation
+  Main Menu  → ConfigPanel.show()
+```
+
+### 17.11 HUD in TP Mode
+
+Top-centre: `"Team X  Station Y — Round Z / R"`. Angle bottom-left, Power bottom-right unchanged. No weapon selector, no hyperspace button.
 | 5 | Mobile config panel | ✅ Implemented — responsive paged layout (see §10.2); game canvas not yet touch-controlled |

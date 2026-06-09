@@ -174,10 +174,10 @@ Minor adjustments to existing systems and small new player-facing options.
 
 ### 11.2 Tournament & game options
 
-- [ ] **11.4** Tournament prizes — reduce rate and/or magnitude so prizes feel notable rather than constant. Review current config values and step them down; verify that a typical 10-game tournament doesn't drown everyone in weapons.
-- [ ] **11.5** Turn limit option — add a configurable turn limit to the config panel (Options page). When the limit is reached and no winner has been found, the game ends and the team with the most surviving stations wins (or a draw if tied). Show a countdown in the HUD from turn `limit − 5` onward.
-- [ ] **11.6** Resign game option — add a Resign button (accessible from the in-game menu or a small canvas button). Resigning eliminates the resigning team's remaining stations immediately; in tournament mode it scores as a loss with 0 survivors.
-- [ ] **11.7** Tournament: surviving teams claim collectables — add a tournament option. When enabled, at the end of a game all collectables remaining on the map are distributed as random weapons to the surviving teams (one collectable per team, round-robin if multiple collectables). Uses the standard 80/16/4% weapon tier weighting.
+- [x] **11.4** Tournament prizes — reduce rate and/or magnitude so prizes feel notable rather than constant. Review current config values and step them down; verify that a typical 10-game tournament doesn't drown everyone in weapons.
+- [x] **11.5** Turn limit option — add a configurable turn limit to the config panel (Options page). When the limit is reached and no winner has been found, the game ends and the team with the most surviving stations wins (or a draw if tied). Show a countdown in the HUD from turn `limit − 5` onward.
+- [x] **11.6** Resign game option — add a Resign button (accessible from the in-game menu or a small canvas button). Resigning eliminates the resigning team's remaining stations immediately; in tournament mode it scores as a loss with 0 survivors.
+- [x] **11.7** Tournament: surviving teams claim collectables — add a tournament option. When enabled, at the end of a game all collectables remaining on the map are distributed as random weapons to the surviving teams (one collectable per team, round-robin if multiple collectables). Uses the standard 80/16/4% weapon tier weighting.
 - [ ] **11.8** Modest starting weapons for non-dev mode — add "Minimal" to the Starting Weapons config option (currently hidden behind campaign completion). Minimal = 1 Triple Cannon per team. This makes the option visible to all players; the existing richer tiers (One at Random, Minor, One of Each, etc.) remain gated behind campaign completion as before.
 
 ### 11.3 Rift interactions

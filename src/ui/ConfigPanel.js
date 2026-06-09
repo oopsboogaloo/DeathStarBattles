@@ -88,11 +88,16 @@ export class ConfigPanel {
       tpSize:            'MEDIUM',
       tpRounds:          5,
       tpIncludeAI:       false,
-      tournamentPrize:   'none',
+      turnLimit:         'off',
+      winnerPrize:       'none',
+      handicapPrize:     'none',
       tournamentGames:   'keepGoing',
+      awardPrizes:       'none',
+      claimCollectables: false,
     };
     this._onStartCb       = null;
     this._onResumeCb      = null;
+    this._onResignCb      = null;
     this._canResume       = false;
     this._pagedMode       = false;
     this._currentPage     = 0;
@@ -128,11 +133,17 @@ export class ConfigPanel {
   onStart(cb)  { this._onStartCb  = cb; }
   onInfo(cb)   { this._onInfoBtn  = cb; }
   onResume(cb) { this._onResumeCb = cb; }
+  onResign(cb) { this._onResignCb = cb; }
   getData()    { return this._d; }
 
   setCanResume(bool) {
     this._canResume = bool;
     if (this._resumeBtn) this._resumeBtn.style.display = bool ? 'block' : 'none';
+    if (this._resignBtn) {
+      this._resignBtn.style.display = bool ? 'block' : 'none';
+      this._resignBtn.textContent   = 'RESIGN';
+      this._resignConfirm = false;
+    }
   }
 
   get config() { return { ...this._d }; }
@@ -314,6 +325,43 @@ export class ConfigPanel {
     this._resumeBtn.addEventListener('click', () => { this.hide(); this._onResumeCb?.(); });
     panel.appendChild(this._resumeBtn);
 
+    // ── Resign button ────────────────────────────────────────────────────────
+    this._resignConfirm = false;
+    this._resignBtn = el('button', {
+      display:       'none',
+      margin:        '0 auto 8px',
+      padding:       '5px 16px',
+      background:    'rgba(80,15,15,0.7)',
+      border:        '1px solid rgba(200,60,60,0.45)',
+      borderRadius:  '5px',
+      color:         'rgba(220,150,150,0.9)',
+      fontFamily:    'monospace',
+      fontSize:      '11px',
+      letterSpacing: '0.1em',
+      cursor:        'pointer',
+    });
+    this._resignBtn.textContent = 'RESIGN';
+    this._resignBtn.addEventListener('mouseleave', () => {
+      this._resignConfirm = false;
+      this._resignBtn.textContent = 'RESIGN';
+      this._resignBtn.style.background = 'rgba(80,15,15,0.7)';
+    });
+    this._resignBtn.addEventListener('mouseenter', () => {
+      this._resignBtn.style.background = 'rgba(110,20,20,0.85)';
+    });
+    this._resignBtn.addEventListener('click', () => {
+      if (!this._resignConfirm) {
+        this._resignConfirm = true;
+        this._resignBtn.textContent = 'CONFIRM RESIGN?';
+      } else {
+        this._resignConfirm = false;
+        this._resignBtn.textContent = 'RESIGN';
+        this.hide();
+        this._onResignCb?.();
+      }
+    });
+    panel.appendChild(this._resignBtn);
+
     // ── Title ────────────────────────────────────────────────────────────────
     this._title = el('div', {
       margin:        S.norm.titleMargin,
@@ -392,11 +440,23 @@ export class ConfigPanel {
     const rowNumGames = this._row('NO. OF GAMES',
       this._cycle('tournamentGames', ['keepGoing', 5, 10, 15, 20, 30, 50],
         v => v === 'keepGoing' ? 'Keep Going' : `${v} games`));
-    const rowTournamentPrize = this._row('T. PRIZE',
-      this._cycle('tournamentPrize',
-        ['none', 'minor', 'medium', 'major', 'mammoth', 'minorHandicap', 'mediumHandicap', 'majorHandicap'],
-        v => ({ none: 'None', minor: 'Minor  (1)', medium: 'Medium  (2)', major: 'Major  (3)', mammoth: 'Mammoth  (5)',
-                minorHandicap: 'Minor Handicap', mediumHandicap: 'Med. Handicap', majorHandicap: 'Maj. Handicap' }[v] ?? v)));
+    const rowTurnLimit = this._row('TURN LIMIT',
+      this._cycle('turnLimit', ['off', 5, 10, 15, 20, 30, 50],
+        v => v === 'off' ? 'Off' : `${v} turns`));
+    const rowWinnerPrize = this._row('WINNER PRIZE',
+      this._cycle('winnerPrize',
+        ['none', 'minor', 'mid', 'mammoth'],
+        v => ({ none: 'None', minor: 'Minor  (1×T1)', mid: 'Mid  (1 random)', mammoth: 'Mammoth  (2 random)' }[v] ?? v)));
+    const rowHandicapPrize = this._row('HANDICAP PRIZE',
+      this._cycle('handicapPrize',
+        ['none', 'minor', 'mid', 'mammoth'],
+        v => ({ none: 'None', minor: 'Minor  (1×T1)', mid: 'Mid  (1 random)', mammoth: 'Mammoth  (2 random)' }[v] ?? v)));
+    const rowAwardPrizes = this._row('AWARD PRIZES',
+      this._cycle('awardPrizes',
+        ['none', 'minor', 'mid', 'major', 'mammoth'],
+        v => ({ none: 'None', minor: 'Minor  (1×T1)', mid: 'Mid  (2×T1)', major: 'Major  (1×T2)', mammoth: 'Mammoth  (2×T2)' }[v] ?? v)));
+    const rowClaimCol = this._row('CLAIM COLLECTABLES',
+      this._cycle('claimCollectables', [false, true], v => v ? 'On' : 'Off'));
 
     // Page 4 — Collectables
     const rowCollect     = this._row('COLLECTABLES',
@@ -438,7 +498,7 @@ export class ConfigPanel {
     this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
-    this._page6Rows = [rowNumGames, rowTournamentPrize];
+    this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
 
     // ── Flat section ─────────────────────────────────────────────────────────
     this._flatSection = el('div', {});

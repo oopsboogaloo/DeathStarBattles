@@ -11,7 +11,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Improvements
 
-<!-- e.g. - [ ] Description -->
+<!-- e.g. - [x] Description -->
 
 ## Features
 
@@ -170,7 +170,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
 - [x] **Dual Blaster** *(Tier 1)* — Fires two blaster bursts in different independently-aimed directions, like the shotgun barrel 2 mechanic applied to the blaster.
 
-- [ ] **Team Shield** *(Tier 2)* — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not fire a shot this turn.
+- [x] **Team Shield** *(Tier 2)* — Deploys a Force Shield on every active friendly station simultaneously; the firing station does not fire a shot this turn.
 
   **Availability (FR-1)**
   - Not offered to players in single-station-per-team games (it would always be wasted); suppress it from the weapon selector when the team has only one station configured
@@ -181,7 +181,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - The station that used Team Shield does not fire any projectile this turn
   - Consumes one charge
 
-- [ ] **Teleport** *(Tier 2)* — Instantly relocates the firing station to a player-designated destination. Uses the angle and power controls: angle sets direction, power maps to distance (max distance = map diagonal). A destination marker is shown in the aim preview so the player can see exactly where they will land before firing.
+- [x] **Teleport** *(Tier 2)* — Instantly relocates the firing station to a player-designated destination. Uses the angle and power controls: angle sets direction, power maps to distance (max distance = map diagonal). A destination marker is shown in the aim preview so the player can see exactly where they will land before firing.
 
   **Timing (FR-1)**
   - The teleport fires at the start of the turn (approximately 1 second in, before other projectiles resolve) — the station disappears from its origin and reappears at the destination immediately, not at end-of-turn.
@@ -199,7 +199,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - Power slider sets distance: minimum power → short hop, maximum power → full map diagonal.
   - Aim preview renders a destination marker (e.g. a ghost/outline of the station) at the computed safe landing point, updating live as angle/power change.
 
-- [ ] **Electro Stun** *(Tier 2)* — Fires a fan of forked lightning across an aimed arc. Any station hit becomes Electrified for their next turn: they auto-fire a random cannon shot and cannot move or act.
+- [x] **Electro Stun** *(Tier 2)* — Fires a fan of forked lightning across an aimed arc. Any station hit becomes Electrified for their next turn: they auto-fire a random cannon shot and cannot move or act.
 
   **Controls (FR-1)**
   - Left control: angle (direction the arc is centred on), as normal
@@ -232,7 +232,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - The auto-fire resolves automatically; the player can only acknowledge and end their turn
   - The condition lasts exactly one turn regardless of player type
 
-- [ ] **Super Laser** *(Tier 3)* — An iconic, devastating superweapon. Multiple convergence beams assemble at a focal point and then fire a single catastrophic beam in the aimed direction. Destroys everything in its path short of stars and black holes.
+- [x] **Super Laser** *(Tier 3)* — An iconic, devastating superweapon. Multiple convergence beams assemble at a focal point and then fire a single catastrophic beam in the aimed direction. Destroys everything in its path short of stars and black holes.
 
   **Firing VFX (FR-1)**
   - On activation: several thin beams (the convergence beams) animate rapidly assembling inward to a focal point just ahead of the station, in the aimed direction
@@ -265,7 +265,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - Extremely rare; grants exactly 1 charge per collectable
   - Tier 3 drop weight
 
-- [ ] **Reinforcement Signal** *(Tier 3)* — Fires a directional distress signal that travels across the map; if it reaches a screen edge a reinforcement ship is beamed in there at end of turn.
+- [x] **Reinforcement Signal** *(Tier 3)* — Fires a directional distress signal that travels across the map; if it reaches a screen edge a reinforcement ship is beamed in there at end of turn.
 
   **Projectile (FR-1)**
   - The signal is an animated waveform-like line rendered in the firing team's colour, travelling in the aimed direction
@@ -287,9 +287,9 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - The new station arrives with no weapons of its own; it shares the team's existing weapon stock as normal
   - Controlled by the same player/AI as the rest of the team
 
-- [ ] **Resupply** *(Tier 2)* — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
+- [x] **Resupply** *(Tier 2)* — No aim or power input. When triggered, 3–5 weapon collectables beam in near the firing station at the end of that turn. Collectables are high-tier and available for any team to collect.
 
-- [ ] **Quantum Torpedo** *(Tier 3)* — Fires and travels like a standard cannon shot but teleports through any solid non-station body it contacts, reappearing on the far side and continuing on its way.
+- [x] **Quantum Torpedo** *(Tier 3)* — Fires and travels like a standard cannon shot but teleports through any solid non-station body it contacts, reappearing on the far side and continuing on its way.
 
   **Controls & Appearance (FR-1)**
   - Aimed and fired identically to a cannon shot (angle + power)
@@ -315,11 +315,11 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
 - [x] **Bounce Cannon** *(Tier 1)* — Cannon shot that reflects off solid planet surfaces (like Fragmentation Shot) but explodes immediately on station contact.
 
-- [ ] **Triple Quantum Torpedo** *(Tier 3)* — Fires 3 Quantum Torpedoes simultaneously across a narrow arc, identical to how the Triple Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
+- [x] **Triple Quantum Torpedo** *(Tier 3)* — Fires 3 Quantum Torpedoes simultaneously across a narrow arc, identical to how the Triple Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
 
-- [ ] **Quantum Auto Cannon** *(Tier 3)* — Fires 5 Quantum Torpedoes in rapid succession with small random angular deviation, identical to how the Auto Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
+- [x] **Quantum Auto Cannon** *(Tier 3)* — Fires 5 Quantum Torpedoes in rapid succession with small random angular deviation, identical to how the Auto Cannon relates to a standard cannon shot. Each torpedo behaves exactly as a single Quantum Torpedo (teleports through solid bodies, detonates on station contact).
 
-- [ ] **Mind Control Beam** *(Tier 3)* — A laser-class weapon that fires an animated sine-wave beam. If the beam strikes an enemy station, that station is permanently converted to the firing team for the rest of the game.
+- [x] **Mind Control Beam** *(Tier 3)* — A laser-class weapon that fires an animated sine-wave beam. If the beam strikes an enemy station, that station is permanently converted to the firing team for the rest of the game.
 
   **Firing & Travel (FR-1)**
   - Aimed like a standard laser (angle selector, no power control)
@@ -342,7 +342,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   **Win Condition (FR-4)**
   - If conversion leaves an opposing team with no remaining stations, the round ends at the end of that turn in the normal way — no immediate termination mid-turn
 
-- [ ] **Mammoth Cannon** *(Tier 3)* — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
+- [x] **Mammoth Cannon** *(Tier 3)* — A rare, prized heavy-artillery weapon. Fires a single massive cannonball that follows the exact same gravitational trajectory as a standard cannon shot at the chosen angle and power, but travels at half the speed — giving it a slow, imposing, unmistakably dangerous feel.
 
   **Projectile (FR-1)**
   - Launched at 50% of the speed a normal cannon shot would have at the same power setting
@@ -383,7 +383,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
 - [x] **Star Shot** *(Tier 1)* — Fires 5 cannon shots simultaneously, evenly spread across 360° (like a star pattern); angle sets the rotation of the pattern, power sets shot speed as usual.
 
-- [ ] **Hedgehog** *(Tier 2)* — High-tier weapon. Deploys a Force Shield on the firing station and then fires 12 rockets outward in all directions across 4 rapid volleys.
+- [x] **Hedgehog** *(Tier 2)* — High-tier weapon. Deploys a Force Shield on the firing station and then fires 12 rockets outward in all directions across 4 rapid volleys.
 
   **Shield (FR-1)**
   - A Force Shield deploys on the firing station immediately when Hedgehog is used, before any rockets fire
@@ -405,7 +405,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   **Rarity (FR-4)**
   - High-tier / rare collectable; grants 1 charge per pickup
 
-- [ ] **Gravity Cannon** *(Tier 3)* — Fires a large slow-moving gravitational mass along a standard cannon trajectory. Its own gravity warps the paths of other projectiles nearby, and it kills stations with a dramatic implosion rather than an explosion.
+- [x] **Gravity Cannon** *(Tier 3)* — Fires a large slow-moving gravitational mass along a standard cannon trajectory. Its own gravity warps the paths of other projectiles nearby, and it kills stations with a dramatic implosion rather than an explosion.
 
   **Trajectory (FR-1)**
   - Follows the exact same arc as a normal cannon shot at the same angle and power, but traverses it at half speed
@@ -433,7 +433,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - Gravity coefficient multiplier (default: 0.25× normal)
   - Gravitational mass (default: comet-scale constant, TBD during tuning)
 
-- [ ] **Repulsor Field** *(Tier 1)* — Like Force Shield, this weapon allows the firing station to also fire a cannon shot on the same turn. In addition, a modest repulsive force field is applied centred on the station, identical in behaviour to a Space Rift node (linear-falloff repulsion on nearby bullets). This deflects incoming projectiles that pass close to the station.
+- [x] **Repulsor Field** *(Tier 1)* — Like Force Shield, this weapon allows the firing station to also fire a cannon shot on the same turn. In addition, a modest repulsive force field is applied centred on the station, identical in behaviour to a Space Rift node (linear-falloff repulsion on nearby bullets). This deflects incoming projectiles that pass close to the station.
 
   **Cannon Shot (FR-1)**
   - The station fires a normal cannon shot this turn (same as Force Shield behaviour — weapon does not consume the firing action)
@@ -450,7 +450,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   **Visuals (FR-4)**
   - Visual treatment TBD; should communicate an active repulsion zone around the station (e.g. a faint pulsing ring or distortion effect)
 
-- [ ] **Armour** *(Tier 1)* — Grants the firing station two armour layers that absorb incoming hits.
+- [x] **Armour** *(Tier 1)* — Grants the firing station two armour layers that absorb incoming hits.
 
   **Armour Layer Appearance (FR-1)**
   - Each armour layer is rendered as a circular dashed line around the station, slightly larger than the station radius, not animated
@@ -473,8 +473,8 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
 
 ## Polish
 
-<!-- e.g. - [ ] Description -->
+<!-- e.g. - [x] Description -->
 
 ## Mobile / Usability
 
-<!-- e.g. - [ ] Description -->
+<!-- e.g. - [x] Description -->

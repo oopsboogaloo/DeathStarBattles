@@ -101,6 +101,24 @@ Selected weapon resets to Cannon at the start of each turn.
 - Consumes one use per firing (not per bullet); brief triple-arc muzzle-flash VFX plays on the station before the bullets launch
 - Not in the default loadout — acquired by shooting collectables
 
+#### Shotgun
+A double-barrelled spread weapon. Each barrel fires 6 pellets in a ±8° cone at blunderbuss speed (MAX_V × 0.25–0.30) with blunderbuss lifetime (17–23% of standard). Barrel 2 fires 300 physics steps (~0.5 s) after Barrel 1. Total: 12 pellets per use.
+
+**Aiming UI:** The right-hand slider is repurposed as a **Barrel 2 angle** control (same ±0.1° precision as the angle slider; power slider hidden). Barrel 2 angle initialises to Barrel 1's angle at the start of each turn and is stored in `station.angle2`.
+
+**Aim indicator:** Both barrel directions shown on a single aim circle. Barrel 1 lines at full opacity (centre 0.95 / flanking 0.45); Barrel 2 lines at reduced opacity (centre 0.60 / flanking 0.28). Three representative paths per barrel at −8°, 0°, +8°. Ghost trail shows all 12 pellet paths (6 per barrel).
+
+2 charges per collectable.
+
+**Named constants:** `SHOTGUN_PELLETS` (6 per barrel), `SHOTGUN_SPREAD` (8°), `SHOTGUN_SPEED_MIN` (0.25 × MAX_V), `SHOTGUN_SPEED_MAX` (0.30 × MAX_V), `SHOTGUN_INTERVAL_STEPS` (300), `SHOTGUN_LIFETIME_MIN` (0.17 × BULLET_LIFE), `SHOTGUN_LIFETIME_MAX` (0.23 × BULLET_LIFE).
+
+#### Rocket Pod
+Fires 8 rockets in succession at Blaster timing (one per second at normal speed). Each rocket is a standard Rocket with ½ blast radius and ±1° independent random angle deviation per rocket. Rockets alternate spawning perpendicular-left/right of the aim direction, offset 1× station diameter (2× hit-radius) from the station centre — odd-indexed (1, 3, 5, 7) spawn left, even-indexed (2, 4, 6, 8) spawn right. Trajectories are parallel (not converging). Turn does not end until all 8 rockets have resolved. 1 charge per collectable.
+
+**Aim indicator:** 3 representative lines at −1°, 0°, +1° (centre line 0.95 / 2px; flanking 0.45 / 1px). No bullet path preview (thrust overrides gravity). Ghost trail shows all 8 rocket paths.
+
+**Story mode:** Mission 11 (Rocket Corps) grants 1 starting Rocket Pod charge to both the human player and AI teams (`startingWeapons: { rocket: 99, rocketPod: 1 }`).
+
 #### Collectables
 - Rotating geometric gem-shaped entities (visually crystal-shaped) that spawn at random valid map positions
 - Not affected by gravity; do not stop bullets — a bullet passes straight through and the collectable is destroyed
@@ -219,11 +237,27 @@ When a bullet teleports through a wormhole, it exits the destination wormhole tr
 ### 5.2 Bullet Teleport Limit
 A bullet may teleport a maximum of 100 times before it is destroyed (prevents infinite loops).
 
+### 5.3 Space Rifts
+
+A **space rift** is a non-solid map object — a piecewise-linear chain of 3–11 connected segments, each approximately one Medium station diameter long (≤30° turn between segments). Rifts have no solid geometry; bullets, stations, and planets pass through them freely.
+
+**Repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Stations and collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
+
+**Rendering:** Drawn on the static background layer. Outer glow: wide soft-blurred purple-white line (~20–30px, alpha 0.25–0.35). Forked lightning branches: 2–4 branching paths from random rift positions, 3–6 irregular segments with ±40° deflections and at least one fork, alpha 0.2–0.4. Rift line itself: bright white-purple polyline at 2px / alpha 0.95 with an inner luminescent glow pass. Renders above planets, below stations and bullets.
+
+**Generation:** Random start position and direction; each subsequent vertex turns ±0–30° from the previous. System attempts to avoid placing segments over existing planets.
+
+**Wildcard:** 10% chance of injecting one space rift when a wildcard object is rolled (§6.1). Hyperspace scenario (26) includes 2–4 rifts.
+
+**AI:** All AI levels handle rift repulsion automatically — it is applied through the standard per-step force loop alongside gravity; no special-case handling required.
+
+**Named constants:** `RIFT_SEGMENT_LENGTH`, `RIFT_INFLUENCE_RADIUS`, `RIFT_REPULSION_STRENGTH`.
+
 ---
 
 ## 6. Scenarios
 
-28 named scenarios control how planets are placed and what types appear. A "lucky dip" option picks randomly, weighted towards the more common scenarios:
+30 named scenarios control how planets are placed and what types appear. A "lucky dip" option picks randomly, weighted towards the more common scenarios:
 - **25% chance** — picks from scenarios 1–6 (Planetary through Jovian)
 - **63% chance** — picks from scenarios 1–19 (common + uncommon range)
 - **12% chance** — picks from the full 1–28 pool
@@ -258,9 +292,11 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 | 26 | Hyperspace | No planets; hyperspace is forced every turn |
 | 27 | Black Holes | Multiple black holes |
 | 28 | Big Wormhole | Two enormous wormhole portals (partially off-screen) + planets |
+| 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field |
+| 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids |
 
 ### 6.1 Wildcard Features
-A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, or black hole. Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
+A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
 
 ### 6.2 Planet Placement Rules
 - Planets may not overlap each other (checked on generation with retry)
@@ -316,11 +352,40 @@ Cleverbot and above run a fast internal simulation of the bullet path (using lar
 | Vengeance kill | Target was the last station that killed you |
 
 ### 8.3 Tournament Awards
-Every 5 games, awards are shown for:
-- **Bloodlust** — most kills
-- **Oppression** — most oppression kills
-- **Bully** — most bully kills
-- **Vengeance** — most vengeance kills
+Every 5 games, 4 awards are selected from the following pool and shown on the awards screen. Selection is weighted to favour awards not recently shown, and only awards where at least one team has a non-zero stat are eligible.
+
+| Award | Stat |
+|---|---|
+| Bloodlust | Most kills |
+| Strategy | Most strategy kills |
+| Oppression | Most oppression kills |
+| Tactics | Most tactics kills |
+| Bully | Most bully kills |
+| Vengeance | Most vengeance kills |
+| Longshot | Most long-range kills |
+| Point Blank | Most close-range kills |
+| Wormhole | Most wormhole kills |
+| Trick Shot | Most trick-shot kills |
+| Near Miss | Most near misses |
+| Hyperactive | Most hyperspace jumps |
+| Self Destruct | Most suicides |
+| Not Friendly | Most own goals |
+
+When **Award Prizes** is enabled (see §10 Page 6), each award winner receives weapons added to their team stock immediately:
+
+| Prize tier | Weapons awarded per award |
+|---|---|
+| None | No weapons |
+| Minor | 1× random Tier 1 weapon |
+| Mid | 2× random Tier 1 weapons |
+| Major | 1× random Tier 2 weapon |
+| Mammoth | 2× random Tier 2 weapons |
+
+Each weapon is selected independently at random from the eligible tier using uniform weighting (all weapons in that tier equally likely). The 2× prizes need not be distinct — a team may receive two of the same weapon type.
+
+If two or more teams tie for an award, each tied team receives the full prize.
+
+The awards screen lists each weapon received beneath the award winner's name. Weapons are added to team stock using the same stock system as collectables and carry over into subsequent games.
 
 ---
 
@@ -334,7 +399,22 @@ Play a series of games on a fixed configuration. A cumulative leaderboard tracks
 
 When **Number of Games** is set to a specific number (see §10 Page 6), the tournament ends automatically after that many games. The final results screen shows standings marked ★ FINAL and an End Tournament button that returns to the menu. The default "Keep Going" setting runs indefinitely.
 
-When **Tournament Prize** is enabled (see §10 Page 6), a random weapon is awarded after every game — either to the game winner (Minor/Medium/Major/Mammoth settings) or to the last-place team in the standings (Handicap settings). The prize count per game is 1/2/3/5 weapons for the four non-handicap tiers and 1/2/3 for the three handicap tiers. Weapons are selected using the same 80/16/4% tier weighting as pickups and are applied immediately to that team's stock, carrying into the next game. The results screen names each weapon received.
+When **Turn Limit** is set (see §10 Page 6), each game ends automatically when that many turns have been completed and no winner has been found by normal elimination. The team with the most surviving stations at that point wins; if two or more teams are tied, the result is a draw. The HUD shows a countdown in orange from 5 turns remaining, switching to red at 2 turns remaining, and showing "LAST TURN" on the final turn. In tournament mode a turn-limit win scores as a normal win.
+
+When a human player opens the config panel during a game, a **Resign** button is shown. The first click prompts "CONFIRM RESIGN?" and a second click confirms. Resigning immediately destroys all of the current active team's stations with normal explosion VFX. If this leaves only one team alive, that team wins immediately. In tournament mode, a resigned team scores as a loss with 0 surviving stations.
+
+**Winner Prize** and **Handicap Prize** (see §10 Page 6) fire independently after every game. Winner Prize goes to the game winner; Handicap Prize goes to the last-place team in the current tournament standings. Both are configured separately but use the same tiers:
+
+| Tier | Weapons awarded |
+|---|---|
+| None | — |
+| Minor | 1× random Tier 1 weapon (uniform weighting within tier) |
+| Mid | 1× weapon drawn using 80/16/4% tier weighting |
+| Mammoth | 2× weapons drawn using 80/16/4% tier weighting |
+
+Weapons are applied to the recipient team's stock immediately and carry into the next game. The results screen shows a labelled section for each active prize (⬡ WINNER PRIZE, ⬡ HANDICAP PRIZE). Both can be active simultaneously; if Winner and Handicap go to the same team (e.g. winner is also last place in a 2-team game), they both still fire and are shown as separate sections.
+
+When **Claim Collectables** is enabled (see §10 Page 6), all collectables still on the map at game end are converted into random weapons and distributed to surviving teams. Surviving teams are those with at least one alive station; the winning team is included. Distribution uses a random rotation: surviving teams are shuffled, then each collectable is assigned to the next team in the rotation, cycling if the number of collectables exceeds the number of surviving teams. Each collectable generates one weapon using the standard 80/16/4% tier weighting. The weapons carry over into the next game. If no collectables remain or no teams survived, nothing is distributed.
 
 ---
 
@@ -354,11 +434,13 @@ The config panel always uses a compact 4-page paged layout. Page 1 is always vis
 | Option | Values |
 |---|---|
 | Station size | Micro / Tiny / Small / Medium / Large / Giant / Mammoth |
-| Number of planets | Random / 3–50 |
-| Scenario | 1–28 / Lucky Dip |
+| Number of planets | Random / 3–50 (ignored when Override Seed is set) |
+| Scenario | 1–30 / Lucky Dip (greyed out when Override Seed is set) |
 | Game mode | Single game / Tournament |
 | Game speed | ¼× / ½× / 1× (default) / 2× / 4× |
 | Movement speed | Off (default) / Glacial / Slow / Normal / Fast / Rocket |
+| Current Map Seed | Read-only display of the seed used in the last game. Selectable for copying. |
+| Override Seed | Editable text (up to 32 chars). Blank = random map. Non-blank = use this seed deterministically. See §10.5. |
 
 ### Page 3 — Options
 | Option | Values | Notes |
@@ -367,7 +449,7 @@ The config panel always uses a compact 4-page paged layout. Page 1 is always vis
 | Team clustering | Off / Tight / Moderate / Loose | Controls how close same-team stations are placed |
 | Wildcard planets | Off / Very Rare / Rare (default) / Occasional / Common / Always | See §6.1 |
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
-| Bullet paths | Off (default) / Full / Half / Quarter / Eighth | Simulated path preview for current aim — see §11.11 |
+| Bullet paths | Off (default) / Minor / Major / Extreme / Cheating | Simulated path preview for current aim — see §11.11 |
 | Minimal UI | Off / On | Reduces HUD text size for smaller screens |
 
 ### Page 6 — Tournament
@@ -376,7 +458,11 @@ Only accessible when Mode = Tournament.
 | Option | Values | Notes |
 |---|---|---|
 | No. of Games | Keep Going (default) / 5 / 10 / 15 / 20 / 30 / 50 | Tournament ends automatically after the set number of games; final results screen shows ★ FINAL |
-| T. Prize | None / Minor / Medium / Major / Mammoth / Minor Handicap / Med. Handicap / Maj. Handicap | Awards random weapon(s) after each game; see §9.2 |
+| Turn Limit | Off (default) / 5 / 10 / 15 / 20 / 30 / 50 | Maximum turns per game; see §9.2 |
+| Winner Prize | None (default) / Minor / Mid / Mammoth | Weapon(s) awarded to game winner after each game; see §9.2 |
+| Handicap Prize | None (default) / Minor / Mid / Mammoth | Weapon(s) awarded to last-place team after each game; see §9.2 |
+| Award Prizes | None (default) / Minor / Mid / Major / Mammoth | Weapons awarded to each award winner at the 5-game ceremony; see §8.3 |
+| Claim Collectables | Off (default) / On | Surviving teams receive weapons from remaining map collectables at game end; see §9.2 |
 
 ### Page 4 — Collectables
 All sub-options are greyed out and unclickable when Collectables is Off.
@@ -387,6 +473,35 @@ All sub-options are greyed out and unclickable when Collectables is Off.
 | Rich Asteroids | Off / Rare (1%) / Normal (5%) / Common (10%) / Abundant (25%) / Overwhelming (100%) | Only active when Collectables ≠ Off |
 | Collectable Size | Tiny (½×) / Medium / Large (1.5×) / Huge (2×) / Mammoth (3×) / Varied | Varied picks a random size each spawn |
 | Starting Weapons | None / One at Random / Minor (2 Triple Cannons) / One of Each / Lots (3 of each) / Too Many (7 of each) | Topped up to minimum each game; One at Random always adds one |
+
+### 10.5 Map Seeds
+
+The **Override Seed** field (Page 2) allows players to enter a text string to deterministically reproduce a planet layout. The **Current Map Seed** field (read-only) always shows the seed that was actually used when the last game started — useful for copying and sharing.
+
+**Behaviour:**
+- Override Seed blank → random map each game; Current Map Seed updates after each start.
+- Override Seed non-blank → same planet layout every time regardless of other settings; Scenario and Number of Planets options are greyed out.
+- Clearing Override Seed restores Scenario and Planets options to their previous values.
+
+**Normalisation:** Seeds are trimmed and lowercased before use. `"BANANA"`, `"banana"`, and `" Banana "` are identical.
+
+**Hashing:** The normalised string is hashed to a 32-bit unsigned integer via a deterministic character-by-character hash (consistent across all platforms and browsers). This seeds a dedicated mulberry32 PRNG instance separate from the main game RNG.
+
+**What the seed controls:**
+
+| Property | Seed-driven |
+|---|---|
+| Planet count | Yes (drawn from normal 3–50 range) |
+| Planet type, position, size | Yes, per planet |
+| Wormhole pairings | Yes |
+| Asteroid shape, rotation speed | Yes, per asteroid |
+| Station placement | No (main RNG) |
+| Collectable spawning | No (main RNG) |
+| AI behaviour | No (main RNG) |
+
+**Reproducibility:** A given seed produces an identical planet layout regardless of player count, station size, game mode, game speed, or browser.
+
+**In-game display:** When a seed is active, the normalised seed string is shown as the map name wherever the scenario name would normally appear (config summary, HUD, results screen).
 
 ---
 
@@ -417,15 +532,21 @@ The **aim indicator** consists of an aim circle and one or more aim lines:
 - **Aim lines** — solid white line(s) from station centre to the aim circle edge, showing firing direction. Length is proportional to power (fixed at max for weapons with no power control).
 - For **multi-bullet weapons**, one aim line is drawn per bullet angle. The centre line is brighter (alpha 0.95, 2px); flanking lines are dimmer (alpha 0.45, 1px).
 
-| Weapon | Aim lines | Angles |
-|---|---|---|
-| Cannon | 1 | 0° |
-| Triple Cannon | 3 | −5°, 0°, +5° |
-| Blaster | 5 | −10°, −5°, 0°, +5°, +10° |
-| Blunderbuss | 5 | −15°, −7.5°, 0°, +7.5°, +15° (representative) |
-| Minigun | 3 | −2°, 0°, +2° (representative) |
-| Laser | 1 | 0° (always full length) |
-| Rocket | 1 | 0° |
+| Weapon | Aim lines | Angles | Notes |
+|---|---|---|---|
+| Cannon | 1 | 0° | |
+| Triple Cannon | 3 | −5°, 0°, +5° | Exact fire angles |
+| Blaster | 5 | −10°, −5°, 0°, +5°, +10° | Exact fire angles |
+| Blunderbuss | 5 | −15°, −7.5°, 0°, +7.5°, +15° | Representative — actual angles random at fire time |
+| Minigun | 3 | −2°, 0°, +2° | Representative — actual angles random at fire time |
+| Laser | 1 | 0° | Always full length (no power control) |
+| Rocket | 1 | 0° | |
+| Shotgun | 6 | Barrel 1: −8°, 0°, +8°; Barrel 2: −8°, 0°, +8° | Barrel 2 lines at reduced opacity (centre 0.60 / flanking 0.28) |
+| Rocket Pod | 3 | −1°, 0°, +1° | Representative |
+| Force Shield | 0 | — | No directional shot |
+| Hyperspace | 0 | — | No shot |
+
+For **representative** weapons (Blunderbuss, Minigun, Rocket Pod), the actual fire angles are random — the aim lines communicate spread range rather than exact angles. For **exact** weapons (Triple Cannon, Blaster), aim lines match the actual fire angles precisely.
 
 A faint **ghost aim line** (dashed, low opacity) also shows the angle and power used on the previous turn.
 
@@ -433,22 +554,118 @@ A faint **ghost aim line** (dashed, low opacity) also shows the angle and power 
 
 During a station's aiming phase, dashed lines in the station's team colour are drawn showing the path(s) every bullet/beam/rocket took on that station's previous turn. Allows the player to see exactly where their shot went and adjust accordingly.
 
-- One trail per bullet fired — triple cannon shows 3, blunderbuss shows all 11, minigun all 13, etc.
-- Wormhole jumps are shown: a gap appears at the entry point and the path continues from the exit point.
+- Shown only during human aiming phases; hidden during AI turns and the firing phase.
+- Style: dashed `[5, 5]` (this dash pattern is reserved for ghost trails — not used elsewhere), team colour, alpha 0.55.
+- Wormhole jumps: a gap appears at the entry point; path continues from exit point.
 - Laser: the full simulated beam path is shown.
 - Rocket: the full flight path including thrust arc is shown.
-- Shown only during human aiming phases; hidden during AI turns and the firing phase.
-- Style: dashed `[5, 5]`, team colour, alpha 0.55.
+
+All trails from the previous turn are shown — one per bullet/rocket fired:
+
+| Weapon | Trails shown |
+|---|---|
+| Cannon | 1 |
+| Triple Cannon | 3 |
+| Blaster | 5 |
+| Blunderbuss | 11 |
+| Minigun | 13 |
+| Shotgun | 12 (6 per barrel) |
+| Rocket Pod | 8 |
+| Rocket | 1 |
+| Laser | 1 |
 
 ### 11.11 Bullet Path Preview
 
 An optional player aid that shows simulated gravity-curved path(s) for the current aim, rendered as solid fading lines (bright near the station, fading to transparent at the cutoff length). Off by default.
 
-- Controlled by the **Bullet Paths** config option: Off / Full / Half / Quarter / Eighth (referring to fraction of screen width simulated).
-- All bullet weapons show white fading paths. Laser shows a team-coloured fading path. Rocket shows the thrust-then-coast arc.
-- For multi-bullet weapons, the centre path is more prominent than flanking paths.
-- Rocket and laser use dedicated simulations matching their actual physics (thrust model for rocket, high-speed reduced-gravity for laser).
-- Drawn behind the aim lines so aim lines remain readable on top.
+Controlled by the **Bullet Paths** config option:
+
+| Label | Max path length |
+|---|---|
+| Off | No preview |
+| Minor | ⅛ screen width |
+| Major | ¼ screen width |
+| Extreme | ½ screen width |
+| Cheating | Full screen width |
+
+"Screen width" = 700 game units. Alpha at any point = `startAlpha × (1 − distanceTravelled / maxLength)`.
+
+Per-weapon preview paths:
+
+| Weapon | Paths | Angles | Start alpha (centre / flanking) |
+|---|---|---|---|
+| Cannon | 1 | 0° | 0.7 / — |
+| Triple Cannon | 3 | −5°, 0°, +5° | 0.7 / 0.35 |
+| Blaster | 5 | −10°, −5°, 0°, +5°, +10° | 0.7 / 0.35 |
+| Blunderbuss | 3 | −15°, 0°, +15° | 0.7 / 0.25 |
+| Minigun | 3 | −2°, 0°, +2° | 0.7 / 0.25 |
+| Shotgun | 6 | Barrel 1 −8°/0°/+8°; Barrel 2 −8°/0°/+8° | 0.7 / 0.25 (Barrel 2 half-alpha) |
+| Rocket Pod | 3 | −1°, 0°, +1° | 0.7 / 0.25 |
+| Rocket | 0 | — | Self-propelled; path not predictable |
+| Laser | 0 | — | See below |
+| Force Shield | 0 | — | No shot |
+
+Fixed-speed weapons use their actual launch speed in the simulation (not `station.power`): Blaster uses MAX_V × 0.55, Blunderbuss uses MAX_V × 0.275, Minigun uses MAX_V × 1.5.
+
+Laser uses a dedicated preview (team-coloured fading path) simulated at very high speed under reduced gravity, matching laser physics. Rocket shows the thrust-then-coast arc. Both are drawn behind aim lines.
+
+The preview uses coarse stepping (same as the AI simulator) so paths may diverge from actual trajectories near massive bodies. Wormhole teleportation, rift repulsion forces, and Hyperspace-scenario boundaries are not modelled in the preview — this is intentional: the feature is an aid, not a guarantee.
+
+### 11.12 Bullet Path Assistance Disclosure
+
+When a game or mission is completed with Bullet Paths active, the results screen notes the assistance level used — making it visible at the point of completion.
+
+- **Target practice results screen:** shown between the stats table and the action buttons.
+- **Story mode debrief screen:** shown below the score/best lines, above the action buttons.
+- Style: small italic text, muted amber (`rgba(255,200,80,0.6)`), format: `Assistance level... [Label]` (e.g. "Assistance level... Minor").
+- Hidden entirely when Bullet Paths is Off.
+
+### 11.13 Story Mode Score Integrity
+
+High scores in story mode are only recorded for runs completed without assistance. Assisted completions are tracked separately.
+
+| Run type | Rule |
+|---|---|
+| Clean run (Bullet Paths Off) | Score recorded normally. Any prior assisted-only record for that mission is cleared. |
+| Assisted run, no prior clean score | Recorded if equal to or better (less assistance) than any stored assisted level. |
+| Assisted run, clean score exists | Ignored — the clean score is not overwritten. |
+| Assisted run, worse level than stored | Ignored — only the least-assistive level is kept. |
+
+Assistance ranking (best → worst): Minor → Major → Extreme → Cheating.
+
+**Mission select card display:**
+
+| State | Colour | Text |
+|---|---|---|
+| Clean score | Green | `✓ [score]` |
+| Assisted-only completion | Amber | `✓ (Minor/Major/Extreme/Cheating assistance)` |
+| Not completed | Dim | `Not completed` |
+
+Clean score always takes priority if both exist. Stored in `localStorage` under `dsb_story`: existing `scores` map holds clean scores only; a separate `assistedLevel` map holds the best assisted level per mission (only present when no clean score exists).
+
+### 11.14 SVG Planet Overlays
+
+SVG graphics can be layered over planet/celestial body circles to enrich their appearance beyond flat shaded circles. SVGs are selected randomly from a pool, drawn at a random rotation, and coloured using a randomised HSL range. Multiple layers can be stacked on a single body.
+
+**Configuration** lives in `src/rendering/planetOverlays.js` — a single artist-editable file with no renderer code changes required. Each planet type key maps to an array of layer definitions:
+
+| Field | Type | Description |
+|---|---|---|
+| `svgs` | `string[]` | Pool of SVG paths; one chosen at random per planet instance |
+| `count` | `number` | How many times to apply this layer (each application picks independently) |
+| `scale` | `number` | SVG size as a multiple of planet diameter (1.0 = fills the circle exactly) |
+| `alpha` | `number` | Opacity 0–1 for the entire overlay |
+| `colour.h/s/l` | `[min, max]` | HSL randomisation ranges; each planet gets one colour picked once at scene creation |
+| `rotation` | `'random'` / `'none'` / `number` | Canvas rotation before drawing (`'random'` = uniform 0–360°) |
+| `strokeVisible` | `boolean` | If false, SVG stroke styling is stripped before rendering |
+
+**Rendering:** Overlays are part of Layer 0 (background) — drawn once at game start, not per frame. Planet base shading is drawn first; overlays go on top. Each overlay is clipped to the planet's circle. Colour is applied by replacing all fill values in the SVG source. Per-planet colour and rotation are seeded by the game RNG (same seed = same look). SVGs are fetched and processed once at game start and cached; no per-frame cost. Overlays are skipped in Simplified performance mode.
+
+**SVG authoring requirements:** single primary fill colour (all fills replaced with one randomised colour); transparent background (no background rect); square `viewBox`; fills covering the full viewBox area.
+
+**Planet type keys:** `moon`, `rocky`, `gasGiant`, `star`, `blackHole`, `whiteHole`, `asteroid`, `crystal`, `whiteDwarf`. Only types with entries in `PLANET_OVERLAYS` receive overlays.
+
+**Out of scope:** animated overlays; overlays for stations or bullets; per-layer blend modes; SVGs with multiple distinct fill colours.
 
 ### 11.4 Station Visual Design (from screenshots)
 - Stations are small circular icons (~15–25px diameter) resembling a **Death Star** — a coloured sphere with a visible equatorial band/trench detail
@@ -1222,6 +1439,76 @@ The completion reward is shown on the Mission 20 debrief screen with a brief unl
 
 ---
 
+### 13.11 Design Goals
+
+1. **Teach by doing** — every mission introduces or emphasises exactly one mechanic. The player learns by playing, not by reading.
+2. **Always feel achievable** — early missions are winnable on the first or second attempt. Later missions are hard but fair.
+3. **Build tension** — the campaign arc escalates from a quiet firing range to a 32-station war across wormhole space.
+4. **Reward mastery** — completing the full campaign unlocks a hidden game feature. Score-chasing keeps replayable missions interesting.
+5. **Get out of the way** — no lengthy tutorials, no dialog boxes between turns. The briefing is 3 sentences. Then you play.
+
+### 13.12 Player Experience Flow
+
+```
+Main Menu
+  └─ Mode: Story Mode
+       └─ Mission Select Screen
+            ├─ Locked missions (visible, greyed out)
+            └─ Unlocked mission card → click
+                 └─ Mission Briefing Overlay
+                      └─ "Start Mission"
+                           └─ Game (standard engine, story layout)
+                                ├─ In-game Objective Panel (top-right HUD)
+                                ├─ [optional] Mid-mission Dialog Popup (pauses game)
+                                └─ Mission ends → Debrief Screen
+                                     ├─ MISSION COMPLETE → score + best score badge
+                                     │    ├─ Retry (improve score)
+                                     │    └─ Next Mission → Mission Select
+                                     └─ MISSION FAILED
+                                          ├─ Retry
+                                          └─ Next Mission (greyed if still locked)
+```
+
+No config panel during story missions. All settings are locked to the mission definition. Progress (unlock state and best scores) is stored in `localStorage` and survives browser restarts.
+
+### 13.13 Campaign Arc
+
+**Phase 1 — Basic Training (M1–M4):** No enemies. Learn the physics. Player is a raw recruit on a firing range. Targets don't shoot back. Each mission introduces one core concept: crystal asteroids (M1), multi-station coordination (M2), hyperspace as a tactical tool (M3), collectables that grant weapons (M4).
+
+**Phase 2 — Live Fire (M5–M11):** Enemies fight back. Learn to fight. Escalates from 1v1 Binary Star through to Rockets-only combat with no cannon, adding new complexity each mission: gas giants (M6), squads (M7–M8), platoons with Superbot (M9), line of battle with Minigun (M10), Rockets-only (M11).
+
+**Phase 3 — Field Operations (M12–M16):** The war gets complicated. Missions shift to scenarios with story complications: mining duty (M12), ambush that pivots to combat (M13), patrol followed by a 4-on-2 arrival (M14), outnumbered 3v6 (M15), three-way faction battle where letting enemies fight each other is valid strategy (M16).
+
+**Phase 4 — Total War (M17–M20):** Everything at once. Large-scale chaotic battles with the hardest AI: 4 factions in a Red Giant (M17), lasers-only near a white dwarf (M18), 32 stations in wormhole space with Megabots (M19), 4v4 Megabots with micro stations and a black hole (M20).
+
+### 13.14 Key Design Decisions
+
+**Pass on objectives, score for pride:** Meeting all mission objectives = MISSION COMPLETE regardless of score. Score is a leaderboard grade displayed on the debrief screen. A pass is a pass. Score only matters for replay.
+
+**Linear unlock, free replay:** Missions unlock in sequence. Once unlocked, any mission can be replayed for a better score. You can't skip ahead but you can always revisit.
+
+**Narrative as a thin wrapper:** Story text is 2–4 sentences in a military boot camp voice. No cutscenes, no extended dialogue, no named characters. The narrative exists to give each mission a reason and a mood. Players can skim it and hit Start immediately.
+
+**Enemies referenced by colour:** Enemy faction names are their team colour ("those cyans", "the reds"). Briefing text uses `{enemy1}` placeholders resolved to actual colour names at render time.
+
+**Mid-mission events for story beats:** Missions 13 and 14 use the event system to introduce enemies partway through, completely changing the nature of the mission. M13 starts as a quiet collection run and becomes a firefight. This teaches the player to stay adaptable.
+
+**Target stations as non-firing dummies:** Training missions use `role: "target"` stations — they look different (pulsing red ring) and never fire. The game engine runs normally; the distinction is purely in the station's role field.
+
+**Drone visual for combat AI:** AI opponents use `visualStyle: "drone"` — an angular mechanical shape instead of the standard death star sphere. This signals visually that these enemies fight back.
+
+**Data-driven mission definitions:** Every mission is a plain JavaScript object in `STORY_MISSIONS[]`. Adding or changing a mission is a data edit, not a code change.
+
+### 13.15 What Story Mode Is Not
+
+- Not a tutorial with pop-up instructions — mechanics are introduced through scenario design.
+- Not a narrative game — the story is flavour, not the point.
+- Not a separate code path for physics — the standard `GameLoop`, `PhysicsEngine`, and `Renderer` run unmodified.
+- Not synced across devices — `localStorage` means progress is per-browser.
+- Not resumable mid-mission — retrying always restarts from the beginning.
+
+---
+
 ## 16. Non-Functional Requirements
 
 ### 16.1 Frame Rate
@@ -1290,3 +1577,78 @@ The following are confirmed from the original source / website / screenshots:
 - ✅ **First-run demo** — auto-start a demo game (5 AI, red giant scenario) before the player configures anything.
 
 All open questions have been resolved.
+
+---
+
+## 17. Target Practice Mode
+
+### 17.1 Mode Selection
+Target Practice is a selectable Game Mode alongside Single Game and Tournament in the Mode config option.
+
+### 17.2 Configuration
+The config panel includes a **Target Practice** page (Page 5) visible only when Target Practice is the selected mode.
+
+| Option | Values | Default |
+|---|---|---|
+| Number of Targets (N) | 1 / 3 / 5 / 7 / 10 / 20 | 5 |
+| Target Size | Micro / Tiny / Small / Medium / Large / Giant / Mammoth | Medium |
+| Number of Rounds | 1 / 3 / 5 / 7 / 10 | 5 |
+| Include AI | Off / On | Off |
+
+### 17.3 Scenario Generation
+On game start, a scenario is randomly selected from the permitted subset: **Planetary, Asteroids, Crystal Asteroids, Gas Giants, Star System, Wormhole**. Wildcard planets apply if the Wildcard setting is enabled. No stations are placed by the scenario generator.
+
+### 17.4 Station Placement
+- **Landscape orientation** (width ≥ height): all stations placed along a vertical line at either the left or right edge (chosen randomly).
+- **Portrait orientation**: all stations placed along a horizontal line at either the top or bottom edge (chosen randomly).
+- Stations are evenly spaced along the placement line. The same three-tier planet-avoidance fallback from §6.3 is applied along the placement line.
+
+### 17.5 Target Placement
+The system attempts to place **2N** practice targets in unoccupied positions, avoiding planet overlap, distributed across the non-station portion of the map. Targets are rendered as archery bullseye targets (concentric red/white rings) at the configured Target Size. Targets are not affected by gravity. Bullets pass through targets without being destroyed.
+
+### 17.6 Target Feasibility Simulation
+After placing 2N candidates, a silent feasibility simulation is run: fire 50 Megabot-quality simulated shots from each station at each candidate target, recording which pairs achieve at least one hit. N final targets are selected from the 2N candidates by priority: (1) prefer targets hittable by the most distinct stations; (2) break ties randomly; (3) if fewer than N targets were hit at all, pad with unhit candidates randomly to reach N.
+
+If the placement algorithm cannot position 2N targets without planet overlap, the scenario is discarded and re-rolled (up to 6 attempts; after 6 failures, fall back to Planetary with N halved).
+
+### 17.7 Per-Team Shared Target Pool
+Targets are owned by a **team**, not individual stations. All stations on a team share one pool of N targets. A target is destroyed for a team the first time any station on that team hits it. Once destroyed for a team it is gone for the rest of the game.
+
+### 17.8 Round and Turn Structure
+A game consists of the configured number of rounds. Each round follows the same structure as normal play (simultaneous fire — all stations aim, then all bullets fire at once):
+
+1. **Aiming phase** — every station sets angle and power. AI stations (when Include AI is On) calculate immediately. Stations cycle in the normal order.
+2. **Firing phase** — all bullets fire simultaneously. Bullets travel until they hit a planet, leave the boundary, or time out.
+3. **Hit resolution** — any bullet entering a surviving target's radius registers a hit for that bullet owner's team; the target is destroyed for that team and a glitter VFX plays.
+4. **Early completion** — after each firing phase, if a team's targets are all destroyed, that team's play ends. Remaining teams continue until they finish or exhaust all rounds.
+5. **Round advance** — round counter increments. When all teams have finished or exhausted rounds, the Results Screen is shown.
+
+The aiming indicator, ghost trail, and End Turn button behave identically to normal play.
+
+### 17.9 Weapons and Movement
+Only **Cannon** is available in Target Practice mode. Hyperspace, special weapons, and the weapon selector are not available. Station Movement is Off and non-configurable.
+
+### 17.10 Hit Detection and Accuracy
+When a bullet's position enters a target's radius, a hit is registered for that (station, target) pair. The bullet continues on its trajectory unaffected. The target is destroyed immediately with a glitter particle burst VFX. Hitting an already-destroyed target has no effect.
+
+**Accuracy score per hit:**
+
+> **A = max(0, 1 − θ / 90°)**
+
+where θ is the angle in degrees between the bullet's velocity vector at moment of impact and the vector from the impact point to the target centre. A = 1.0 means the bullet passed directly through the centre; A = 0.0 means a tangential graze.
+
+### 17.11 Scoring
+At the end of all rounds, per team:
+
+- **Targets cleared** — targets hit out of N.
+- **Hit Rate** — targets hit ÷ N × 100%.
+- **Mean Accuracy** — arithmetic mean of all per-hit accuracy scores. Shown as "—" for zero hits.
+- **Finished Round** — round in which all N targets were cleared ("Round X / Y"). "—" if not cleared.
+
+Multi-station teams show aggregated team-level hit rate and mean accuracy alongside individual station breakdowns.
+
+### 17.12 Results Screen
+On completion: per-station and per-team results showing hit rate, mean accuracy, and targets destroyed out of N. Offers **Play Again** (new scenario, same config) and **Main Menu** (return to config screen).
+
+### 17.13 Visual Continuity
+The star field and planet layer persist across all turns within a game. Each station's bullet trails are cleared at the start of that station's next turn. Destroyed target positions remain visually clear after the destruction VFX completes.
