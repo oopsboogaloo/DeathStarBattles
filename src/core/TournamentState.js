@@ -1,3 +1,5 @@
+import { WEAPON_GRANTS } from '../entities/Collectable.js';
+
 const ALL_AWARD_STATS = [
   { key: 'bloodlust',    stat: 'kills'            },
   { key: 'strategy',     stat: 'strategyKills'    },
@@ -17,9 +19,10 @@ const ALL_AWARD_STATS = [
 
 export class TournamentState {
   constructor() {
-    this.gameIndex    = 0;          // games completed so far
-    this._data        = new Map();  // teamIndex → cumulative data
-    this._awardHistory = [];        // array of string[] — keys shown at each interval
+    this.gameIndex     = 0;          // games completed so far
+    this._data         = new Map();  // teamIndex → cumulative data
+    this._awardHistory = [];         // array of string[] — keys shown at each interval
+    this.lastRewards   = null;       // { teamIndex, teamLabel, teamColour, grants } | null
   }
 
   // Ensure entries exist for all teams in the current game
@@ -101,6 +104,39 @@ export class TournamentState {
     const selected = candidates.slice(0, 4);
     this._awardHistory.push(selected.map(c => c.key));
     return selected.map(({ key, winner }) => ({ key, winner }));
+  }
+
+  // Pick tournament prize weapons and store in this.lastRewards. Call after recordGame().
+  generateRewards(config) {
+    this.lastRewards = null;
+    const setting = config?.tournamentPrize ?? 'none';
+    const countMap = { minor: 1, medium: 2, major: 3, mammoth: 5,
+                       minorHandicap: 1, mediumHandicap: 2, majorHandicap: 3 };
+    const count = countMap[setting];
+    if (!count) return null;
+
+    const isHandicap = setting.endsWith('Handicap');
+    const sorted     = this.sorted;
+    if (!sorted.length) return null;
+
+    const recipient = isHandicap ? sorted[sorted.length - 1] : sorted[0];
+    if (!recipient) return null;
+
+    const grants = [];
+    for (let i = 0; i < count; i++) {
+      const r    = Math.random();
+      const tier = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
+      const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
+      grants.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+
+    this.lastRewards = {
+      teamIndex:  recipient.index,
+      teamLabel:  recipient.label,
+      teamColour: recipient.colour,
+      grants,
+    };
+    return this.lastRewards;
   }
 
   // True if an awards screen should be shown after this game

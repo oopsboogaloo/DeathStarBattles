@@ -88,6 +88,7 @@ export class ConfigPanel {
       tpSize:            'MEDIUM',
       tpRounds:          5,
       tpIncludeAI:       false,
+      tournamentPrize:   'none',
     };
     this._onStartCb       = null;
     this._onResumeCb      = null;
@@ -105,8 +106,9 @@ export class ConfigPanel {
     this._navBar          = null;
     this._flatPrimary     = null;
     this._advancedInner   = null;
-    this._collectSubRows  = null; // rows greyed out when collectables === 'off'
-    this._devRows         = null; // rows hidden unless dev mode is active
+    this._collectSubRows      = null; // rows greyed out when collectables === 'off'
+    this._devRows             = null; // rows hidden unless dev mode is active
+    this._tournamentPrizeRow  = null; // hidden unless mode === 'tournament'
     this._perfValues      = null; // mutated to include 'experimental' in dev mode
     this._perfCtrl        = null;
     this._campaignUnlocked = false;
@@ -382,6 +384,12 @@ export class ConfigPanel {
         v => ({ off: 'Off', eighth: 'Minor  (⅛ screen)', quarter: 'Major  (¼ screen)', half: 'Extreme  (½ screen)', full: 'Cheating  (1 screen)' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
+    const rowTournamentPrize = this._row('TOURNAMENT PRIZE',
+      this._cycle('tournamentPrize',
+        ['none', 'minor', 'medium', 'major', 'mammoth', 'minorHandicap', 'mediumHandicap', 'majorHandicap'],
+        v => ({ none: 'None', minor: 'Minor  (1)', medium: 'Medium  (2)', major: 'Major  (3)', mammoth: 'Mammoth  (5)',
+                minorHandicap: 'Minor Handicap', mediumHandicap: 'Med. Handicap', majorHandicap: 'Maj. Handicap' }[v] ?? v)));
+    this._tournamentPrizeRow = rowTournamentPrize;
 
     // Page 4 — Collectables
     const rowCollect     = this._row('COLLECTABLES',
@@ -417,10 +425,11 @@ export class ConfigPanel {
     rowStartWep.style.display = 'none'; // hidden until dev mode enabled
     this._updateCollectableGrey();
     this._updateSeedGrey();
+    this._updateTournamentPrizeVisibility();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
-    this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
+    this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI, rowTournamentPrize];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
 
@@ -683,7 +692,10 @@ export class ConfigPanel {
 if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._refresh(); this._onChange('numPlayers'); }
     }
     if (key === 'collectables') this._updateCollectableGrey();
-    if (key === 'mode') this._showPage(Math.min(this._currentPage, this._maxPage));
+    if (key === 'mode') {
+      this._showPage(Math.min(this._currentPage, this._maxPage));
+      this._updateTournamentPrizeVisibility();
+    }
   }
 
   setDevMode(enabled) {
@@ -724,6 +736,12 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
     for (const row of this._collectSubRows ?? []) {
       row.style.opacity       = off ? '0.35' : '1';
       row.style.pointerEvents = off ? 'none' : '';
+    }
+  }
+
+  _updateTournamentPrizeVisibility() {
+    if (this._tournamentPrizeRow) {
+      this._tournamentPrizeRow.style.display = this._d.mode === 'tournament' ? '' : 'none';
     }
   }
 

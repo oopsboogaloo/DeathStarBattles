@@ -359,8 +359,17 @@ function _onGameOver(gs) {
   if (isTournament) {
     if (!tournament) tournament = new TournamentState();
     tournament.recordGame(gs);
+    tournament.generateRewards(activeConfig);
     // Snapshot weapon stocks so they carry into the next game
     _prevWeaponStocks = new Map(gs.teams.map(t => [t.index, new Map(t.weaponStock)]));
+    // Apply prize weapons immediately into the carry-over stocks
+    if (tournament.lastRewards) {
+      const { teamIndex, grants } = tournament.lastRewards;
+      const stocks = _prevWeaponStocks.get(teamIndex);
+      if (stocks) {
+        for (const g of grants) stocks.set(g.id, (stocks.get(g.id) ?? 0) + g.charges);
+      }
+    }
     gameOverScreen.show(gs, tournament);
   } else {
     gameOverScreen.show(gs, null);

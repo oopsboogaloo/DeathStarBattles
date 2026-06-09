@@ -88,6 +88,7 @@ export class GameOverScreen {
     if (tournament) {
       const shouldAwards = tournament.shouldShowAwards();
       if (shouldAwards) this._card.appendChild(this._awardsSection(tournament));
+      if (tournament.lastRewards) this._card.appendChild(this._rewardsSection(tournament));
       this._card.appendChild(this._standingsSection(tournament));
     }
 
@@ -180,6 +181,42 @@ export class GameOverScreen {
         `<span style="color:rgba(180,190,255,0.55);min-width:110px;font-size:11px;letter-spacing:0.06em">${def.icon} ${def.label}</span>` +
         `<span style="color:rgb(${r},${g},${b});font-weight:bold">${winner.label}</span>` +
         `<span style="color:rgba(150,165,210,0.55);margin-left:8px;font-size:11px">(${winner[def.stat]} ${def.unit})</span>`;
+      wrap.appendChild(row);
+    }
+    return wrap;
+  }
+
+  _rewardsSection(tournament) {
+    const { teamLabel, teamColour, grants } = tournament.lastRewards;
+    const [r, g, b] = teamColour;
+
+    const wrap = el('div', {
+      margin: '16px 0', padding: '14px 16px',
+      background: 'rgba(60,70,180,0.1)',
+      border: '1px solid rgba(80,110,255,0.25)',
+      borderRadius: '5px',
+    });
+
+    const title = el('div', {
+      fontSize: '13px', letterSpacing: '0.12em',
+      color: 'rgba(200,210,255,0.8)', marginBottom: '10px',
+      textShadow: '0 0 12px rgba(120,140,255,0.5)',
+    });
+    title.textContent = `⬡  TOURNAMENT PRIZE`;
+    wrap.appendChild(title);
+
+    const teamLine = el('div', { marginBottom: '8px', fontSize: '12px' });
+    teamLine.innerHTML =
+      `<span style="color:rgba(150,165,230,0.6)">Awarded to  </span>` +
+      `<span style="color:rgb(${r},${g},${b});font-weight:bold">${teamLabel}</span>`;
+    wrap.appendChild(teamLine);
+
+    for (const grant of grants) {
+      const row = el('div', { display: 'flex', alignItems: 'center', marginBottom: '3px', fontSize: '12px' });
+      row.innerHTML =
+        `<span style="color:rgba(150,165,230,0.45);min-width:18px">+</span>` +
+        `<span style="color:rgb(${r},${g},${b})">${grant.label}</span>` +
+        `<span style="color:rgba(150,165,210,0.5);margin-left:8px;font-size:11px">×${grant.charges}</span>`;
       wrap.appendChild(row);
     }
     return wrap;
