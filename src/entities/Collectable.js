@@ -62,7 +62,6 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.TEAM_SHIELD,        charges: 1, label: 'TEAM SHIELD',     tier: 2 },
   { id: WeaponId.ARMOUR,             charges: 1, label: 'ARMOUR',          tier: 2 },
   { id: WeaponId.REPULSOR_FIELD,     charges: 2, label: 'REPULSOR FIELD',  tier: 2 },
-  { id: WeaponId.ELECTRO_STUN,       charges: 1, label: 'ELECTRO STUN',    tier: 2 },
   { id: WeaponId.TELEPORT,           charges: 3, label: 'TELEPORT',        tier: 2 },
   { id: WeaponId.AUTO_CANNON,        charges: 2, label: 'AUTO CANNON',     tier: 2 },
   { id: WeaponId.TRIPLE_QUANTUM_TORPEDO, charges: 3, label: 'TRIPLE Q. TORP.', tier: 2 },
