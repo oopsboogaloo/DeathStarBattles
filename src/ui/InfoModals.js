@@ -230,7 +230,7 @@ Lucky Dip picks a weighted random scenario — common ones (Planetary, Asteroids
 
 Notable scenarios:
   Planetary (1)           — rocky planets, mild gravity
-  Crystal Asteroids (3)   — bullets pass through asteroids instead of being blocked
+  Crystal Asteroids (3)   — bullets pass through asteroids; Bounce Cannon reflects off and smashes them
   Star System (4)         — one large star dominates
   Black Hole (22)         — strong invisible attractor
   Wormholes (20)          — teleporting hazards
@@ -246,7 +246,7 @@ Tournament accumulates scores across multiple games and tracks a running leaderb
 
 Tournament scoring: +1 per win, +1 per kill, +1 per surviving station, −1 per own-team kill.
 
-Every 5 games an awards screen highlights standout performers: Bloodlust, Oppression, Bully, and Vengeance.`,
+Every 5 games an awards screen highlights standout performers — four categories are chosen each time from a rotating pool including Bloodlust, Long Shot, Vengeance, Bully, and others.`,
   },
   {
     title: 'Game Speed',
@@ -254,7 +254,7 @@ Every 5 games an awards screen highlights standout performers: Bloodlust, Oppres
 
 Slower speeds make trajectories easier to follow and give more time to read the physics. Very Fast compresses the simulation so matches conclude quickly — useful for automated tournaments.
 
-You can also pause (P) and step frame by frame (O while paused) regardless of this setting.`,
+You can also pause (P) and slow-motion step-through (O while paused) regardless of this setting.`,
   },
   {
     title: 'Station Movement',
@@ -318,6 +318,30 @@ Useful for learning trajectories. Experienced players may prefer Off to keep the
 The game itself is unchanged — only the size of interface elements is affected. Useful on smaller screens or when you want less visual clutter during play.`,
   },
   {
+    title: 'Number of Games',
+    body: `Only available in Tournament mode (Tournament page). How many games to play before the tournament ends.
+
+  Keep Going  — tournament runs indefinitely (default). Use New Game to end manually.
+  5 / 10 / 15 / 20 / 30 / 50  — tournament ends automatically after that many games.
+
+When the final game ends, the results screen shows the complete standings marked ★ FINAL, and the End Tournament button returns to the menu.`,
+  },
+  {
+    title: 'Tournament Prize',
+    body: `Only available in Tournament mode (Tournament page). Awards random weapons to a team after each game.
+
+  None            — no reward.
+  Minor           — game winner receives 1 random weapon.
+  Medium          — game winner receives 2 random weapons.
+  Major           — game winner receives 3 random weapons.
+  Mammoth         — game winner receives 5 random weapons.
+  Minor Handicap  — last-place team (standings) receives 1 weapon.
+  Med. Handicap   — last-place team receives 2 weapons.
+  Maj. Handicap   — last-place team receives 3 weapons.
+
+Weapons are selected using the same tier weighting as pickups: Common (80%), Uncommon (16%), Rare (4%). Awarded weapons are applied immediately and carry into the next game. The results screen names each weapon received.`,
+  },
+  {
     title: 'Map Seed',
     body: `Two fields control map seeding:
 
@@ -331,7 +355,7 @@ The seed determines the scenario, planet positions, and planet types. Giving som
     title: 'Collectables',
     body: `Power-ups scattered across the map that can be collected by hitting them with your own projectile. Options: Off, Rare, Normal, Common, Continuous.
 
-Collectables grant bonuses: extra weapons, shields, speed boosts, and more. The owning station receives the reward automatically on hit.
+Collectables grant bonuses: extra weapons, shields, and more. The owning station receives the reward automatically on hit.
 
 Continuous respawns new collectables throughout the match as old ones are taken. Off removes them entirely. Normal is a good starting point.`,
   },

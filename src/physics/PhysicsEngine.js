@@ -306,9 +306,7 @@ export class PhysicsEngine {
     // Quantum Torpedo: pass through solid non-hazard bodies
     if (bullet.quantumTorpedo) {
       const isHazard   = planet.type === PlanetType.BLACK_HOLE ||
-                         planet.type === PlanetType.WHITE_HOLE ||
-                         planet.type === PlanetType.STAR       ||
-                         planet.type === PlanetType.WHITE_DWARF;
+                         planet.type === PlanetType.WHITE_HOLE;
       const isWormhole = planet.type === PlanetType.WORMHOLE_PAIRED  ||
                          planet.type === PlanetType.WORMHOLE_CYCLIC  ||
                          planet.type === PlanetType.WORMHOLE_RANDOM  ||
@@ -440,8 +438,10 @@ export class PhysicsEngine {
         break;
 
       case PlanetType.CRYSTAL:
-        // Bullet passes through — asteroid shatters but bullet continues
         planet.destroyed = true;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        }
         break;
 
       case PlanetType.COMET:
@@ -519,10 +519,11 @@ export class PhysicsEngine {
     const r  = Math.sqrt(dx * dx + dy * dy) || 1;
     const nx = -dx / r;  // outward normal: from planet toward bullet
     const ny = -dy / r;
-    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    const dot       = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    const retention = bullet.bounceRetention ?? FRAG_BOUNCE_RETENTION;
     bullet.velocity = new Vec2(
-      (bullet.velocity.x - 2 * dot * nx) * FRAG_BOUNCE_RETENTION,
-      (bullet.velocity.y - 2 * dot * ny) * FRAG_BOUNCE_RETENTION,
+      (bullet.velocity.x - 2 * dot * nx) * retention,
+      (bullet.velocity.y - 2 * dot * ny) * retention,
     );
     bullet.position = new Vec2(
       bullet.position.x + dx + nx * (surfaceRadius + INIT_DIST),

@@ -1057,6 +1057,7 @@ export class GameLoop {
         const b = this._makeBulletVelocity(station, station.angle, MAX_V * REINF_SIGNAL_SPEED_MULT);
         b.gravityMultiplier   = REINF_SIGNAL_GRAVITY_MULT;
         b.fragBouncy          = true;
+        b.bounceRetention     = 1.0;
         b.reinforcementSignal = true;
         this.gs.activeBullets.push(b);
       } else if (w === WeaponId.MIND_CONTROL_BEAM && station.team.spendStock(WeaponId.MIND_CONTROL_BEAM)) {
@@ -2437,10 +2438,11 @@ export class GameLoop {
     const r  = Math.sqrt(dx * dx + dy * dy) || 1;
     const nx = -dx / r;
     const ny = -dy / r;
-    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    const dot       = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    const retention = bullet.bounceRetention ?? FRAG_BOUNCE_RETENTION;
     bullet.velocity = new Vec2(
-      (bullet.velocity.x - 2 * dot * nx) * FRAG_BOUNCE_RETENTION,
-      (bullet.velocity.y - 2 * dot * ny) * FRAG_BOUNCE_RETENTION,
+      (bullet.velocity.x - 2 * dot * nx) * retention,
+      (bullet.velocity.y - 2 * dot * ny) * retention,
     );
     bullet.position = new Vec2(
       station.position.x + nx * (station.radius + 1),

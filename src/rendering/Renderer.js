@@ -394,6 +394,29 @@ export class Renderer {
       return;
     }
 
+    if (bullet.reinforcementSignal) {
+      const AMPLITUDE  = 4.8;
+      const WAVELENGTH = 30;
+      const dx = cur.x - prev.x;
+      const dy = cur.y - prev.y;
+      const segLen = Math.sqrt(dx * dx + dy * dy);
+      if (segLen === 0) return;
+      const nx = -dy / segLen;   // perpendicular to segment
+      const ny =  dx / segLen;
+      const arcStart = bullet._trailArc ?? 0;
+      const arcEnd   = arcStart + segLen;
+      const w0 = Math.sin(2 * Math.PI * arcStart / WAVELENGTH) * AMPLITUDE;
+      const w1 = Math.sin(2 * Math.PI * arcEnd   / WAVELENGTH) * AMPLITUDE;
+      ctx.beginPath();
+      ctx.moveTo((prev.x + nx * w0) * conv, (prev.y + ny * w0) * conv);
+      ctx.lineTo((cur.x  + nx * w1) * conv, (cur.y  + ny * w1) * conv);
+      ctx.strokeStyle = `rgba(${tr},${tg},${tb},1)`;
+      ctx.lineWidth   = Math.max(1, conv * 0.6);
+      ctx.stroke();
+      bullet._trailArc = arcEnd;
+      return;
+    }
+
     ctx.beginPath();
     ctx.moveTo(prev.x * conv, prev.y * conv);
     ctx.lineTo(cur.x  * conv, cur.y  * conv);
@@ -2973,46 +2996,69 @@ export class Renderer {
     const t     = vfx.t;
     const alpha = Math.sin(t * Math.PI);
     const { r, g, b } = vfx;
-    const now   = Date.now() / 600;
+    const phase = -Date.now() / 83;
+
+    const AMPLITUDE    = 4.8;  // ± one medium-station radius (= medium station width peak-to-peak)
+    const CYCLES       = 10.5;
+    const POINT_SPACING = 2;   // game units between sub-sampled points (~12 pts/cycle)
+
+    // Linearly sub-sample the physics path so the sine wave is smooth
+    const raw = vfx.path;
+    const dense = [raw[0]];
+    for (let i = 1; i < raw.length; i++) {
+      const ax = raw[i - 1].x, ay = raw[i - 1].y;
+      const bx = raw[i].x,     by = raw[i].y;
+      const dx = bx - ax,      dy = by - ay;
+      const n  = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / POINT_SPACING));
+      for (let s = 1; s <= n; s++) {
+        const f = s / n;
+        dense.push({ x: ax + dx * f, y: ay + dy * f });
+      }
+    }
+
+    // Cumulative arc length for uniform wavelength regardless of point spacing
+    const arc = [0];
+    for (let i = 1; i < dense.length; i++) {
+      const dx = dense[i].x - dense[i - 1].x;
+      const dy = dense[i].y - dense[i - 1].y;
+      arc.push(arc[i - 1] + Math.sqrt(dx * dx + dy * dy));
+    }
+    const totalArc = arc[arc.length - 1] || 1;
+
+    // Pre-compute transverse-sine-wave canvas coordinates
+    const pts = dense.map((pt, i) => {
+      const segDx = i < dense.length - 1
+        ? dense[i + 1].x - pt.x : pt.x - dense[i - 1].x;
+      const segDy = i < dense.length - 1
+        ? dense[i + 1].y - pt.y : pt.y - dense[i - 1].y;
+      const len  = Math.sqrt(segDx * segDx + segDy * segDy) || 1;
+      const nx   = -segDy / len;
+      const ny   =  segDx / len;
+      const wave = Math.sin(2 * Math.PI * CYCLES * (arc[i] / totalArc) + phase) * AMPLITUDE;
+      return { x: (pt.x + nx * wave) * conv, y: (pt.y + ny * wave) * conv };
+    });
+
+    const tracePath = () => {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    };
 
     ctx.save();
 
     // Outer glow
-    ctx.beginPath();
-    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
-    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.beginPath(); tracePath();
     ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.2).toFixed(3)})`;
     ctx.lineWidth   = 14;
     ctx.stroke();
 
-    // Animated sine wave overlay
-    if (vfx.path.length >= 2) {
-      ctx.beginPath();
-      for (let i = 0; i < vfx.path.length; i++) {
-        const px0 = vfx.path[Math.max(0, i - 1)];
-        const pt  = vfx.path[i];
-        // Perpendicular offset for sine wave
-        const segDx = i < vfx.path.length - 1
-          ? vfx.path[i + 1].x - pt.x : pt.x - px0.x;
-        const segDy = i < vfx.path.length - 1
-          ? vfx.path[i + 1].y - pt.y : pt.y - px0.y;
-        const len   = Math.sqrt(segDx * segDx + segDy * segDy) || 1;
-        const nx    = -segDy / len;
-        const ny    =  segDx / len;
-        const wave  = Math.sin(i * 0.5 + now) * 4 * conv * (1 - t * 0.5);
-        const sx    = pt.x * conv + nx * wave;
-        const sy    = pt.y * conv + ny * wave;
-        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
-      }
-      ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.85).toFixed(3)})`;
-      ctx.lineWidth   = 2.5;
-      ctx.stroke();
-    }
+    // Coloured wave
+    ctx.beginPath(); tracePath();
+    ctx.strokeStyle = `rgba(${r},${g},${b},${(alpha * 0.85).toFixed(3)})`;
+    ctx.lineWidth   = 2.5;
+    ctx.stroke();
 
     // White core
-    ctx.beginPath();
-    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
-    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.beginPath(); tracePath();
     ctx.strokeStyle = `rgba(255,255,255,${(alpha * 0.5).toFixed(3)})`;
     ctx.lineWidth   = 1.5;
     ctx.stroke();
