@@ -384,7 +384,7 @@ export class ConfigPanel {
         v => ({ off: 'Off', eighth: 'Minor  (⅛ screen)', quarter: 'Major  (¼ screen)', half: 'Extreme  (½ screen)', full: 'Cheating  (1 screen)' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
-    const rowTournamentPrize = this._row('TOURNAMENT PRIZE',
+    const rowTournamentPrize = this._row('T. PRIZE',
       this._cycle('tournamentPrize',
         ['none', 'minor', 'medium', 'major', 'mammoth', 'minorHandicap', 'mediumHandicap', 'majorHandicap'],
         v => ({ none: 'None', minor: 'Minor  (1)', medium: 'Medium  (2)', major: 'Major  (3)', mammoth: 'Mammoth  (5)',
