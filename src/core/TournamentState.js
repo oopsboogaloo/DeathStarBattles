@@ -107,7 +107,7 @@ export class TournamentState {
   }
 
   // Pick tournament prize weapons and store in this.lastRewards. Call after recordGame().
-  generateRewards(config) {
+  generateRewards(config, gameState) {
     this.lastRewards = null;
     const setting = config?.tournamentPrize ?? 'none';
     const countMap = { minor: 1, medium: 2, major: 3, mammoth: 5,
@@ -116,11 +116,20 @@ export class TournamentState {
     if (!count) return null;
 
     const isHandicap = setting.endsWith('Handicap');
-    const sorted     = this.sorted;
-    if (!sorted.length) return null;
 
-    const recipient = isHandicap ? sorted[sorted.length - 1] : sorted[0];
-    if (!recipient) return null;
+    let recipient;
+    if (isHandicap) {
+      const sorted = this.sorted;
+      if (!sorted.length) return null;
+      recipient = sorted[sorted.length - 1];
+      if (!recipient) return null;
+      // Re-express as { index, label, colour } matching the team object shape
+      recipient = { index: recipient.index, label: recipient.label, colour: recipient.colour };
+    } else {
+      const winner = gameState?.winner;
+      if (!winner) return null;
+      recipient = { index: winner.index, label: `Team ${winner.index + 1}`, colour: winner.colour };
+    }
 
     const grants = [];
     for (let i = 0; i < count; i++) {

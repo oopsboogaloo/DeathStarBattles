@@ -359,7 +359,7 @@ function _onGameOver(gs) {
   if (isTournament) {
     if (!tournament) tournament = new TournamentState();
     tournament.recordGame(gs);
-    tournament.generateRewards(activeConfig);
+    tournament.generateRewards(activeConfig, gs);
     // Snapshot weapon stocks so they carry into the next game
     _prevWeaponStocks = new Map(gs.teams.map(t => [t.index, new Map(t.weaponStock)]));
     // Apply prize weapons immediately into the carry-over stocks
