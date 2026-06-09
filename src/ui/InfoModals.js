@@ -318,6 +318,21 @@ Useful for learning trajectories. Experienced players may prefer Off to keep the
 The game itself is unchanged — only the size of interface elements is affected. Useful on smaller screens or when you want less visual clutter during play.`,
   },
   {
+    title: 'Tournament Prize',
+    body: `Only available in Tournament mode. Awards random weapons to a team after each game.
+
+  None            — no reward.
+  Minor           — game winner receives 1 random weapon.
+  Medium          — game winner receives 2 random weapons.
+  Major           — game winner receives 3 random weapons.
+  Mammoth         — game winner receives 5 random weapons.
+  Minor Handicap  — last-place team (standings) receives 1 weapon.
+  Med. Handicap   — last-place team receives 2 weapons.
+  Maj. Handicap   — last-place team receives 3 weapons.
+
+Weapons are selected using the same tier weighting as pickups: Common (80%), Uncommon (16%), Rare (4%). Awarded weapons are applied immediately and carry into the next game. The results screen names each weapon received.`,
+  },
+  {
     title: 'Map Seed',
     body: `Two fields control map seeding:
 
