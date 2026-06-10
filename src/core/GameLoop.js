@@ -852,6 +852,10 @@ export class GameLoop {
       // No humans alive — stay in Fast FWD for all remaining AI turns
     }
     this._processStoryEvents(); // may spawn stations and set storyDialogText
+    // Decrement frozen for stations that served their frozen turn last turn
+    for (const s of this.gs.allStations) {
+      if (s._frozenActive) { s.frozen = Math.max(0, s.frozen - 1); s._frozenActive = false; }
+    }
     this._turnOrder = this.gs.allStations.filter(s => s.status === 'active' && s.role !== 'target');
     this._turnIdx   = 0;
     this.gs.waitingForInput = false;
@@ -883,9 +887,9 @@ export class GameLoop {
 
       // Frozen: station skips its turn; frozen supersedes electrified
       if ((station.frozen ?? 0) > 0) {
-        station.frozen--;
-        station.frozenFlash = 1.0;
-        station.velocity    = null;
+        station._frozenActive = true;  // signals _startTurn to decrement next turn
+        station.frozenFlash   = 1.0;
+        station.velocity      = null;
         this._setActive(station);
         if (station.team.isHuman) {
           this.gs.waitingForInput = true;
