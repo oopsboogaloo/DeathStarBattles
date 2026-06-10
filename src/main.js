@@ -489,7 +489,7 @@ async function startGame(cfg) {
     ? (cfg.performance === 'simplified' ? 20 : 30)
     : layoutRng.nextInt(18) + 3;
 
-  const { planets, rifts, isExtreme } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
+  const { planets, rifts, isExtreme } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal', cfg.forceExtreme ?? false);
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);

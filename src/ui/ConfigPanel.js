@@ -80,6 +80,7 @@ export class ConfigPanel {
       richAsteroids:     'normal',
       collectableSize:   'medium',
       startingWeapons:   'none',
+      forceExtreme:      false,
       overrideSeed:      '',
       aimCircleSize:     'regular',
       bulletPaths:       'off',
@@ -471,6 +472,9 @@ export class ConfigPanel {
       this._cycle('collectableSize',
         ['tiny', 'medium', 'large', 'huge', 'mammoth', 'varied'],
         v => ({ tiny: 'Tiny  (½×)', medium: 'Medium', large: 'Large  (1.5×)', huge: 'Huge  (2×)', mammoth: 'Mammoth  (3×)', varied: 'Varied' }[v])));
+    const rowForceExtreme = this._row('FORCE EXTREME',
+      this._cycle('forceExtreme', [false, true], v => v ? 'On' : 'Off'));
+
     const rowStartWep    = this._row('STARTING WEAPONS',
       this._cycle('startingWeapons',
         ['none', 'one', 'minor', 'oneOfEach', 'lots', 'tooMany'],
@@ -488,15 +492,16 @@ export class ConfigPanel {
 
     this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
     this._seedSubRows    = [rowScenario];
-    this._devRows        = [rowStartWep];
-    rowStartWep.style.display = 'none'; // hidden until dev mode enabled
+    this._devRows        = [rowStartWep, rowForceExtreme];
+    rowStartWep.style.display    = 'none'; // hidden until dev mode enabled
+    rowForceExtreme.style.display = 'none';
     this._updateCollectableGrey();
     this._updateSeedGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
-    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep];
+    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
 

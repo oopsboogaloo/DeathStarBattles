@@ -252,7 +252,7 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal') {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal', forceExtreme = false) {
     const richProb = collectables === 'off' ? 0 : (
       { off: 0, rare: 0.01, normal: 0.05, common: 0.10, abundant: 0.25, overwhelming: 1.0 }[richAsteroids] ?? 0.05
     );
@@ -266,7 +266,7 @@ export class ScenarioFactory {
     let attempts  = 0;
 
     do {
-      ({ planets, isExtreme } = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb));
+      ({ planets, isExtreme } = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb, forceExtreme));
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -489,7 +489,7 @@ export class ScenarioFactory {
 
   // ─── planet placement ──────────────────────────────────────────────────────
 
-  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', richProb = 0) {
+  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', richProb = 0, forceExtreme = false) {
     const simplified = performance === 'simplified';
     const planets = [];
     let isExtreme = false;
@@ -764,7 +764,7 @@ export class ScenarioFactory {
 
       // ── 27: Black Holes ───────────────────────────────────────────────────
       case 27: {
-        const extreme27 = rng.next() < 0.10;
+        const extreme27 = forceExtreme || rng.next() < 0.10;
         if (extreme27) isExtreme = true;
         const nBH      = extreme27 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
         const bh27Mid  = (nBH > 0 && rng.next() < 0.5) ? rng.nextInt(nBH) : -1;
@@ -902,7 +902,7 @@ export class ScenarioFactory {
 
       // ── 25: White Holes ───────────────────────────────────────────────────
       case 25: {
-        const extreme25 = rng.next() < 0.10;
+        const extreme25 = forceExtreme || rng.next() < 0.10;
         if (extreme25) isExtreme = true;
         const nWH     = extreme25 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
         const wh25Mid = (nWH > 0 && rng.next() < 0.5) ? rng.nextInt(nWH) : -1;
@@ -1207,7 +1207,7 @@ export class ScenarioFactory {
 
       // ── 33: Pulsars (2–5 pulsars biased to edges + rocky filler) ──
       case 33: {
-        const extreme33 = rng.next() < 0.10;
+        const extreme33 = forceExtreme || rng.next() < 0.10;
         if (extreme33) isExtreme = true;
         const nPulsars = extreme33 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
         const pul33Mid = (nPulsars > 0 && rng.next() < 0.5) ? rng.nextInt(nPulsars) : -1;
