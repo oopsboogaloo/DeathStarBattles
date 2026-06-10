@@ -2,8 +2,8 @@ const DEFAULTS = {
   count:          160,
   innerMult:      0.05,  // spawn ring = visualR * innerMult (right at the body)
   outerMult:      7.0,   // despawn ring = visualR * outerMult
-  initSpeed:      0.05,  // starting outward speed = visualR * initSpeed per second
-  accelFrac:      2.5,   // outward acceleration = visualR * accelFrac per second²
+  initSpeed:      0,     // starting outward speed (0 = from rest)
+  accelFrac:      12,    // outward acceleration = visualR * accelFrac per second²
   blobMult:       0.38,  // blob radius at spawn = visualR * blobMult
   blobMinMult:    0.08,  // blob radius at despawn
   alphaMax:       0.22,
@@ -34,26 +34,14 @@ export class WhiteHoleParticles {
   }
 
   update(nowSec) {
+    if (this._lastT === null) { this._lastT = nowSec; return; }
     const cfg     = this._cfg;
     const visualR = Math.max(4, this._planet.radius * 1.8 * this._conv);
     const innerR  = visualR * cfg.innerMult;
     const outerR  = visualR * cfg.outerMult;
     const accel   = visualR * cfg.accelFrac;
-
-    if (this._lastT === null) {
-      this._lastT = nowSec;
-      // Scatter particles across the full range on first init so it doesn't look empty
-      for (let i = 0; i < cfg.count; i++) {
-        this._radii[i]  = innerR + Math.random() * (outerR - innerR);
-        // Assign a plausible speed for their current position assuming constant accel from rest
-        const traveled = this._radii[i] - innerR;
-        this._speeds[i] = Math.sqrt(2 * accel * traveled);
-      }
-      return;
-    }
-
-    const dt    = Math.min(nowSec - this._lastT, 0.1);
-    this._lastT = nowSec;
+    const dt      = Math.min(nowSec - this._lastT, 0.1);
+    this._lastT   = nowSec;
 
     for (let i = 0; i < cfg.count; i++) {
       this._speeds[i] += accel * dt;
@@ -71,7 +59,20 @@ export class WhiteHoleParticles {
     const visualR = Math.max(4, planet.radius * 1.8 * conv);
     const innerR  = visualR * cfg.innerMult;
     const outerR  = visualR * cfg.outerMult;
+    const accel   = visualR * cfg.accelFrac;
     const range   = outerR - innerR;
+
+    // Scatter particles on first draw when conv is known
+    if (!this._initialised) {
+      this._initialised = true;
+      for (let i = 0; i < cfg.count; i++) {
+        const t = Math.random();
+        // Place at position matching constant-accel from rest: r = innerR + fraction * range
+        // Give matching speed so density gradient is realistic from frame 1
+        this._radii[i]  = innerR + t * range;
+        this._speeds[i] = Math.sqrt(2 * accel * (this._radii[i] - innerR));
+      }
+    }
     const blobFull = visualR * cfg.blobMult;
     const blobMin  = visualR * cfg.blobMinMult;
 
