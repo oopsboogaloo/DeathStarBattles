@@ -104,11 +104,10 @@ export class PhysicsEngine {
 
       // Pulsar: outward impulse when bullet crosses an active pressure ring
       if (planet.type === PlanetType.PULSAR && planet.pulsarPulses?.length) {
-        const PULSE_MAX_R = 180;
         const RING_HALF_W = 9;
         const d = Math.sqrt(rSq);
         for (const pulse of planet.pulsarPulses) {
-          const pulseR = planet.impactRadius + (PULSE_MAX_R - planet.impactRadius) * pulse.t;
+          const pulseR = planet.impactRadius + (planet.pulsarMaxR - planet.impactRadius) * pulse.t;
           if (Math.abs(d - pulseR) < RING_HALF_W) {
             const strength = (1 - pulse.t) * 0.027; // fades to zero as ring expands
             vx += (-dx / d) * strength;

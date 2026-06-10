@@ -54,6 +54,7 @@ export class Planet {
     rotation      = 0,      // current rotation angle in radians
     rotationSpeed = 0,      // radians per rAF frame
     colourB       = null,   // secondary colour for GAS_GIANT stripes ([r,g,b] or null)
+    pulsarMaxR    = 150,    // maximum expansion radius for pressure rings (PULSAR type only)
     pulsarPeriod  = 0,      // seconds between pressure pulses (PULSAR type only)
     pulsarPhase   = 0,      // current phase within period (seconds)
     velocity      = null,   // Vec2 — used by COMET type for dynamic movement
@@ -77,6 +78,7 @@ export class Planet {
     this.rotationSpeed = rotationSpeed;
     this._rotatedVerts = null; // cached world-space vertices, updated each frame
     this.colourB       = colourB;
+    this.pulsarMaxR    = pulsarMaxR;
     this.pulsarPeriod  = pulsarPeriod;
     this.pulsarPhase   = pulsarPhase;
     this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings

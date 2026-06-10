@@ -219,7 +219,8 @@ function makePulsar(rng, A, B, C, gw, gh) {
     type:         PlanetType.PULSAR,
     colour:       [...WHITE_COL],
     shading:      ShadingStyle.GLOWING,
-    pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
+    pulsarMaxR:   90 + rng.next() * 60,    // 90–150 game units
+    pulsarPeriod: 0.4 + rng.next() * 3.6, // 0.4–4 seconds
     pulsarPhase:  rng.next() * 4.5,        // random initial phase so they desync
   });
 }
@@ -1328,7 +1329,8 @@ export class ScenarioFactory {
         type:         PlanetType.PULSAR,
         colour:       [...WHITE_COL],
         shading:      ShadingStyle.GLOWING,
-        pulsarPeriod: 0.1 + rng.next() * 0.9,
+        pulsarMaxR:   90 + rng.next() * 60,
+        pulsarPeriod: 0.4 + rng.next() * 3.6,
         pulsarPhase:  rng.next() * 0.9,
       })];
     } else if (rb < 0.95) {
