@@ -687,6 +687,7 @@ export class ScenarioFactory {
           type:         PlanetType.WHITE_DWARF,
           colour:       WHITE_COL,
           shading:      ShadingStyle.GLOWING,
+          halo:         15.0,
         }));
         for (let i = 1; i < nPlanets; i++)
           planets.push(makePlanet(rng, 1,0,0, 5,5,3, gw,gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
@@ -722,8 +723,11 @@ export class ScenarioFactory {
 
       // ── 21: White Dwarfs ──────────────────────────────────────────────────
       case 21: {
-        for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, 3, PlanetType.WHITE_DWARF, WHITE_COL, ShadingStyle.GLOWING));
+        for (let i = 0; i < nPlanets; i++) {
+          const p = makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, 3, PlanetType.WHITE_DWARF, WHITE_COL, ShadingStyle.GLOWING);
+          p.halo = 15.0;
+          planets.push(p);
+        }
         break;
       }
 
