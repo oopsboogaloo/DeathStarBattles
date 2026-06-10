@@ -1094,7 +1094,7 @@ export class ScenarioFactory {
         const sR   = 30 + Math.floor(rng.next() * 30);
         planets.push(new Planet({
           position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
-          radius: sR, density: 0.015,
+          radius: sR, density: 0.03,
           type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
         }));
         const numRocks = 2 + Math.floor(rng.next() * 3); // 2–4 asteroids
