@@ -88,6 +88,15 @@ Human players control angle and power via:
 - Speed tiers: Glacial (1×), Slow (2×), Normal (3×), Fast (5×), Rocket (8×)
 - Movement is purely positional drift — it does not affect the station's angle or power settings
 
+#### 4.5.1 Rift bounce (11.10)
+During movement resolution, a station may not cross a rift segment. When the station's movement path would intersect any rift segment (geometric line check), its velocity vector is reflected elastically off that segment's normal — identical to the screen-edge bounce. Applies to all movement modes. Stations placed by hyperspace inside a rift's geometric boundary are immediately ejected perpendicular to the nearest rift segment to the nearest clear side. Bullet trajectories are unaffected by this rule.
+
+#### 4.5.2 Pulsar nudge (11.11)
+When movement is enabled (any speed other than Off), pulsar pressure rings interact with stations. Each time a pressure ring sweeps through a station's position (i.e. the ring's expanding radius crosses the station's distance from that pulsar), the station receives a single outward velocity nudge of `0.2 × MAX_MOVE_SPEED` in the radially-outward direction. Nudges accumulate; total speed is capped at the station's configured move speed. If the station had no queued move that turn, nudges still apply and set it in motion. Multiple pulsars and multiple rings act independently.
+
+#### 4.5.3 White hole push (11.11)
+When movement is enabled, stations within 40 game units of a white hole are continuously pushed outward during movement resolution. Force magnitude scales linearly from maximum at distance 0 to zero at distance 40, applied each movement step. Accumulated speed is capped at 1.5× the station's configured move speed (so a player cannot fully counter it by commanding movement toward the white hole, but a strong move command can partially resist). No effect when movement is Off.
+
 ### 4.6 Special Weapons & Collectables
 
 #### Weapon Selector
@@ -241,7 +250,9 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 
 A **space rift** is a non-solid map object — a piecewise-linear chain of 3–11 connected segments, each approximately one Medium station diameter long (≤30° turn between segments). Rifts have no solid geometry; bullets, stations, and planets pass through them freely.
 
-**Repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Stations and collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
+**Repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
+
+**Station bounce:** Stations cannot cross rift segments during movement — see §4.5.1.
 
 **Rendering:** Drawn on the static background layer. Outer glow: wide soft-blurred purple-white line (~20–30px, alpha 0.25–0.35). Forked lightning branches: 2–4 branching paths from random rift positions, 3–6 irregular segments with ±40° deflections and at least one fork, alpha 0.2–0.4. Rift line itself: bright white-purple polyline at 2px / alpha 0.95 with an inner luminescent glow pass. Renders above planets, below stations and bullets.
 

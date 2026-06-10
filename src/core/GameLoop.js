@@ -2,7 +2,7 @@ import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
-         SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION } from '../physics/PhysicsEngine.js';
+         SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION, PULSE_MAX_R } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
@@ -126,18 +126,45 @@ export class GameLoop {
 
   // Advance pulsar phase each rAF frame (wall-clock timing, ~1/60 s per frame).
   // Emits new pressure pulses and advances/expires existing ones.
+  // Also applies outward nudge to stations when a ring sweeps through them (§4.5.2).
   _advancePulsars() {
-    const dt            = 1 / 60;
-    const PULSE_DURATION = 1.5; // seconds for a pulse to fully expand
+    const dt             = 1 / 60;
+    const PULSE_DURATION = 1.5;
+    const RING_HALF_W    = 9;
+    const movementOn     = this.gs.movementSpeed && this.gs.movementSpeed !== 'off';
     for (const planet of this.gs.planets) {
       if (!planet.pulsarPulses) continue;
       planet.pulsarPhase += dt;
       if (planet.pulsarPhase >= planet.pulsarPeriod) {
         planet.pulsarPhase -= planet.pulsarPeriod;
-        planet.pulsarPulses.push({ t: 0 });
+        planet.pulsarPulses.push({ t: 0, _nudged: new Set() });
       }
       const dtFrac = dt / PULSE_DURATION;
-      for (const pulse of planet.pulsarPulses) pulse.t += dtFrac;
+      for (const pulse of planet.pulsarPulses) {
+        pulse.t += dtFrac;
+        if (!movementOn) continue;
+        if (!pulse._nudged) pulse._nudged = new Set();
+        const pulseR = planet.impactRadius + (PULSE_MAX_R - planet.impactRadius) * pulse.t;
+        for (const station of this.gs.allStations) {
+          if (station.status !== 'active' || pulse._nudged.has(station)) continue;
+          const dx = station.position.x - planet.position.x;
+          const dy = station.position.y - planet.position.y;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (Math.abs(d - pulseR) >= RING_HALF_W) continue;
+          pulse._nudged.add(station);
+          const maxSpd  = this._maxSpeedForMovement();
+          const nudge   = maxSpd * 0.2;
+          const outX    = d > 0.001 ? dx / d : 1;
+          const outY    = d > 0.001 ? dy / d : 0;
+          const cur     = station.velocity ?? new Vec2(0, 0);
+          const nx      = cur.x + outX * nudge;
+          const ny      = cur.y + outY * nudge;
+          const spd     = Math.hypot(nx, ny);
+          const capped  = spd > maxSpd ? maxSpd / spd : 1;
+          station.velocity = new Vec2(nx * capped, ny * capped);
+          if (!station._moveDistRemaining) station._moveDistRemaining = this._getMaxMoveDist(station);
+        }
+      }
       planet.pulsarPulses = planet.pulsarPulses.filter(p => p.t < 1);
     }
   }
@@ -261,9 +288,74 @@ export class GameLoop {
     return mult * refDiam * scale;
   }
 
+  // Segment-segment intersection test (used for rift bounce).
+  _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    const d1x = bx - ax, d1y = by - ay;
+    const d2x = dx - cx, d2y = dy - cy;
+    const cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return false;
+    const t = ((cx - ax) * d2y - (cy - ay) * d2x) / cross;
+    const u = ((cx - ax) * d1y - (cy - ay) * d1x) / cross;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+  }
+
+  // Find the nearest rift segment to a point; returns { nx, ny, segIdx, riftIdx } or null.
+  _nearestRiftSegment(px, py) {
+    const rifts = this.gs.rifts ?? [];
+    let bestDist = Infinity, bestNx = 0, bestNy = 1;
+    for (const rift of rifts) {
+      const verts = rift.vertices;
+      for (let i = 0; i < verts.length - 1; i++) {
+        const ax = verts[i].x, ay = verts[i].y;
+        const bx = verts[i+1].x, by = verts[i+1].y;
+        const dx = bx - ax, dy = by - ay;
+        const lenSq = dx*dx + dy*dy;
+        if (lenSq < 1e-10) continue;
+        const t  = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq));
+        const cx = ax + t*dx, cy = ay + t*dy;
+        const d  = Math.hypot(px-cx, py-cy);
+        if (d < bestDist) {
+          bestDist = d;
+          const len = Math.sqrt(lenSq);
+          // Left normal of segment
+          bestNx = -dy / len;
+          bestNy =  dx / len;
+        }
+      }
+    }
+    return bestDist < Infinity ? { nx: bestNx, ny: bestNy } : null;
+  }
+
   // Move all stations one physics step and check for collisions.
   _stepStations(allStations) {
     const { gw, gh } = this.physics;
+    const WHITE_HOLE_PUSH_RADIUS  = 40;
+    const WHITE_HOLE_PUSH_STRENGTH = 0.008; // tunable: force per unit per step
+    const movementOn = this.gs.movementSpeed && this.gs.movementSpeed !== 'off';
+    const rifts      = this.gs.rifts ?? [];
+
+    // ── White hole push — apply before position update ───────────────────────
+    if (movementOn) {
+      const maxSpd15 = this._maxSpeedForMovement() * 1.5;
+      for (const station of allStations) {
+        if (station.status !== 'active') continue;
+        for (const planet of this.gs.planets) {
+          if (planet.destroyed || planet.type !== PlanetType.WHITE_HOLE) continue;
+          const dx = station.position.x - planet.position.x;
+          const dy = station.position.y - planet.position.y;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (d >= WHITE_HOLE_PUSH_RADIUS || d < 0.001) continue;
+          const strength = WHITE_HOLE_PUSH_STRENGTH * (1 - d / WHITE_HOLE_PUSH_RADIUS);
+          const cur  = station.velocity ?? new Vec2(0, 0);
+          const nx   = cur.x + (dx / d) * strength;
+          const ny   = cur.y + (dy / d) * strength;
+          const spd  = Math.hypot(nx, ny);
+          const cap  = spd > maxSpd15 ? maxSpd15 / spd : 1;
+          station.velocity = new Vec2(nx * cap, ny * cap);
+          if (!station._moveDistRemaining) station._moveDistRemaining = this._getMaxMoveDist(station);
+        }
+      }
+    }
 
     // ── Position update + distance cap ──────────────────────────────────────
     for (const station of allStations) {
@@ -288,6 +380,28 @@ export class GameLoop {
       if (x > gw - r) { x = gw - r; vx = -Math.abs(vx); }
       if (y < r)      { y = r;      vy =  Math.abs(vy); }
       if (y > gh - r) { y = gh - r; vy = -Math.abs(vy); }
+
+      // Rift bounce — reflect off any rift segment the path would cross (§4.5.1)
+      const ox = station.position.x, oy = station.position.y;
+      for (const rift of rifts) {
+        const verts = rift.vertices;
+        for (let i = 0; i < verts.length - 1; i++) {
+          const ax = verts[i].x, ay = verts[i].y;
+          const bx = verts[i+1].x, by = verts[i+1].y;
+          if (!this._segmentsIntersect(ox, oy, x, y, ax, ay, bx, by)) continue;
+          // Segment normal (ensure it faces toward the incoming side)
+          const sdx = bx - ax, sdy = by - ay;
+          const len  = Math.hypot(sdx, sdy);
+          let nx = -sdy / len, ny = sdx / len;
+          if (nx * (ox - ax) + ny * (oy - ay) < 0) { nx = -nx; ny = -ny; }
+          const dot = vx * nx + vy * ny;
+          vx -= 2 * dot * nx;
+          vy -= 2 * dot * ny;
+          // Push position back to the correct side
+          x = ox; y = oy;
+          break;
+        }
+      }
 
       station.position = new Vec2(x, y);
       if (station.velocity && (vx !== station.velocity.x || vy !== station.velocity.y)) {
