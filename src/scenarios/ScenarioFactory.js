@@ -515,6 +515,19 @@ export class ScenarioFactory {
       case 1: {
         for (let i = 0; i < nPlanets; i++)
           planets.push(makePlanet(rng, 0.4,0.4,0.1, 20,20,7, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+        const extreme1 = forceExtreme || rng.next() < 0.10;
+        if (extreme1) {
+          isExtreme = true;
+          const nExtra = 1 + rng.nextInt(10);
+          for (let i = 0; i < nExtra; i++) {
+            const [ex, ey] = sideEdgePos(rng, gw, gh);
+            planets.push(new Planet({
+              position: new Vec2(ex, ey),
+              radius: 7 + rng.next() * 13, density: 0.03,
+              type: PlanetType.ROCKY, colour: ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], shading: ShadingStyle.ROCKY,
+            }));
+          }
+        }
         break;
       }
 
