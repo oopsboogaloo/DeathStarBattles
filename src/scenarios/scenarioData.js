@@ -1,4 +1,4 @@
-export const SCENARIO_COUNT = 33;
+export const SCENARIO_COUNT = 34;
 
 // Deterministic FNV-1a 32-bit hash of a UTF-16 string (platform-independent)
 export function hashString(str) {
@@ -46,6 +46,7 @@ export const SCENARIO_NAMES = [
   'Moons',              // 31
   'Giant Asteroid',     // 32
   'Pulsars',            // 33
+  'Wormhole Tunnel',    // 34
 ];
 
 // Scenarios valid for Target Practice mode

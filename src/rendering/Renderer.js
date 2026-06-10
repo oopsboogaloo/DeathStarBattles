@@ -165,7 +165,8 @@ export class Renderer {
     this._stars       = stars;
     this._planets     = planets;
     this._rifts       = rifts;
-    this._noStarField = !!opts.noStarField;
+    this._noStarField      = !!opts.noStarField;
+    this._tunnelBackground = !!opts.tunnelBackground;
     this._svgOverlayCache.clear();
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
@@ -215,7 +216,8 @@ export class Renderer {
     const ctx = this.bgCtx;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this._vpW, this._vpH);
-    if (!this._noStarField) this._drawStarField(ctx);
+    if (this._tunnelBackground) this._drawWormholeTunnel(ctx);
+    else if (!this._noStarField) this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
@@ -344,6 +346,59 @@ export class Renderer {
       this._drawLightningBranch(ctx, bx, by, ba + (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
       this._drawLightningBranch(ctx, bx, by, ba - (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
     }
+  }
+
+  _drawWormholeTunnel(ctx) {
+    const W = this._vpW, H = this._vpH;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    // Soft radial glow at the vanishing point — the far end of the tunnel
+    const vx = W * 0.53, vy = H * 0.54; // vanishing point: slightly off-centre
+    const glowR = Math.min(W, H) * 0.25;
+    const glow  = ctx.createRadialGradient(vx, vy, 0, vx, vy, glowR);
+    glow.addColorStop(0,   'rgba(30,10,60,0.45)');
+    glow.addColorStop(0.5, 'rgba(10,5,30,0.20)');
+    glow.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Concentric ellipses — inner rings near vanishing point, outer rings near viewer
+    const N     = 18;
+    const maxA  = W * 0.49, maxB = H * 0.49;
+    const minA  = W * 0.025, minB = H * 0.025;
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = 0; i < N; i++) {
+      const t      = (i + 1) / N;              // 0 (far/small) → 1 (near/large)
+      const tCurve = Math.pow(t, 0.75);        // slight perspective compression
+
+      // Ring centre drifts from vanishing point (inner) toward canvas centre (outer)
+      const ex = vx + (W / 2 - vx) * t;
+      const ey = vy + (H / 2 - vy) * t;
+
+      const a = minA + (maxA - minA) * tCurve;
+      const b = minB + (maxB - minB) * tCurve;
+
+      // Slight spiral twist: each successive ring rotated a few degrees
+      const rot = i * 0.06; // ~0.06 rad per ring ≈ 3.5°; 18 rings ≈ 60° total twist
+
+      // Alternate blues and purples; inner rings dimmer, outer slightly brighter
+      const isBlue  = i % 2 === 0;
+      const hue     = isBlue ? 225 + i * 1.5 : 268 + i * 0.8;
+      const lness   = Math.round(5 + t * 9);
+      const alpha   = 0.35 + t * 0.45;
+      const strokeW = 0.6 + t * 2.2;
+
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, a, b, rot, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${hue},68%,${lness}%,${alpha})`;
+      ctx.lineWidth   = strokeW;
+      ctx.stroke();
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   _drawStarField(ctx) {

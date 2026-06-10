@@ -308,6 +308,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler |
 | 32 | Giant Asteroid | One enormous multi-hit asteroid surrounded by smaller asteroids |
 | 33 | Pulsars | 2–5 pulsars biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
+| 34 | Wormhole Tunnel | The interior of a wormhole. A boundary rift forms a rough oval loop around the play area; 2–6 random interior bodies. Special tunnel background. See §6.5. |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
@@ -332,6 +333,18 @@ Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% c
 - Each body independently picks one of the 4 screen sides (left / right / top / bottom) with equal probability
 - The body is placed 5–20% from the chosen edge; the perpendicular axis roams freely at 15–85%
 - 50% of games: one randomly chosen body is instead placed near the centre (30–70% on each axis)
+
+### 6.5 Wormhole Tunnel Scenario (id 34)
+
+**Concept:** The play area is the interior of a living wormhole.
+
+**Boundary rift:** A single `SpaceRift` with `isBoundary: true` and `strengthMultiplier: 2`. Its 22–30 vertices are distributed around an ellipse centred on the play area (semi-axes ≈ 43% of each dimension), each displaced radially ±10% at random plus 2–4 shared group displacements of ±6% to break up machine regularity. The boundary rift participates in the normal rift bounce mechanic (§4.5.1); as a last resort, stations detected outside the closed polygon formed by its vertices are hard-teleported 15 + station.radius game units inward from the nearest boundary point.
+
+**Out-of-bounds bullets:** Bullets whose position falls outside the boundary polygon are killed immediately (status → DEAD).
+
+**Interior bodies (2–6):** Randomly selected from: rocky planet, asteroid, gas giant, wormhole pair, wormhole triple, white hole, moon, star. Placed with standard no-overlap validation. The scenario also has a 40% chance of spawning one additional interior space rift.
+
+**Background:** Replaces the star field. A static image of 18 concentric ellipses in alternating dark blues (hsl ≈ 225–260°) and purples (hsl ≈ 268–284°), lightness 5–14%, drawn on black. Ring centres drift from a vanishing point (slightly off canvas centre) outward toward the canvas centre as rings enlarge, giving a perspective tunnel depth effect. Each ring is rotated ~3.5° more than the previous to produce a gentle spiral/twist. A soft radial glow at the vanishing point simulates the far end of the tunnel.
 
 1. **Normal** — retry up to 4000 times enforcing both station-station spacing AND planet avoidance. Spacing threshold decreases on each failure.
 2. **Emergency** — if normal fails, drop station-station spacing requirements but continue checking planet avoidance (up to 2000 more attempts).

@@ -73,6 +73,8 @@ export class GameLoop {
     this._fastFwdPrevSpeed = null;   // non-null when Fast FWD is active
     this._tpResultsCb     = null;
 
+    this._boundaryRift = this.gs.rifts?.find(r => r.isBoundary) ?? null;
+
     // TP mode: caller is responsible for calling startTP() after construction
     if (!gameState.tpGame) this._startTurn();
   }
@@ -326,6 +328,44 @@ export class GameLoop {
     return bestDist < Infinity ? { nx: bestNx, ny: bestNy } : null;
   }
 
+  // Ray-casting point-in-polygon test against a rift's vertices (treated as closed).
+  _isInsideBoundaryPolygon(px, py, rift) {
+    const verts = rift.vertices;
+    const n = verts.length;
+    let inside = false;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = verts[i].x, yi = verts[i].y;
+      const xj = verts[j].x, yj = verts[j].y;
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi))
+        inside = !inside;
+    }
+    return inside;
+  }
+
+  // Hard-teleport a station to just inside the nearest boundary rift segment.
+  _ejectFromBoundary(station, rift) {
+    const verts = rift.vertices;
+    const px = station.position.x, py = station.position.y;
+    let bestDist = Infinity, nearX = 0, nearY = 0;
+    for (let i = 0; i < verts.length - 1; i++) {
+      const ax = verts[i].x, ay = verts[i].y;
+      const bx = verts[i+1].x, by = verts[i+1].y;
+      const dx = bx - ax, dy = by - ay;
+      const lenSq = dx*dx + dy*dy;
+      if (lenSq < 1e-10) continue;
+      const t  = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq));
+      const cx = ax + t*dx, cy = ay + t*dy;
+      const d  = Math.hypot(px-cx, py-cy);
+      if (d < bestDist) { bestDist = d; nearX = cx; nearY = cy; }
+    }
+    const gcx = this.physics.gw / 2, gcy = this.physics.gh / 2;
+    const inX = gcx - nearX, inY = gcy - nearY;
+    const inLen = Math.hypot(inX, inY);
+    const push = 15 + station.radius;
+    station.position = new Vec2(nearX + (inX / inLen) * push, nearY + (inY / inLen) * push);
+    station.velocity = null;
+  }
+
   // Move all stations one physics step and check for collisions.
   _stepStations(allStations) {
     const { gw, gh } = this.physics;
@@ -406,6 +446,15 @@ export class GameLoop {
       station.position = new Vec2(x, y);
       if (station.velocity && (vx !== station.velocity.x || vy !== station.velocity.y)) {
         station.velocity = new Vec2(vx, vy);
+      }
+    }
+
+    // ── Wormhole Tunnel boundary ejection (safety net — bounce should handle most cases) ──
+    if (this._boundaryRift) {
+      for (const station of allStations) {
+        if (station.status !== 'active') continue;
+        if (!this._isInsideBoundaryPolygon(station.position.x, station.position.y, this._boundaryRift))
+          this._ejectFromBoundary(station, this._boundaryRift);
       }
     }
 
@@ -1500,6 +1549,13 @@ export class GameLoop {
             if (bullet.owner.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
             continue;
           }
+        }
+
+        // Wormhole Tunnel boundary: kill bullets that leave the oval boundary
+        if (this._boundaryRift && bullet.status === BulletStatus.ACTIVE &&
+            !this._isInsideBoundaryPolygon(bullet.position.x, bullet.position.y, this._boundaryRift)) {
+          bullet.status = BulletStatus.DEAD;
+          continue;
         }
 
         // Moon hit — must check before trail recording since step() may EXPLODE the bullet

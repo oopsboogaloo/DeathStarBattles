@@ -529,7 +529,7 @@ async function startGame(cfg) {
   _loadBar.update(70, 'Rendering...');
   await _yieldFrame();
 
-  renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
+  renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26, tunnelBackground: scenarioId === 34 });
 
   const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId, isExtreme, wildcardDesc }, movementSpeed: cfg.movementSpeed ?? 'off' });
   if (wildcardCollectablePositions?.length) {

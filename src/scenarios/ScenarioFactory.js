@@ -280,6 +280,9 @@ export class ScenarioFactory {
     } else if (scenarioId === 30) { // Rifts: 2–6 rifts
       const nRifts = rng.nextInt(5) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+    } else if (scenarioId === 34) { // Wormhole Tunnel: oval boundary rift + 0–1 interior rifts
+      rifts.push(ScenarioFactory._generateWormholeBoundary(rng, gw, gh));
+      if (rng.next() < 0.4) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
     }
 
     // Wildcard bonus injection — frequency controlled by wildcardFrequency setting
@@ -500,7 +503,7 @@ export class ScenarioFactory {
   // ─── scenario cap ──────────────────────────────────────────────────────────
 
   static _cap(id, n) {
-    const caps = { 1:10, 6:14, 7:12, 8:13, 10:8, 18:12 };
+    const caps = { 1:10, 6:14, 7:12, 8:13, 10:8, 18:12, 34:6 };
     return caps[id] !== undefined ? Math.min(n, caps[id]) : n;
   }
 
@@ -1293,6 +1296,52 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 34: Wormhole Tunnel — 2–6 interior bodies inside an oval boundary rift ──
+      case 34: {
+        const bodyCount = 2 + rng.nextInt(5); // 2–6 interior bodies
+        let placed = 0;
+        while (placed < bodyCount) {
+          const w = rng.nextInt(15);
+          if (w < 3) {
+            planets.push(makePlanet(rng, 0.5,0.2,0.15, 30,15,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+            placed++;
+          } else if (w < 6) {
+            planets.push(makeAsteroid(rng, 0.5,0.2,0.15, 15,5,3, gw,gh, 0.05, richProb));
+            placed++;
+          } else if (w < 8) {
+            planets.push(makeGasGiant(rng, 0.5,0.2,0.15, 50,20,15, gw,gh, 0.01));
+            placed++;
+          } else if (w < 10 && bodyCount - placed >= 2) {
+            const wc = [255, 55, 255];
+            const wp = makeWormhole(rng, gw, gh, wc, PlanetType.WORMHOLE_PAIRED);
+            const wq = makeWormhole(rng, gw, gh, wc, PlanetType.WORMHOLE_PAIRED);
+            wp.partner = wq; wq.partner = wp;
+            planets.push(wp, wq);
+            placed += 2;
+          } else if (w < 11 && bodyCount - placed >= 3) {
+            const wc = [55, 55, 255];
+            const ws = [0, 1, 2].map(() => makeWormhole(rng, gw, gh, wc, PlanetType.WORMHOLE_CYCLIC));
+            ws[0].partner = ws[1]; ws[1].partner = ws[2]; ws[2].partner = ws[0];
+            planets.push(...ws);
+            placed += 3;
+          } else if (w < 12) {
+            planets.push(new Planet({
+              position: new Vec2(rv(rng, 0.5,0.2,0.15, gw), rv(rng, 0.5,0.2,0.15, gh)),
+              radius: 8 + rng.next() * 6, density: 0.02, mass: -20,
+              type: PlanetType.WHITE_HOLE, colour: [...WHITE_COL], shading: ShadingStyle.GLOWING, halo: 15.0,
+            }));
+            placed++;
+          } else if (w < 14) {
+            planets.push(makeMoon(rng, 0.5,0.2,0.15, gw, gh));
+            placed++;
+          } else {
+            planets.push(makePlanet(rng, 0.5,0.2,0.15, 40,20,15, gw,gh, 0.015, PlanetType.STAR, starColour(rng), ShadingStyle.GLOWING));
+            placed++;
+          }
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -1390,6 +1439,38 @@ export class ScenarioFactory {
   }
 
   // ─── space rift generation (SR-02) ───────────────────────────────────────
+
+  // Generate the oval boundary rift for the Wormhole Tunnel scenario (id 34).
+  static _generateWormholeBoundary(rng, gw, gh) {
+    const nVerts = 22 + rng.nextInt(9); // 22–30 vertices
+    const cx = gw / 2, cy = gh / 2;
+    const ra = gw * 0.43, rb = gh * 0.43; // semi-axes keep verts ≥7% from each edge
+    const verts = [];
+
+    for (let i = 0; i < nVerts; i++) {
+      const angle = (2 * Math.PI * i) / nVerts;
+      const disp  = 1 + (rng.next() - 0.5) * 0.20; // per-vertex radial ±10%
+      verts.push(new Vec2(
+        cx + ra * Math.cos(angle) * disp,
+        cy + rb * Math.sin(angle) * disp,
+      ));
+    }
+
+    // Group displacement: 2–4 clusters of 2–3 adjacent vertices shifted together
+    const nGroups = 2 + rng.nextInt(3);
+    for (let g = 0; g < nGroups; g++) {
+      const start = rng.nextInt(nVerts);
+      const len   = 2 + rng.nextInt(2);
+      const gd    = (rng.next() - 0.5) * 0.12; // ±6% group shift
+      for (let j = 0; j < len; j++) {
+        const idx = (start + j) % nVerts;
+        const v   = verts[idx];
+        verts[idx] = new Vec2(cx + (v.x - cx) * (1 + gd), cy + (v.y - cy) * (1 + gd));
+      }
+    }
+
+    return new SpaceRift({ vertices: verts, strengthMultiplier: 2, isBoundary: true });
+  }
 
   static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1, nSegments = null) {
     const N      = nSegments ?? (rng.nextInt(9) + 3); // 3–11 segments (overridable)

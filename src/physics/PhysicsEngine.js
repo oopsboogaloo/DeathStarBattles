@@ -125,7 +125,7 @@ export class PhysicsEngine {
         const rdy = bullet.position.y - v.y;
         const d   = Math.sqrt(rdx * rdx + rdy * rdy);
         if (d < 0.01 || d >= rift.influenceRadius) continue;
-        const F = RIFT_REPULSION_STRENGTH * (1 - d / rift.influenceRadius);
+        const F = RIFT_REPULSION_STRENGTH * (rift.strengthMultiplier ?? 1) * (1 - d / rift.influenceRadius);
         vx += (rdx / d) * F * TIMESTEP;
         vy += (rdy / d) * F * TIMESTEP;
       }
@@ -282,7 +282,7 @@ export class PhysicsEngine {
           const rdx = px - v.x, rdy = py - v.y;
           const d   = Math.sqrt(rdx * rdx + rdy * rdy);
           if (d < 0.01 || d >= rift.influenceRadius) continue;
-          const F = RIFT_REPULSION_STRENGTH * (1 - d / rift.influenceRadius);
+          const F = RIFT_REPULSION_STRENGTH * (rift.strengthMultiplier ?? 1) * (1 - d / rift.influenceRadius);
           ax += (rdx / d) * F;
           ay += (rdy / d) * F;
         }
