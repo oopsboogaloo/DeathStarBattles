@@ -44,6 +44,17 @@ function rr(rng, D, E, F) {
   return D * rng.next() + E * rng.next() + F;
 }
 
+// Returns [x, y] biased toward one screen edge — picks a side then roams freely along it.
+function sideEdgePos(rng, gw, gh) {
+  const side = rng.nextInt(4);
+  const near = 0.05 + rng.next() * 0.15; // 5–20% from the chosen edge
+  const free = 0.15 + rng.next() * 0.70; // 15–85% along the side
+  if (side === 0) return [near * gw,         free * gh       ]; // left
+  if (side === 1) return [(1 - near) * gw,   free * gh       ]; // right
+  if (side === 2) return [free * gw,          near * gh      ]; // top
+  return               [free * gw,          (1 - near) * gh ]; // bottom
+}
+
 function starColour(rng) {
   return [
     Math.floor(rng.next() * 30) + 205,
@@ -869,9 +880,11 @@ export class ScenarioFactory {
       // ── 25: White Holes ───────────────────────────────────────────────────
       case 25: {
         const nWhiteHoles = 2 + rng.nextInt(4); // 2–5
+        const whMiddleIdx = rng.next() < 0.5 ? rng.nextInt(nWhiteHoles) : -1;
         for (let i = 0; i < nWhiteHoles; i++) {
-          const px = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gw;
-          const py = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gh;
+          const [px, py] = i === whMiddleIdx
+            ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
+            : sideEdgePos(rng, gw, gh);
           planets.push(new Planet({
             position: new Vec2(px, py),
             radius:   6,
@@ -1171,12 +1184,14 @@ export class ScenarioFactory {
 
       // ── 33: Pulsars (2–5 pulsars biased to edges + rocky filler) ──
       case 33: {
-        const nPulsars = 2 + rng.nextInt(4); // 2–5
+        const nPulsars   = 2 + rng.nextInt(4); // 2–5
+        const pulMiddleIdx = rng.next() < 0.5 ? rng.nextInt(nPulsars) : -1;
         for (let i = 0; i < nPulsars; i++) {
           const bigR  = rng.nextInRange(80, 160) + 140.5;
           const dispR = rng.nextInRange(7, 10);
-          const px = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gw;
-          const py = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gh;
+          const [px, py] = i === pulMiddleIdx
+            ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
+            : sideEdgePos(rng, gw, gh);
           planets.push(new Planet({
             position:     new Vec2(px, py),
             radius:       dispR,
