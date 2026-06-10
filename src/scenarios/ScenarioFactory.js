@@ -1211,9 +1211,10 @@ export class ScenarioFactory {
           position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
           radius: wdDispR, density: 0.014, mass: wdMass,
           type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
+          halo: 15.0,
         });
         planets.push(wd);
-        // Comets with approximate circular orbital velocities + variance
+        // Inner comets — mostly on-screen, tighter orbits
         const numComets = 4 + Math.floor(rng.next() * 7); // 4–10
         const G_REDUCED = 0.2 * 0.05; // must match GameLoop.COMET_G_FACTOR
         for (let i = 0; i < numComets; i++) {
@@ -1226,6 +1227,27 @@ export class ScenarioFactory {
           const variance = 0.6 + rng.next() * 0.8; // 0.6–1.4× for elliptical orbits
           const vMag     = vCirc * variance;
           const perpAngle = angle + Math.PI / 2;
+          const comet = makeComet(rng,
+            new Vec2(px, py),
+            new Vec2(Math.cos(perpAngle) * vMag, Math.sin(perpAngle) * vMag),
+          );
+          planets.push(comet);
+        }
+        // Outer Oort comets — wide orbits, some starting off-screen
+        const numOuter = 3 + Math.floor(rng.next() * 4); // 3–6
+        for (let i = 0; i < numOuter; i++) {
+          const orbitR = 300 + rng.next() * 400; // 300–700 px
+          const angle  = rng.next() * Math.PI * 2;
+          const px = wd.position.x + Math.cos(angle) * orbitR;
+          const py = wd.position.y + Math.sin(angle) * orbitR;
+          // Only skip if absurdly far outside the play boundary
+          if (px < -gw || px > 2 * gw || py < -gh || py > 2 * gh) continue;
+          const vCirc    = Math.sqrt(G_REDUCED * wdMass / orbitR);
+          const variance = 0.5 + rng.next() * 1.0; // 0.5–1.5× — more eccentric
+          const vMag     = vCirc * variance;
+          // Randomise orbit direction (CW or CCW)
+          const dir       = rng.next() < 0.5 ? 1 : -1;
+          const perpAngle = angle + dir * Math.PI / 2;
           const comet = makeComet(rng,
             new Vec2(px, py),
             new Vec2(Math.cos(perpAngle) * vMag, Math.sin(perpAngle) * vMag),
@@ -1615,6 +1637,7 @@ export class ScenarioFactory {
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: bigR, density: 3,
         type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
+        halo: 15.0,
       })];
     } else if (rb < 0.90) {
       const bigR = rng.nextInRange(3, 6) + 4;

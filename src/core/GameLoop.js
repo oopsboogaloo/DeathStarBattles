@@ -245,15 +245,19 @@ export class GameLoop {
 
       if (comet.destroyed) continue;
 
-      // Check comet-station collision — destroys both
+      // Check comet-station collision — comet destroyed; station is frozen (armour absorbs)
       for (const station of this.gs.allStations) {
         if (station.status !== 'active') continue;
         const d = comet.position.distanceTo(station.position);
         if (d < comet.impactRadius + station.radius) {
-          comet.destroyed    = true;
-          station.status     = 'exploding';
-          station.explosionT = 0;
-          this._spawnStationExplosion(station);
+          comet.destroyed = true;
+          if ((station.armourLayers ?? 0) > 0) {
+            station.armourLayers--;
+            station.armourFlash = 1.0;
+          } else {
+            station.frozen      = Math.min(3, (station.frozen ?? 0) + 1);
+            station.frozenFlash = 1.0;
+          }
           break;
         }
       }
@@ -399,7 +403,9 @@ export class GameLoop {
 
     // ── Position update + distance cap ──────────────────────────────────────
     for (const station of allStations) {
-      if (station.status !== 'active' || !station.velocity) continue;
+      if (station.status !== 'active') continue;
+      if ((station.frozen ?? 0) > 0) { station.velocity = null; continue; }
+      if (!station.velocity) continue;
       const r  = station.radius;
       let vx = station.velocity.x;
       let vy = station.velocity.y;
@@ -846,6 +852,10 @@ export class GameLoop {
       // No humans alive — stay in Fast FWD for all remaining AI turns
     }
     this._processStoryEvents(); // may spawn stations and set storyDialogText
+    // Decrement frozen for stations that served their frozen turn last turn
+    for (const s of this.gs.allStations) {
+      if (s._frozenActive) { s.frozen = Math.max(0, s.frozen - 1); s._frozenActive = false; }
+    }
     this._turnOrder = this.gs.allStations.filter(s => s.status === 'active' && s.role !== 'target');
     this._turnIdx   = 0;
     this.gs.waitingForInput = false;
@@ -874,6 +884,20 @@ export class GameLoop {
 
     while (this._turnIdx < this._turnOrder.length) {
       const station = this._turnOrder[this._turnIdx];
+
+      // Frozen: station skips its turn; frozen supersedes electrified
+      if ((station.frozen ?? 0) > 0) {
+        station._frozenActive = true;  // signals _startTurn to decrement next turn
+        station.frozenFlash   = 1.0;
+        station.velocity      = null;
+        this._setActive(station);
+        if (station.team.isHuman) {
+          this.gs.waitingForInput = true;
+          return;
+        }
+        this._turnIdx++;
+        continue;
+      }
 
       // Electrified: auto-fire a random cannon shot regardless of team type
       if (station.electrified) {
@@ -947,6 +971,7 @@ export class GameLoop {
 
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
+      if ((station.frozen ?? 0) > 0) continue; // frozen stations do not fire
       const w = station.selectedWeapon;
 
       station.lastTrails = null; // clear previous ghost trails before this turn's action
@@ -2866,9 +2891,10 @@ export class GameLoop {
         for (const p of station.particles) { p.x += p.vx; p.y += p.vy; p.t += DT_P; }
         station.particles = station.particles.filter(p => p.t < 1);
       }
-      if (station.armourFlash     > 0) station.armourFlash     = Math.max(0, station.armourFlash     - 0.04);
+      if (station.armourFlash      > 0) station.armourFlash      = Math.max(0, station.armourFlash      - 0.04);
       if (station.electrifiedFlash > 0) station.electrifiedFlash = Math.max(0, station.electrifiedFlash - 0.012);
       if (station.mindControlFlash > 0) station.mindControlFlash = Math.max(0, station.mindControlFlash - 0.02);
+      if (station.frozenFlash      > 0) station.frozenFlash      = Math.max(0, station.frozenFlash      - 0.005);
     }
 
     // Freestanding asteroid explosions

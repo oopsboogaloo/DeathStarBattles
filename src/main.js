@@ -327,9 +327,10 @@ function updateButtons(gs) {
   moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
 
-  // AimControls: shown when aiming, not during move selection, not during hyperspace
+  // AimControls: shown when aiming, not during move selection, not during hyperspace, not when frozen
   const hyperspaceQueued = gs.activeStation?.hyperspaceQueued;
-  if (isAiming && !gs.waitingForMove && !hyperspaceQueued) {
+  const stationFrozen    = (gs.activeStation?.frozen ?? 0) > 0;
+  if (isAiming && !gs.waitingForMove && !hyperspaceQueued && !stationFrozen) {
     aimControls.show();
     aimControls.update(gs.activeStation);
   } else {

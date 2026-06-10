@@ -765,7 +765,13 @@ export class Renderer {
     ctx.shadowColor  = 'rgba(0,0,0,0.9)';
     ctx.shadowBlur   = 5;
 
-    if (station.hyperspaceQueued) {
+    if ((station.frozen ?? 0) > 0) {
+      const labels = ['', 'F R O Z E N', 'D O U B L E   F R O Z E N', 'T R I P L E   F R O Z E N'];
+      const pulse  = 0.55 + 0.45 * Math.sin(Date.now() / 300);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
+      ctx.fillText(labels[station.frozen] ?? labels[1], this._vpW / 2, this._vpH - 60);
+    } else if (station.hyperspaceQueued) {
       const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 250);
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
@@ -1123,6 +1129,9 @@ export class Renderer {
     }
     if ((station.armourLayers ?? 0) > 0 || (station.armourFlash ?? 0) > 0) {
       this._drawArmourRings(ctx, station);
+    }
+    if ((station.frozen ?? 0) > 0 || (station.frozenFlash ?? 0) > 0) {
+      this._drawFrozenOverlay(ctx, station);
     }
     if ((station.electrifiedFlash ?? 0) > 0) {
       this._drawElectrifiedOverlay(ctx, station);
@@ -2597,6 +2606,55 @@ export class Renderer {
     }
 
     ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Frozen station overlay — stationary ice blob particles
+  // ----------------------------------------------------------------
+
+  _drawFrozenOverlay(ctx, station) {
+    const conv  = this.conv;
+    const cx    = station.position.x * conv;
+    const cy    = station.position.y * conv;
+    const r     = Math.max(3, station.radius * conv);
+    const depth = station.frozen ?? 0;
+    const flash = station.frozenFlash ?? 0;
+
+    // Use whichever is higher — ongoing frozen turn (flash reset to 1) or residual from impact
+    const baseAlpha = Math.max(depth > 0 ? 0.85 : 0, flash);
+    if (baseAlpha <= 0) return;
+
+    const blobCount = Math.max(depth, 1) * 14; // 14 / 28 / 42 blobs per stack level
+    ctx.save();
+    for (let i = 0; i < blobCount; i++) {
+      // Fixed positions derived from index — golden angle spread for even coverage
+      const ang  = i * 2.399963; // golden angle in radians
+      const band = i % 4;        // 4 concentric bands
+      const dist = r * (0.15 + band * 0.25);
+      const bx   = cx + Math.cos(ang) * dist;
+      const by   = cy + Math.sin(ang) * dist;
+      const br   = r * (0.13 + (i % 5) * 0.04);
+
+      // Individual fade: later blobs begin fading earlier
+      const fadeThreshold = 1 - (i / blobCount) * 0.6;
+      const blobAlpha = baseAlpha > fadeThreshold
+        ? baseAlpha * 0.9
+        : (baseAlpha / fadeThreshold) * 0.9;
+
+      ctx.globalAlpha = Math.min(0.92, blobAlpha);
+      // Outer ice highlight
+      ctx.fillStyle = 'rgba(210,240,255,1)';
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+      // Inner bright core
+      ctx.fillStyle = 'rgba(240,252,255,1)';
+      ctx.beginPath();
+      ctx.arc(bx - br * 0.25, by - br * 0.25, br * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
