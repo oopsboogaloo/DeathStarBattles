@@ -489,7 +489,7 @@ async function startGame(cfg) {
     ? (cfg.performance === 'simplified' ? 20 : 30)
     : layoutRng.nextInt(18) + 3;
 
-  const { planets, rifts } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
+  const { planets, rifts, isExtreme } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -531,7 +531,7 @@ async function startGame(cfg) {
 
   renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
 
-  const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
+  const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId, isExtreme }, movementSpeed: cfg.movementSpeed ?? 'off' });
   const physics   = new PhysicsEngine(gw, gh);
   if (scenarioId === 26) physics.periodicBoundary = true;
 

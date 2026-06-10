@@ -288,12 +288,15 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 22 | Black Hole | One central black hole + rocky bodies |
 | 23 | Neutron Star | One pulsar + mix of rocky planets and asteroids |
 | 24 | White Hole | One repulsive white hole + rocky bodies |
-| 25 | White Holes | Multiple white holes |
+| 25 | White Holes | 2–5 white holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 26 | Hyperspace | No planets; hyperspace is forced every turn |
-| 27 | Black Holes | Multiple black holes |
+| 27 | Black Holes | 2–5 black holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 28 | Big Wormhole | Two enormous wormhole portals (partially off-screen) + planets |
 | 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field |
 | 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids |
+| 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler |
+| 32 | Giant Asteroid | One enormous multi-hit asteroid surrounded by smaller asteroids |
+| 33 | Pulsars | 2–5 pulsars biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
@@ -305,6 +308,19 @@ A configurable wildcard frequency option controls whether a bonus special object
 
 ### 6.3 Station Placement Guarantee
 Stations **must never be rendered inside a planet**, even on extreme scenarios (e.g. large binary stars that leave almost no free space). The placement algorithm uses a three-tier fallback:
+
+### 6.4 Extreme Scenario Variants
+Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% chance of generating an **extreme** version. Extreme variants are silently tracked via `gameState.config.isExtreme` and displayed in dev mode stats (§12.3).
+
+**Extreme rules (all three scenarios):**
+- Body count: 0–15 (uniform random), chosen independently of `nPlanets`
+- No rocky planet or asteroid filler — the map may contain only the special bodies (or even be empty)
+- Placement uses the same edge-preference and 50% middle-slot logic as the normal version (§6.4.1)
+
+**§6.4.1 Edge-preference placement** (shared by normal and extreme versions of scenarios 25, 27, 33):
+- Each body independently picks one of the 4 screen sides (left / right / top / bottom) with equal probability
+- The body is placed 5–20% from the chosen edge; the perpendicular axis roams freely at 15–85%
+- 50% of games: one randomly chosen body is instead placed near the centre (30–70% on each axis)
 
 1. **Normal** — retry up to 4000 times enforcing both station-station spacing AND planet avoidance. Spacing threshold decreases on each failure.
 2. **Emergency** — if normal fails, drop station-station spacing requirements but continue checking planet avoidance (up to 2000 more attempts).
@@ -677,7 +693,9 @@ SVG graphics can be layered over planet/celestial body circles to enrich their a
 - **Rocky planets / asteroids**: smaller, brownish or dark-orange circles with simple shading (lighter on one side)
 - **Black holes**: invisible or near-invisible (confirmed by original hints — players must infer from the gap in the map)
 - **Wormholes**: distinctive colour-coded circles (purple/blue/green/grey/yellow) with pulsing or swirling render effect
-- **White holes**: bright white with a repulsion glow
+- **White holes**: bright white glowing core with a large radial halo (15× body radius). Animated outward-drifting particles: 160 white soft blobs spawned at the body surface, accelerating outward (`accelFrac = 12 × visualRadius / s²`), fading out at the halo edge. Skipped in simplified mode. Communicates the constant repulsive force visually.
+- **White dwarfs**: identical visual treatment to white holes (same glowing core + large halo). Distinguished by physics — white dwarfs have strong positive gravity; white holes repel.
+- **Pulsars**: glowing white core. Emits periodic expanding pressure rings (outward-travelling concentric circles, fading as they expand). Per-pulsar random ring radius 90–150 game units; per-pulsar random period 0.4–4 s.
 
 ### 11.6 Bullet Trails (from screenshots)
 - Smooth curved polyline in the firing station's team colour
@@ -742,6 +760,18 @@ Rules for new options:
   - Final frame = Layer 0 + Layer 1 + Layer 2 composited to the visible canvas.
 - Trails must persist across explosion animations — the three-layer approach achieves this cleanly.
 - Target: 30fps during simulation, idle when waiting for input
+
+### 12.3 Dev Mode Stats Overlay
+Toggled via a keyboard shortcut (dev builds only). Displayed as a fixed top-left overlay, monospace font, semi-transparent background. Shows:
+
+| Field | Content |
+|---|---|
+| FPS | Smoothed framerate (10% EMA) |
+| Scenario | Human-readable scenario name from `SCENARIO_NAMES[scenarioId]`; appends `EXTREME` if `gameState.config.isExtreme` is true |
+| Celestial | Planet count |
+| Ships | Total station count across all teams |
+| Bullets | Active bullets + rockets |
+| SFX | Sum of all particle/effect counts (smoke, explosions, wormhole particles, etc.) |
 
 ### 12.4 No Dependencies (initially)
 - Pure vanilla JS — no frameworks, no build step

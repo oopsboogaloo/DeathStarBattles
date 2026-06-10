@@ -4,6 +4,7 @@ import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
 import { WhiteHoleParticles } from './WhiteHoleParticles.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
+import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
 import { PLANET_OVERLAYS } from './planetOverlays.js';
@@ -476,8 +477,13 @@ export class Renderer {
                     + (gs?.fireballSmoke?.length ?? 0)
                     + wormholePCount;
 
+    const sid          = gs?.config?.scenarioId;
+    const scenarioName = sid ? (SCENARIO_NAMES[sid] ?? `#${sid}`) : '—';
+    const extremeTag   = gs?.config?.isExtreme ? '  EXTREME' : '';
+
     this._debugEl.textContent =
       `FPS        ${Math.round(this._fpsSmooth)}\n` +
+      `Scenario   ${scenarioName}${extremeTag}\n` +
       `Celestial  ${celestial}\n` +
       `Ships      ${ships}\n` +
       `Bullets    ${bullets}\n` +

@@ -261,11 +261,12 @@ export class ScenarioFactory {
 
     nPlanets = ScenarioFactory._cap(scenarioId, nPlanets);
 
-    let planets = [];
-    let attempts = 0;
+    let planets   = [];
+    let isExtreme = false;
+    let attempts  = 0;
 
     do {
-      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb);
+      ({ planets, isExtreme } = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb));
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -304,7 +305,7 @@ export class ScenarioFactory {
       }
     }
 
-    return { planets, rifts };
+    return { planets, rifts, isExtreme };
   }
 
   static randomId(rng) { return weightedRandomId(rng); }
@@ -491,6 +492,7 @@ export class ScenarioFactory {
   static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', richProb = 0) {
     const simplified = performance === 'simplified';
     const planets = [];
+    let isExtreme = false;
 
     switch (id) {
 
@@ -762,8 +764,29 @@ export class ScenarioFactory {
 
       // ── 27: Black Holes ───────────────────────────────────────────────────
       case 27: {
-        for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,3, gw,gh, 50, PlanetType.BLACK_HOLE, BLACK_COL, ShadingStyle.NONE));
+        const extreme27 = rng.next() < 0.10;
+        if (extreme27) isExtreme = true;
+        const nBH      = extreme27 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
+        const bh27Mid  = (nBH > 0 && rng.next() < 0.5) ? rng.nextInt(nBH) : -1;
+        for (let i = 0; i < nBH; i++) {
+          const bhBigR = rng.nextInRange(80, 160) + 140;
+          const [px, py] = i === bh27Mid
+            ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
+            : sideEdgePos(rng, gw, gh);
+          planets.push(new Planet({
+            position: new Vec2(px, py),
+            radius: 3, density: 50, mass: bhBigR * bhBigR * 0.014,
+            type: PlanetType.BLACK_HOLE, colour: BLACK_COL, shading: ShadingStyle.NONE,
+          }));
+        }
+        if (!extreme27) {
+          for (let i = nBH; i < nPlanets; i++) {
+            if (i % 3 === 1)
+              planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+            else
+              planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+          }
+        }
         break;
       }
 
@@ -879,28 +902,28 @@ export class ScenarioFactory {
 
       // ── 25: White Holes ───────────────────────────────────────────────────
       case 25: {
-        const nWhiteHoles = 2 + rng.nextInt(4); // 2–5
-        const whMiddleIdx = rng.next() < 0.5 ? rng.nextInt(nWhiteHoles) : -1;
-        for (let i = 0; i < nWhiteHoles; i++) {
-          const [px, py] = i === whMiddleIdx
+        const extreme25 = rng.next() < 0.10;
+        if (extreme25) isExtreme = true;
+        const nWH     = extreme25 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
+        const wh25Mid = (nWH > 0 && rng.next() < 0.5) ? rng.nextInt(nWH) : -1;
+        for (let i = 0; i < nWH; i++) {
+          const [px, py] = i === wh25Mid
             ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
             : sideEdgePos(rng, gw, gh);
           planets.push(new Planet({
             position: new Vec2(px, py),
-            radius:   6,
-            density:  0.02,
-            mass:     -20,
-            type:     PlanetType.WHITE_HOLE,
-            colour:   WHITE_COL,
-            shading:  ShadingStyle.GLOWING,
-            halo:     15.0,
+            radius:   6, density: 0.02, mass: -20,
+            type:     PlanetType.WHITE_HOLE, colour: WHITE_COL,
+            shading:  ShadingStyle.GLOWING, halo: 15.0,
           }));
         }
-        for (let i = nWhiteHoles; i < nPlanets; i++) {
-          if (i % 3 === 1)
-            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
-          else
-            planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+        if (!extreme25) {
+          for (let i = nWH; i < nPlanets; i++) {
+            if (i % 3 === 1)
+              planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+            else
+              planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+          }
         }
         break;
       }
@@ -1184,32 +1207,33 @@ export class ScenarioFactory {
 
       // ── 33: Pulsars (2–5 pulsars biased to edges + rocky filler) ──
       case 33: {
-        const nPulsars   = 2 + rng.nextInt(4); // 2–5
-        const pulMiddleIdx = rng.next() < 0.5 ? rng.nextInt(nPulsars) : -1;
+        const extreme33 = rng.next() < 0.10;
+        if (extreme33) isExtreme = true;
+        const nPulsars = extreme33 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
+        const pul33Mid = (nPulsars > 0 && rng.next() < 0.5) ? rng.nextInt(nPulsars) : -1;
         for (let i = 0; i < nPulsars; i++) {
           const bigR  = rng.nextInRange(80, 160) + 140.5;
           const dispR = rng.nextInRange(7, 10);
-          const [px, py] = i === pulMiddleIdx
+          const [px, py] = i === pul33Mid
             ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
             : sideEdgePos(rng, gw, gh);
           planets.push(new Planet({
             position:     new Vec2(px, py),
-            radius:       dispR,
-            density:      0.014,
-            mass:         bigR * bigR * 0.014,
-            type:         PlanetType.PULSAR,
-            colour:       [...WHITE_COL],
+            radius:       dispR, density: 0.014, mass: bigR * bigR * 0.014,
+            type:         PlanetType.PULSAR, colour: [...WHITE_COL],
             shading:      ShadingStyle.GLOWING,
             pulsarMaxR:   90 + rng.next() * 60,
             pulsarPeriod: 0.4 + rng.next() * 3.6,
             pulsarPhase:  rng.next() * 4.5,
           }));
         }
-        for (let i = nPulsars; i < nPlanets; i++) {
-          if (i % 3 === 1)
-            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
-          else
-            planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+        if (!extreme33) {
+          for (let i = nPulsars; i < nPlanets; i++) {
+            if (i % 3 === 1)
+              planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+            else
+              planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+          }
         }
         break;
       }
@@ -1220,7 +1244,7 @@ export class ScenarioFactory {
           planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
     }
 
-    return planets;
+    return { planets, isExtreme };
   }
 
   // ─── validation ─────────────────────────────────────────────────────────
