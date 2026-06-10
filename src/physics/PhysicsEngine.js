@@ -13,6 +13,7 @@ export const MAX_TELEPORTS = 100;
 export const MIN_POWER     = 0.2;
 export const MAX_POWER     = 0.8;
 export const INIT_DIST     = 1.0;   // gap between station surface and bullet spawn
+export const PULSE_MAX_R   = 180;   // pulsar pressure ring max radius (game units)
 
 // ─── Projectile skimming constants (NFR-2) ────────────────────────────────────
 export const MAX_CANNON_SPEED       = (800 / 1000 + MIN_POWER) * MAX_POWER; // = 0.8
@@ -107,7 +108,7 @@ export class PhysicsEngine {
         const RING_HALF_W = 9;
         const d = Math.sqrt(rSq);
         for (const pulse of planet.pulsarPulses) {
-          const pulseR = planet.impactRadius + (planet.pulsarMaxR - planet.impactRadius) * pulse.t;
+          const pulseR = planet.impactRadius + (PULSE_MAX_R - planet.impactRadius) * pulse.t;
           if (Math.abs(d - pulseR) < RING_HALF_W) {
             const strength = (1 - pulse.t) * 0.027; // fades to zero as ring expands
             vx += (-dx / d) * strength;
