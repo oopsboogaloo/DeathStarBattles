@@ -336,15 +336,15 @@ Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% c
 
 ### 6.5 Wormhole Tunnel Scenario (id 34)
 
-**Concept:** The play area is the interior of a living wormhole.
+**Concept:** The play area is the interior of a living wormhole. A jagged glowing boundary rift surrounds all interior bodies; outside is black void.
 
-**Boundary rift:** A single `SpaceRift` with `isBoundary: true` and `strengthMultiplier: 2`. Its 22–30 vertices are distributed around an ellipse centred on the play area (semi-axes ≈ 43% of each dimension), each displaced radially ±10% at random plus 2–4 shared group displacements of ±6% to break up machine regularity. The boundary rift participates in the normal rift bounce mechanic (§4.5.1); as a last resort, stations detected outside the closed polygon formed by its vertices are hard-teleported 15 + station.radius game units inward from the nearest boundary point.
+**Boundary rift:** A single `SpaceRift` with `isBoundary: true`, `strengthMultiplier: 2`, and a fixed `influenceRadius: 40`. Its 44–60 vertices are distributed around an ellipse centred on the play area (semi-axes ≈ 43% of each dimension), each displaced radially ±10% at random plus 2–4 shared group displacements of ±6% to break up machine regularity. The last vertex is identical to the first, closing the loop exactly. The boundary rift participates in the normal rift bounce mechanic (§4.5.1). Stations are ejected to just inside the boundary at placement time (15 + station.radius inward from nearest segment); at runtime, any station detected outside the closed polygon is hard-teleported to the same point.
 
 **Out-of-bounds bullets:** Bullets whose position falls outside the boundary polygon are killed immediately (status → DEAD).
 
 **Interior bodies (2–6):** Randomly selected from: rocky planet, asteroid, gas giant, wormhole pair, wormhole triple, white hole, moon, star. Placed with standard no-overlap validation. The scenario also has a 40% chance of spawning one additional interior space rift.
 
-**Background:** Replaces the star field. A static image of 18 concentric ellipses in alternating dark blues (hsl ≈ 225–260°) and purples (hsl ≈ 268–284°), lightness 5–14%, drawn on black. Ring centres drift from a vanishing point (slightly off canvas centre) outward toward the canvas centre as rings enlarge, giving a perspective tunnel depth effect. Each ring is rotated ~3.5° more than the previous to produce a gentle spiral/twist. A soft radial glow at the vanishing point simulates the far end of the tunnel.
+**Background:** Replaces the star field. Drawn once to the background canvas. The area outside the boundary rift polygon is solid black. Inside: 32 concentric ellipses in alternating dark blues (hsl ≈ 225–260°) and purples (hsl ≈ 268–284°), lightness 5–14%, drawn using `lighter` compositing. A t² perspective curve makes inner rings very small and densely packed near the vanishing point (slightly off canvas centre), giving deep tunnel depth. Ring centres drift from the vanishing point outward toward the canvas centre as rings enlarge. Each ring is rotated ~3° more than the previous (96° total spiral twist across 32 rings). A soft radial glow at the vanishing point simulates the far end of the tunnel. The clip region is set to the boundary rift polygon before drawing, so the rings are masked to the interior automatically.
 
 1. **Normal** — retry up to 4000 times enforcing both station-station spacing AND planet avoidance. Spacing threshold decreases on each failure.
 2. **Emergency** — if normal fails, drop station-station spacing requirements but continue checking planet avoidance (up to 2000 more attempts).
