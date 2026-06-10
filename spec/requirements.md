@@ -88,6 +88,15 @@ Human players control angle and power via:
 - Speed tiers: Glacial (1×), Slow (2×), Normal (3×), Fast (5×), Rocket (8×)
 - Movement is purely positional drift — it does not affect the station's angle or power settings
 
+#### 4.5.1 Rift bounce (11.10)
+During movement resolution, a station may not cross a rift segment. When the station's movement path would intersect any rift segment (geometric line check), its velocity vector is reflected elastically off that segment's normal — identical to the screen-edge bounce. Applies to all movement modes. Stations placed by hyperspace inside a rift's geometric boundary are immediately ejected perpendicular to the nearest rift segment to the nearest clear side. Bullet trajectories are unaffected by this rule.
+
+#### 4.5.2 Pulsar nudge (11.11)
+When movement is enabled (any speed other than Off), pulsar pressure rings interact with stations. Each time a pressure ring sweeps through a station's position (i.e. the ring's expanding radius crosses the station's distance from that pulsar), the station receives a single outward velocity nudge of `0.2 × MAX_MOVE_SPEED` in the radially-outward direction. Nudges accumulate; total speed is capped at the station's configured move speed. If the station had no queued move that turn, nudges still apply and set it in motion. Multiple pulsars and multiple rings act independently.
+
+#### 4.5.3 White hole push (11.11)
+When movement is enabled, stations within 40 game units of a white hole are continuously pushed outward during movement resolution. Force magnitude scales linearly from maximum at distance 0 to zero at distance 40, applied each movement step. Accumulated speed is capped at 1.5× the station's configured move speed (so a player cannot fully counter it by commanding movement toward the white hole, but a strong move command can partially resist). No effect when movement is Off.
+
 ### 4.6 Special Weapons & Collectables
 
 #### Weapon Selector
@@ -241,7 +250,9 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 
 A **space rift** is a non-solid map object — a piecewise-linear chain of 3–11 connected segments, each approximately one Medium station diameter long (≤30° turn between segments). Rifts have no solid geometry; bullets, stations, and planets pass through them freely.
 
-**Repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Stations and collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
+**Repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
+
+**Station bounce:** Stations cannot cross rift segments during movement — see §4.5.1.
 
 **Rendering:** Drawn on the static background layer. Outer glow: wide soft-blurred purple-white line (~20–30px, alpha 0.25–0.35). Forked lightning branches: 2–4 branching paths from random rift positions, 3–6 irregular segments with ±40° deflections and at least one fork, alpha 0.2–0.4. Rift line itself: bright white-purple polyline at 2px / alpha 0.95 with an inner luminescent glow pass. Renders above planets, below stations and bullets.
 
@@ -288,12 +299,16 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 22 | Black Hole | One central black hole + rocky bodies |
 | 23 | Neutron Star | One pulsar + mix of rocky planets and asteroids |
 | 24 | White Hole | One repulsive white hole + rocky bodies |
-| 25 | White Holes | Multiple white holes |
+| 25 | White Holes | 2–5 white holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 26 | Hyperspace | No planets; hyperspace is forced every turn |
-| 27 | Black Holes | Multiple black holes |
+| 27 | Black Holes | 2–5 black holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 28 | Big Wormhole | Two enormous wormhole portals (partially off-screen) + planets |
 | 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field |
 | 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids |
+| 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler |
+| 32 | Giant Asteroid | One enormous multi-hit asteroid surrounded by smaller asteroids |
+| 33 | Pulsars | 2–5 pulsars biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
+| 34 | Wormhole Tunnel | The interior of a wormhole. A boundary rift forms a rough oval loop around the play area; 2–6 random interior bodies. Special tunnel background. See §6.5. |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
@@ -305,6 +320,31 @@ A configurable wildcard frequency option controls whether a bonus special object
 
 ### 6.3 Station Placement Guarantee
 Stations **must never be rendered inside a planet**, even on extreme scenarios (e.g. large binary stars that leave almost no free space). The placement algorithm uses a three-tier fallback:
+
+### 6.4 Extreme Scenario Variants
+Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% chance of generating an **extreme** version. Extreme variants are silently tracked via `gameState.config.isExtreme` and displayed in dev mode stats (§12.3).
+
+**Extreme rules (all three scenarios):**
+- Body count: 0–15 (uniform random), chosen independently of `nPlanets`
+- No rocky planet or asteroid filler — the map may contain only the special bodies (or even be empty)
+- Placement uses the same edge-preference and 50% middle-slot logic as the normal version (§6.4.1)
+
+**§6.4.1 Edge-preference placement** (shared by normal and extreme versions of scenarios 25, 27, 33):
+- Each body independently picks one of the 4 screen sides (left / right / top / bottom) with equal probability
+- The body is placed 5–20% from the chosen edge; the perpendicular axis roams freely at 15–85%
+- 50% of games: one randomly chosen body is instead placed near the centre (30–70% on each axis)
+
+### 6.5 Wormhole Tunnel Scenario (id 34)
+
+**Concept:** The play area is the interior of a living wormhole. A jagged glowing boundary rift surrounds all interior bodies; outside is black void.
+
+**Boundary rift:** A single `SpaceRift` with `isBoundary: true`, `strengthMultiplier: 2`, and a fixed `influenceRadius: 40`. Its 44–60 vertices are distributed around an ellipse centred on the play area (semi-axes ≈ 43% of each dimension), each displaced radially ±10% at random plus 2–4 shared group displacements of ±6% to break up machine regularity. The last vertex is identical to the first, closing the loop exactly. The boundary rift participates in the normal rift bounce mechanic (§4.5.1). Stations are ejected to just inside the boundary at placement time (15 + station.radius inward from nearest segment); at runtime, any station detected outside the closed polygon is hard-teleported to the same point.
+
+**Out-of-bounds bullets:** Bullets whose position falls outside the boundary polygon are killed immediately (status → DEAD).
+
+**Interior bodies (2–6):** Randomly selected from: rocky planet, asteroid, gas giant, wormhole pair, wormhole triple, white hole, moon, star. Placed with standard no-overlap validation. The scenario also has a 40% chance of spawning one additional interior space rift.
+
+**Background:** Replaces the star field. Drawn once to the background canvas. The area outside the boundary rift polygon is solid black. Inside: 32 concentric ellipses in alternating dark blues (hsl ≈ 225–260°) and purples (hsl ≈ 268–284°), lightness 5–14%, drawn using `lighter` compositing. A t² perspective curve makes inner rings very small and densely packed near the vanishing point (slightly off canvas centre), giving deep tunnel depth. Ring centres drift from the vanishing point outward toward the canvas centre as rings enlarge. Each ring is rotated ~3° more than the previous (96° total spiral twist across 32 rings). A soft radial glow at the vanishing point simulates the far end of the tunnel. The clip region is set to the boundary rift polygon before drawing, so the rings are masked to the interior automatically.
 
 1. **Normal** — retry up to 4000 times enforcing both station-station spacing AND planet avoidance. Spacing threshold decreases on each failure.
 2. **Emergency** — if normal fails, drop station-station spacing requirements but continue checking planet avoidance (up to 2000 more attempts).
@@ -677,7 +717,9 @@ SVG graphics can be layered over planet/celestial body circles to enrich their a
 - **Rocky planets / asteroids**: smaller, brownish or dark-orange circles with simple shading (lighter on one side)
 - **Black holes**: invisible or near-invisible (confirmed by original hints — players must infer from the gap in the map)
 - **Wormholes**: distinctive colour-coded circles (purple/blue/green/grey/yellow) with pulsing or swirling render effect
-- **White holes**: bright white with a repulsion glow
+- **White holes**: bright white glowing core with a large radial halo (15× body radius). Animated outward-drifting particles: 160 white soft blobs spawned at the body surface, accelerating outward (`accelFrac = 12 × visualRadius / s²`), fading out at the halo edge. Skipped in simplified mode. Communicates the constant repulsive force visually.
+- **White dwarfs**: identical visual treatment to white holes (same glowing core + large halo). Distinguished by physics — white dwarfs have strong positive gravity; white holes repel.
+- **Pulsars**: glowing white core. Emits periodic expanding pressure rings (outward-travelling concentric circles, fading as they expand). Per-pulsar random ring radius 90–150 game units; per-pulsar random period 0.4–4 s.
 
 ### 11.6 Bullet Trails (from screenshots)
 - Smooth curved polyline in the firing station's team colour
@@ -742,6 +784,18 @@ Rules for new options:
   - Final frame = Layer 0 + Layer 1 + Layer 2 composited to the visible canvas.
 - Trails must persist across explosion animations — the three-layer approach achieves this cleanly.
 - Target: 30fps during simulation, idle when waiting for input
+
+### 12.3 Dev Mode Stats Overlay
+Toggled via a keyboard shortcut (dev builds only). Displayed as a fixed top-left overlay, monospace font, semi-transparent background. Shows:
+
+| Field | Content |
+|---|---|
+| FPS | Smoothed framerate (10% EMA) |
+| Scenario | Human-readable scenario name from `SCENARIO_NAMES[scenarioId]`; appends `EXTREME` if `gameState.config.isExtreme` is true |
+| Celestial | Planet count |
+| Ships | Total station count across all teams |
+| Bullets | Active bullets + rockets |
+| SFX | Sum of all particle/effect counts (smoke, explosions, wormhole particles, etc.) |
 
 ### 12.4 No Dependencies (initially)
 - Pure vanilla JS — no frameworks, no build step

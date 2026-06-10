@@ -44,6 +44,17 @@ function rr(rng, D, E, F) {
   return D * rng.next() + E * rng.next() + F;
 }
 
+// Returns [x, y] biased toward one screen edge — picks a side then roams freely along it.
+function sideEdgePos(rng, gw, gh) {
+  const side = rng.nextInt(4);
+  const near = 0.05 + rng.next() * 0.15; // 5–20% from the chosen edge
+  const free = 0.15 + rng.next() * 0.70; // 15–85% along the side
+  if (side === 0) return [near * gw,         free * gh       ]; // left
+  if (side === 1) return [(1 - near) * gw,   free * gh       ]; // right
+  if (side === 2) return [free * gw,          near * gh      ]; // top
+  return               [free * gw,          (1 - near) * gh ]; // bottom
+}
+
 function starColour(rng) {
   return [
     Math.floor(rng.next() * 30) + 205,
@@ -219,8 +230,8 @@ function makePulsar(rng, A, B, C, gw, gh) {
     type:         PlanetType.PULSAR,
     colour:       [...WHITE_COL],
     shading:      ShadingStyle.GLOWING,
-    pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1 seconds (5× more frequent)
-    pulsarPhase:  rng.next() * 4.5,        // random initial phase so they desync
+    pulsarPeriod: 0.1 + rng.next() * 0.9, // 0.1–1.0 seconds
+    pulsarPhase:  rng.next() * 4.5,       // random initial phase so they desync
   });
 }
 
@@ -240,7 +251,7 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal') {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal', forceExtreme = false) {
     const richProb = collectables === 'off' ? 0 : (
       { off: 0, rare: 0.01, normal: 0.05, common: 0.10, abundant: 0.25, overwhelming: 1.0 }[richAsteroids] ?? 0.05
     );
@@ -249,11 +260,12 @@ export class ScenarioFactory {
 
     nPlanets = ScenarioFactory._cap(scenarioId, nPlanets);
 
-    let planets = [];
-    let attempts = 0;
+    let planets   = [];
+    let isExtreme = false;
+    let attempts  = 0;
 
     do {
-      planets = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb);
+      ({ planets, isExtreme } = ScenarioFactory._generate(scenarioId, gw, gh, nPlanets, rng, rn, performance, richProb, forceExtreme));
       attempts++;
       if (attempts > 1000) { nPlanets = Math.max(0, nPlanets - 1); attempts = 0; }
     } while (nPlanets > 0 && !ScenarioFactory._validate(planets, gw, gh));
@@ -263,11 +275,14 @@ export class ScenarioFactory {
     if (scenarioId === 26) { // Hyperspace: 2–4 rifts per SR-06
       const nRifts = rng.nextInt(3) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
-    } else if (scenarioId === 29) { // Rift: 1 rift (double length)
-      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 2));
+    } else if (scenarioId === 29) { // Rift: 1 rift, 1–3× segment length, 5–20 segments
+      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 1 + rng.next() * 2, 5 + rng.nextInt(16)));
     } else if (scenarioId === 30) { // Rifts: 2–6 rifts
       const nRifts = rng.nextInt(5) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+    } else if (scenarioId === 34) { // Wormhole Tunnel: oval boundary rift + 0–1 interior rifts
+      rifts.push(ScenarioFactory._generateWormholeBoundary(rng, gw, gh));
+      if (rng.next() < 0.4) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
     }
 
     // Wildcard bonus injection — frequency controlled by wildcardFrequency setting
@@ -276,23 +291,61 @@ export class ScenarioFactory {
       off: 0, veryRare: 0.03, rare: 0.1, occasional: 0.25, common: 0.55, always: 2,
     };
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
+    const prePlanetCount = planets.length;
+    const preRiftCount   = rifts.length;
+    const collectablesOn = collectables !== 'off';
+    const wcCollectablePositions = [];
     if (threshold > 0 && rn[1] < threshold) {
       const noGrey = scenarioId === 26;
       if (rn[2] < 0.10) {
         rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
       } else {
-        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey);
+        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
       }
       if (rn[4] < 0.35) {
         if (rn[5] < 0.10) {
           rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
         } else {
-          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey);
+          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
         }
       }
     }
 
-    return { planets, rifts };
+    // Wormhole Tunnel: discard any wildcard collectables that landed outside the boundary rift
+    if (scenarioId === 34 && wcCollectablePositions.length) {
+      const br = rifts.find(r => r.isBoundary);
+      if (br) {
+        const inside = pos => {
+          const verts = br.vertices, n = verts.length;
+          let hit = false;
+          for (let i = 0, j = n - 1; i < n; j = i++) {
+            const xi = verts[i].x, yi = verts[i].y, xj = verts[j].x, yj = verts[j].y;
+            if (((yi > pos.y) !== (yj > pos.y)) &&
+                (pos.x < (xj - xi) * (pos.y - yi) / (yj - yi) + xi)) hit = !hit;
+          }
+          return hit;
+        };
+        const kept = wcCollectablePositions.filter(inside);
+        wcCollectablePositions.length = 0;
+        wcCollectablePositions.push(...kept);
+      }
+    }
+
+    // Build a human-readable wildcard summary for dev display
+    const wcPlanets = planets.slice(prePlanetCount);
+    const wcRifts   = rifts.length - preRiftCount;
+    let wildcardDesc = null;
+    if (wcPlanets.length || wcRifts || wcCollectablePositions.length) {
+      const fmt = t => t.replace(/([A-Z])/g, ' $1').replace(/^[a-z]/, c => c.toUpperCase());
+      const counts = {};
+      for (const p of wcPlanets) counts[p.type] = (counts[p.type] ?? 0) + 1;
+      const parts = Object.entries(counts).map(([t, n]) => n > 1 ? `${fmt(t)} ×${n}` : fmt(t));
+      if (wcRifts) parts.push(wcRifts > 1 ? `Rift ×${wcRifts}` : 'Rift');
+      if (wcCollectablePositions.length) parts.push(`Collectable ×${wcCollectablePositions.length}`);
+      wildcardDesc = parts.join(' + ');
+    }
+
+    return { planets, rifts, isExtreme, wildcardDesc, wildcardCollectablePositions: wcCollectablePositions };
   }
 
   static randomId(rng) { return weightedRandomId(rng); }
@@ -300,7 +353,7 @@ export class ScenarioFactory {
   // ─── station placement ───────────────────────────────────────────────────
   // Called after planets are confirmed. Sets position on each Station object.
 
-  static placeStations(teams, planets, gw, gh, stationSize, rng, teamClustering = 'off') {
+  static placeStations(teams, planets, gw, gh, stationSize, rng, teamClustering = 'off', rifts = []) {
     const all = teams.flatMap(t => t.stations);
     const n   = all.length;
     const sr  = stationSize.radius;
@@ -422,6 +475,41 @@ export class ScenarioFactory {
       }
       if (!anyOverlap) break;
     }
+
+    // Wormhole Tunnel: eject any station that ended up outside the boundary rift polygon
+    const boundaryRift = rifts.find(r => r.isBoundary);
+    if (boundaryRift) {
+      const verts = boundaryRift.vertices;
+      const n = verts.length;
+      const gcx = gw / 2, gcy = gh / 2;
+      for (const s of all) {
+        // Point-in-polygon (ray casting)
+        let inside = false;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+          const xi = verts[i].x, yi = verts[i].y, xj = verts[j].x, yj = verts[j].y;
+          if (((yi > s.position.y) !== (yj > s.position.y)) &&
+              (s.position.x < (xj - xi) * (s.position.y - yi) / (yj - yi) + xi))
+            inside = !inside;
+        }
+        if (!inside) {
+          // Find nearest point on rift polyline then push inward
+          let bestDist = Infinity, nearX = 0, nearY = 0;
+          for (let i = 0; i < n - 1; i++) {
+            const ax = verts[i].x, ay = verts[i].y, bx = verts[i+1].x, by = verts[i+1].y;
+            const dx = bx - ax, dy = by - ay, lenSq = dx*dx + dy*dy;
+            if (lenSq < 1e-10) continue;
+            const t  = Math.max(0, Math.min(1, ((s.position.x-ax)*dx + (s.position.y-ay)*dy) / lenSq));
+            const cx = ax + t*dx, cy = ay + t*dy;
+            const d  = Math.hypot(s.position.x-cx, s.position.y-cy);
+            if (d < bestDist) { bestDist = d; nearX = cx; nearY = cy; }
+          }
+          const inX = gcx - nearX, inY = gcy - nearY;
+          const inLen = Math.hypot(inX, inY);
+          const push  = 15 + sr;
+          s.position = new Vec2(nearX + (inX / inLen) * push, nearY + (inY / inLen) * push);
+        }
+      }
+    }
   }
 
   static _stationsOutsidePlanets(stations, planets, sr) {
@@ -470,15 +558,16 @@ export class ScenarioFactory {
   // ─── scenario cap ──────────────────────────────────────────────────────────
 
   static _cap(id, n) {
-    const caps = { 1:10, 6:14, 7:12, 8:13, 10:8, 18:12 };
+    const caps = { 1:10, 6:14, 7:12, 8:13, 10:8, 18:12, 34:6 };
     return caps[id] !== undefined ? Math.min(n, caps[id]) : n;
   }
 
   // ─── planet placement ──────────────────────────────────────────────────────
 
-  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', richProb = 0) {
+  static _generate(id, gw, gh, nPlanets, rng, rn, performance = 'full', richProb = 0, forceExtreme = false) {
     const simplified = performance === 'simplified';
     const planets = [];
+    let isExtreme = false;
 
     switch (id) {
 
@@ -486,6 +575,19 @@ export class ScenarioFactory {
       case 1: {
         for (let i = 0; i < nPlanets; i++)
           planets.push(makePlanet(rng, 0.4,0.4,0.1, 20,20,7, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+        const extreme1 = forceExtreme || rng.next() < 0.10;
+        if (extreme1) {
+          isExtreme = true;
+          const nExtra = 1 + rng.nextInt(10);
+          for (let i = 0; i < nExtra; i++) {
+            const [ex, ey] = sideEdgePos(rng, gw, gh);
+            planets.push(new Planet({
+              position: new Vec2(ex, ey),
+              radius: 7 + rng.next() * 13, density: 0.03,
+              type: PlanetType.ROCKY, colour: ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], shading: ShadingStyle.ROCKY,
+            }));
+          }
+        }
         break;
       }
 
@@ -686,6 +788,7 @@ export class ScenarioFactory {
           type:         PlanetType.WHITE_DWARF,
           colour:       WHITE_COL,
           shading:      ShadingStyle.GLOWING,
+          halo:         15.0,
         }));
         for (let i = 1; i < nPlanets; i++)
           planets.push(makePlanet(rng, 1,0,0, 5,5,3, gw,gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
@@ -721,8 +824,11 @@ export class ScenarioFactory {
 
       // ── 21: White Dwarfs ──────────────────────────────────────────────────
       case 21: {
-        for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, 3, PlanetType.WHITE_DWARF, WHITE_COL, ShadingStyle.GLOWING));
+        for (let i = 0; i < nPlanets; i++) {
+          const p = makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, 3, PlanetType.WHITE_DWARF, WHITE_COL, ShadingStyle.GLOWING);
+          p.halo = 15.0;
+          planets.push(p);
+        }
         break;
       }
 
@@ -746,8 +852,29 @@ export class ScenarioFactory {
 
       // ── 27: Black Holes ───────────────────────────────────────────────────
       case 27: {
-        for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,3, gw,gh, 50, PlanetType.BLACK_HOLE, BLACK_COL, ShadingStyle.NONE));
+        const extreme27 = forceExtreme || rng.next() < 0.10;
+        if (extreme27) isExtreme = true;
+        const nBH      = extreme27 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
+        const bh27Mid  = (nBH > 0 && rng.next() < 0.5) ? rng.nextInt(nBH) : -1;
+        for (let i = 0; i < nBH; i++) {
+          const bhBigR = rng.nextInRange(80, 160) + 140;
+          const [px, py] = i === bh27Mid
+            ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
+            : sideEdgePos(rng, gw, gh);
+          planets.push(new Planet({
+            position: new Vec2(px, py),
+            radius: 3, density: 50, mass: bhBigR * bhBigR * 0.014,
+            type: PlanetType.BLACK_HOLE, colour: BLACK_COL, shading: ShadingStyle.NONE,
+          }));
+        }
+        if (!extreme27) {
+          for (let i = nBH; i < nPlanets; i++) {
+            if (i % 3 === 1)
+              planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+            else
+              planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+          }
+        }
         break;
       }
 
@@ -863,10 +990,28 @@ export class ScenarioFactory {
 
       // ── 25: White Holes ───────────────────────────────────────────────────
       case 25: {
-        for (let i = 0; i < nPlanets; i++) {
-          const p = makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, -0.2, PlanetType.WHITE_HOLE, WHITE_COL, ShadingStyle.GLOWING);
-          p.halo = 15.0;
-          planets.push(p);
+        const extreme25 = forceExtreme || rng.next() < 0.10;
+        if (extreme25) isExtreme = true;
+        const nWH     = extreme25 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
+        const wh25Mid = (nWH > 0 && rng.next() < 0.5) ? rng.nextInt(nWH) : -1;
+        for (let i = 0; i < nWH; i++) {
+          const [px, py] = i === wh25Mid
+            ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
+            : sideEdgePos(rng, gw, gh);
+          planets.push(new Planet({
+            position: new Vec2(px, py),
+            radius:   6, density: 0.02, mass: -20,
+            type:     PlanetType.WHITE_HOLE, colour: WHITE_COL,
+            shading:  ShadingStyle.GLOWING, halo: 15.0,
+          }));
+        }
+        if (!extreme25) {
+          for (let i = nWH; i < nPlanets; i++) {
+            if (i % 3 === 1)
+              planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+            else
+              planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+          }
         }
         break;
       }
@@ -882,7 +1027,9 @@ export class ScenarioFactory {
             : [255, Math.min(255, Math.floor(255 + 50*density)), 0];
           const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE : PlanetType.WORMHOLE_NETWORK;
           const shading = useWormholeShading ? ShadingStyle.WORMHOLE : ShadingStyle.GLOWING;
-          planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading));
+          const p = makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading);
+          p.anomalyRepels = positive;
+          planets.push(p);
         }
         break;
       }
@@ -1037,7 +1184,7 @@ export class ScenarioFactory {
         const sR   = 30 + Math.floor(rng.next() * 30);
         planets.push(new Planet({
           position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
-          radius: sR, density: 0.015,
+          radius: sR, density: 0.03,
           type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
         }));
         const numRocks = 2 + Math.floor(rng.next() * 3); // 2–4 asteroids
@@ -1115,16 +1262,40 @@ export class ScenarioFactory {
 
       // ── 31: Moons — rocky body orbited by destructible moons ─────────────────
       case 31: {
-        // Central rocky planet (large, slightly off-centre)
-        planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
-        // 2–5 moons scattered around the field
-        const nMoons = 2 + Math.floor(rng.next() * 4);
-        for (let i = 0; i < nMoons; i++)
-          planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
-        // Fill remaining slots with asteroids
-        const remaining = Math.max(0, nPlanets - 1 - nMoons);
-        for (let i = 0; i < remaining; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        const extreme31 = forceExtreme || rng.next() < 0.10;
+        if (extreme31) isExtreme = true;
+        if (extreme31) {
+          // Giant moon as the central body
+          const bigMoonR = 35 + rng.next() * 20; // 35–55
+          const nCraters = 5 + Math.floor(rng.next() * 4);
+          const craterData = [];
+          for (let i = 0; i < nCraters; i++) {
+            const angle = rng.next() * Math.PI * 2;
+            const dist  = rng.next() * bigMoonR * 0.7;
+            const cr    = 3 + rng.next() * (bigMoonR * 0.18);
+            craterData.push({ dx: Math.cos(angle) * dist, dy: Math.sin(angle) * dist, cr });
+          }
+          planets.push(new Planet({
+            position:  new Vec2(rv(rng,0.3,0.3,0.2,gw), rv(rng,0.3,0.3,0.2,gh)),
+            radius:    bigMoonR, density: 0.04,
+            type:      PlanetType.MOON, colour: [200,207,228], shading: ShadingStyle.ROCKY,
+            craterData, hitCount: 0,
+          }));
+          // All remaining slots are moons
+          for (let i = 1; i < nPlanets; i++)
+            planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+        } else {
+          // Central rocky planet (large, slightly off-centre)
+          planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+          // 2–5 moons scattered around the field
+          const nMoons = 2 + Math.floor(rng.next() * 4);
+          for (let i = 0; i < nMoons; i++)
+            planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+          // Fill remaining slots with asteroids
+          const remaining = Math.max(0, nPlanets - 1 - nMoons);
+          for (let i = 0; i < remaining; i++)
+            planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        }
         break;
       }
 
@@ -1148,13 +1319,91 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 33: Pulsars (2–5 pulsars biased to edges + rocky filler) ──
+      case 33: {
+        const extreme33 = forceExtreme || rng.next() < 0.10;
+        if (extreme33) isExtreme = true;
+        const nPulsars = extreme33 ? rng.nextInt(16) : 2 + rng.nextInt(4); // extreme: 0–15, normal: 2–5
+        const pul33Mid = (nPulsars > 0 && rng.next() < 0.5) ? rng.nextInt(nPulsars) : -1;
+        for (let i = 0; i < nPulsars; i++) {
+          const bigR  = rng.nextInRange(80, 160) + 140.5;
+          const dispR = rng.nextInRange(7, 10);
+          const [px, py] = i === pul33Mid
+            ? [(0.3 + rng.next() * 0.4) * gw, (0.3 + rng.next() * 0.4) * gh]
+            : sideEdgePos(rng, gw, gh);
+          planets.push(new Planet({
+            position:     new Vec2(px, py),
+            radius:       dispR, density: 0.014, mass: bigR * bigR * 0.014,
+            type:         PlanetType.PULSAR, colour: [...WHITE_COL],
+            shading:      ShadingStyle.GLOWING,
+            pulsarPeriod: 0.1 + rng.next() * 0.9,
+            pulsarPhase:  rng.next() * 4.5,
+          }));
+        }
+        if (!extreme33) {
+          for (let i = nPulsars; i < nPlanets; i++) {
+            if (i % 3 === 1)
+              planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+            else
+              planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+          }
+        }
+        break;
+      }
+
+      // ── 34: Wormhole Tunnel — 2–6 interior bodies inside an oval boundary rift ──
+      case 34: {
+        const bodyCount = 2 + rng.nextInt(5); // 2–6 interior bodies
+        let placed = 0;
+        while (placed < bodyCount) {
+          const w = rng.nextInt(15);
+          if (w < 3) {
+            planets.push(makePlanet(rng, 0.5,0.2,0.15, 30,15,8, gw,gh, 0.04, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+            placed++;
+          } else if (w < 6) {
+            planets.push(makeAsteroid(rng, 0.5,0.2,0.15, 15,5,3, gw,gh, 0.05, richProb));
+            placed++;
+          } else if (w < 8) {
+            planets.push(makeGasGiant(rng, 0.5,0.2,0.15, 50,20,15, gw,gh, 0.01));
+            placed++;
+          } else if (w < 10 && bodyCount - placed >= 2) {
+            const wc = [255, 55, 255];
+            const wp = makeWormhole(rng, gw, gh, wc, PlanetType.WORMHOLE_PAIRED);
+            const wq = makeWormhole(rng, gw, gh, wc, PlanetType.WORMHOLE_PAIRED);
+            wp.partner = wq; wq.partner = wp;
+            planets.push(wp, wq);
+            placed += 2;
+          } else if (w < 11 && bodyCount - placed >= 3) {
+            const wc = [55, 55, 255];
+            const ws = [0, 1, 2].map(() => makeWormhole(rng, gw, gh, wc, PlanetType.WORMHOLE_CYCLIC));
+            ws[0].partner = ws[1]; ws[1].partner = ws[2]; ws[2].partner = ws[0];
+            planets.push(...ws);
+            placed += 3;
+          } else if (w < 12) {
+            planets.push(new Planet({
+              position: new Vec2(rv(rng, 0.5,0.2,0.15, gw), rv(rng, 0.5,0.2,0.15, gh)),
+              radius: 8 + rng.next() * 6, density: 0.02, mass: -20,
+              type: PlanetType.WHITE_HOLE, colour: [...WHITE_COL], shading: ShadingStyle.GLOWING, halo: 15.0,
+            }));
+            placed++;
+          } else if (w < 14) {
+            planets.push(makeMoon(rng, 0.5,0.2,0.15, gw, gh));
+            placed++;
+          } else {
+            planets.push(makePlanet(rng, 0.5,0.2,0.15, 40,20,15, gw,gh, 0.015, PlanetType.STAR, starColour(rng), ShadingStyle.GLOWING));
+            placed++;
+          }
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
           planets.push(makePlanet(rng, 0.4,0.4,0.1, 30,30,10, gw,gh, 0.03, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
     }
 
-    return planets;
+    return { planets, isExtreme };
   }
 
   // ─── validation ─────────────────────────────────────────────────────────
@@ -1246,8 +1495,44 @@ export class ScenarioFactory {
 
   // ─── space rift generation (SR-02) ───────────────────────────────────────
 
-  static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1) {
-    const N      = rng.nextInt(9) + 3; // 3–11 segments
+  // Generate the oval boundary rift for the Wormhole Tunnel scenario (id 34).
+  static _generateWormholeBoundary(rng, gw, gh) {
+    const nVerts = 44 + rng.nextInt(17); // 44–60 vertices — dense enough to look smooth
+    const cx = gw / 2, cy = gh / 2;
+    const ra = gw * 0.43, rb = gh * 0.43; // semi-axes keep verts ≥7% from each edge
+    const verts = [];
+
+    for (let i = 0; i < nVerts; i++) {
+      const angle = (2 * Math.PI * i) / nVerts;
+      const disp  = 1 + (rng.next() - 0.5) * 0.20; // per-vertex radial ±10%
+      verts.push(new Vec2(
+        cx + ra * Math.cos(angle) * disp,
+        cy + rb * Math.sin(angle) * disp,
+      ));
+    }
+
+    // Group displacement: 2–4 clusters of 2–3 adjacent vertices shifted together
+    const nGroups = 2 + rng.nextInt(3);
+    for (let g = 0; g < nGroups; g++) {
+      const start = rng.nextInt(nVerts);
+      const len   = 2 + rng.nextInt(2);
+      const gd    = (rng.next() - 0.5) * 0.12; // ±6% group shift
+      for (let j = 0; j < len; j++) {
+        const idx = (start + j) % nVerts;
+        const v   = verts[idx];
+        verts[idx] = new Vec2(cx + (v.x - cx) * (1 + gd), cy + (v.y - cy) * (1 + gd));
+      }
+    }
+
+    // Close the loop exactly — last vertex sits on the first
+    verts.push(new Vec2(verts[0].x, verts[0].y));
+
+    // influenceRadius capped at 40: prevents the boundary nodes from blanketing the whole map
+    return new SpaceRift({ vertices: verts, strengthMultiplier: 2, isBoundary: true, influenceRadius: 40 });
+  }
+
+  static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1, nSegments = null) {
+    const N      = nSegments ?? (rng.nextInt(9) + 3); // 3–11 segments (overridable)
     const segLen = RIFT_SEGMENT_LENGTH * segmentLengthMult;
     const margin = segLen * (N + 2);
 
@@ -1284,7 +1569,7 @@ export class ScenarioFactory {
 
   // ─── bonus random feature injection ─────────────────────────────────────
 
-  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false) {
+  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false, collectablesOn = false, collectablePositions = null) {
     const simplified = performance === 'simplified';
     if (planets.length < 2) return;
 
@@ -1299,10 +1584,12 @@ export class ScenarioFactory {
       wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
       candidates = wc;
     } else if (rb < 0.6) {
-      candidates = [makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)];
-    } else if (rb < 0.70) {
+      // Red network — 4 wormholes all in the same network
+      const wn = [0,1,2,3].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
+      candidates = wn;
+    } else if (rb < 0.645) {
       if (noGrey) {
-        candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];
+        candidates = [makeCrystalAsteroid(rng, 0.4,0.4,0.1, 20,5,3, gw,gh, 0.05)];
       } else {
         // Grey triple — bullet enters one, copies emerge from the other two
         // Simplified: use red network wormholes instead
@@ -1310,9 +1597,18 @@ export class ScenarioFactory {
           ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
           : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
       }
+    } else if (rb < 0.70) {
+      // Collectables wildcard — 3–6 collectables, or crystal asteroids if collectables are off
+      if (collectablesOn && collectablePositions) {
+        const n = 3 + rng.nextInt(4);
+        for (let i = 0; i < n; i++)
+          collectablePositions.push(new Vec2(rv(rng,0.6,0.3,0.1,gw), rv(rng,0.6,0.3,0.1,gh)));
+        return;
+      }
+      candidates = Array.from({length: 2 + rng.nextInt(3)}, () => makeCrystalAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
     } else if (rb < 0.78) {
-      // Wildcard moon (bonus multi-hit body)
-      candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];
+      // Yellow self wormhole
+      candidates = [makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF)];
     } else if (rb < 0.85) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({

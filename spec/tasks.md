@@ -168,9 +168,9 @@ Minor adjustments to existing systems and small new player-facing options.
 
 ### 11.1 Planet tuning
 
-- [ ] **11.1** White Dwarfs scenario — audit default planet count; reduce to keep the field readable. Bias spawn placement toward the edges/periphery of the map rather than centre-heavy.
-- [ ] **11.2** Black Holes scenario — cap typical count at 2–3; reduce the tail end of the random range so extreme counts (4+) are very rare.
-- [ ] **11.3** Pulsars — reduce the radius of effect to 60% of current value. Narrow the frequency range so some pulsars are very low frequency (slow pulse) and some are moderate; remove the high-frequency end so no pulsar feels frantic.
+- [x] **11.1** White Dwarfs scenario — audit default planet count; reduce to keep the field readable. Bias spawn placement toward the edges/periphery of the map rather than centre-heavy.
+- [x] **11.2** Black Holes scenario — cap typical count at 2–3; reduce the tail end of the random range so extreme counts (4+) are very rare.
+- [x] **11.3** Pulsars — reduce the radius of effect to 60% of current value. Narrow the frequency range so some pulsars are very low frequency (slow pulse) and some are moderate; remove the high-frequency end so no pulsar feels frantic.
 
 ### 11.2 Tournament & game options
 
@@ -182,9 +182,10 @@ Minor adjustments to existing systems and small new player-facing options.
 
 ### 11.3 Rift interactions
 
-- [ ] **11.9** Rifts — reduce effect strength slightly (tune the force constant). Halve the range at which rifts influence bullets.
-- [ ] **11.10** Ships bounce off rifts — when a moving station (movement speed ≠ Off) reaches the edge of a rift's influence radius, reflect its movement vector elastically so it cannot cross into or through the rift. Treat the rift boundary as an elastic wall for station movement only; bullet trajectories are unaffected.
-- [ ] **11.11** Stations pushed by pulsars and white dwarfs — when movement is enabled, pulsars and white dwarfs apply a small outward push to stations within their gravitational radius each turn, nudging them away. Magnitude should be subtle — enough to slowly drift a parked station but not enough to fling it across the map.
+- [x] **11.9** Rifts — reduce effect strength slightly (tune the force constant). Halve the range at which rifts influence bullets.
+- [x] **11.10** Ships bounce off rifts — when a moving station (movement speed ≠ Off) reaches the edge of a rift's influence radius, reflect its movement vector elastically so it cannot cross into or through the rift. Treat the rift boundary as an elastic wall for station movement only; bullet trajectories are unaffected.
+- [x] **11.11** Stations pushed by pulsars and white dwarfs — when movement is enabled, pulsars and white dwarfs apply a small outward push to stations within their gravitational radius each turn, nudging them away. Magnitude should be subtle — enough to slowly drift a parked station but not enough to fling it across the map.
+- [x] **11.12** Wormhole Tunnel scenario (id 34) — oval boundary rift, 2–6 random interior bodies, tunnel background, out-of-bounds enforcement. See §6.5 of requirements.
 
 ---
 

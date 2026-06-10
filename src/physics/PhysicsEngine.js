@@ -13,6 +13,7 @@ export const MAX_TELEPORTS = 100;
 export const MIN_POWER     = 0.2;
 export const MAX_POWER     = 0.8;
 export const INIT_DIST     = 1.0;   // gap between station surface and bullet spawn
+export const PULSE_MAX_R   = 180;   // pulsar pressure ring max radius (game units)
 
 // ─── Projectile skimming constants (NFR-2) ────────────────────────────────────
 export const MAX_CANNON_SPEED       = (800 / 1000 + MIN_POWER) * MAX_POWER; // = 0.8
@@ -104,7 +105,6 @@ export class PhysicsEngine {
 
       // Pulsar: outward impulse when bullet crosses an active pressure ring
       if (planet.type === PlanetType.PULSAR && planet.pulsarPulses?.length) {
-        const PULSE_MAX_R = 180;
         const RING_HALF_W = 9;
         const d = Math.sqrt(rSq);
         for (const pulse of planet.pulsarPulses) {
@@ -125,7 +125,7 @@ export class PhysicsEngine {
         const rdy = bullet.position.y - v.y;
         const d   = Math.sqrt(rdx * rdx + rdy * rdy);
         if (d < 0.01 || d >= rift.influenceRadius) continue;
-        const F = RIFT_REPULSION_STRENGTH * (1 - d / rift.influenceRadius);
+        const F = RIFT_REPULSION_STRENGTH * (rift.strengthMultiplier ?? 1) * (1 - d / rift.influenceRadius);
         vx += (rdx / d) * F * TIMESTEP;
         vy += (rdy / d) * F * TIMESTEP;
       }
@@ -282,7 +282,7 @@ export class PhysicsEngine {
           const rdx = px - v.x, rdy = py - v.y;
           const d   = Math.sqrt(rdx * rdx + rdy * rdy);
           if (d < 0.01 || d >= rift.influenceRadius) continue;
-          const F = RIFT_REPULSION_STRENGTH * (1 - d / rift.influenceRadius);
+          const F = RIFT_REPULSION_STRENGTH * (rift.strengthMultiplier ?? 1) * (1 - d / rift.influenceRadius);
           ax += (rdx / d) * F;
           ay += (rdy / d) * F;
         }

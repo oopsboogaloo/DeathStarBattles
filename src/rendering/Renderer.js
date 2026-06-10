@@ -2,12 +2,22 @@ import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
+import { WhiteHoleParticles } from './WhiteHoleParticles.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
+import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
 import { PLANET_OVERLAYS } from './planetOverlays.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
+
+const ANOMALY_INWARD_CFG = {
+  count: 35, spawnMult: 8.0, voidMult: 1.2,
+  angularSpeed: 0.4, momentumExp: 1.4, inwardFrac: 0.35,
+  blobMult: 0.55, blobMinMult: 0.15, alphaMax: 0.20,
+  alphaFadeMult: 0.35, hueRange: 20, glowLayers: 2,
+  arms: 0, armSpread: 0, armRotSpeed: 0,
+};
 
 export class Renderer {
   constructor(mainCanvas) {
@@ -41,6 +51,7 @@ export class Renderer {
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
     this._wormholeParticles      = new Map(); // planet → WormholeParticles
     this._giantWormholeParticles = new Map(); // planet → GiantWormholeParticles
+    this._whiteHoleParticles     = new Map(); // planet → WhiteHoleParticles
     this._gasGiantCanvas      = null;      // combined viewport-sized canvas, rebuilt on game start/resize/SVG load
     this._gasGiantBitmap      = null;      // ImageBitmap snapshot for zero-flush drawImage
     this._smokeImg            = null;
@@ -154,16 +165,24 @@ export class Renderer {
     this._stars       = stars;
     this._planets     = planets;
     this._rifts       = rifts;
-    this._noStarField = !!opts.noStarField;
+    this._noStarField      = !!opts.noStarField;
+    this._tunnelBackground = !!opts.tunnelBackground;
     this._svgOverlayCache.clear();
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
     this._wormholeParticles.clear();
     this._giantWormholeParticles.clear();
+    this._whiteHoleParticles.clear();
     this._gasGiantCanvas = null;
     this._gasGiantBitmap = null;
     for (const planet of planets) {
-      if (planet.shading === ShadingStyle.WORMHOLE) {
+      if (planet.anomalyRepels !== undefined) {
+        if (planet.anomalyRepels) {
+          this._wormholeParticles.set(planet, new WormholeParticles(planet, ANOMALY_INWARD_CFG));
+        } else {
+          this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
+        }
+      } else if (planet.shading === ShadingStyle.WORMHOLE) {
         if (planet.radius > 100) {
           this._giantWormholeParticles.set(
             planet, new GiantWormholeParticles(planet, this.gameWidth, this.gameHeight)
@@ -171,6 +190,8 @@ export class Renderer {
         } else {
           this._wormholeParticles.set(planet, new WormholeParticles(planet, planet.particleConfig));
         }
+      } else if (planet.type === PlanetType.WHITE_HOLE) {
+        this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
       }
     }
 
@@ -195,7 +216,8 @@ export class Renderer {
     const ctx = this.bgCtx;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this._vpW, this._vpH);
-    if (!this._noStarField) this._drawStarField(ctx);
+    if (this._tunnelBackground) this._drawWormholeTunnel(ctx);
+    else if (!this._noStarField) this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
@@ -324,6 +346,73 @@ export class Renderer {
       this._drawLightningBranch(ctx, bx, by, ba + (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
       this._drawLightningBranch(ctx, bx, by, ba - (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
     }
+  }
+
+  _drawWormholeTunnel(ctx) {
+    const W = this._vpW, H = this._vpH;
+    const conv = this.conv;
+
+    // Black base — outside the rift boundary remains black
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    // Clip all drawing to the interior of the boundary rift polygon
+    ctx.save();
+    const boundaryRift = this._rifts?.find(r => r.isBoundary);
+    if (boundaryRift) {
+      ctx.beginPath();
+      const verts = boundaryRift.vertices;
+      ctx.moveTo(verts[0].x * conv, verts[0].y * conv);
+      for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x * conv, verts[i].y * conv);
+      ctx.closePath();
+      ctx.clip();
+    }
+
+    // Soft radial glow at the vanishing point — the far end of the tunnel
+    const vx = W * 0.53, vy = H * 0.54;
+    const glowR = Math.min(W, H) * 0.25;
+    const glow  = ctx.createRadialGradient(vx, vy, 0, vx, vy, glowR);
+    glow.addColorStop(0,   'rgba(30,10,60,0.50)');
+    glow.addColorStop(0.5, 'rgba(10,5,30,0.22)');
+    glow.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // 32 concentric ellipses — deep perspective: inner rings tiny, outer rings fill the rift
+    const N    = 32;
+    const maxA = W * 0.48, maxB = H * 0.48;
+    const minA = W * 0.006, minB = H * 0.006;
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = 0; i < N; i++) {
+      const t      = (i + 1) / N;        // 0 → 1 inner to outer
+      const tCurve = t * t;              // t² — strong perspective: inner rings very small and tightly packed
+
+      // Centre drifts from vanishing point (innermost) toward canvas centre (outermost)
+      const ex = vx + (W / 2 - vx) * t;
+      const ey = vy + (H / 2 - vy) * t;
+
+      const a = minA + (maxA - minA) * tCurve;
+      const b = minB + (maxB - minB) * tCurve;
+
+      // Spiral twist: ~3° per ring, 32 rings ≈ 96° total
+      const rot = i * 0.052;
+
+      const isBlue  = i % 2 === 0;
+      const hue     = isBlue ? 225 + i * 1.2 : 268 + i * 0.7;
+      const lness   = Math.round(5 + t * 9);
+      const alpha   = 0.28 + t * 0.50;
+      const strokeW = 0.5 + t * 2.0;
+
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, a, b, rot, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${hue},68%,${lness}%,${alpha})`;
+      ctx.lineWidth   = strokeW;
+      ctx.stroke();
+    }
+
+    ctx.restore(); // removes clip, restores composite to source-over
   }
 
   _drawStarField(ctx) {
@@ -460,7 +549,8 @@ export class Renderer {
     const celestial = gs?.planets?.length ?? 0;
     const ships     = gs?.teams?.reduce((s, t) => s + t.stations.length, 0) ?? 0;
     const bullets   = (gs?.activeBullets?.length ?? 0) + (gs?.rockets?.length ?? 0);
-    const wormholePCount = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
+    const wormholePCount   = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
+    const wholeParticleCount = [...this._whiteHoleParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
                     + (gs?.cometSmoke?.length ?? 0)
                     + (gs?.skimParticles?.length ?? 0)
@@ -469,10 +559,18 @@ export class Renderer {
                     + (gs?.shipExplosionBloom?.length ?? 0)
                     + (gs?.fireballs?.length ?? 0)
                     + (gs?.fireballSmoke?.length ?? 0)
-                    + wormholePCount;
+                    + wormholePCount
+                    + wholeParticleCount;
+
+    const sid          = gs?.config?.scenarioId;
+    const scenarioName = sid ? (SCENARIO_NAMES[sid] ?? `#${sid}`) : '—';
+    const extremeTag   = gs?.config?.isExtreme ? '  EXTREME' : '';
+    const wildcardLine = `Wildcards  ${gs?.config?.wildcardDesc ?? '—'}`;
 
     this._debugEl.textContent =
       `FPS        ${Math.round(this._fpsSmooth)}\n` +
+      `Scenario   ${scenarioName}${extremeTag}\n` +
+      `${wildcardLine}\n` +
       `Celestial  ${celestial}\n` +
       `Ships      ${ships}\n` +
       `Bullets    ${bullets}\n` +
@@ -490,6 +588,10 @@ export class Renderer {
       for (const [planet, particles] of this._giantWormholeParticles) {
         particles.update(now);
         particles.draw(ctx, this.conv, this._vpW, this._vpH);
+      }
+      for (const [planet, particles] of this._whiteHoleParticles) {
+        particles.update(now);
+        particles.draw(ctx, this.conv, this._useCircles);
       }
     }
 

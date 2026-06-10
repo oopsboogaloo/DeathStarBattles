@@ -21,7 +21,7 @@ import { StoryDialogPopup }     from './ui/StoryDialogPopup.js';
 import { StoryModeScreen }      from './ui/StoryModeScreen.js';
 import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
 import { StoryPersistence }     from './story/StoryPersistence.js';
-import { WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
+import { Collectable, WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
 import { TargetPracticeGame }          from './core/TargetPracticeGame.js';
@@ -483,13 +483,13 @@ async function startGame(cfg) {
   if (!rawSeed) panel.setGeneratedSeed(activeSeed);
 
   const layoutRng = new RNG(hashString(activeSeed.toLowerCase()));
-  const scenarioId = getUrlScenario() ?? (cfg.scenarioId > 0 ? cfg.scenarioId : layoutRng.nextInt(SCENARIO_COUNT) + 1);
+  const scenarioId = getUrlScenario() ?? (cfg.scenarioId > 0 ? cfg.scenarioId : weightedRandomId(layoutRng));
   const isHeavy    = [2, 3, 16, 17].includes(scenarioId);
   const nPlanets   = isHeavy
     ? (cfg.performance === 'simplified' ? 20 : 30)
     : layoutRng.nextInt(18) + 3;
 
-  const { planets, rifts } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal');
+  const { planets, rifts, isExtreme, wildcardDesc, wildcardCollectablePositions } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal', cfg.forceExtreme ?? false);
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -505,7 +505,7 @@ async function startGame(cfg) {
       team.stations.push(new Station({ id: stationId++, team, position: new Vec2(0, 0), size }));
     }
   }
-  ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off');
+  ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off', rifts);
 
   // Restore weapon stocks carried over from the previous tournament game
   if (_prevWeaponStocks) {
@@ -529,9 +529,18 @@ async function startGame(cfg) {
   _loadBar.update(70, 'Rendering...');
   await _yieldFrame();
 
-  renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
+  renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26, tunnelBackground: scenarioId === 34 });
 
-  const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId }, movementSpeed: cfg.movementSpeed ?? 'off' });
+  const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId, isExtreme, wildcardDesc }, movementSpeed: cfg.movementSpeed ?? 'off' });
+  if (wildcardCollectablePositions?.length) {
+    const colSizes = { tiny: 2.5, medium: 5, large: 7.5, huge: 10, mammoth: 15 };
+    const colR = colSizes[cfg.collectableSize ?? 'medium'] ?? 5;
+    for (const pos of wildcardCollectablePositions) {
+      const col = new Collectable(pos);
+      col.radius = colR;
+      gameState.collectables.push(col);
+    }
+  }
   const physics   = new PhysicsEngine(gw, gh);
   if (scenarioId === 26) physics.periodicBoundary = true;
 
