@@ -1149,6 +1149,36 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 33: Pulsars (2–5 pulsars biased to edges + rocky filler) ──
+      case 33: {
+        const nPulsars = 2 + rng.nextInt(4); // 2–5
+        for (let i = 0; i < nPulsars; i++) {
+          const bigR  = rng.nextInRange(80, 160) + 140.5;
+          const dispR = rng.nextInRange(7, 10);
+          const px = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gw;
+          const py = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gh;
+          planets.push(new Planet({
+            position:     new Vec2(px, py),
+            radius:       dispR,
+            density:      0.014,
+            mass:         bigR * bigR * 0.014,
+            type:         PlanetType.PULSAR,
+            colour:       [...WHITE_COL],
+            shading:      ShadingStyle.GLOWING,
+            pulsarMaxR:   90 + rng.next() * 60,
+            pulsarPeriod: 0.4 + rng.next() * 3.6,
+            pulsarPhase:  rng.next() * 4.5,
+          }));
+        }
+        for (let i = nPulsars; i < nPlanets; i++) {
+          if (i % 3 === 1)
+            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+          else
+            planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
