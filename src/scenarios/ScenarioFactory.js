@@ -289,6 +289,8 @@ export class ScenarioFactory {
       off: 0, veryRare: 0.03, rare: 0.1, occasional: 0.25, common: 0.55, always: 2,
     };
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
+    const prePlanetCount = planets.length;
+    const preRiftCount   = rifts.length;
     if (threshold > 0 && rn[1] < threshold) {
       const noGrey = scenarioId === 26;
       if (rn[2] < 0.10) {
@@ -305,7 +307,20 @@ export class ScenarioFactory {
       }
     }
 
-    return { planets, rifts, isExtreme };
+    // Build a human-readable wildcard summary for dev display
+    const wcPlanets = planets.slice(prePlanetCount);
+    const wcRifts   = rifts.length - preRiftCount;
+    let wildcardDesc = null;
+    if (wcPlanets.length || wcRifts) {
+      const fmt = t => t.replace(/([A-Z])/g, ' $1').replace(/^[a-z]/, c => c.toUpperCase());
+      const counts = {};
+      for (const p of wcPlanets) counts[p.type] = (counts[p.type] ?? 0) + 1;
+      const parts = Object.entries(counts).map(([t, n]) => n > 1 ? `${fmt(t)} ×${n}` : fmt(t));
+      if (wcRifts) parts.push(wcRifts > 1 ? `Rift ×${wcRifts}` : 'Rift');
+      wildcardDesc = parts.join(' + ');
+    }
+
+    return { planets, rifts, isExtreme, wildcardDesc };
   }
 
   static randomId(rng) { return weightedRandomId(rng); }

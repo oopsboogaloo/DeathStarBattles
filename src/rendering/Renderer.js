@@ -466,7 +466,8 @@ export class Renderer {
     const celestial = gs?.planets?.length ?? 0;
     const ships     = gs?.teams?.reduce((s, t) => s + t.stations.length, 0) ?? 0;
     const bullets   = (gs?.activeBullets?.length ?? 0) + (gs?.rockets?.length ?? 0);
-    const wormholePCount = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
+    const wormholePCount   = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
+    const wholeParticleCount = [...this._whiteHoleParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
                     + (gs?.cometSmoke?.length ?? 0)
                     + (gs?.skimParticles?.length ?? 0)
@@ -475,15 +476,18 @@ export class Renderer {
                     + (gs?.shipExplosionBloom?.length ?? 0)
                     + (gs?.fireballs?.length ?? 0)
                     + (gs?.fireballSmoke?.length ?? 0)
-                    + wormholePCount;
+                    + wormholePCount
+                    + wholeParticleCount;
 
     const sid          = gs?.config?.scenarioId;
     const scenarioName = sid ? (SCENARIO_NAMES[sid] ?? `#${sid}`) : '—';
     const extremeTag   = gs?.config?.isExtreme ? '  EXTREME' : '';
+    const wildcardLine = `Wildcards  ${gs?.config?.wildcardDesc ?? '—'}`;
 
     this._debugEl.textContent =
       `FPS        ${Math.round(this._fpsSmooth)}\n` +
       `Scenario   ${scenarioName}${extremeTag}\n` +
+      `${wildcardLine}\n` +
       `Celestial  ${celestial}\n` +
       `Ships      ${ships}\n` +
       `Bullets    ${bullets}\n` +
