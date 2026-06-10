@@ -311,6 +311,26 @@ export class ScenarioFactory {
       }
     }
 
+    // Wormhole Tunnel: discard any wildcard collectables that landed outside the boundary rift
+    if (scenarioId === 34 && wcCollectablePositions.length) {
+      const br = rifts.find(r => r.isBoundary);
+      if (br) {
+        const inside = pos => {
+          const verts = br.vertices, n = verts.length;
+          let hit = false;
+          for (let i = 0, j = n - 1; i < n; j = i++) {
+            const xi = verts[i].x, yi = verts[i].y, xj = verts[j].x, yj = verts[j].y;
+            if (((yi > pos.y) !== (yj > pos.y)) &&
+                (pos.x < (xj - xi) * (pos.y - yi) / (yj - yi) + xi)) hit = !hit;
+          }
+          return hit;
+        };
+        const kept = wcCollectablePositions.filter(inside);
+        wcCollectablePositions.length = 0;
+        wcCollectablePositions.push(...kept);
+      }
+    }
+
     // Build a human-readable wildcard summary for dev display
     const wcPlanets = planets.slice(prePlanetCount);
     const wcRifts   = rifts.length - preRiftCount;
@@ -1442,7 +1462,7 @@ export class ScenarioFactory {
 
   // Generate the oval boundary rift for the Wormhole Tunnel scenario (id 34).
   static _generateWormholeBoundary(rng, gw, gh) {
-    const nVerts = 22 + rng.nextInt(9); // 22–30 vertices
+    const nVerts = 44 + rng.nextInt(17); // 44–60 vertices — dense enough to look smooth
     const cx = gw / 2, cy = gh / 2;
     const ra = gw * 0.43, rb = gh * 0.43; // semi-axes keep verts ≥7% from each edge
     const verts = [];
@@ -1469,7 +1489,11 @@ export class ScenarioFactory {
       }
     }
 
-    return new SpaceRift({ vertices: verts, strengthMultiplier: 2, isBoundary: true });
+    // Close the loop exactly — last vertex sits on the first
+    verts.push(new Vec2(verts[0].x, verts[0].y));
+
+    // influenceRadius capped at 40: prevents the boundary nodes from blanketing the whole map
+    return new SpaceRift({ vertices: verts, strengthMultiplier: 2, isBoundary: true, influenceRadius: 40 });
   }
 
   static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1, nSegments = null) {
