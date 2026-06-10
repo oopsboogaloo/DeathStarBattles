@@ -1,9 +1,9 @@
 const DEFAULTS = {
-  count:          80,
+  count:          160,
   innerMult:      0.05,  // spawn ring = visualR * innerMult (right at the body)
   outerMult:      7.0,   // despawn ring = visualR * outerMult
-  outwardFrac:    1.8,   // outward speed = visualR * outwardFrac per second
-  angularSpeed:   0,     // straight outward, no drift
+  initSpeed:      0.05,  // starting outward speed = visualR * initSpeed per second
+  accelFrac:      2.5,   // outward acceleration = visualR * accelFrac per second²
   blobMult:       0.38,  // blob radius at spawn = visualR * blobMult
   blobMinMult:    0.08,  // blob radius at despawn
   alphaMax:       0.22,
@@ -19,18 +19,18 @@ export class WhiteHoleParticles {
     const n = this._cfg.count;
     this._angles = new Float32Array(n);
     this._radii  = new Float32Array(n);
-    this._drifts = new Float32Array(n); // per-particle angular drift direction & speed
+    this._speeds = new Float32Array(n); // current outward speed per particle
     this._lastT  = null;
 
     for (let i = 0; i < n; i++) {
       this._angles[i] = Math.random() * Math.PI * 2;
-      this._drifts[i] = (Math.random() < 0.5 ? 1 : -1) * (0.4 + Math.random() * 0.9);
     }
   }
 
-  _respawn(i, innerR, outerR) {
+  _respawn(i, innerR, visualR) {
     this._angles[i] = Math.random() * Math.PI * 2;
-    this._radii[i]  = innerR + Math.random() * (outerR - innerR) * 0.2;
+    this._radii[i]  = innerR;
+    this._speeds[i] = visualR * this._cfg.initSpeed;
   }
 
   update(nowSec) {
@@ -38,24 +38,27 @@ export class WhiteHoleParticles {
     const visualR = Math.max(4, this._planet.radius * 1.8 * this._conv);
     const innerR  = visualR * cfg.innerMult;
     const outerR  = visualR * cfg.outerMult;
+    const accel   = visualR * cfg.accelFrac;
 
     if (this._lastT === null) {
       this._lastT = nowSec;
       // Scatter particles across the full range on first init so it doesn't look empty
       for (let i = 0; i < cfg.count; i++) {
-        this._radii[i] = innerR + Math.random() * (outerR - innerR);
+        this._radii[i]  = innerR + Math.random() * (outerR - innerR);
+        // Assign a plausible speed for their current position assuming constant accel from rest
+        const traveled = this._radii[i] - innerR;
+        this._speeds[i] = Math.sqrt(2 * accel * traveled);
       }
       return;
     }
 
     const dt    = Math.min(nowSec - this._lastT, 0.1);
     this._lastT = nowSec;
-    const speed = visualR * cfg.outwardFrac;
 
     for (let i = 0; i < cfg.count; i++) {
-      this._radii[i]  += speed * dt;
-      this._angles[i] += cfg.angularSpeed * this._drifts[i] * dt;
-      if (this._radii[i] >= outerR) this._respawn(i, innerR, outerR);
+      this._speeds[i] += accel * dt;
+      this._radii[i]  += this._speeds[i] * dt;
+      if (this._radii[i] >= outerR) this._respawn(i, innerR, visualR);
     }
   }
 
@@ -76,7 +79,7 @@ export class WhiteHoleParticles {
       const r = this._radii[i];
       if (r < innerR || r >= outerR) continue;
 
-      const t    = (r - innerR) / range; // 0 = inner, 1 = outer
+      const t     = (r - innerR) / range; // 0 = inner, 1 = outer
       const blobR = blobFull + (blobMin - blobFull) * t;
 
       let alpha;
