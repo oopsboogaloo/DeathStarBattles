@@ -353,7 +353,7 @@ export class ScenarioFactory {
   // ─── station placement ───────────────────────────────────────────────────
   // Called after planets are confirmed. Sets position on each Station object.
 
-  static placeStations(teams, planets, gw, gh, stationSize, rng, teamClustering = 'off') {
+  static placeStations(teams, planets, gw, gh, stationSize, rng, teamClustering = 'off', rifts = []) {
     const all = teams.flatMap(t => t.stations);
     const n   = all.length;
     const sr  = stationSize.radius;
@@ -474,6 +474,41 @@ export class ScenarioFactory {
         }
       }
       if (!anyOverlap) break;
+    }
+
+    // Wormhole Tunnel: eject any station that ended up outside the boundary rift polygon
+    const boundaryRift = rifts.find(r => r.isBoundary);
+    if (boundaryRift) {
+      const verts = boundaryRift.vertices;
+      const n = verts.length;
+      const gcx = gw / 2, gcy = gh / 2;
+      for (const s of all) {
+        // Point-in-polygon (ray casting)
+        let inside = false;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+          const xi = verts[i].x, yi = verts[i].y, xj = verts[j].x, yj = verts[j].y;
+          if (((yi > s.position.y) !== (yj > s.position.y)) &&
+              (s.position.x < (xj - xi) * (s.position.y - yi) / (yj - yi) + xi))
+            inside = !inside;
+        }
+        if (!inside) {
+          // Find nearest point on rift polyline then push inward
+          let bestDist = Infinity, nearX = 0, nearY = 0;
+          for (let i = 0; i < n - 1; i++) {
+            const ax = verts[i].x, ay = verts[i].y, bx = verts[i+1].x, by = verts[i+1].y;
+            const dx = bx - ax, dy = by - ay, lenSq = dx*dx + dy*dy;
+            if (lenSq < 1e-10) continue;
+            const t  = Math.max(0, Math.min(1, ((s.position.x-ax)*dx + (s.position.y-ay)*dy) / lenSq));
+            const cx = ax + t*dx, cy = ay + t*dy;
+            const d  = Math.hypot(s.position.x-cx, s.position.y-cy);
+            if (d < bestDist) { bestDist = d; nearX = cx; nearY = cy; }
+          }
+          const inX = gcx - nearX, inY = gcy - nearY;
+          const inLen = Math.hypot(inX, inY);
+          const push  = 15 + sr;
+          s.position = new Vec2(nearX + (inX / inLen) * push, nearY + (inY / inLen) * push);
+        }
+      }
     }
   }
 

@@ -505,7 +505,7 @@ async function startGame(cfg) {
       team.stations.push(new Station({ id: stationId++, team, position: new Vec2(0, 0), size }));
     }
   }
-  ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off');
+  ScenarioFactory.placeStations(teams, planets, gw, gh, size, rng, cfg.teamClustering ?? 'off', rifts);
 
   // Restore weapon stocks carried over from the previous tournament game
   if (_prevWeaponStocks) {
