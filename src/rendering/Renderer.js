@@ -2625,16 +2625,16 @@ export class Renderer {
     const baseAlpha = Math.max(depth > 0 ? 0.85 : 0, flash);
     if (baseAlpha <= 0) return;
 
-    const blobCount = Math.max(depth, 1) * 7; // 7 / 14 / 21 blobs per stack level
+    const blobCount = Math.max(depth, 1) * 14; // 14 / 28 / 42 blobs per stack level
     ctx.save();
     for (let i = 0; i < blobCount; i++) {
       // Fixed positions derived from index — golden angle spread for even coverage
       const ang  = i * 2.399963; // golden angle in radians
-      const band = i % 3;       // 3 concentric bands
-      const dist = r * (0.25 + band * 0.32);
+      const band = i % 4;        // 4 concentric bands
+      const dist = r * (0.15 + band * 0.25);
       const bx   = cx + Math.cos(ang) * dist;
       const by   = cy + Math.sin(ang) * dist;
-      const br   = r * (0.12 + (i % 4) * 0.04);
+      const br   = r * (0.13 + (i % 5) * 0.04);
 
       // Individual fade: later blobs begin fading earlier
       const fadeThreshold = 1 - (i / blobCount) * 0.6;
