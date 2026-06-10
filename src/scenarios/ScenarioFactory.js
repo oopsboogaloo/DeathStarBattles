@@ -276,8 +276,8 @@ export class ScenarioFactory {
     if (scenarioId === 26) { // Hyperspace: 2–4 rifts per SR-06
       const nRifts = rng.nextInt(3) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
-    } else if (scenarioId === 29) { // Rift: 1 rift, 1–3× segment length
-      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 1 + rng.next() * 2));
+    } else if (scenarioId === 29) { // Rift: 1 rift, 1–3× segment length, 5–20 segments
+      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 1 + rng.next() * 2, 5 + rng.nextInt(16)));
     } else if (scenarioId === 30) { // Rifts: 2–6 rifts
       const nRifts = rng.nextInt(5) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
@@ -1366,8 +1366,8 @@ export class ScenarioFactory {
 
   // ─── space rift generation (SR-02) ───────────────────────────────────────
 
-  static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1) {
-    const N      = rng.nextInt(9) + 3; // 3–11 segments
+  static generateRift(gw, gh, rng, existingPlanets = [], segmentLengthMult = 1, nSegments = null) {
+    const N      = nSegments ?? (rng.nextInt(9) + 3); // 3–11 segments (overridable)
     const segLen = RIFT_SEGMENT_LENGTH * segmentLengthMult;
     const margin = segLen * (N + 2);
 
