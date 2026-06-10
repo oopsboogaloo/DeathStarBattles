@@ -954,7 +954,9 @@ export class ScenarioFactory {
             : [255, Math.min(255, Math.floor(255 + 50*density)), 0];
           const type    = rng.next() < 0.8 ? PlanetType.BLACK_HOLE : PlanetType.WORMHOLE_NETWORK;
           const shading = useWormholeShading ? ShadingStyle.WORMHOLE : ShadingStyle.GLOWING;
-          planets.push(makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading));
+          const p = makePlanet(rng, 0.9,0,0.1, 0,0,5, gw,gh, density, type, colour, shading);
+          p.anomalyRepels = positive;
+          planets.push(p);
         }
         break;
       }
