@@ -94,7 +94,7 @@ export class ConfigPanel {
       handicapPrize:     'none',
       tournamentGames:   'keepGoing',
       awardPrizes:       'none',
-      claimCollectables: false,
+      claimCollectables: true,
     };
     this._onStartCb       = null;
     this._onResumeCb      = null;
