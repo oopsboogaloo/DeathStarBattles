@@ -183,8 +183,8 @@ Minor adjustments to existing systems and small new player-facing options.
 ### 11.3 Rift interactions
 
 - [x] **11.9** Rifts — reduce effect strength slightly (tune the force constant). Halve the range at which rifts influence bullets.
-- [ ] **11.10** Ships bounce off rifts — when a moving station (movement speed ≠ Off) reaches the edge of a rift's influence radius, reflect its movement vector elastically so it cannot cross into or through the rift. Treat the rift boundary as an elastic wall for station movement only; bullet trajectories are unaffected.
-- [ ] **11.11** Stations pushed by pulsars and white dwarfs — when movement is enabled, pulsars and white dwarfs apply a small outward push to stations within their gravitational radius each turn, nudging them away. Magnitude should be subtle — enough to slowly drift a parked station but not enough to fling it across the map.
+- [x] **11.10** Ships bounce off rifts — when a moving station (movement speed ≠ Off) reaches the edge of a rift's influence radius, reflect its movement vector elastically so it cannot cross into or through the rift. Treat the rift boundary as an elastic wall for station movement only; bullet trajectories are unaffected.
+- [x] **11.11** Stations pushed by pulsars and white dwarfs — when movement is enabled, pulsars and white dwarfs apply a small outward push to stations within their gravitational radius each turn, nudging them away. Magnitude should be subtle — enough to slowly drift a parked station but not enough to fling it across the map.
 
 ---
 
