@@ -177,9 +177,9 @@ export class Renderer {
     for (const planet of planets) {
       if (planet.anomalyRepels !== undefined) {
         if (planet.anomalyRepels) {
-          this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
-        } else {
           this._wormholeParticles.set(planet, new WormholeParticles(planet, ANOMALY_INWARD_CFG));
+        } else {
+          this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
         }
       } else if (planet.shading === ShadingStyle.WORMHOLE) {
         if (planet.radius > 100) {
