@@ -276,8 +276,8 @@ export class ScenarioFactory {
     if (scenarioId === 26) { // Hyperspace: 2–4 rifts per SR-06
       const nRifts = rng.nextInt(3) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
-    } else if (scenarioId === 29) { // Rift: 1 rift (double length)
-      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 2));
+    } else if (scenarioId === 29) { // Rift: 1 rift, 1–3× segment length
+      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 1 + rng.next() * 2));
     } else if (scenarioId === 30) { // Rifts: 2–6 rifts
       const nRifts = rng.nextInt(5) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
