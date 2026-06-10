@@ -1211,6 +1211,7 @@ export class ScenarioFactory {
           position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
           radius: wdDispR, density: 0.014, mass: wdMass,
           type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
+          halo: 15.0,
         });
         planets.push(wd);
         // Comets with approximate circular orbital velocities + variance
@@ -1615,6 +1616,7 @@ export class ScenarioFactory {
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: bigR, density: 3,
         type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
+        halo: 15.0,
       })];
     } else if (rb < 0.90) {
       const bigR = rng.nextInRange(3, 6) + 4;
