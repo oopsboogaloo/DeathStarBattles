@@ -1204,16 +1204,40 @@ export class ScenarioFactory {
 
       // ── 31: Moons — rocky body orbited by destructible moons ─────────────────
       case 31: {
-        // Central rocky planet (large, slightly off-centre)
-        planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
-        // 2–5 moons scattered around the field
-        const nMoons = 2 + Math.floor(rng.next() * 4);
-        for (let i = 0; i < nMoons; i++)
-          planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
-        // Fill remaining slots with asteroids
-        const remaining = Math.max(0, nPlanets - 1 - nMoons);
-        for (let i = 0; i < remaining; i++)
-          planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        const extreme31 = forceExtreme || rng.next() < 0.10;
+        if (extreme31) isExtreme = true;
+        if (extreme31) {
+          // Giant moon as the central body
+          const bigMoonR = 35 + rng.next() * 20; // 35–55
+          const nCraters = 5 + Math.floor(rng.next() * 4);
+          const craterData = [];
+          for (let i = 0; i < nCraters; i++) {
+            const angle = rng.next() * Math.PI * 2;
+            const dist  = rng.next() * bigMoonR * 0.7;
+            const cr    = 3 + rng.next() * (bigMoonR * 0.18);
+            craterData.push({ dx: Math.cos(angle) * dist, dy: Math.sin(angle) * dist, cr });
+          }
+          planets.push(new Planet({
+            position:  new Vec2(rv(rng,0.3,0.3,0.2,gw), rv(rng,0.3,0.3,0.2,gh)),
+            radius:    bigMoonR, density: 0.04,
+            type:      PlanetType.MOON, colour: [200,207,228], shading: ShadingStyle.ROCKY,
+            craterData, hitCount: 0,
+          }));
+          // All remaining slots are moons
+          for (let i = 1; i < nPlanets; i++)
+            planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+        } else {
+          // Central rocky planet (large, slightly off-centre)
+          planets.push(makePlanet(rng, 0.3,0.3,0.2, 35,20,20, gw,gh, 0.05, PlanetType.ROCKY, ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)], ShadingStyle.ROCKY));
+          // 2–5 moons scattered around the field
+          const nMoons = 2 + Math.floor(rng.next() * 4);
+          for (let i = 0; i < nMoons; i++)
+            planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+          // Fill remaining slots with asteroids
+          const remaining = Math.max(0, nPlanets - 1 - nMoons);
+          for (let i = 0; i < remaining; i++)
+            planets.push(makeAsteroid(rng, 1,0,0, 15,5,3, gw,gh, 0.05, richProb));
+        }
         break;
       }
 
