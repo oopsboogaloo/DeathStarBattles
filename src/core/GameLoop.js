@@ -1555,6 +1555,7 @@ export class GameLoop {
         if (this._boundaryRift && bullet.status === BulletStatus.ACTIVE &&
             !this._isInsideBoundaryPolygon(bullet.position.x, bullet.position.y, this._boundaryRift)) {
           bullet.status = BulletStatus.DEAD;
+          if (bullet.owner.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
           continue;
         }
 
