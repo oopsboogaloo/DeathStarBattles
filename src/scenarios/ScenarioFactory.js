@@ -291,18 +291,20 @@ export class ScenarioFactory {
     const threshold = WILDCARD_THRESHOLDS[wildcardFrequency] ?? 0.1;
     const prePlanetCount = planets.length;
     const preRiftCount   = rifts.length;
+    const collectablesOn = collectables !== 'off';
+    const wcCollectablePositions = [];
     if (threshold > 0 && rn[1] < threshold) {
       const noGrey = scenarioId === 26;
       if (rn[2] < 0.10) {
         rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
       } else {
-        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey);
+        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
       }
       if (rn[4] < 0.35) {
         if (rn[5] < 0.10) {
           rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
         } else {
-          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey);
+          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
         }
       }
     }
@@ -311,16 +313,17 @@ export class ScenarioFactory {
     const wcPlanets = planets.slice(prePlanetCount);
     const wcRifts   = rifts.length - preRiftCount;
     let wildcardDesc = null;
-    if (wcPlanets.length || wcRifts) {
+    if (wcPlanets.length || wcRifts || wcCollectablePositions.length) {
       const fmt = t => t.replace(/([A-Z])/g, ' $1').replace(/^[a-z]/, c => c.toUpperCase());
       const counts = {};
       for (const p of wcPlanets) counts[p.type] = (counts[p.type] ?? 0) + 1;
       const parts = Object.entries(counts).map(([t, n]) => n > 1 ? `${fmt(t)} ×${n}` : fmt(t));
       if (wcRifts) parts.push(wcRifts > 1 ? `Rift ×${wcRifts}` : 'Rift');
+      if (wcCollectablePositions.length) parts.push(`Collectable ×${wcCollectablePositions.length}`);
       wildcardDesc = parts.join(' + ');
     }
 
-    return { planets, rifts, isExtreme, wildcardDesc };
+    return { planets, rifts, isExtreme, wildcardDesc, wildcardCollectablePositions: wcCollectablePositions };
   }
 
   static randomId(rng) { return weightedRandomId(rng); }
@@ -1404,7 +1407,7 @@ export class ScenarioFactory {
 
   // ─── bonus random feature injection ─────────────────────────────────────
 
-  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false) {
+  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false, collectablesOn = false, collectablePositions = null) {
     const simplified = performance === 'simplified';
     if (planets.length < 2) return;
 
@@ -1419,10 +1422,12 @@ export class ScenarioFactory {
       wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
       candidates = wc;
     } else if (rb < 0.6) {
-      candidates = [makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK)];
-    } else if (rb < 0.70) {
+      // Red network — 4 wormholes all in the same network
+      const wn = [0,1,2,3].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
+      candidates = wn;
+    } else if (rb < 0.645) {
       if (noGrey) {
-        candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];
+        candidates = [makeCrystalAsteroid(rng, 0.4,0.4,0.1, 20,5,3, gw,gh, 0.05)];
       } else {
         // Grey triple — bullet enters one, copies emerge from the other two
         // Simplified: use red network wormholes instead
@@ -1430,9 +1435,18 @@ export class ScenarioFactory {
           ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
           : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
       }
+    } else if (rb < 0.70) {
+      // Collectables wildcard — 3–6 collectables, or crystal asteroids if collectables are off
+      if (collectablesOn && collectablePositions) {
+        const n = 3 + rng.nextInt(4);
+        for (let i = 0; i < n; i++)
+          collectablePositions.push(new Vec2(rv(rng,0.6,0.3,0.1,gw), rv(rng,0.6,0.3,0.1,gh)));
+        return;
+      }
+      candidates = Array.from({length: 2 + rng.nextInt(3)}, () => makeCrystalAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
     } else if (rb < 0.78) {
-      // Wildcard moon (bonus multi-hit body)
-      candidates = [makeMoon(rng, 0.4, 0.4, 0.1, gw, gh)];
+      // Yellow self wormhole
+      candidates = [makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF)];
     } else if (rb < 0.85) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({

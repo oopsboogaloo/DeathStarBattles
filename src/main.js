@@ -21,7 +21,7 @@ import { StoryDialogPopup }     from './ui/StoryDialogPopup.js';
 import { StoryModeScreen }      from './ui/StoryModeScreen.js';
 import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
 import { StoryPersistence }     from './story/StoryPersistence.js';
-import { WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
+import { Collectable, WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
 import { TargetPracticeGame }          from './core/TargetPracticeGame.js';
@@ -489,7 +489,7 @@ async function startGame(cfg) {
     ? (cfg.performance === 'simplified' ? 20 : 30)
     : layoutRng.nextInt(18) + 3;
 
-  const { planets, rifts, isExtreme, wildcardDesc } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal', cfg.forceExtreme ?? false);
+  const { planets, rifts, isExtreme, wildcardDesc, wildcardCollectablePositions } = ScenarioFactory.create(scenarioId, gw, gh, nPlanets, layoutRng, cfg.wildcardFrequency ?? 'rare', cfg.performance ?? 'full', cfg.collectables ?? 'off', cfg.richAsteroids ?? 'normal', cfg.forceExtreme ?? false);
 
   const nP = cfg.numPlayers;
   const nH = Math.min(cfg.numHuman ?? 1, nP);
@@ -532,6 +532,15 @@ async function startGame(cfg) {
   renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26 });
 
   const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId, isExtreme, wildcardDesc }, movementSpeed: cfg.movementSpeed ?? 'off' });
+  if (wildcardCollectablePositions?.length) {
+    const colSizes = { tiny: 2.5, medium: 5, large: 7.5, huge: 10, mammoth: 15 };
+    const colR = colSizes[cfg.collectableSize ?? 'medium'] ?? 5;
+    for (const pos of wildcardCollectablePositions) {
+      const col = new Collectable(pos);
+      col.radius = colR;
+      gameState.collectables.push(col);
+    }
+  }
   const physics   = new PhysicsEngine(gw, gh);
   if (scenarioId === 26) physics.periodicBoundary = true;
 
