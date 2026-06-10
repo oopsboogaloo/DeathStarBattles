@@ -168,9 +168,9 @@ Minor adjustments to existing systems and small new player-facing options.
 
 ### 11.1 Planet tuning
 
-- [ ] **11.1** White Dwarfs scenario — audit default planet count; reduce to keep the field readable. Bias spawn placement toward the edges/periphery of the map rather than centre-heavy.
-- [ ] **11.2** Black Holes scenario — cap typical count at 2–3; reduce the tail end of the random range so extreme counts (4+) are very rare.
-- [ ] **11.3** Pulsars — reduce the radius of effect to 60% of current value. Narrow the frequency range so some pulsars are very low frequency (slow pulse) and some are moderate; remove the high-frequency end so no pulsar feels frantic.
+- [x] **11.1** White Dwarfs scenario — audit default planet count; reduce to keep the field readable. Bias spawn placement toward the edges/periphery of the map rather than centre-heavy.
+- [x] **11.2** Black Holes scenario — cap typical count at 2–3; reduce the tail end of the random range so extreme counts (4+) are very rare.
+- [x] **11.3** Pulsars — reduce the radius of effect to 60% of current value. Narrow the frequency range so some pulsars are very low frequency (slow pulse) and some are moderate; remove the high-frequency end so no pulsar feels frantic.
 
 ### 11.2 Tournament & game options
 
