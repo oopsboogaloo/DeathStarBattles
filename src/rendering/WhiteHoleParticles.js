@@ -1,13 +1,13 @@
 const DEFAULTS = {
-  count:          40,
-  innerMult:      0.7,   // spawn ring = visualR * innerMult
+  count:          80,
+  innerMult:      0.05,  // spawn ring = visualR * innerMult (right at the body)
   outerMult:      7.0,   // despawn ring = visualR * outerMult
-  outwardFrac:    1.2,   // outward speed = visualR * outwardFrac per second
-  angularSpeed:   0.18,  // angular drift magnitude, radians/sec
-  blobMult:       0.20,  // blob radius at spawn = visualR * blobMult
-  blobMinMult:    0.04,  // blob radius at despawn
+  outwardFrac:    1.8,   // outward speed = visualR * outwardFrac per second
+  angularSpeed:   0,     // straight outward, no drift
+  blobMult:       0.38,  // blob radius at spawn = visualR * blobMult
+  blobMinMult:    0.08,  // blob radius at despawn
   alphaMax:       0.22,
-  alphaInnerFade: 0.15,  // fraction of range over which alpha fades in
+  alphaInnerFade: 0.05,  // fraction of range over which alpha fades in
   alphaOuterFade: 0.65,  // fraction of range at which alpha starts fading out
 };
 
