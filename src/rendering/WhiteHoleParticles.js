@@ -95,8 +95,9 @@ export class WhiteHoleParticles {
       const px = cx + Math.cos(this._angles[i]) * r;
       const py = cy + Math.sin(this._angles[i]) * r;
 
+      const [pr, pg, pb] = planet.colour ?? [255, 255, 255];
       if (useCircles) {
-        ctx.fillStyle   = 'rgb(255,255,255)';
+        ctx.fillStyle   = `rgb(${pr},${pg},${pb})`;
         ctx.globalAlpha = alpha * 0.35;
         ctx.beginPath();
         ctx.arc(px, py, blobR * 1.7, 0, Math.PI * 2);
@@ -107,9 +108,9 @@ export class WhiteHoleParticles {
         ctx.fill();
       } else {
         const grad = ctx.createRadialGradient(px, py, 0, px, py, blobR * 1.7);
-        grad.addColorStop(0,   `rgba(255,255,255,${alpha})`);
-        grad.addColorStop(0.5, `rgba(255,255,255,${alpha * 0.55})`);
-        grad.addColorStop(1,   'rgba(255,255,255,0)');
+        grad.addColorStop(0,   `rgba(${pr},${pg},${pb},${alpha})`);
+        grad.addColorStop(0.5, `rgba(${pr},${pg},${pb},${alpha * 0.55})`);
+        grad.addColorStop(1,   `rgba(${pr},${pg},${pb},0)`);
         ctx.beginPath();
         ctx.arc(px, py, blobR * 1.7, 0, Math.PI * 2);
         ctx.fillStyle = grad;

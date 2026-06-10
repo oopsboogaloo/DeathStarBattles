@@ -11,6 +11,14 @@ import { PLANET_OVERLAYS } from './planetOverlays.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
+const ANOMALY_INWARD_CFG = {
+  count: 35, spawnMult: 8.0, voidMult: 1.2,
+  angularSpeed: 0.4, momentumExp: 1.4, inwardFrac: 0.35,
+  blobMult: 0.55, blobMinMult: 0.15, alphaMax: 0.20,
+  alphaFadeMult: 0.35, hueRange: 20, glowLayers: 2,
+  arms: 0, armSpread: 0, armRotSpeed: 0,
+};
+
 export class Renderer {
   constructor(mainCanvas) {
     this.mainCanvas = mainCanvas;
@@ -167,7 +175,13 @@ export class Renderer {
     this._gasGiantCanvas = null;
     this._gasGiantBitmap = null;
     for (const planet of planets) {
-      if (planet.shading === ShadingStyle.WORMHOLE) {
+      if (planet.anomalyRepels !== undefined) {
+        if (planet.anomalyRepels) {
+          this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
+        } else {
+          this._wormholeParticles.set(planet, new WormholeParticles(planet, ANOMALY_INWARD_CFG));
+        }
+      } else if (planet.shading === ShadingStyle.WORMHOLE) {
         if (planet.radius > 100) {
           this._giantWormholeParticles.set(
             planet, new GiantWormholeParticles(planet, this.gameWidth, this.gameHeight)
