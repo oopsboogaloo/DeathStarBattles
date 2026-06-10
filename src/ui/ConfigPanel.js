@@ -454,8 +454,8 @@ export class ConfigPanel {
         v => ({ none: 'None', minor: 'Minor  (1×T1)', mid: 'Mid  (1 random)', mammoth: 'Mammoth  (2 random)' }[v] ?? v)));
     const rowAwardPrizes = this._row('AWARD PRIZES',
       this._cycle('awardPrizes',
-        ['none', 'minor', 'mid', 'major', 'mammoth'],
-        v => ({ none: 'None', minor: 'Minor  (1×T1)', mid: 'Mid  (2×T1)', major: 'Major  (1×T2)', mammoth: 'Mammoth  (2×T2)' }[v] ?? v)));
+        ['none', 'minor', 'mid', 'mammoth'],
+        v => ({ none: 'None', minor: 'Minor  (1×T1)', mid: 'Mid  (1 random)', mammoth: 'Mammoth  (2 random)' }[v] ?? v)));
     const rowClaimCol = this._row('CLAIM COLLECTABLES',
       this._cycle('claimCollectables', [false, true], v => v ? 'On' : 'Off'));
 

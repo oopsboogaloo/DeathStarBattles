@@ -120,22 +120,12 @@ export class TournamentState {
     const setting = config?.awardPrizes ?? 'none';
     if (setting === 'none') return null;
 
-    const tierMap  = { minor: 1, mid: 1, major: 2, mammoth: 2 };
-    const countMap = { minor: 1, mid: 2, major: 1, mammoth: 2 };
-    const tier  = tierMap[setting];
-    const count = countMap[setting];
-    if (!tier) return null;
-
     const aw = this.awards();
     if (!aw || !aw.length) return null;
 
-    const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
     this.lastAwardPrizes = aw.map(({ key, winner }) => {
       if (!winner) return null;
-      const grants = Array.from({ length: count }, () =>
-        pool[Math.floor(Math.random() * pool.length)]
-      );
-      return { key, teamIndex: winner.index, teamLabel: winner.label, teamColour: winner.colour, grants };
+      return { key, teamIndex: winner.index, teamLabel: winner.label, teamColour: winner.colour, grants: this._pickWeapon(setting) };
     }).filter(Boolean);
 
     return this.lastAwardPrizes;
