@@ -69,6 +69,8 @@ export class Station {
     this.electrified     = false;        // auto-fires cannon next turn
     this.electrifiedFlash = 0;           // 1→0 overlay animation
     this.mindControlFlash = 0;           // 1→0 overlay animation when converted by mind control
+    this.frozen          = 0;            // 0–3 stack; station skips turn while > 0
+    this.frozenFlash     = 0;            // 1→0 overlay animation for ice blobs
   }
 
   get radius()          { return this.size.radius; }
