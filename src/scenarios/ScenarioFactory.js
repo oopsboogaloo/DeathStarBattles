@@ -868,10 +868,26 @@ export class ScenarioFactory {
 
       // ── 25: White Holes ───────────────────────────────────────────────────
       case 25: {
-        for (let i = 0; i < nPlanets; i++) {
-          const p = makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, -0.2, PlanetType.WHITE_HOLE, WHITE_COL, ShadingStyle.GLOWING);
-          p.halo = 15.0;
-          planets.push(p);
+        const nWhiteHoles = 2 + rng.nextInt(4); // 2–5
+        for (let i = 0; i < nWhiteHoles; i++) {
+          const px = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gw;
+          const py = (rng.next() < 0.5 ? 0.05 + rng.next() * 0.15 : 0.8 + rng.next() * 0.15) * gh;
+          planets.push(new Planet({
+            position: new Vec2(px, py),
+            radius:   6,
+            density:  0.02,
+            mass:     -20,
+            type:     PlanetType.WHITE_HOLE,
+            colour:   WHITE_COL,
+            shading:  ShadingStyle.GLOWING,
+            halo:     15.0,
+          }));
+        }
+        for (let i = nWhiteHoles; i < nPlanets; i++) {
+          if (i % 3 === 1)
+            planets.push(makeAsteroid(rng, 1, 0, 0, 20, 5, 4, gw, gh, 0.065, richProb));
+          else
+            planets.push(makePlanet(rng, 1, 0, 0, 5, 5, 3, gw, gh, 0.5, PlanetType.ROCKY, DULL_COL, ShadingStyle.ROCKY));
         }
         break;
       }
