@@ -198,9 +198,9 @@ Three new additions: a ship status condition and two new stellar body types.
 - [ ] **12.1** Add `frozen` stack counter to `Station` (integer 0–3, capped at triple frozen). Frozen is distinct from `DEAD` / `EXPLODING` — the station is still alive and visible.
 - [ ] **12.2** Aiming phase: if `station.frozen > 0`, skip all angle/power input (keyboard, mouse, sliders). HUD replaces Angle/Power display with a centred label: `FROZEN` / `DOUBLE FROZEN` / `TRIPLE FROZEN` in the team colour. Only the End Turn button is active. AI stations in the frozen state skip their action and end their turn immediately.
 - [ ] **12.3** Fire phase: frozen stations do not fire and do not execute movement. Their `frozen` counter decrements by 1 at the end of the turn (so a single-frozen station is unfrozen next turn).
-- [ ] **12.4** Frozen VFX — while `frozen > 0`, cover the station with white particle sparks on Layer 2. Particles spawn at the start of the frozen turn and fade individually over the turn duration, leaving the station visible underneath. Particle count scales with freeze stack (more = more dramatic).
-- [ ] **12.5** Frozen comet interaction — comets no longer destroy stations on contact. Instead they apply `frozen += 1` (capped at 3) and pass through. Update collision handling and requirements doc accordingly.
-- [ ] **12.6** Team Shield and Armour still operate for frozen stations (the ship is immobilised, not defenceless). Document this in the frozen state spec.
+- [ ] **12.4** Frozen VFX — while `frozen > 0`, cover the station with stationary ice blob particles on Layer 2. Particles spawn at the start of the frozen turn and fade individually over the turn duration, leaving the station visible underneath. Particle count scales with freeze stack (more = more dramatic).
+- [ ] **12.5** Frozen comet interaction — comets are destroyed on station contact and apply `frozen += 1` (capped at 3); armour absorbs the hit first (one layer consumed, no freeze). Frozen supersedes electrified: both conditions may stack but frozen takes full behavioural precedence while active.
+- [ ] **12.6** Team Shield and Armour still operate for frozen stations (the ship is immobilised, not defenceless). Full interaction rules documented in frozen-condition-spec.md.
 - [ ] **12.7** Edge cases: a frozen station that is also hit by a bullet behaves normally (takes damage / is destroyed). Frozen does not grant immunity.
 
 ### 12.2 Electrostar
