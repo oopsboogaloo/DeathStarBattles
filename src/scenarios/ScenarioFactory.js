@@ -714,6 +714,21 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 36: Giant Self Wormhole ───────────────────────────────────────────
+      case 36: {
+        // Red Giant layout with the star swapped for a yellow self wormhole.
+        const gsR = rng.nextInRange(80, 160) + 140;
+        planets.push(new Planet({
+          position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
+          radius: gsR, density: 0.015,
+          type: PlanetType.WORMHOLE_SELF, colour: [255,255,55],
+          shading: ShadingStyle.WORMHOLE,
+        }));
+        for (let i = 1; i < nPlanets; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065, richProb));
+        break;
+      }
+
       // ── 6: Jovian ─────────────────────────────────────────────────────────
       case 6: {
         const bigR = rng.nextInRange(80, 160) + 40;
