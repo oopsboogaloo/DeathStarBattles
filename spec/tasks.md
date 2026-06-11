@@ -246,13 +246,13 @@ Improves the visual quality of bullet paths near black holes and white dwarfs wi
 
 Replaces the procedural Death Star station renderer with a vector sprite system driven by pre-converted SVG artwork. Full spec in `spec/space-mammoth-sprite-spec.md`.
 
-- [ ] **14.1** Write `scripts/build-sprites.mjs` — Node script that parses a source SVG, extracts path data and keyframe annotations, resolves team colour placeholders, and emits a `*.sprite.js` module.
-- [ ] **14.2** Author `assets/mammoth-saucer.svg` — the master artwork file. Must conform to the layer naming and placeholder colour conventions in the sprite spec.
-- [ ] **14.3** Run the build script against the artwork; commit the generated `src/rendering/sprites/mammoth-saucer.sprite.js` to the repo.
-- [ ] **14.4** `src/rendering/sprites/spriteUtils.js` — implement `_interpolateKeyframes()`, `_resolveColor()`, `_drawMorphLayer()`, `_drawTransformLayer()` helpers.
-- [ ] **14.5** `src/rendering/sprites/SpriteRenderer.js` — implement `initSprite(sprite)` (builds `Path2D` objects at load), `drawStation(ctx, sprite, x, y, screenRadius, teamColors, animPhase)`, and the detail-level LOD check (hide mammoth at Micro/Tiny).
-- [ ] **14.6** Wire `SpriteRenderer.drawStation()` into the main `Renderer.drawFrame()` in place of the existing `drawStation()` death-star implementation.
-- [ ] **14.7** Populate `team.spriteColors` for all 12 teams — primary = team colour, secondary = derived complementary shade (static lookup table).
-- [ ] **14.8** Verify on iPad: confirm 12-station game sustains 60fps; confirm no `ctx.filter`, no `createRadialGradient`, no per-frame `Path2D` construction in the hot path.
-- [ ] **14.9** Remove the procedural Death Star `drawStation` code from `Renderer.js` once sprite system is proven.
-- [ ] **14.10** Update `requirements.md` §11.4 (Station Visual Design) and `design.md` §5.4 to reference the sprite system and retire the Death Star description.
+- [x] **14.1** Write `scripts/build-sprites.mjs` — Node script that parses a source SVG, extracts path data and keyframe annotations, resolves team colour placeholders, and emits a `*.sprite.js` module.
+- [x] **14.2** Author `assets/mammoth-saucer.svg` — the master artwork file. Must conform to the layer naming and placeholder colour conventions in the sprite spec.
+- [x] **14.3** Run the build script against the artwork; commit the generated `src/rendering/sprites/mammoth-saucer.sprite.js` to the repo.
+- [x] **14.4** `src/rendering/sprites/spriteUtils.js` — implement `_interpolateKeyframes()`, `_resolveColor()`, `_drawMorphLayer()`, `_drawTransformLayer()` helpers.
+- [x] **14.5** `src/rendering/sprites/SpriteRenderer.js` — implement `initSprite(sprite)` (builds `Path2D` objects at load), `drawStation(ctx, sprite, x, y, screenRadius, teamColors, animPhase)`, and the detail-level LOD check (hide mammoth at Micro/Tiny).
+- [x] **14.6** Wire `SpriteRenderer.drawStation()` into the main `Renderer.drawFrame()` in place of the existing `drawStation()` death-star implementation.
+- [x] **14.7** Populate `team.spriteColors` for all 12 teams — primary = team colour, secondary = derived complementary shade (static lookup table).
+- [x] **14.8** Verify on iPad: confirm 12-station game sustains 60fps; confirm no `ctx.filter`, no `createRadialGradient`, no per-frame `Path2D` construction in the hot path.
+- [x] **14.9** Remove the procedural Death Star `drawStation` code from `Renderer.js` once sprite system is proven.
+- [x] **14.10** Update `requirements.md` §11.4 (Station Visual Design) and `design.md` §5.4 to reference the sprite system and retire the Death Star description.
