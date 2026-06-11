@@ -315,7 +315,7 @@ A configurable wildcard frequency option controls whether a bonus special object
 
 ### 6.2 Planet Placement Rules
 - Planets may not overlap each other (checked on generation with retry)
-- At least ~25% of the play area must remain free of planets
+- At least ~20% of the play area must remain free of planets (validated as ≥80 of 400 sampled grid points)
 - Stations are placed after planets and must not overlap planets or be too close to enemy stations
 
 **Layout variability (general requirement):** Placement must not be over-controlled. Constraints exist only to guarantee a playable, readable map — no overlapping bodies, key bodies at least partly visible, and the minimum free play area above. Within those limits, layouts should stay as random as the scenario's concept allows: positions, separation angles and balance vary freely between games, and lopsided, asymmetric or tightly confined arrangements are intended outcomes, not defects. A somewhat restrictive play space is itself a valued source of variety. When fixing a placement bug, prefer rejecting invalid layouts over narrowing the random distribution.
