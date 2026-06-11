@@ -282,7 +282,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 5 | Binary Star | Two stars + rocky bodies |
 | 6 | Jovian | One large gas giant + smaller moons |
 | 7 | Super Giant | One massive star placed off-centre, partially off-screen |
-| 8 | Super Giant Binary | Two massive off-screen stars |
+| 8 | Super Giant Binary | Two massive, mostly off-screen stars with the play area between them. See §6.6. |
 | 9 | Uneven Binary | One supergiant + one regular star |
 | 10 | Red Giant | Large red star + rocky bodies |
 | 11 | Star Cluster | Several small dense stars |
@@ -318,6 +318,8 @@ A configurable wildcard frequency option controls whether a bonus special object
 - At least ~25% of the play area must remain free of planets
 - Stations are placed after planets and must not overlap planets or be too close to enemy stations
 
+**Layout variability (general requirement):** Placement must not be over-controlled. Constraints exist only to guarantee a playable, readable map — no overlapping bodies, key bodies at least partly visible, and the minimum free play area above. Within those limits, layouts should stay as random as the scenario's concept allows: positions, separation angles and balance vary freely between games, and lopsided, asymmetric or tightly confined arrangements are intended outcomes, not defects. A somewhat restrictive play space is itself a valued source of variety. When fixing a placement bug, prefer rejecting invalid layouts over narrowing the random distribution.
+
 ### 6.3 Station Placement Guarantee
 Stations **must never be rendered inside a planet**, even on extreme scenarios (e.g. large binary stars that leave almost no free space). The placement algorithm uses a three-tier fallback:
 
@@ -349,6 +351,19 @@ Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% c
 1. **Normal** — retry up to 4000 times enforcing both station-station spacing AND planet avoidance. Spacing threshold decreases on each failure.
 2. **Emergency** — if normal fails, drop station-station spacing requirements but continue checking planet avoidance (up to 2000 more attempts).
 3. **Last resort** — if emergency also fails (can happen when stars cover >95% of play area), push any station that landed inside a planet outward to the planet's surface + a small buffer. Stations may be close together but will never be inside a planet.
+
+### 6.6 Super Giant Binary Scenario (id 8)
+
+**Concept:** The battle takes place between two supergiant stars whose gravity partially balances across the play area. The star size is essential to the scenario and must not be reduced: each radius is 1.5–1.9× screen height (fixed supergiant mass).
+
+**Hard constraints (enforced by rejection sampling at generation):**
+- **No overlap, anywhere:** the two star discs must never overlap, on or off screen. Note the generic overlap validator (§6.2) exempts planet pairs whose centres are both off-screen, so this scenario enforces the rule itself.
+- **Both stars partly visible:** each disc must reach onto the screen by at least ~6% of screen height, so players can see a bit of both stars and read the gravitational environment.
+- **Minimum play area:** the standard free-play-area floor (§6.2) applies to the combined coverage of both discs. A tight play space is acceptable — and desirable for variety — but it must never shrink below the floor.
+
+**Everything else is deliberately unconstrained (see §6.2 layout variability):** the stars may sit off-screen in any direction — the separation axis may be horizontal, vertical, diagonal, at any angle. Both stars may crowd two adjacent corners or edges, producing a strong directional gravity field across the play area; or they may face each other across the screen with gravity largely cancelling in the middle. Star centres may sit anywhere their disc still peeks on-screen — placement must not be limited to a fixed box smaller than this (a fixed sampling box shorter than the sum of two star radii silently made vertical separations impossible).
+
+**Fallback:** On extreme aspect ratios where free sampling cannot separate two discs this large, the giants are placed constructively on opposite sides of the screen centre along a random axis, each just reaching on-screen, preserving the constraints above.
 
 ---
 
