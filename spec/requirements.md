@@ -485,7 +485,7 @@ The config panel always uses a compact 4-page paged layout. Page 1 is always vis
 ### Page 3 — Options
 | Option | Values | Notes |
 |---|---|---|
-| Performance | Full / Simplified | Simplified caps planets at 20 and players at 4 |
+| Performance | Full / Simplified / Experimental | Simplified caps planets at 20 and players at 4; Experimental enables the SVG sprite renderer for ships (UFO saucer) and bitmap smoke, targeting 60fps with up to 96 ships on iPad — see §12.3 |
 | Team clustering | Off / Tight / Moderate / Loose | Controls how close same-team stations are placed |
 | Wildcard planets | Off / Very Rare / Rare (default) / Occasional / Common / Always | See §6.1 |
 | Aim circle size | 0.5× / 1× (default) / 2× / 3× | Visual size of the aiming circle around the active station |
@@ -707,10 +707,9 @@ SVG graphics can be layered over planet/celestial body circles to enrich their a
 
 **Out of scope:** animated overlays; overlays for stations or bullets; per-layer blend modes; SVGs with multiple distinct fill colours.
 
-### 11.4 Station Visual Design (from screenshots)
-- Stations are small circular icons (~15–25px diameter) resembling a **Death Star** — a coloured sphere with a visible equatorial band/trench detail
-- Each station is solid in its team colour (green, cyan, red, yellow, etc.)
-- No label on the station itself; team identity comes from colour + the canvas header text
+### 11.4 Station Visual Design
+- **Full / Simplified modes**: stations are small circular icons (~15–25px diameter) resembling a **Death Star** — a coloured sphere with a visible equatorial band/trench detail. Each station is solid in its team colour. No label on the station itself; team identity comes from colour + the canvas header text.
+- **Experimental mode**: stations are drawn from the **SVG sprite system** — a flying saucer (UFO) shape with a silver hull disc, team-coloured engine glow and rim trim, and a pale dome. Ship art is authored in SVG, converted to a pre-parsed JS module at build time, and rendered via pre-baked per-team animation sheets (`drawImage`). Targets 60fps at 96 ships on iPad. See `spec/space-mammoth-sprite-spec.md` for the full specification.
 
 ### 11.5 Planet & Star Visual Style (from screenshots)
 - **Stars** (yellow/red/giant): bright coloured core circle surrounded by a **fuzzy corona** — a halo of short radiating strokes or dots in a darker shade of the star colour, giving a bristly/spiky appearance. This is the most distinctive visual in the game — preserve it.

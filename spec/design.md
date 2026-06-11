@@ -37,8 +37,14 @@ DeathStarBattles/
 │   ├── physics/
 │   │   └── PhysicsEngine.js
 │   ├── rendering/
-│   │   ├── Renderer.js     ← composites the three layers; collectable + VFX drawing
-│   │   └── PlanetRenderer.js
+│   │   ├── Renderer.js       ← composites the three layers; collectable + VFX drawing
+│   │   ├── PlanetRenderer.js
+│   │   └── sprites/
+│   │       ├── SpriteRenderer.js     ← initSprite(), drawSprite() — entity-agnostic vector draw
+│   │       ├── SpriteSheetCache.js   ← per-team pre-baked animation frames for mass drawing
+│   │       ├── spriteUtils.js        ← interpolateKeyframes(), resolveColor(), lerp
+│   │       ├── index.js              ← sprite registry: getSprite(name)
+│   │       └── ufo.sprite.js         ← GENERATED — do not edit; run scripts/build-sprites.mjs
 │   ├── ai/
 │   │   ├── AIController.js ← base class + factory
 │   │   ├── RandBot.js
@@ -55,10 +61,16 @@ DeathStarBattles/
 │       ├── ConfigPanel.js  ← pre-game setup panel (DOM); responsive paged layout
 │       ├── AimControls.js  ← hold-to-repeat angle/power DOM buttons
 │       └── WeaponSelector.js ← weapon popup selector (DOM)
+├── assets/
+│   └── sprites/
+│       └── ufo.svg                   ← artist source for the UFO sprite
+├── scripts/
+│   └── build-sprites.mjs             ← SVG → sprite.js converter; run after artwork changes
 └── spec/
     ├── requirements.md
     ├── design.md
     ├── tasks.md
+    ├── space-mammoth-sprite-spec.md  ← full sprite system spec
     └── futureDesignThoughts.md
 ```
 
@@ -436,6 +448,8 @@ For each star:
 ```
 
 ### 5.4 Station Visual
+
+#### Procedural renderer (all modes except `experimental`)
 Station = Death Star icon, drawn procedurally on canvas. Scaled by station size.
 
 ```
@@ -449,6 +463,11 @@ For each station:
 At Micro/Tiny sizes (radius < 8px) the dome detail is omitted — only the sphere + trench line render, keeping it readable. At Medium and above all four elements render.
 
 The team colour is the dominant visual identifier; the Death Star detailing is secondary.
+
+#### Sprite renderer (`experimental` mode only)
+When `_performance === 'experimental'`, normal (non-drone, non-target) stations are drawn from the generic sprite system instead of the procedural renderer. The active sprite is `'ufo'` — a flying saucer silhouette with team-coloured engine glow, rim trim, and porthole ring. See `spec/space-mammoth-sprite-spec.md` for the full pipeline spec; see §15.10 for the performance strategy.
+
+The sprite renderer is engaged per-ship via `Renderer._drawSpriteStation()`; all overlays (armour, frozen, electrified, mind control) still draw on top through the existing overlay pipeline.
 
 The **aiming indicator**: white circle at `stationBoxRadius` + single white line from centre to circumference in the firing direction. Drawn on Layer 2 only for the currently active station.
 
@@ -1651,6 +1670,8 @@ The pattern works because `globalCompositeOperation = 'lighter'` (additive blend
 |---|---|---|---|---|
 | bgCanvas blit | 1 drawImage | 1 drawImage | 1 drawImage | 1 drawImage |
 | Gas giants | 1 drawImage | 1 drawImage | 1 drawImage | 1 drawImage |
+| Stations (per ship, normal renderer) | ~5 arc fills | ~5 arc fills | — | — |
+| Stations (per ship, sprite renderer) | — | — | 1 drawImage | 1 drawImage |
 | Wormhole particles (per wormhole) | — | 160 arc fills | 160 gradient creates | 160 arc fills |
 | Ship explosion bloom (per particle) | — | 2 arc fills | 1 tinted drawImage | 2 arc fills |
 | Fireballs (per fireball) | — | 2 arc fills | 1 tinted drawImage | 2 arc fills |
@@ -1662,6 +1683,24 @@ No performance mode creates radial gradients or sets `ctx.filter` during the liv
 
 ---
 
+### 15.10 Sprite Sheet Caching for Ship Rendering
+
+The sprite vector renderer (`drawSprite`) issues ~23 canvas calls per ship. At 96 ships that would be ~2,200 path fills per frame — too many Metal pipeline state changes on iPad. The `SpriteSheetCache` exploits the global animation phase (§9 of the sprite spec): because all ships with the same team colour are pixel-identical within any frame, each (sprite, team) pair needs only one set of pre-rendered frames.
+
+**Sheet structure**: a horizontal `HTMLCanvasElement` of `frameSize × SHEET_FRAMES` pixels (128 × 24 = 3,072 × 128 px). The 24 frames cover the full 2,400ms animation loop at 100ms intervals — invisible stepping at normal ship sizes. Each frame is rendered via `drawSprite` at startup, so the sheet itself pays the ~23-call-per-frame cost once per (sprite, team) at build time rather than on every draw frame.
+
+**ImageBitmap snapshot**: after building the canvas, `createImageBitmap()` is called asynchronously. Once resolved, the `ImageBitmap` replaces the raw canvas as the `drawImage` source, eliminating the GPU encoder flush that `HTMLCanvasElement → drawImage` would cause on iOS (identical to the gas giant canvas trick — §15.4).
+
+**Per-frame draw cost**: one `drawImage(sheet, sx, 0, frameSize, frameSize, x−r, y−r, 2r, 2r)` call per ship. 96 ships = 96 `drawImage` calls at zero path-geometry cost. Measured: < 0.5ms for 96 ships on iPad A-series.
+
+**Memory**: one sheet per team in play × 128² × 24 × 4 bytes ≈ 1.5 MB per team. With 12 teams: ≈ 18 MB total, well within Safari's canvas memory budget.
+
+**Sheets are built lazily** — only on the first draw call for a given (sprite, team) pair. Teams not in the current game pay nothing.
+
+The direct `drawSprite` path remains the renderer used to *build* sheet frames and as a fallback for one-off or oversized draws. `sprite-bench.html` at the repo root verifies the 60fps target on real hardware with a toggle between cached-sheet and direct-vector modes.
+
+---
+
 ## 12. Implementation Decisions Log
 
 | # | Question | Decision |
@@ -1670,6 +1709,7 @@ No performance mode creates radial gradients or sets `ctx.filter` during the liv
 | 2 | Sound | ✅ Out of scope v1 |
 | 3 | Slow-motion step (O while paused) | ✅ Implemented — hold O while paused reduces `SHOW_EVERY` to 1; release restores normal speed |
 | 4 | RNG reproducibility | ✅ Seeded PRNG (mulberry32) used throughout |
+| 5 | Ship visual at 96 ships on iPad | ✅ Sprite sheet cache — 1 `drawImage` per ship via per-team pre-baked animation frames; engaged in `experimental` mode. Procedural Death Star kept in `full`/`simplified` until sprite system is proven (see §5.4, §15.10). |
 
 ---
 
