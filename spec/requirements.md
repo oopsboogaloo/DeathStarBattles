@@ -309,7 +309,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 32 | Giant Asteroid | One enormous multi-hit asteroid surrounded by smaller asteroids |
 | 33 | Pulsars | 2–5 pulsars biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 34 | Wormhole Tunnel | The interior of a wormhole. A boundary rift forms a rough oval loop around the play area; 2–6 random interior bodies. Special tunnel background. See §6.5. |
-| 35 | Binary Wormhole | Same layout as Binary Star, but the two stars are a paired wormhole (purple, linked) of the same size and mass + rocky bodies |
+| 35 | Binary Wormhole | Same layout as Binary Star, but the two stars are a paired wormhole (purple, linked) of the same size and mass + rocky bodies. 10% chance of extreme version: three star-sized wormholes in a cyclic triple (blue, A→B→C→A) |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.

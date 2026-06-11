@@ -661,19 +661,27 @@ export class ScenarioFactory {
       // ── 35: Binary Wormhole ───────────────────────────────────────────────
       case 35: {
         // Binary Star layout with the two stars swapped for a paired wormhole.
-        const pair = [];
-        for (let s = 0; s < 2; s++) {
+        // Extreme: a third star-sized wormhole joins and the link becomes a
+        // cyclic triple A→B→C→A (blue, per the cyclic colour convention).
+        // Rolled from rn[0] so the choice survives _validate retries — three
+        // big discs fail placement more often, which would bias a live roll.
+        const extreme35 = forceExtreme || rn[0] < 0.10;
+        if (extreme35) isExtreme = true;
+        const nWh  = extreme35 ? 3 : 2;
+        const whs  = [];
+        for (let s = 0; s < nWh; s++) {
           const bigR = rng.nextInRange(80, 160) + 40;
-          pair.push(new Planet({
+          whs.push(new Planet({
             position: new Vec2(rv(rng,0.3,0.3,0.2,gw), rv(rng,0.3,0.3,0.2,gh)),
             radius: bigR, density: 0.01,
-            type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
+            type:   extreme35 ? PlanetType.WORMHOLE_CYCLIC : PlanetType.WORMHOLE_PAIRED,
+            colour: extreme35 ? [55,55,255] : [255,55,255],
             shading: ShadingStyle.WORMHOLE,
           }));
         }
-        pair[0].partner = pair[1]; pair[1].partner = pair[0];
-        planets.push(...pair);
-        for (let i = 2; i < nPlanets; i++)
+        for (let i = 0; i < nWh; i++) whs[i].partner = whs[(i + 1) % nWh];
+        planets.push(...whs);
+        for (let i = nWh; i < nPlanets; i++)
           planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08, richProb));
         break;
       }
