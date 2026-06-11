@@ -275,7 +275,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 
 | # | Name | Description |
 |---|---|---|
-| 1 | Planetary | Rocky planets randomly placed |
+| 1 | Planetary | Rocky planets randomly placed. 10% chance of extreme version (§6.4). |
 | 2 | Asteroids | Many small asteroids (density low, mass low) |
 | 3 | Crystal Asteroids | Like Asteroids but all asteroids are Crystal type — bullets pass through; Bounce Cannon reflects off and smashes them |
 | 4 | Star System | One central star + rocky planets |
@@ -305,11 +305,11 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 28 | Big Wormhole | Two enormous wormhole portals, mirrored through the screen centre (partially off-screen) + planets. See §6.7. |
 | 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field |
 | 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids |
-| 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler |
+| 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler. 10% chance of extreme version (§6.4). |
 | 32 | Giant Asteroid | One enormous multi-hit asteroid surrounded by smaller asteroids |
 | 33 | Pulsars | 2–5 pulsars biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 34 | Wormhole Tunnel | The interior of a wormhole. A boundary rift forms a rough oval loop around the play area; 2–6 random interior bodies. Special tunnel background. See §6.5. |
-| 35 | Binary Wormhole | Same layout as Binary Star, but the two stars are a paired wormhole (purple, linked) of the same size and mass + rocky bodies. 10% chance of extreme version: three star-sized wormholes in a cyclic triple (blue, A→B→C→A) |
+| 35 | Binary Wormhole | Same layout as Binary Star, but the two stars are a paired wormhole (purple, linked) of the same size and mass + rocky bodies. 10% chance of extreme version (§6.4). |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.
@@ -325,12 +325,17 @@ A configurable wildcard frequency option controls whether a bonus special object
 Stations **must never be rendered inside a planet**, even on extreme scenarios (e.g. large binary stars that leave almost no free space). The placement algorithm uses a three-tier fallback:
 
 ### 6.4 Extreme Scenario Variants
-Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% chance of generating an **extreme** version. Extreme variants are silently tracked via `gameState.config.isExtreme` and displayed in dev mode stats (§12.3).
+Scenarios 1 (Planetary), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pulsars), and 35 (Binary Wormhole) each have a 10% chance of generating an **extreme** version. The dev-mode FORCE EXTREME config option (`forceExtreme`) forces the extreme version in every game. Extreme variants are silently tracked via `gameState.config.isExtreme` and displayed in dev mode stats (§12.3).
 
-**Extreme rules (all three scenarios):**
+**Extreme rules (scenarios 25, 27, 33):**
 - Body count: 0–15 (uniform random), chosen independently of `nPlanets`
 - No rocky planet or asteroid filler — the map may contain only the special bodies (or even be empty)
 - Placement uses the same edge-preference and 50% middle-slot logic as the normal version (§6.4.1)
+
+**Extreme rules (other scenarios):**
+- **1 (Planetary):** 1–10 extra small rocky planets (radius 7–20) placed near the screen edges, on top of the normal layout
+- **31 (Moons):** the central rocky planet becomes a giant cratered moon (radius 35–55, destructible like all moons) and every remaining body slot is a moon — no asteroid filler
+- **35 (Binary Wormhole):** three star-sized wormholes instead of two, linked as a cyclic triple A→B→C→A (blue) instead of a pair (purple); same 120–200 radius and density, asteroid filler unchanged. The extreme decision is pre-rolled before the layout-validation retry loop so placement failures (three large discs fit less easily than two) cannot bias the 10% rate.
 
 **§6.4.1 Edge-preference placement** (shared by normal and extreme versions of scenarios 25, 27, 33):
 - Each body independently picks one of the 4 screen sides (left / right / top / bottom) with equal probability
