@@ -667,18 +667,46 @@ export class ScenarioFactory {
         // big discs fail placement more often, which would bias a live roll.
         const extreme35 = forceExtreme || rn[0] < 0.10;
         if (extreme35) isExtreme = true;
-        const nWh  = extreme35 ? 3 : 2;
-        const whs  = [];
-        for (let s = 0; s < nWh; s++) {
-          const bigR = rng.nextInRange(80, 160) + 40;
-          whs.push(new Planet({
-            position: new Vec2(rv(rng,0.3,0.3,0.2,gw), rv(rng,0.3,0.3,0.2,gh)),
-            radius: bigR, density: 0.01,
-            type:   extreme35 ? PlanetType.WORMHOLE_CYCLIC : PlanetType.WORMHOLE_PAIRED,
-            colour: extreme35 ? [55,55,255] : [255,55,255],
-            shading: ShadingStyle.WORMHOLE,
-          }));
+        const whs = [];
+        if (extreme35) {
+          // Three discs can't rely on the outer _validate loop for spacing —
+          // its give-up path (nPlanets decremented to 0) can return overlapping
+          // layouts. Enforce pairwise separation here instead: slightly smaller
+          // discs (100–160) spread across 0.1–0.9, shrinking 10% per failed
+          // round so cramped fields always terminate without overlap.
+          const minGap = 10;
+          let radii = Array.from({ length: 3 }, () => rng.nextInRange(60, 120) + 40);
+          let centres = null;
+          while (!centres) {
+            for (let attempt = 0; attempt < 200 && !centres; attempt++) {
+              const c = radii.map(() => new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)));
+              let ok = true;
+              for (let i = 0; i < 3 && ok; i++)
+                for (let j = i + 1; j < 3 && ok; j++)
+                  if (c[i].distanceTo(c[j]) < radii[i] + radii[j] + minGap) ok = false;
+              if (ok) centres = c;
+            }
+            if (!centres) radii = radii.map(r => r * 0.9);
+          }
+          for (let s = 0; s < 3; s++) {
+            whs.push(new Planet({
+              position: centres[s], radius: radii[s], density: 0.01,
+              type: PlanetType.WORMHOLE_CYCLIC, colour: [55,55,255],
+              shading: ShadingStyle.WORMHOLE,
+            }));
+          }
+        } else {
+          for (let s = 0; s < 2; s++) {
+            const bigR = rng.nextInRange(80, 160) + 40;
+            whs.push(new Planet({
+              position: new Vec2(rv(rng,0.3,0.3,0.2,gw), rv(rng,0.3,0.3,0.2,gh)),
+              radius: bigR, density: 0.01,
+              type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
+              shading: ShadingStyle.WORMHOLE,
+            }));
+          }
         }
+        const nWh = whs.length;
         for (let i = 0; i < nWh; i++) whs[i].partner = whs[(i + 1) % nWh];
         planets.push(...whs);
         for (let i = nWh; i < nPlanets; i++)

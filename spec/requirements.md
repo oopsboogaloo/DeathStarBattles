@@ -335,7 +335,7 @@ Scenarios 1 (Planetary), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pul
 **Extreme rules (other scenarios):**
 - **1 (Planetary):** 1–10 extra small rocky planets (radius 7–20) placed near the screen edges, on top of the normal layout
 - **31 (Moons):** the central rocky planet becomes a giant cratered moon (radius 35–55, destructible like all moons) and every remaining body slot is a moon — no asteroid filler
-- **35 (Binary Wormhole):** three star-sized wormholes instead of two, linked as a cyclic triple A→B→C→A (blue) instead of a pair (purple); same 120–200 radius and density, asteroid filler unchanged. The extreme decision is pre-rolled before the layout-validation retry loop so placement failures (three large discs fit less easily than two) cannot bias the 10% rate.
+- **35 (Binary Wormhole):** three large wormholes instead of two, linked as a cyclic triple A→B→C→A (blue) instead of a pair (purple); same density, asteroid filler unchanged. The triple is slightly smaller than the pair (radius 100–160 vs 120–200) and spread across a wider band (10–90% of each axis) with pairwise separation enforced at placement — the discs never overlap; on cramped fields all three shrink 10% per placement round until they fit. The extreme decision is pre-rolled before the layout-validation retry loop so placement failures cannot bias the 10% rate.
 
 **§6.4.1 Edge-preference placement** (shared by normal and extreme versions of scenarios 25, 27, 33):
 - Each body independently picks one of the 4 screen sides (left / right / top / bottom) with equal probability
