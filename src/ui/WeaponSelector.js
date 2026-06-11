@@ -70,7 +70,7 @@ export class WeaponSelector {
     const w   = station.selectedWeapon;
     const lbl = LABELS[w] ?? w;
     const n   = LIMITED.has(w) ? station.team.getStock(w) : null;
-    btn.textContent = n !== null ? `${lbl} [${n}] ▲` : `${lbl} ▲`;
+    btn.textContent = n !== null ? `${lbl} [${n === Infinity ? '∞' : n}] ▲` : `${lbl} ▲`;
   }
 
   open(station, anchorEl, gs) {
@@ -170,7 +170,7 @@ export class WeaponSelector {
       if (isLimited && stock <= 0) continue;
       const isSelected = station.selectedWeapon === weaponId;
       const lbl        = LABELS[weaponId];
-      const suffix     = isLimited ? ` [${stock}]` : ' (∞)';
+      const suffix     = isLimited ? (stock === Infinity ? ' [∞]' : ` [${stock}]`) : ' (∞)';
 
       const row = document.createElement('div');
       row.textContent = (isSelected ? '▶ ' : '   ') + lbl + suffix;

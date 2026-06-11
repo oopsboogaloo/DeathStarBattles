@@ -376,6 +376,20 @@ Larger collectables are easier to hit. Tiny collectables require a near-direct h
 Varied gives each collectable a random size from the full range, so some are easy and some are not.`,
   },
   {
+    title: 'Starting Weapons',
+    body: `A loadout of special weapons every team begins with. Options: None, Basic, Marines, Demolition, Lucky Dip, Quantum, Dambusters.
+
+Basic — 1 Triple Cannon + 1 Force Shield.  Marines — 2 Blasters + 2 Blunderbusses.  Demolition — 3 Rockets, 1 Rocket Pod + 2 Force Shields.  Lucky Dip — one random weapon pickup per team (common weapons more likely).  Quantum — 5 Quantum Torpedoes + 2 Force Shields.  Dambusters — unlimited Bounce Cannons.
+
+In a tournament, each game tops teams back up to the loadout — weapons carried over from earlier games count toward it (Lucky Dip instead grants a fresh pickup every game).`,
+  },
+  {
+    title: 'Starting Armour',
+    body: `Armour layers every station begins the game with. Options: None, Light (single), Medium (double), Heavy (triple).
+
+Each layer absorbs one incoming hit that would otherwise destroy the station, shown as a dashed ring around it. Layers persist across turns until consumed but do not carry over between games.`,
+  },
+  {
     title: 'Targets  (Target Practice)',
     body: `How many target stations appear per round in Target Practice mode. Options: 1, 3, 5, 7, 10, 20.
 

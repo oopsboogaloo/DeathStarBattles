@@ -80,6 +80,7 @@ export class ConfigPanel {
       richAsteroids:     'normal',
       collectableSize:   'medium',
       startingWeapons:   'none',
+      startingArmour:    'none',
       forceExtreme:      false,
       overrideSeed:      '',
       aimCircleSize:     'regular',
@@ -475,10 +476,17 @@ export class ConfigPanel {
     const rowForceExtreme = this._row('FORCE EXTREME',
       this._cycle('forceExtreme', [false, true], v => v ? 'On' : 'Off'));
 
+    // Player-visible loadouts; richer dev tiers appended by _updateDevRows()
+    this._startWepValues = ['none', 'basic', 'marines', 'demolition', 'luckyDip', 'quantum', 'dambusters'];
     const rowStartWep    = this._row('STARTING WEAPONS',
-      this._cycle('startingWeapons',
-        ['none', 'one', 'minor', 'oneOfEach', 'lots', 'tooMany'],
-        v => ({ none: 'None', one: 'One at Random', minor: 'Minor  (2 Cannons)', oneOfEach: 'One of Each', lots: 'Lots  (3 of Each)', tooMany: 'Too Many  (7 of Each)' }[v])));
+      this._startWepCtrl = this._cycle('startingWeapons', this._startWepValues,
+        v => ({ none: 'None', basic: 'Basic', marines: 'Marines', demolition: 'Demolition',
+                luckyDip: 'Lucky Dip', quantum: 'Quantum', dambusters: 'Dambusters',
+                one: 'One at Random', minor: 'Minor  (2 Cannons)', oneOfEach: 'One of Each', lots: 'Lots  (3 of Each)', tooMany: 'Too Many  (7 of Each)' }[v])));
+    const rowStartArmour = this._row('STARTING ARMOUR',
+      this._cycle('startingArmour',
+        ['none', 'light', 'medium', 'heavy'],
+        v => ({ none: 'None', light: 'Light  (Single)', medium: 'Medium  (Double)', heavy: 'Heavy  (Triple)' }[v])));
 
     // Page 5 — Target Practice
     const rowTPTargets = this._row('TARGETS',
@@ -490,10 +498,9 @@ export class ConfigPanel {
     const rowTPAI      = this._row('INCLUDE AI',
       this._cycle('tpIncludeAI', [false, true], v => v ? 'On' : 'Off'));
 
-    this._collectSubRows = [rowRichAst, rowColSize, rowStartWep];
+    this._collectSubRows = [rowRichAst, rowColSize];
     this._seedSubRows    = [rowScenario];
-    this._devRows        = [rowStartWep, rowForceExtreme];
-    rowStartWep.style.display    = 'none'; // hidden until dev mode enabled
+    this._devRows        = [rowForceExtreme];
     rowForceExtreme.style.display = 'none';
     this._updateCollectableGrey();
     this._updateSeedGrey();
@@ -501,7 +508,7 @@ export class ConfigPanel {
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
-    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep, rowForceExtreme];
+    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep, rowStartArmour, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
 
@@ -813,6 +820,22 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
     const show = this._devModeOn || this._campaignUnlocked;
     for (const row of this._devRows ?? []) {
       row.style.display = show ? '' : 'none';
+    }
+    // Richer starting-weapon tiers are only selectable in dev mode / after campaign completion
+    if (this._startWepValues) {
+      const devVals = ['one', 'minor', 'oneOfEach', 'lots', 'tooMany'];
+      if (show) {
+        for (const v of devVals) {
+          if (!this._startWepValues.includes(v)) this._startWepValues.push(v);
+        }
+      } else {
+        for (const v of devVals) {
+          const i = this._startWepValues.indexOf(v);
+          if (i >= 0) this._startWepValues.splice(i, 1);
+        }
+        if (devVals.includes(this._d.startingWeapons)) this._d.startingWeapons = 'none';
+      }
+      this._startWepCtrl._refresh();
     }
   }
 

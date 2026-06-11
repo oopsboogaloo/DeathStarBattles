@@ -521,6 +521,7 @@ async function startGame(cfg) {
   }
 
   _applyStartingWeapons(teams, cfg, rng);
+  _applyStartingArmour(teams, cfg);
 
   _loadBar.update(45, 'Placing stars...');
   await _yieldFrame();
@@ -810,15 +811,32 @@ function _applyStartingWeapons(teams, cfg, rng) {
   const sw = cfg.startingWeapons ?? 'none';
   if (sw === 'none') return;
 
-  // Minimum stock per weapon (null = not specified)
-  const minimums = sw === 'minor'    ? { [WeaponId.TRIPLE_CANNON]: 2 }
-                 : sw === 'oneOfEach' ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 1]))
-                 : sw === 'lots'      ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 3]))
-                 : sw === 'tooMany'   ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 7]))
-                 : null; // 'one' handled separately
+  // Minimum stock per weapon (null = not specified) — each game tops teams
+  // back up to these counts; stock carried over a tournament counts first.
+  const minimums =
+    // Player-visible loadouts
+      sw === 'basic'      ? { [WeaponId.TRIPLE_CANNON]: 1, [WeaponId.FORCE_SHIELD]: 1 }
+    : sw === 'marines'    ? { [WeaponId.BLASTER]: 2, [WeaponId.BLUNDERBUSS]: 2 }
+    : sw === 'demolition' ? { [WeaponId.ROCKET]: 3, [WeaponId.ROCKET_POD]: 1, [WeaponId.FORCE_SHIELD]: 2 }
+    : sw === 'quantum'    ? { [WeaponId.QUANTUM_TORPEDO]: 5, [WeaponId.FORCE_SHIELD]: 2 }
+    : sw === 'dambusters' ? { [WeaponId.BOUNCE_CANNON]: Infinity }
+    // Dev-only tiers
+    : sw === 'minor'      ? { [WeaponId.TRIPLE_CANNON]: 2 }
+    : sw === 'oneOfEach'  ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 1]))
+    : sw === 'lots'       ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 3]))
+    : sw === 'tooMany'    ? Object.fromEntries(_ALL_SPECIAL.map(w => [w, 7]))
+    : null; // 'luckyDip' / 'one' handled separately
 
   for (const team of teams) {
-    if (sw === 'one') {
+    if (sw === 'luckyDip') {
+      // One random collectable pickup per game — same tier weighting as map
+      // drops (80/16/4) and same charge count as collecting it in play
+      const r    = rng.next();
+      const tier = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
+      const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
+      const g    = pool[Math.floor(rng.next() * pool.length)];
+      team.addStock(g.id, g.charges);
+    } else if (sw === 'one') {
       // Always add one random weapon regardless of existing stock
       const w = _ALL_SPECIAL[Math.floor(rng.next() * _ALL_SPECIAL.length)];
       team.addStock(w, 1);
@@ -829,6 +847,16 @@ function _applyStartingWeapons(teams, cfg, rng) {
         if (have < min) team.addStock(w, min - have);
       }
     }
+  }
+}
+
+const _STARTING_ARMOUR_LAYERS = { none: 0, light: 1, medium: 2, heavy: 3 };
+
+function _applyStartingArmour(teams, cfg) {
+  const layers = _STARTING_ARMOUR_LAYERS[cfg.startingArmour ?? 'none'] ?? 0;
+  if (layers <= 0) return;
+  for (const team of teams) {
+    for (const station of team.stations) station.armourLayers = layers;
   }
 }
 
