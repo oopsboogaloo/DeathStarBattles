@@ -1003,14 +1003,14 @@ export class ScenarioFactory {
           }
           const w0 = new Planet({
             position: new Vec2(cx0, cy0), radius: bigR,
-            density: 1000/(bigR*bigR), mass: 200,
+            density: 2400/(bigR*bigR), mass: 2400,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
             impactRadius: ir,
           });
           const w1 = new Planet({
             position: new Vec2(gw - cx0, gh - cy0), radius: bigR,
-            density: 1200/(bigR*bigR), mass: 2400,
+            density: 2400/(bigR*bigR), mass: 2400,
             type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
             shading: ShadingStyle.WORMHOLE,
             impactRadius: ir,
