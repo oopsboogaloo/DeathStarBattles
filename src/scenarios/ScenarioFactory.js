@@ -658,6 +658,26 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 35: Binary Wormhole ───────────────────────────────────────────────
+      case 35: {
+        // Binary Star layout with the two stars swapped for a paired wormhole.
+        const pair = [];
+        for (let s = 0; s < 2; s++) {
+          const bigR = rng.nextInRange(80, 160) + 40;
+          pair.push(new Planet({
+            position: new Vec2(rv(rng,0.3,0.3,0.2,gw), rv(rng,0.3,0.3,0.2,gh)),
+            radius: bigR, density: 0.01,
+            type: PlanetType.WORMHOLE_PAIRED, colour: [255,55,255],
+            shading: ShadingStyle.WORMHOLE,
+          }));
+        }
+        pair[0].partner = pair[1]; pair[1].partner = pair[0];
+        planets.push(...pair);
+        for (let i = 2; i < nPlanets; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08, richProb));
+        break;
+      }
+
       // ── 6: Jovian ─────────────────────────────────────────────────────────
       case 6: {
         const bigR = rng.nextInRange(80, 160) + 40;
