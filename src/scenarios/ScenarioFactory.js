@@ -696,12 +696,70 @@ export class ScenarioFactory {
 
       // ── 8: Super Giant Binary ─────────────────────────────────────────────
       case 8: {
-        for (let s = 0; s < 2; s++) {
+        // Same free placement as before, but resample the pair until the
+        // layout is sound: the discs never overlap (on- or off-screen), each
+        // giant peeks onto the screen, and ≥20% of the screen stays free.
+        // Angle, side and balance between the giants stay unconstrained.
+        // _validate can't enforce any of this — it skips planet pairs whose
+        // centres are both off-screen, which these giants almost always are.
+        const minVis = 0.06 * gh; // how far each disc must reach on-screen
+        const minGap = 10;        // same planet-planet gap as _validate
+        const distToScreen = g => Math.hypot(
+          Math.max(-g.x, 0, g.x - gw),
+          Math.max(-g.y, 0, g.y - gh),
+        );
+        const screenFree = (a, b) => {
+          let free = 0;
+          for (let i = 0; i < 20; i++)
+            for (let j = 0; j < 20; j++) {
+              const px = (i / 20) * gw, py = (j / 20) * gh;
+              if (Math.hypot(px - a.x, py - a.y) >= a.r &&
+                  Math.hypot(px - b.x, py - b.y) >= b.r) free++;
+            }
+          return free >= 80; // ≥20% of the 20×20 grid, matching _validate
+        };
+        // Sample each centre anywhere the disc can sit while still peeking
+        // on-screen. (The old fixed rv(3,0,-1) box was shorter than the sum
+        // of two star radii, so vertical layouts could never separate.)
+        const newGiant = () => {
+          const r    = (rng.next()*0.2 + rng.next()*0.2) * gh + 1.5*gh;
+          const span = r - minVis;
+          return {
+            r,
+            x: -span + rng.next() * (gw + 2 * span),
+            y: -span + rng.next() * (gh + 2 * span),
+          };
+        };
+        let a = newGiant(), b = newGiant(), ok = false;
+        for (let attempt = 0; attempt < 500 && !ok; attempt++) {
+          ok = Math.hypot(a.x - b.x, a.y - b.y) >= a.r + b.r + minGap
+            && distToScreen(a) <= a.r - minVis
+            && distToScreen(b) <= b.r - minVis
+            && screenFree(a, b);
+          if (!ok) { a = newGiant(); b = newGiant(); }
+        }
+        // Constructive fallback for screens too narrow for free sampling to
+        // ever separate two discs this big: put the giants on opposite sides
+        // of the screen centre along a random axis, each just reaching in.
+        if (!ok) {
+          for (let attempt = 0; attempt < 50; attempt++) {
+            const th = rng.next() * Math.PI * 2;
+            const ux = Math.cos(th), uy = Math.sin(th);
+            const e  = Math.min(gw / 2 / Math.max(Math.abs(ux), 1e-6),
+                                gh / 2 / Math.max(Math.abs(uy), 1e-6));
+            const pen = () => minVis + rng.next() * Math.max(0, e - minGap / 2 - minVis);
+            a = newGiant(); b = newGiant();
+            const da = e + a.r - pen(), db = e + b.r - pen();
+            a.x = gw / 2 + ux * da; a.y = gh / 2 + uy * da;
+            b.x = gw / 2 - ux * db; b.y = gh / 2 - uy * db;
+            if (screenFree(a, b)) break;
+          }
+        }
+        for (const g of [a, b]) {
           const sCol = [Math.floor(rng.next()*10)+245, Math.floor(rng.next()*245), Math.floor(rng.next()*45)];
-          const bigR = (rng.next()*0.2 + rng.next()*0.2) * gh + 1.5*gh;
           planets.push(new Planet({
-            position: new Vec2(rv(rng,3,0,-1,gw), rv(rng,3,0,-1,gh)),
-            radius: bigR, density: 4000/(bigR*bigR), mass: 4000,
+            position: new Vec2(g.x, g.y),
+            radius: g.r, density: 4000/(g.r*g.r), mass: 4000,
             type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
           }));
         }
