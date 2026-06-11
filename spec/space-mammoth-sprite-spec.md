@@ -1,6 +1,10 @@
 # Space Mammoth Sprite Rendering — Specification
 
 > Covers the theme rebrand from Death Star to Space Mammoth, the SVG-to-sprite build pipeline, the runtime canvas renderer, team colour theming, and the keyframe animation system.
+>
+> **The sprite system is object-agnostic.** The pipeline, module format, and renderer carry no station-specific assumptions: any game entity (ship, drone, projectile, pickup) can be rendered from a sprite module. The space mammoth saucer is the flagship use, not a special case.
+>
+> **Rollout**: the first integration is ship rendering via a simple `ufo` sprite, enabled **only when the performance mode is exactly `'experimental'`** (not `exp-ipad`, not `full`). All other modes keep the procedural Death Star renderer until the sprite system is proven on iPad.
 
 ---
 
@@ -95,7 +99,22 @@ Morphing is opt-in per layer. Only layers that genuinely change silhouette (e.g.
 
 ### 3.5 Keyframe annotation
 
-Keyframes for a layer are provided as additional SVG files or as named `<g>` groups within the same file using the convention `<g id="trunk-kf0">`, `<g id="trunk-kf1">` etc. The build script resolves these by id prefix.
+**Transform keyframes** are authored as a `data-keyframes` attribute on the element — a JSON array of `{t, tx, ty, rot, scale, opacity}` objects (all fields except `t` optional):
+
+```xml
+<ellipse id="engine-glow" cx="100" cy="122" rx="54" ry="12" fill="#ff0000"
+         data-keyframes='[{"t":0,"scale":0.9,"opacity":0.6},{"t":0.5,"scale":1.15,"opacity":1},{"t":1,"scale":0.9,"opacity":0.6}]'/>
+```
+
+**Morph keyframes** are provided as named `<g>` groups within the same file using the convention `<g id="trunk-kf1" data-t="0.3">`, each containing one `<path>`. The layer's own path is keyframe 0 unless an explicit `-kf0` group exists. The build script resolves these by id prefix.
+
+**Other per-layer annotations**:
+
+| Attribute | Purpose |
+|---|---|
+| `data-min-radius` | Layer is skipped when on-screen radius (px) is below this — generic detail LOD |
+| `data-duration` (on `<svg>`) | ms for one full animation loop (default 2400) |
+| `id="<name>-clip"` + `data-clip-layers="a b c"` | Element becomes the sprite clip path; listed layers are clipped to it |
 
 ---
 
@@ -104,17 +123,18 @@ Keyframes for a layer are provided as additional SVG files or as named `<g>` gro
 ### 4.1 Overview
 
 ```
-assets/
+assets/sprites/
+  ufo.svg                     ← simple example sprite (current ship art)
   mammoth-saucer.svg          ← master artwork (and keyframe groups)
-  mammoth-saucer-kf1.svg      ← optional: separate keyframe files
 
-      ↓  node scripts/build-sprites.mjs
+      ↓  node scripts/build-sprites.mjs        (converts every .svg in assets/sprites/)
 
 src/rendering/sprites/
+  ufo.sprite.js               ← generated; checked into repo
   mammoth-saucer.sprite.js    ← generated; checked into repo
 ```
 
-The script runs once after artwork changes. The output JS file is committed alongside the source SVG. It is never regenerated at game runtime.
+The script runs once after artwork changes and processes **all** SVGs in `assets/sprites/` — adding a new sprite requires no script changes. The output JS files are committed alongside the source SVGs. Nothing is regenerated at game runtime.
 
 ### 4.2 Output module format
 
@@ -182,24 +202,28 @@ export const mammothSaucer = {
     },
   ],
 
-  clipDome: "M 60 95 a 40 40 0 1 1 80 0",   // dome arc path used to clip mammoth layers
-  domeLayers: ["mammoth-body", "mammoth-head", "mammoth-trunk",
-               "mammoth-tusk-left", "mammoth-tusk-right",
-               "mammoth-ear-left", "mammoth-ear-right",
-               "mammoth-eye-left", "mammoth-eye-right"],
+  // generic clip support — for the saucer this is the dome arc clipping the mammoth
+  clipPath: "M 60 95 a 40 40 0 1 1 80 0",
+  clippedLayers: ["mammoth-body", "mammoth-head", "mammoth-trunk",
+                  "mammoth-tusk-left", "mammoth-tusk-right",
+                  "mammoth-ear-left", "mammoth-ear-right",
+                  "mammoth-eye-left", "mammoth-eye-right"],
 };
 ```
 
-A layer has either `keyframes` (transform animation, rigid path) or `morphKeyframes` (path morph per keyframe), never both.
+A layer has either `keyframes` (transform animation, rigid path) or `morphKeyframes` (path morph per keyframe), never both. Optional per-layer fields:
+
+- `minRadius` — layer skipped when on-screen radius (px) is below this (detail LOD, §8)
+- `pivot: [x, y]` — centre for `rot`/`scale` keyframes; emitted automatically for circles/ellipses, defaults to the viewBox centre otherwise
 
 ### 4.3 Build script responsibilities
 
 1. Parse the SVG XML
-2. For each element with a known id: extract the `d` attribute (or synthesise it for `<circle>` / `<ellipse>`)
-3. Detect team colour placeholders in `fill` / `stroke` attributes; replace with `"team.primary"` / `"team.secondary"`
-4. Extract keyframe data from SMIL `<animateTransform>` elements or named group convention
+2. For each element with an id: extract the `d` attribute (or synthesise it for `<circle>` / `<ellipse>`; a `<g>` of shapes becomes one combined path). Document order = paint order.
+3. Detect team colour placeholders in `fill` attributes; replace with `"team.primary"` / `"team.secondary"`
+4. Extract transform keyframes from `data-keyframes` JSON attributes; morph keyframes from `-kfN` named groups
 5. For morph layers: parse each keyframe path into the command array format above; validate same command count and types across keyframes (error on mismatch)
-6. Emit the JS module
+6. Emit the JS module — one per input SVG, named `<file>.sprite.js` exporting `<fileCamelCase>Sprite`
 
 ---
 
@@ -220,10 +244,12 @@ for (const layer of sprite.layers) {
 
 `Path2D` objects are reused every frame. No string parsing or object allocation occurs in the draw loop.
 
-### 5.2 Per-frame draw — single station
+### 5.2 Per-frame draw — single sprite instance
+
+`drawSprite()` is entity-agnostic: callers pass position, on-screen radius, team colours, and the global animation phase. Implemented in `src/rendering/sprites/SpriteRenderer.js`.
 
 ```js
-function drawStation(ctx, sprite, x, y, screenRadius, teamColors, animPhase) {
+function drawSprite(ctx, sprite, x, y, screenRadius, teamColors, animPhase) {
   // animPhase: 0–1 within sprite.duration, advanced each frame
 
   const scale = screenRadius / (sprite.viewBox[2] / 2);
@@ -233,13 +259,11 @@ function drawStation(ctx, sprite, x, y, screenRadius, teamColors, animPhase) {
   ctx.scale(scale, scale);
   ctx.translate(-sprite.viewBox[2] / 2, -sprite.viewBox[3] / 2);
 
-  // establish dome clip for mammoth layers
-  const domeClipPath = sprite._domeClipPath;  // Path2D, pre-built at startup
-
   for (const layer of sprite.layers) {
-    const inDome = sprite.domeLayers.includes(layer.id);
+    if (layer.minRadius !== undefined && screenRadius < layer.minRadius) continue;
 
-    if (inDome) ctx.save(), ctx.clip(domeClipPath);
+    const clipped = sprite._clippedSet.has(layer.id);  // Set built at startup
+    if (clipped) ctx.save(), ctx.clip(sprite._clipPath);
 
     if (layer.morphKeyframes) {
       _drawMorphLayer(ctx, layer, animPhase, teamColors);
@@ -247,7 +271,7 @@ function drawStation(ctx, sprite, x, y, screenRadius, teamColors, animPhase) {
       _drawTransformLayer(ctx, layer, animPhase, teamColors);
     }
 
-    if (inDome) ctx.restore();
+    if (clipped) ctx.restore();
   }
 
   ctx.restore();
@@ -366,17 +390,17 @@ By default, `spriteColors.primary` is the same value as `team.colour`. `spriteCo
 
 ---
 
-## 7. Dome Clipping
+## 7. Clipping (dome glass)
 
-The mammoth is visible only through the dome glass. The dome outline is used as a clipping path so that mammoth body parts that extend beyond the dome edge are invisible.
+Sprites support one optional clip path applied to a named subset of layers. For the mammoth saucer this is the dome glass: the mammoth is visible only through the dome, so mammoth body parts that extend beyond the dome edge are invisible.
 
-The `clipDome` field in the sprite module is a SVG path string for the dome arc. At startup:
+The `clipPath` field in the sprite module is an SVG path string. At startup:
 
 ```js
-sprite._domeClipPath = new Path2D(sprite.clipDome);
+sprite._clipPath = new Path2D(sprite.clipPath);
 ```
 
-In the draw loop, `ctx.clip(domeClipPath)` is applied before drawing any layer listed in `domeLayers`. The clip is scoped inside a `ctx.save()` / `ctx.restore()` pair so it does not affect non-dome layers.
+In the draw loop, `ctx.clip(sprite._clipPath)` is applied before drawing any layer listed in `clippedLayers`. The clip is scoped inside a `ctx.save()` / `ctx.restore()` pair so it does not affect other layers.
 
 ---
 
@@ -388,7 +412,7 @@ In the draw loop, `ctx.clip(domeClipPath)` is applied before drawing any layer l
 | Tiny (r < 10px) | disc + dome | filled | hidden | hidden |
 | Small and above | all layers | filled | visible | visible |
 
-The renderer checks `screenRadius` before the draw loop and skips the appropriate layer ids based on the table above.
+Detail LOD is generic: each layer may carry a `minRadius` (authored as `data-min-radius` in the SVG), and the renderer skips any layer whose `minRadius` exceeds the current `screenRadius`. The table above is realised by tagging the mammoth and porthole layers with appropriate thresholds.
 
 ---
 
@@ -427,19 +451,24 @@ The primary iOS constraint (§15.3 of design.md) is Metal pipeline state changes
 ## 11. File Layout
 
 ```
-assets/
-  mammoth-saucer.svg            ← artist source; not shipped in build
+assets/sprites/
+  ufo.svg                       ← artist sources; not shipped in build
+  mammoth-saucer.svg
 
 scripts/
-  build-sprites.mjs             ← build-time converter (Node.js)
+  build-sprites.mjs             ← build-time converter (Node.js, no dependencies)
 
 src/rendering/sprites/
-  mammoth-saucer.sprite.js      ← generated output; committed to repo
-  SpriteRenderer.js             ← drawStation(), _drawTransformLayer(), etc.
-  spriteUtils.js                ← _interpolateKeyframes(), _resolveColor(), lerp helpers
+  ufo.sprite.js                 ← generated output; committed to repo
+  mammoth-saucer.sprite.js
+  SpriteRenderer.js             ← initSprite(), drawSprite() — entity-agnostic
+  spriteUtils.js                ← interpolateKeyframes(), resolveColor(), lerp helpers
+  index.js                      ← sprite registry: getSprite(name) → initialised module
 ```
 
-`SpriteRenderer.js` replaces the `drawStation()` method in `Renderer.js` for stations using the new sprite system. The existing procedural Death Star renderer (`drawStation` in `Renderer.js`) is removed once the sprite system is proven.
+Adding a new sprite for any object type is: drop the `.svg` in `assets/sprites/`, run the build script, register the generated module in `index.js`, and call `drawSprite()` from the relevant draw path.
+
+**Current integration**: `Renderer._drawStation()` routes normal (non-drone, non-target) ships to `_drawSpriteStation()` — which draws the `ufo` sprite — only when the performance mode is exactly `'experimental'`. All other modes use the existing procedural Death Star renderer (`_drawNormalStation`), which is removed only once the sprite system is proven.
 
 ---
 

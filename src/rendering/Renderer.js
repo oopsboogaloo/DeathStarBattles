@@ -8,6 +8,7 @@ import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
 import { PLANET_OVERLAYS } from './planetOverlays.js';
+import { getSprite, drawSprite } from './sprites/index.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -56,6 +57,7 @@ export class Renderer {
     this._gasGiantBitmap      = null;      // ImageBitmap snapshot for zero-flush drawImage
     this._smokeImg            = null;
     this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
+    this._spriteColorCache    = new Map(); // "r,g,b" → {primary, secondary} CSS colours
     this._loadSmokeSprite();
 
     this._debugOn   = false;
@@ -1124,6 +1126,9 @@ export class Renderer {
     }
     if (station.visualStyle === 'drone') {
       this._drawDroneStation(ctx, station);
+    } else if (this._performance === 'experimental') {
+      // Sprite-based ship rendering — experimental performance mode only
+      this._drawSpriteStation(ctx, station);
     } else {
       this._drawNormalStation(ctx, station);
     }
@@ -1139,6 +1144,44 @@ export class Renderer {
     if ((station.mindControlFlash ?? 0) > 0) {
       this._drawMindControlFlash(ctx, station);
     }
+  }
+
+  // Sprite-based ship (see src/rendering/sprites/). Used instead of the
+  // procedural Death Star when performance mode is exactly 'experimental'.
+  _drawSpriteStation(ctx, station) {
+    const cx = station.position.x * this.conv;
+    const cy = station.position.y * this.conv;
+    const r  = Math.max(3, station.radius * this.conv);
+
+    const alpha = station.status === 'exploding'
+      ? Math.max(0, 1 - station.explosionT * 2.5)
+      : 1;
+    if (alpha <= 0) return;
+
+    const sprite = getSprite('ufo');
+    // Global wall-clock phase — all ships animate in sync, no per-station state
+    const animPhase = (performance.now() % sprite.duration) / sprite.duration;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawSprite(ctx, sprite, cx, cy, r, this._spriteTeamColors(station.colour), animPhase);
+    ctx.restore();
+  }
+
+  // Cached {primary, secondary} CSS colours per team colour. Secondary is a
+  // lighter shade of the team colour, used for rim trim and portholes.
+  _spriteTeamColors(colour) {
+    const key = `${colour[0]},${colour[1]},${colour[2]}`;
+    let c = this._spriteColorCache.get(key);
+    if (!c) {
+      const [r, g, b] = colour;
+      c = {
+        primary:   `rgb(${r},${g},${b})`,
+        secondary: `rgb(${Math.min(255, r + 90)},${Math.min(255, g + 90)},${Math.min(255, b + 90)})`,
+      };
+      this._spriteColorCache.set(key, c);
+    }
+    return c;
   }
 
   _drawNormalStation(ctx, station) {

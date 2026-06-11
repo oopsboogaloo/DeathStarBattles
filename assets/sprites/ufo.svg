@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ufo.svg — super-simple flying saucer, the first example sprite for the
+  generic sprite pipeline (see spec/space-mammoth-sprite-spec.md).
+
+  Authoring conventions:
+  - Document order = paint order (first element drawn at the bottom).
+  - fill #ff0000 is replaced with team.primary, #0000ff with team.secondary.
+  - data-keyframes  : JSON array of transform keyframes {t, tx, ty, rot, scale, opacity}.
+  - data-min-radius : layer is skipped when the on-screen radius (px) is below this.
+  - data-duration   : on the root svg element, ms for one full animation loop.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" data-duration="2400">
+
+  <!-- Engine glow under the hull — team primary colour, pulses -->
+  <ellipse id="engine-glow" cx="100" cy="122" rx="54" ry="12" fill="#ff0000"
+           data-keyframes='[{"t":0,"scale":0.9,"opacity":0.6},{"t":0.5,"scale":1.15,"opacity":1},{"t":1,"scale":0.9,"opacity":0.6}]'/>
+
+  <!-- Rim trim — team secondary colour, peeks out around the disc -->
+  <ellipse id="saucer-rim" cx="100" cy="106" rx="92" ry="28" fill="#0000ff"
+           data-min-radius="6"
+           data-keyframes='[{"t":0,"ty":0},{"t":0.5,"ty":-2.5},{"t":1,"ty":0}]'/>
+
+  <!-- Main hull disc — fixed silver -->
+  <ellipse id="saucer-disc" cx="100" cy="104" rx="88" ry="26" fill="#b8bec8"
+           data-keyframes='[{"t":0,"ty":0},{"t":0.5,"ty":-2.5},{"t":1,"ty":0}]'/>
+
+  <!-- Porthole ring — team secondary colour, hidden on small ships -->
+  <g id="saucer-ports" fill="#0000ff" data-min-radius="10"
+     data-keyframes='[{"t":0,"ty":0},{"t":0.5,"ty":-2.5},{"t":1,"ty":0}]'>
+    <circle cx="40"  cy="104" r="5"/>
+    <circle cx="70"  cy="110" r="5"/>
+    <circle cx="100" cy="112" r="5"/>
+    <circle cx="130" cy="110" r="5"/>
+    <circle cx="160" cy="104" r="5"/>
+  </g>
+
+  <!-- Glass dome on top — fixed pale blue -->
+  <path id="saucer-dome" d="M 56 100 A 44 36 0 0 1 144 100 Z" fill="#9fd0e0"
+        data-keyframes='[{"t":0,"ty":0},{"t":0.5,"ty":-2.5},{"t":1,"ty":0}]'/>
+
+</svg>
