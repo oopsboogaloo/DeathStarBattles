@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="1000"
+   height="1000"
+   viewBox="0 0 264.58333 264.58333"
+   version="1.1"
+   id="svg1"
+   xml:space="preserve"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   sodipodi:docname="minespike.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.40511539"
+     inkscape:cx="756.57456"
+     inkscape:cy="-678.81894"
+     inkscape:window-width="3484"
+     inkscape:window-height="1943"
+     inkscape:window-x="4075"
+     inkscape:window-y="70"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" /><defs
+     id="defs1"><inkscape:path-effect
+       effect="fill_between_many"
+       method="originald"
+       linkedpaths="#path4661,0,1|"
+       id="path-effect4663" /></defs><g
+     inkscape:label="mine"
+     inkscape:groupmode="layer"
+     id="layer1"><path
+       id="path4667"
+       style="opacity:1;fill:#f6ff55;stroke-width:0.386258"
+       inkscape:transform-center-x="4.0209873e-06"
+       d="m 132.57838,255.52975 -10.11594,-10.04166 -10.78576,-122.64964 4.40059,-71.943121 13.71239,-45.6704786 14.91683,45.6905566 5.58481,70.431533 -6.40093,122.15283 z"
+       sodipodi:nodetypes="ccccccccc"
+       inkscape:transform-center-y="-1.5119549e-06"
+       inkscape:label="spike" /></g></svg>
