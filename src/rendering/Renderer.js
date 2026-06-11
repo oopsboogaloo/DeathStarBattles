@@ -8,7 +8,8 @@ import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
 import { PLANET_OVERLAYS } from './planetOverlays.js';
-import { getSprite, drawSprite } from './sprites/index.js';
+import { getSprite } from './sprites/index.js';
+import { SpriteSheetCache } from './sprites/SpriteSheetCache.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -58,6 +59,7 @@ export class Renderer {
     this._smokeImg            = null;
     this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
     this._spriteColorCache    = new Map(); // "r,g,b" → {primary, secondary} CSS colours
+    this._spriteSheetCache    = new SpriteSheetCache(); // per-team pre-rendered animation frames
     this._loadSmokeSprite();
 
     this._debugOn   = false;
@@ -1162,9 +1164,14 @@ export class Renderer {
     // Global wall-clock phase — all ships animate in sync, no per-station state
     const animPhase = (performance.now() % sprite.duration) / sprite.duration;
 
+    // All same-team ships are pixel-identical within a frame (global phase), so
+    // draw from the per-team pre-rendered sheet: one drawImage per ship instead
+    // of ~23 path calls — required for 96 ships at 60fps on iPad.
+    const key = `${station.colour[0]},${station.colour[1]},${station.colour[2]}`;
     ctx.save();
     ctx.globalAlpha = alpha;
-    drawSprite(ctx, sprite, cx, cy, r, this._spriteTeamColors(station.colour), animPhase);
+    this._spriteSheetCache.draw(ctx, sprite, cx, cy, r, key,
+                                this._spriteTeamColors(station.colour), animPhase);
     ctx.restore();
   }
 

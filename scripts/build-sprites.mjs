@@ -96,7 +96,7 @@ function buildSprite(svgPath) {
   const viewBox = (attr(svgTag, 'viewBox') ?? '0 0 100 100').trim().split(/[\s,]+/).map(Number);
   const duration = num(svgTag, 'data-duration', 2400);
 
-  const sprite = { duration, viewBox, layers: [] };
+  const sprite = { name, duration, viewBox, layers: [] };
   const morphGroups = new Map(); // layerId → [{n, t, d}]
 
   // Scan top-level elements in document order

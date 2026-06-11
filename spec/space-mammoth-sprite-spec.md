@@ -435,9 +435,11 @@ const animPhase = (now % sprite.duration) / sprite.duration;  // 0–1
 
 | Scenario | Target |
 |---|---|
+| **96 ships, full animation** | **60fps on iPad (A-series); sprite draw < 2ms per frame** |
 | 12 stations, full animation | < 0.5ms draw time per frame on iPad (A-series) |
-| Per-station draw call budget | ≤ 25 canvas calls (save/restore/fill/clip) |
-| Memory | No per-frame allocations in the draw loop |
+| Per-instance draw budget (direct vector path) | ≤ 25 canvas calls (save/restore/fill/clip) |
+| Per-instance draw budget (cached sheet path) | 1 `drawImage` call |
+| Memory | No per-frame allocations in the draw loop; ≈1.5MB sheet per team in play |
 
 The primary iOS constraint (§15.3 of design.md) is Metal pipeline state changes. The sprite renderer is designed to avoid them:
 
@@ -445,6 +447,16 @@ The primary iOS constraint (§15.3 of design.md) is Metal pipeline state changes
 - No `createRadialGradient()` in the draw loop
 - Minimal `globalCompositeOperation` changes (engine glow may use `'lighter'` but is scoped)
 - `Path2D` objects are pre-created at startup; morph layers use direct canvas commands
+
+### 10.1 Scaling to many ships — per-team sprite sheets
+
+Direct vector drawing costs ~23 canvas calls per instance; at 96 ships that is ~2,200 path fills per frame, too many for the iPad Metal backend. The renderer instead exploits the global animation phase (§9): **all instances of a sprite with the same team colours are pixel-identical within a frame**.
+
+`SpriteSheetCache` pre-renders `SHEET_FRAMES` (24) animation phases per (sprite, team) pair into one horizontal sheet canvas, built lazily on first use — only teams actually in play pay the cost. Frames are rendered at full detail (128px, radius 64) and downscaled per ship, so per-layer LOD does not apply on this path. Each finished sheet is snapshotted to an `ImageBitmap` where supported, for zero-flush `drawImage` on iOS (same pattern as the gas giant canvas).
+
+Per-frame cost becomes **one `drawImage` per ship** plus zero path geometry. 24 frames over a 2400ms loop is one frame per 100ms; at game ship sizes the stepping is invisible.
+
+The direct vector path (`drawSprite`) remains the renderer used to *build* sheet frames, the fallback for one-off draws, and the comparison mode in `sprite-bench.html` — a standalone page that draws 96 animated ships across 12 teams with an fps/draw-time HUD and a mode toggle, for verifying the target on real hardware.
 
 ---
 
