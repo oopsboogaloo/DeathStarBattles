@@ -302,7 +302,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 25 | White Holes | 2–5 white holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 26 | Hyperspace | No planets; hyperspace is forced every turn |
 | 27 | Black Holes | 2–5 black holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
-| 28 | Big Wormhole | Two enormous wormhole portals (partially off-screen) + planets |
+| 28 | Big Wormhole | Two enormous wormhole portals, mirrored through the screen centre (partially off-screen) + planets. See §6.7. |
 | 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field |
 | 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids |
 | 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler |
@@ -364,6 +364,18 @@ Scenarios 25 (White Holes), 27 (Black Holes), and 33 (Pulsars) each have a 10% c
 **Everything else is deliberately unconstrained (see §6.2 layout variability):** the stars may sit off-screen in any direction — the separation axis may be horizontal, vertical, diagonal, at any angle. Both stars may crowd two adjacent corners or edges, producing a strong directional gravity field across the play area; or they may face each other across the screen with gravity largely cancelling in the middle. Star centres may sit anywhere their disc still peeks on-screen — placement must not be limited to a fixed box smaller than this (a fixed sampling box shorter than the sum of two star radii silently made vertical separations impossible).
 
 **Fallback:** On extreme aspect ratios where free sampling cannot separate two discs this large, the giants are placed constructively on opposite sides of the screen centre along a random axis, each just reaching on-screen, preserving the constraints above.
+
+### 6.7 Big Wormhole Scenario (id 28)
+
+**Concept:** Two enormous paired wormhole portals (capture ring radius 480) reach onto the screen from opposite sides, with rocky planets and asteroids in between.
+
+**Hard constraints:**
+- **Point symmetry is required:** the two portals must be exact mirrors of each other through the screen centre, so that a bullet shot into the visible arc of one ring exits the other ring on-screen. Placement freedom applies only to the first portal; the partner is always its mirror.
+- **Equal gravity:** both portals have the same mass (2400 each); the gravitational field must be as symmetric as the geometry.
+- **No ring overlap:** the two capture rings must never overlap (equivalently, the first centre must sit at least one ring radius from the screen centre). Overlapping paired rings can re-capture an exiting bullet and burn its teleport budget.
+- **Both rings partly visible** (≥ ~6% of screen height of ring depth on-screen) and the standard free-play-area floor (§6.2) applies to the combined ring coverage.
+
+**Within those limits, orientation and separation are deliberately free (§6.2):** the portal axis may lie at any angle, and the ring separation varies continuously from nearly touching (a narrow corridor between the rings) to far apart in opposite corners. Placement must not be quantized to fixed corner/edge modes. A corner placement is used as a constructive fallback if sampling fails.
 
 ---
 

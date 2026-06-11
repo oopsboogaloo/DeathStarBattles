@@ -978,29 +978,42 @@ export class ScenarioFactory {
         {
           const ir = 480;  // capture / visual ring radius (6× the original 80)
 
-          // Centre sits outside the screen corner at distance D along each axis.
-          // The ring reaches the screen only when ir > D*√2, i.e. D < ir/√2 ≈ 0.707*ir.
-          // D varies from 0.30*ir (~54° arc, deeper into play area) to 0.62*ir (~16° arc, tight corner sliver).
-          const D = ir * (0.30 + rng.next() * 0.32);
-
-          const bigR = (rng.next()*0.2 + rng.next()*0.2)*gh + 1.5*gh;
-
-          // Pick placement mode: 0=corners, 1=top+bottom, 2=left+right
-          const placement = Math.floor(rng.next() * 3);
-          let cx0, cy0;
-          if (placement === 1) {
-            // Top or bottom edge — x anywhere along the screen width
-            cx0 = rng.next() * gw;
-            cy0 = rng.next() < 0.5 ? -D : gh + D;
-          } else if (placement === 2) {
-            // Left or right edge — y anywhere along the screen height
-            cx0 = rng.next() < 0.5 ? -D : gw + D;
-            cy0 = rng.next() * gh;
-          } else {
-            // Corners
+          // The pair must stay point-symmetric through the screen centre so a
+          // bullet shot into one ring exits the other on-screen. Within that,
+          // the first centre is sampled freely and rejected until the layout
+          // is sound — any orientation and separation can occur (§6.2):
+          //  • both rings peek on-screen (mirroring preserves this for w1)
+          //  • rings never overlap — needs dist(c0, screen centre) ≥ ir
+          //  • ≥20% of the screen stays outside both rings
+          const minVis = 0.06 * gh; // each ring must reach this far on-screen
+          const minGap = 10;
+          const span   = ir - minVis;
+          let cx0 = 0, cy0 = 0, ok = false;
+          for (let attempt = 0; attempt < 500 && !ok; attempt++) {
+            cx0 = -span + rng.next() * (gw + 2 * span);
+            cy0 = -span + rng.next() * (gh + 2 * span);
+            ok = Math.hypot(cx0 - gw / 2, cy0 - gh / 2) >= ir + minGap / 2
+              && Math.hypot(Math.max(-cx0, 0, cx0 - gw), Math.max(-cy0, 0, cy0 - gh)) <= span;
+            if (ok) {
+              let free = 0;
+              for (let i = 0; i < 20; i++)
+                for (let j = 0; j < 20; j++) {
+                  const px = (i / 20) * gw, py = (j / 20) * gh;
+                  if (Math.hypot(px - cx0, py - cy0) >= ir &&
+                      Math.hypot(px - (gw - cx0), py - (gh - cy0)) >= ir) free++;
+                }
+              ok = free >= 80; // ≥20% of the 20×20 grid, matching _validate
+            }
+          }
+          // Constructive fallback: a corner placement at depth D can never
+          // overlap its mirror at any aspect ratio.
+          if (!ok) {
+            const D = ir * (0.30 + rng.next() * 0.32);
             cx0 = rng.next() < 0.5 ? -D : gw + D;
             cy0 = rng.next() < 0.5 ? -D : gh + D;
           }
+
+          const bigR = (rng.next()*0.2 + rng.next()*0.2)*gh + 1.5*gh;
           const w0 = new Planet({
             position: new Vec2(cx0, cy0), radius: bigR,
             density: 2400/(bigR*bigR), mass: 2400,
