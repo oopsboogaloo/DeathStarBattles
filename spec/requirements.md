@@ -268,10 +268,10 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 
 ## 6. Scenarios
 
-36 named scenarios control how planets are placed and what types appear. A "lucky dip" option picks randomly, weighted towards the more common scenarios:
+37 named scenarios control how planets are placed and what types appear. A "lucky dip" option picks randomly, weighted towards the more common scenarios:
 - **25% chance** — picks from scenarios 1–6 (Planetary through Jovian)
 - **63% chance** — picks from scenarios 1–19 (common + uncommon range)
-- **12% chance** — picks from the full 1–36 pool
+- **12% chance** — picks from the full 1–37 pool
 
 | # | Name | Description |
 |---|---|---|
@@ -311,6 +311,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 34 | Wormhole Tunnel | The interior of a wormhole. A boundary rift forms a rough oval loop around the play area; 2–6 random interior bodies. Special tunnel background. See §6.5. |
 | 35 | Binary Wormhole | Same layout as Binary Star, but the two stars are a paired wormhole (purple, linked) of the same size and mass + rocky bodies. 10% chance of extreme version (§6.4). |
 | 36 | Giant Self Wormhole | Same layout as Red Giant, but the star is a yellow self wormhole of the same size and mass + asteroid filler |
+| 37 | Giant Wormhole Network | Same layout as Star Cluster, but every star is a red network wormhole of the same size and mass — shots exit via a random other wormhole on the map |
 
 ### 6.1 Wildcard Features
 A configurable wildcard frequency option controls whether a bonus special object is injected into each scenario. When enabled, the injected object is one of: extra wormhole pair, wormhole triple, random-wormhole, white dwarf, black hole, or space rift (10% of wildcard rolls). Frequency options: Off / Very Rare / Rare (default) / Occasional / Common / Always.

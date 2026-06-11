@@ -729,6 +729,15 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 37: Giant Wormhole Network ────────────────────────────────────────
+      case 37: {
+        // Star Cluster layout with every star swapped for a red network
+        // wormhole — shots exit via a random other wormhole on the map.
+        for (let i = 0; i < nPlanets; i++)
+          planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.WORMHOLE_NETWORK, [255,55,55], ShadingStyle.WORMHOLE));
+        break;
+      }
+
       // ── 6: Jovian ─────────────────────────────────────────────────────────
       case 6: {
         const bigR = rng.nextInRange(80, 160) + 40;
