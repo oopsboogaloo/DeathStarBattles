@@ -733,8 +733,35 @@ export class ScenarioFactory {
       case 37: {
         // Star Cluster layout with every star swapped for a red network
         // wormhole — shots exit via a random other wormhole on the map.
-        for (let i = 0; i < nPlanets; i++)
-          planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.WORMHOLE_NETWORK, [255,55,55], ShadingStyle.WORMHOLE));
+        // Extreme: the network is replaced by a random mix of yellow self
+        // wormholes, purple linked pairs and blue cyclic triples. Rolled from
+        // rn[0] so the choice survives _validate retries (matches case 35).
+        const extreme37 = forceExtreme || rn[0] < 0.10;
+        if (extreme37) isExtreme = true;
+        if (!extreme37) {
+          for (let i = 0; i < nPlanets; i++)
+            planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.WORMHOLE_NETWORK, [255,55,55], ShadingStyle.WORMHOLE));
+          break;
+        }
+        const mkWh = (type, colour) =>
+          makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, type, colour, ShadingStyle.WORMHOLE);
+        let remaining = nPlanets;
+        while (remaining > 0) {
+          const size = 1 + rng.nextInt(Math.min(3, remaining)); // group of 1–3
+          if (size === 1) {
+            planets.push(mkWh(PlanetType.WORMHOLE_SELF, [255,255,55]));
+          } else if (size === 2) {
+            const wa = mkWh(PlanetType.WORMHOLE_PAIRED, [255,55,255]);
+            const wb = mkWh(PlanetType.WORMHOLE_PAIRED, [255,55,255]);
+            wa.partner = wb; wb.partner = wa;
+            planets.push(wa, wb);
+          } else {
+            const wc = [0,1,2].map(() => mkWh(PlanetType.WORMHOLE_CYCLIC, [55,55,255]));
+            wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
+            planets.push(...wc);
+          }
+          remaining -= size;
+        }
         break;
       }
 
