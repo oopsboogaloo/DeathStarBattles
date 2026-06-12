@@ -353,7 +353,11 @@ export class PlanetRenderer {
   // Display radius is 1.8× physics radius
   // ----------------------------------------------------------------
   static _drawWormhole(ctx, planet, conv) {
-    if (planet.radius > 100) {
+    // Giant rendering only when the capture ring was explicitly decoupled
+    // from the physics radius (Big Wormhole's huge off-screen portals).
+    // Large wormholes whose capture ring IS their radius use the standard
+    // style — its bright rim already sits at the capture boundary.
+    if (planet.radius > 100 && planet.impactRadius !== planet.radius) {
       PlanetRenderer._drawGiantWormhole(ctx, planet, conv);
       return;
     }
@@ -378,7 +382,8 @@ export class PlanetRenderer {
   }
 
   // ----------------------------------------------------------------
-  // Giant wormhole — dedicated renderer for radius > 100.
+  // Giant wormhole — dedicated renderer for portals whose capture ring
+  // (impactRadius) is decoupled from their physics radius.
   // The brightest ring sits exactly at impactRadius (the physics capture
   // boundary), so the visual precisely matches where bullets teleport.
   // ----------------------------------------------------------------

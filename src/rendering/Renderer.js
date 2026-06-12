@@ -187,7 +187,11 @@ export class Renderer {
           this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
         }
       } else if (planet.shading === ShadingStyle.WORMHOLE) {
-        if (planet.radius > 100) {
+        // Giant particle system only for portals whose capture ring is
+        // decoupled from the physics radius (Big Wormhole); large wormholes
+        // with impactRadius === radius keep the standard swirl, matching
+        // PlanetRenderer._drawWormhole.
+        if (planet.radius > 100 && planet.impactRadius !== planet.radius) {
           this._giantWormholeParticles.set(
             planet, new GiantWormholeParticles(planet, this.gameWidth, this.gameHeight)
           );
