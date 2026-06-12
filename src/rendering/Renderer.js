@@ -782,6 +782,12 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
       ctx.fillText(labels[station.frozen] ?? labels[1], this._vpW / 2, this._vpH - 60);
+    } else if ((station.electrified ?? 0) > 0) {
+      const labels = ['', 'E L E C T R I F I E D', 'D O U B L E   E L E C T R I F I E D', 'T R I P L E   E L E C T R I F I E D'];
+      const pulse  = 0.55 + 0.45 * Math.sin(Date.now() / 150);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
+      ctx.fillText(labels[station.electrified] ?? labels[1], this._vpW / 2, this._vpH - 60);
     } else if (station.hyperspaceQueued) {
       const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 250);
       ctx.textAlign = 'center';
@@ -1271,7 +1277,7 @@ export class Renderer {
     if ((station.frozen ?? 0) > 0 || (station.frozenFlash ?? 0) > 0) {
       this._drawFrozenOverlay(ctx, station);
     }
-    if ((station.electrifiedFlash ?? 0) > 0) {
+    if ((station.electrified ?? 0) > 0 || (station.electrifiedFlash ?? 0) > 0) {
       this._drawElectrifiedOverlay(ctx, station);
     }
     if ((station.mindControlFlash ?? 0) > 0) {
@@ -2844,11 +2850,15 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawElectrifiedOverlay(ctx, station) {
-    const conv  = this.conv;
-    const cx    = station.position.x * conv;
-    const cy    = station.position.y * conv;
-    const r     = Math.max(3, station.radius * conv);
-    const alpha = (station.electrifiedFlash ?? 0);
+    const conv   = this.conv;
+    const cx     = station.position.x * conv;
+    const cy     = station.position.y * conv;
+    const r      = Math.max(3, station.radius * conv);
+    const stacks = station.electrified ?? 0;
+    const flash  = station.electrifiedFlash ?? 0;
+
+    // Use whichever is higher — ongoing condition (steady crackle) or residual hit flash
+    const alpha = Math.max(stacks > 0 ? 0.7 : 0, flash);
     if (alpha <= 0) return;
 
     ctx.save();
@@ -2859,8 +2869,8 @@ export class Renderer {
     ctx.lineWidth   = Math.max(1, r * 0.07);
     ctx.stroke();
 
-    // Flickering jagged arcs
-    const numArcs = 3;
+    // Flickering jagged arcs — more arcs per stack level (3 / 5 / 7)
+    const numArcs = 3 + Math.max(0, stacks - 1) * 2;
     for (let i = 0; i < numArcs; i++) {
       const startAngle = Math.random() * Math.PI * 2;
       const arcLen     = 0.4 + Math.random() * 0.8;

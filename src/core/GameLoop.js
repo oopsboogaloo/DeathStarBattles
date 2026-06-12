@@ -852,9 +852,10 @@ export class GameLoop {
       // No humans alive — stay in Fast FWD for all remaining AI turns
     }
     this._processStoryEvents(); // may spawn stations and set storyDialogText
-    // Decrement frozen for stations that served their frozen turn last turn
+    // Decrement frozen/electrified for stations that served the condition last turn
     for (const s of this.gs.allStations) {
-      if (s._frozenActive) { s.frozen = Math.max(0, s.frozen - 1); s._frozenActive = false; }
+      if (s._frozenActive)      { s.frozen      = Math.max(0, s.frozen - 1);             s._frozenActive      = false; }
+      if (s._electrifiedActive) { s.electrified = Math.max(0, (s.electrified ?? 0) - 1); s._electrifiedActive = false; }
     }
     this._turnOrder = this.gs.allStations.filter(s => s.status === 'active' && s.role !== 'target');
     this._turnIdx   = 0;
@@ -886,8 +887,10 @@ export class GameLoop {
       const station = this._turnOrder[this._turnIdx];
 
       // Frozen: station skips its turn; frozen supersedes electrified
+      // (electrified still decrements in the background — frozen-condition-spec §7.1)
       if ((station.frozen ?? 0) > 0) {
         station._frozenActive = true;  // signals _startTurn to decrement next turn
+        if ((station.electrified ?? 0) > 0) station._electrifiedActive = true;
         station.frozenFlash   = 1.0;
         station.velocity      = null;
         this._setActive(station);
@@ -899,14 +902,27 @@ export class GameLoop {
         continue;
       }
 
-      // Electrified: auto-fire a random cannon shot regardless of team type
-      if (station.electrified) {
-        station.electrified    = false;
+      // Electrified: angle/power randomised — the station fires (and moves) at
+      // these values; the player cannot control them, only end the turn
+      if ((station.electrified ?? 0) > 0) {
+        station._electrifiedActive = true;  // signals _startTurn to decrement next turn
+        station.electrifiedFlash   = 1.0;
         station.angle          = Math.floor(Math.random() * 360);
         station.power          = Math.floor(Math.random() * 700) + 100;
         station.selectedWeapon = WeaponId.CANNON;
-        station.velocity       = null;
+        if (this.gs.stationMovement) {
+          const moveAngle = Math.random() * Math.PI * 2;
+          const moveSpeed = 0.005 + Math.random() * 0.015;
+          station.velocity = new Vec2(Math.cos(moveAngle) * moveSpeed, Math.sin(moveAngle) * moveSpeed);
+          station._moveDistRemaining = this._getMaxMoveDist(station);
+        } else {
+          station.velocity = null;
+        }
         this._setActive(station);
+        if (station.team.isHuman) {
+          this.gs.waitingForInput = true;
+          return;
+        }
         this._turnIdx++;
         continue;
       }
@@ -1211,7 +1227,7 @@ export class GameLoop {
             target.armourLayers--;
             target.armourFlash = 1.0;
           } else {
-            target.electrified      = true;
+            target.electrified      = Math.min(3, (target.electrified ?? 0) + 1);
             target.electrifiedFlash = 1.0;
           }
         }

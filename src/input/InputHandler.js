@@ -25,22 +25,24 @@ export class InputHandler {
     // Aiming keys only when waiting for human input
     if (!this._isHumanAiming()) return;
 
-    const frozen = loop.gs?.activeStation?.frozen ?? 0;
+    // Frozen and electrified stations cannot be controlled — only End Turn
+    const locked = (loop.gs?.activeStation?.frozen ?? 0) > 0 ||
+                   (loop.gs?.activeStation?.electrified ?? 0) > 0;
 
     switch (e.key) {
       // Angle fine/coarse (Z/A = counter-clockwise = ◄, X/S = clockwise = ►)
-      case 'z': case 'Z': if (!frozen) loop.humanAngle(+0.1);  break;
-      case 'x': case 'X': if (!frozen) loop.humanAngle(-0.1);  break;
-      case 'a': case 'A': if (!frozen) loop.humanAngle(+0.5);  break;
-      case 's': case 'S': if (!frozen) loop.humanAngle(-0.5);  break;
+      case 'z': case 'Z': if (!locked) loop.humanAngle(+0.1);  break;
+      case 'x': case 'X': if (!locked) loop.humanAngle(-0.1);  break;
+      case 'a': case 'A': if (!locked) loop.humanAngle(+0.5);  break;
+      case 's': case 'S': if (!locked) loop.humanAngle(-0.5);  break;
       // Power fine/coarse
-      case 'k': case 'K': if (!frozen) loop.humanPower(+1);  break;
-      case 'm': case 'M': if (!frozen) loop.humanPower(-1);  break;
-      case 'j': case 'J': if (!frozen) loop.humanPower(+10); break;
-      case 'n': case 'N': if (!frozen) loop.humanPower(-10); break;
-      // Actions (weapon/hyperspace disabled while frozen; End Turn always allowed)
-      case 'w': case 'W':  if (!frozen) loop.humanCycleWeapon(); break;
-      case 'h': case 'H':  if (!frozen) loop.humanHyperspace(); break;
+      case 'k': case 'K': if (!locked) loop.humanPower(+1);  break;
+      case 'm': case 'M': if (!locked) loop.humanPower(-1);  break;
+      case 'j': case 'J': if (!locked) loop.humanPower(+10); break;
+      case 'n': case 'N': if (!locked) loop.humanPower(-10); break;
+      // Actions (weapon/hyperspace disabled while locked; End Turn always allowed)
+      case 'w': case 'W':  if (!locked) loop.humanCycleWeapon(); break;
+      case 'h': case 'H':  if (!locked) loop.humanHyperspace(); break;
       case 'Enter':        loop.humanFire();        break;
     }
   }
@@ -69,7 +71,7 @@ export class InputHandler {
     if (!this._isHumanAiming()) return;
     const station = this.loop.gs.activeStation;
     if (!station || station.status !== 'active') return;
-    if ((station.frozen ?? 0) > 0) return;
+    if ((station.frozen ?? 0) > 0 || (station.electrified ?? 0) > 0) return;
 
     const conv = this.renderer.conv;
     const ox   = this.renderer._ox;

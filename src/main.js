@@ -320,17 +320,20 @@ function updateButtons(gs) {
   humanEliminatedBar.style.display = allHumansGone ? 'flex' : 'none';
 
   const isTP = gs.tpGame != null;
+  // Frozen/electrified stations cannot be controlled — only End Turn stays active
+  const conditionLocked     = (gs.activeStation?.frozen ?? 0) > 0 ||
+                              (gs.activeStation?.electrified ?? 0) > 0;
   btnBar.style.display      = isAiming ? 'flex' : 'none';
-  moveBtn.style.display     = (isAiming && gs.stationMovement && !isTP) ? 'inline-block' : 'none';
-  weaponBtn.style.display   = isTP ? 'none' : 'inline-block';
+  moveBtn.style.display     = (isAiming && gs.stationMovement && !isTP && !conditionLocked) ? 'inline-block' : 'none';
+  weaponBtn.style.display   = (isTP || conditionLocked) ? 'none' : 'inline-block';
   moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : (_minimalUI ? 'M' : 'Move');
   moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
   gameOverBar.style.display = 'none';
 
-  // AimControls: shown when aiming, not during move selection, not during hyperspace, not when frozen
+  // AimControls: shown when aiming, not during move selection, not during hyperspace,
+  // not when frozen/electrified
   const hyperspaceQueued = gs.activeStation?.hyperspaceQueued;
-  const stationFrozen    = (gs.activeStation?.frozen ?? 0) > 0;
-  if (isAiming && !gs.waitingForMove && !hyperspaceQueued && !stationFrozen) {
+  if (isAiming && !gs.waitingForMove && !hyperspaceQueued && !conditionLocked) {
     aimControls.show();
     aimControls.update(gs.activeStation);
   } else {

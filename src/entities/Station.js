@@ -66,7 +66,7 @@ export class Station {
     this.armourLayers    = 0;            // current count of armour layers
     this.armourFlash     = 0;            // 1→0 flash animation when a layer is absorbed
     this.implosion       = false;        // killed by gravity cannon — shrinks to nothing
-    this.electrified     = false;        // auto-fires cannon next turn
+    this.electrified     = 0;            // 0–3 stack; angle/power randomised while > 0
     this.electrifiedFlash = 0;           // 1→0 overlay animation
     this.mindControlFlash = 0;           // 1→0 overlay animation when converted by mind control
     this.frozen          = 0;            // 0–3 stack; station skips turn while > 0
