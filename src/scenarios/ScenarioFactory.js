@@ -1794,7 +1794,7 @@ export class ScenarioFactory {
           const a = visAngles[Math.floor(rng.next() * visAngles.length)] + (rng.next() - 0.5) * 0.04;
           const r = beltR + (rng.next() * 2 - 1) * halfBand;
           ScenarioFactory._placeRingAsteroid(
-            rng, sx + Math.cos(a) * r, sy + Math.sin(a) * r, planets, richProb, 2.5 + rng.next() * 3);
+            rng, sx + Math.cos(a) * r, sy + Math.sin(a) * r, planets, richProb, 4 + rng.next() * 4);
         }
 
         // Outer system — atmosphere halos pinned to match each body
