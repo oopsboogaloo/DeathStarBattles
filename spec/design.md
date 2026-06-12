@@ -1570,6 +1570,20 @@ After building the canvas, `createImageBitmap(canvas)` is called asynchronously.
 
 `experimental` mode skips the blur (the `blurred` flag is false). This is useful for performance testing — removing the blur from the baked canvas reduces the build cost and avoids any residual blur-related overhead in the `drawImage` composite.
 
+#### Rings (experimental mode only)
+
+In `experimental` performance mode every gas giant is given a set of planetary rings, baked into the combined canvas (so per-frame cost is unchanged — still one `drawImage`).
+
+Ring parameters are generated lazily per planet and cached on the planet object (`planet._ringParams`), so they survive canvas rebuilds (resize, SVG-overlay load) but re-roll each game:
+
+- **Orientation** — random rotation in the screen plane (0–2π).
+- **Tilt** — random minor/major axis ratio (0.14–0.72), so rings range from near edge-on slivers to wide ellipses that visibly come "out of the page".
+- **Bands** — 2–5 concentric bands, each with independently random thickness (biased thin, occasionally broad), gap, and alpha (0.10–0.25). Band colours are the planet's base colour lerped toward a dusty off-white.
+
+Each band is filled as a true elliptical annulus (two concentric ellipses with the same axis ratio, `evenodd` fill) — the correct projection of a flat ring, unlike a uniform-width ellipse stroke.
+
+**Occlusion**: the ring is rendered in two halves, split along its major axis. The back half is drawn first (under atmosphere and body); the front half is drawn after the body and SVG overlays. Because the body is only 50% alpha, simply drawing the back half underneath would leave it too visible "through" the planet — so the back half is knocked back with a `destination-out` disc (70% erase) where it crosses the planet disc. The result: the far side of the ring shows only faintly through the gas, dimmer than the near side, which sells the depth without a physically impossible hard occlusion on a translucent body.
+
 ---
 
 ### 15.5 Wormhole Particle System

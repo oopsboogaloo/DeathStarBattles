@@ -886,6 +886,13 @@ export class Renderer {
     c.height  = this._vpH;
     const ctx = c.getContext('2d');
 
+    // Ring back halves — under atmosphere and body so the far side of each
+    // ring reads as passing behind the planet (experimental mode only)
+    const rings = this._performance === 'experimental';
+    if (rings) {
+      for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'back');
+    }
+
     // Atmosphere halos — no blur
     if (!this._simplified) {
       for (const planet of gasGiants) this._drawAtmosphere(ctx, planet);
@@ -911,12 +918,99 @@ export class Renderer {
         const overlays = this._svgOverlayCache.get(planet);
         if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
       }
+      if (rings) this._drawGasGiantRings(ctx, planet, 'front');
     }
     if (blurred) ctx.filter = 'none';
 
     this._gasGiantCanvas = c;
     this._gasGiantBitmap = null;
     createImageBitmap(c).then(bm => { if (this._gasGiantCanvas === c) this._gasGiantBitmap = bm; });
+  }
+
+  // ----------------------------------------------------------------
+  // Gas giant rings — experimental performance mode only.
+  // Each giant gets a randomised set of elliptical ring bands with a random
+  // orientation in the screen plane and a random tilt out of the page
+  // (minor/major axis ratio). Rendered in two halves split along the ring's
+  // major axis: the back half is drawn under the planet body, the front half
+  // over it. Because the body itself is translucent a hard occlusion would
+  // look wrong, so the back half is instead knocked back (destination-out)
+  // where it crosses the disc — it shows faintly through the gas, dimmer
+  // than the front half, which sells the depth.
+  // ----------------------------------------------------------------
+
+  _getGasGiantRings(planet) {
+    if (planet._ringParams !== undefined) return planet._ringParams;
+    const [ar, ag, ab] = planet.colour;
+    const bands = [];
+    const count = 2 + Math.floor(Math.random() * 4);   // 2–5 bands per giant
+    let edge = 1.30 + Math.random() * 0.25;            // innermost edge (× planet radius)
+    for (let i = 0; i < count && edge < 2.25; i++) {
+      const thick = 0.05 + Math.random() * Math.random() * 0.20; // mostly thin, occasionally broad
+      const pale  = 0.45 + Math.random() * 0.35;       // lerp toward dusty off-white
+      bands.push({
+        inner:  edge,
+        outer:  edge + thick,
+        alpha:  0.10 + Math.random() * 0.15,
+        colour: [
+          Math.round(ar + (228 - ar) * pale),
+          Math.round(ag + (218 - ag) * pale),
+          Math.round(ab + (200 - ab) * pale),
+        ],
+      });
+      edge += thick + 0.03 + Math.random() * 0.12;     // gap before the next band
+    }
+    planet._ringParams = {
+      theta:     Math.random() * Math.PI * 2,          // orientation in screen plane
+      ratio:     0.14 + Math.random() * 0.58,          // tilt out of the page (0 = edge-on)
+      outermost: bands[bands.length - 1].outer,
+      bands,
+    };
+    return planet._ringParams;
+  }
+
+  _drawGasGiantRings(ctx, planet, half) {
+    const rings = this._getGasGiantRings(planet);
+    const cx  = planet.position.x * this.conv;
+    const cy  = planet.position.y * this.conv;
+    const r   = Math.max(2, planet.radius * this.conv);
+    const ext = Math.ceil(rings.outermost * r) + 2;
+
+    const off = document.createElement('canvas');
+    off.width = off.height = ext * 2;
+    const oc  = off.getContext('2d');
+
+    oc.save();
+    oc.translate(ext, ext);
+    oc.rotate(rings.theta);
+    // Clip to one side of the ring's major axis
+    oc.beginPath();
+    oc.rect(-ext * 2, half === 'front' ? 0 : -ext * 2, ext * 4, ext * 2);
+    oc.clip();
+    for (const band of rings.bands) {
+      const [br, bg, bb] = band.colour;
+      // Annulus between two concentric ellipses with the same axis ratio —
+      // the true projection of a flat ring, unlike a uniform-width stroke
+      oc.beginPath();
+      oc.ellipse(0, 0, band.outer * r, band.outer * r * rings.ratio, 0, 0, Math.PI * 2);
+      oc.ellipse(0, 0, band.inner * r, band.inner * r * rings.ratio, 0, 0, Math.PI * 2);
+      oc.fillStyle = `rgba(${br},${bg},${bb},${band.alpha})`;
+      oc.fill('evenodd');
+    }
+    oc.restore();
+
+    if (half === 'back') {
+      // Fade the back half where it crosses the disc; the translucent body is
+      // composited over what remains, leaving a faint trace through the gas
+      oc.globalCompositeOperation = 'destination-out';
+      oc.beginPath();
+      oc.arc(ext, ext, r, 0, Math.PI * 2);
+      oc.fillStyle = 'rgba(0,0,0,0.70)';
+      oc.fill();
+      oc.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.drawImage(off, cx - ext, cy - ext);
   }
 
   _getTintedSmoke(r, g, b) {
