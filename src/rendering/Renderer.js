@@ -887,8 +887,8 @@ export class Renderer {
     const ctx = c.getContext('2d');
 
     // Ring back halves — under atmosphere and body so the far side of each
-    // ring reads as passing behind the planet (experimental mode only)
-    const rings = this._performance === 'experimental';
+    // ring reads as passing behind the planet (full and experimental modes)
+    const rings = this._performance === 'full' || this._performance === 'experimental';
     if (rings) {
       for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'back');
     }
@@ -918,9 +918,13 @@ export class Renderer {
         const overlays = this._svgOverlayCache.get(planet);
         if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
       }
-      if (rings) this._drawGasGiantRings(ctx, planet, 'front');
     }
     if (blurred) ctx.filter = 'none';
+
+    // Ring front halves — after the blur filter is reset so rings stay crisp
+    if (rings) {
+      for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'front');
+    }
 
     this._gasGiantCanvas = c;
     this._gasGiantBitmap = null;
@@ -928,9 +932,9 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // Gas giant rings — experimental performance mode only.
-  // Each giant gets a randomised set of elliptical ring bands with a random
-  // orientation in the screen plane and a random tilt out of the page
+  // Gas giant rings — full and experimental performance modes.
+  // 30% of giants get rings: a randomised set of elliptical bands with a
+  // random orientation in the screen plane and a random tilt out of the page
   // (minor/major axis ratio). Rendered in two halves split along the ring's
   // major axis: the back half is drawn under the planet body, the front half
   // over it. Because the body itself is translucent a hard occlusion would
@@ -941,6 +945,7 @@ export class Renderer {
 
   _getGasGiantRings(planet) {
     if (planet._ringParams !== undefined) return planet._ringParams;
+    if (Math.random() >= 0.30) { planet._ringParams = null; return null; }
     const [ar, ag, ab] = planet.colour;
     const bands = [];
     const count = 2 + Math.floor(Math.random() * 4);   // 2–5 bands per giant
@@ -971,6 +976,7 @@ export class Renderer {
 
   _drawGasGiantRings(ctx, planet, half) {
     const rings = this._getGasGiantRings(planet);
+    if (!rings) return;
     const cx  = planet.position.x * this.conv;
     const cy  = planet.position.y * this.conv;
     const r   = Math.max(2, planet.radius * this.conv);
