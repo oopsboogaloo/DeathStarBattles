@@ -159,6 +159,7 @@ Full start-to-finish playable game with UI.
 | 12 | Frozen condition + Electrostar + Magnetar |
 | 13 | Gravitational time dilation (black holes / white dwarfs) |
 | 14 | Space Mammoth SVG sprite system |
+| 15 | Sound FX, barriers, mines, turrets, buildings, civilised worlds, junkyard scenario, story mode |
 
 ---
 
@@ -256,3 +257,32 @@ Replaces the procedural Death Star station renderer with a vector sprite system 
 - [x] **14.8** Verify on iPad: confirm 12-station game sustains 60fps; confirm no `ctx.filter`, no `createRadialGradient`, no per-frame `Path2D` construction in the hot path.
 - [x] **14.9** Remove the procedural Death Star `drawStation` code from `Renderer.js` once sprite system is proven.
 - [x] **14.10** Update `requirements.md` §11.4 (Station Visual Design) and `design.md` §5.4 to reference the sprite system and retire the Death Star description.
+
+---
+
+## Phase 15 — Sound FX, Environmental Hazards, Buildings & Story Mode
+
+New content and systems to be specified in detail before implementation begins.
+
+### 15.1 Audio
+
+- [ ] **15.1** Sound FX — add a sound effects system. Scope TBD: engine selection (Web Audio API / Howler.js), event hooks (fire, explosion, collision, hyperspace, UI), volume control in config panel.
+
+### 15.2 Environmental Hazards
+
+- [ ] **15.2** Barrier — a solid non-gravitating obstacle that bullets and/or stations cannot pass through. Placement rules, collision behaviour, and rendering TBD.
+- [ ] **15.3** Space Mine — a stationary hazard that detonates on proximity contact with a bullet or station. Blast radius, damage model, and rendering TBD.
+- [ ] **15.4** Space Turret — a fixed emplacement that fires automatically at passing bullets or nearby stations. Fire rate, targeting logic, faction alignment, and rendering TBD.
+
+### 15.3 Structures & World Types
+
+- [ ] **15.5** Buildings — placeable structures on planets or in open space. Types, interaction rules (destructible? capturable?), and rendering TBD.
+- [ ] **15.6** Civilised World — a planet variant with visible surface cities/structures. Visual treatment, gameplay effects (bonus resources? protected status?), and integration with the scenario system TBD.
+
+### 15.4 New Scenario
+
+- [ ] **15.7** Space Junkyard scenario — a scenario themed around debris fields and derelict structures. Exact planet mix, hazard placement, background treatment, and scenario ID TBD.
+
+### 15.5 Narrative
+
+- [ ] **15.8** Story mode additions — campaign/story mode content. Structure (missions, cutscenes, progression), scripting system, and integration with existing game flow TBD.
