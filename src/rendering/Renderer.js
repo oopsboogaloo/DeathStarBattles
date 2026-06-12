@@ -682,10 +682,11 @@ export class Renderer {
       if (!this._simplified && station.particles?.length) this._drawParticles(ctx, station.particles);
     }
 
-    // Velocity indicators — all active stations with a move queued
+    // Velocity indicators — all active stations with a move queued.
+    // Electrified stations move at a hidden random vector — no indicator.
     if (gameState.stationMovement) {
       for (const station of gameState.allStations) {
-        if (station.status === 'active' && station.velocity) {
+        if (station.status === 'active' && station.velocity && (station.electrified ?? 0) === 0) {
           this._drawVelocityIndicator(ctx, station);
         }
       }
@@ -723,9 +724,11 @@ export class Renderer {
     // VFX overlays (collectable shatter, collectable grants, muzzle flashes, laser paths)
     if (gameState.vfxList?.length) this._drawVFX(ctx, gameState.vfxList);
 
-    // Aiming indicator — active station in AIMING or TP_AIMING mode
+    // Aiming indicator — active station in AIMING or TP_AIMING mode.
+    // Hidden while electrified: the randomised firing direction stays secret.
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && !active.hyperspaceQueued) {
+    if (active && active.status === 'active' && !active.hyperspaceQueued &&
+        (active.electrified ?? 0) === 0) {
       if (gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') {
         this._drawAimingIndicator(ctx, active, gameState);
       }
@@ -2846,7 +2849,9 @@ export class Renderer {
   }
 
   // ----------------------------------------------------------------
-  // Electrified station overlay — flickering arcs and outer ring
+  // Electrified station overlay — electric arcs crawling across the
+  // hull, slowly morphing (smooth functions of time, no per-frame
+  // randomness, no gradients)
   // ----------------------------------------------------------------
 
   _drawElectrifiedOverlay(ctx, station) {
@@ -2858,38 +2863,66 @@ export class Renderer {
     const flash  = station.electrifiedFlash ?? 0;
 
     // Use whichever is higher — ongoing condition (steady crackle) or residual hit flash
-    const alpha = Math.max(stacks > 0 ? 0.7 : 0, flash);
+    const alpha = Math.max(stacks > 0 ? 0.85 : 0, flash);
     if (alpha <= 0) return;
 
+    const t    = Date.now() / 1000;
+    const seed = (Number(station.id) || 0) * 2.4; // de-sync multiple electrified ships
+
     ctx.save();
-    // Outer pulsing ring
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+
+    // Arcs rooted on the rim, snaking across the hull with layered slow sine wobble
+    const numArcs = 2 + stacks; // 3 / 4 / 5 arcs at stack 1 / 2 / 3
+    const SEGS    = 9;
+    for (let i = 0; i < numArcs; i++) {
+      const ph  = seed + i * 2.4;
+      // Endpoint angles on the rim, drifting slowly around the hull
+      const th0 = ph + t * 0.30 + Math.sin(t * 0.45 + ph) * 0.7;
+      const th1 = th0 + Math.PI * (0.7 + 0.35 * Math.sin(t * 0.27 + ph * 1.7));
+      const x0  = cx + Math.cos(th0) * r, y0 = cy + Math.sin(th0) * r;
+      const x1  = cx + Math.cos(th1) * r, y1 = cy + Math.sin(th1) * r;
+      // Wobble applied perpendicular to the chord
+      const dx  = x1 - x0, dy = y1 - y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const px  = -dy / len, py = dx / len;
+
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      for (let s = 1; s < SEGS; s++) {
+        const f   = s / SEGS;
+        const env = Math.sin(f * Math.PI); // pin endpoints to the rim
+        const wob = (Math.sin(t * 1.1 + ph + s * 2.7) * 0.30 +
+                     Math.sin(t * 1.9 + ph * 1.3 + s * 5.1) * 0.14) * env * r;
+        ctx.lineTo(x0 + dx * f + px * wob, y0 + dy * f + py * wob);
+      }
+      ctx.lineTo(x1, y1);
+
+      // Per-arc shimmer so arcs brighten and fade out of phase
+      const shimmer = 0.65 + 0.35 * Math.sin(t * 2.2 + ph * 2.1);
+      // Wide soft glow stroke, then bright core over the same path
+      ctx.strokeStyle = `rgba(90,180,255,${(alpha * shimmer * 0.35).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(2, r * 0.22);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(225,245,255,${(alpha * shimmer).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, r * 0.07);
+      ctx.stroke();
+
+      // Bright contact nodes where the arcs root onto the hull
+      ctx.fillStyle = `rgba(200,235,255,${(alpha * shimmer * 0.9).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x0, y0, Math.max(1, r * 0.09), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x1, y1, Math.max(1, r * 0.09), 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Faint outer corona ring breathing with the condition
+    const breathe = 0.5 + 0.5 * Math.sin(t * 1.6 + seed);
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.4, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(140,210,255,${(alpha * 0.45).toFixed(3)})`;
-    ctx.lineWidth   = Math.max(1, r * 0.07);
+    ctx.arc(cx, cy, r * (1.3 + breathe * 0.12), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(140,210,255,${(alpha * 0.25).toFixed(3)})`;
+    ctx.lineWidth   = Math.max(1, r * 0.06);
     ctx.stroke();
 
-    // Flickering jagged arcs — more arcs per stack level (3 / 5 / 7)
-    const numArcs = 3 + Math.max(0, stacks - 1) * 2;
-    for (let i = 0; i < numArcs; i++) {
-      const startAngle = Math.random() * Math.PI * 2;
-      const arcLen     = 0.4 + Math.random() * 0.8;
-      const pts = [];
-      for (let a = startAngle; a <= startAngle + arcLen; a += 0.1) {
-        const jitter = (Math.random() - 0.5) * r * 0.18;
-        pts.push([
-          cx + Math.cos(a) * (r * 1.25 + jitter),
-          cy + Math.sin(a) * (r * 1.25 + jitter),
-        ]);
-      }
-      if (pts.length < 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p][0], pts[p][1]);
-      ctx.strokeStyle = `rgba(180,230,255,${(alpha * 0.7).toFixed(3)})`;
-      ctx.lineWidth   = Math.max(1, r * 0.06);
-      ctx.stroke();
-    }
     ctx.restore();
   }
 
