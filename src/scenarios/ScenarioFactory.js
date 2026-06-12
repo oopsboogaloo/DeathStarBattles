@@ -738,29 +738,53 @@ export class ScenarioFactory {
         // rn[0] so the choice survives _validate retries (matches case 35).
         const extreme37 = forceExtreme || rn[0] < 0.10;
         if (extreme37) isExtreme = true;
+        // Discs are placed here with pairwise separation enforced — _validate
+        // skips pairs whose centres are both off-screen (cluster bodies roam
+        // ±10% past the edges) and its give-up path can return overlapping
+        // layouts. A disc that won't fit after 150 attempts is dropped, and an
+        // area budget (55% of the screen) trims very high body counts, so
+        // crowded requests lose a few wormholes instead of overlapping.
+        const minGap = 10;
+        const areaBudget = 0.55 * gw * gh;
+        let usedArea = 0;
+        const placed = []; // {x, y, r}
+        for (let i = 0; i < nPlanets; i++) {
+          const r = rr(rng, 70, 70, 30);
+          if (usedArea + Math.PI * r * r > areaBudget) break;
+          for (let attempt = 0; attempt < 150; attempt++) {
+            const x = rv(rng, 1.2, 0, -0.1, gw), y = rv(rng, 1.2, 0, -0.1, gh);
+            if (placed.every(p => Math.hypot(p.x - x, p.y - y) >= p.r + r + minGap)) {
+              placed.push({ x, y, r });
+              usedArea += Math.PI * r * r;
+              break;
+            }
+          }
+        }
+        const mkWh = (p, type, colour) => new Planet({
+          position: new Vec2(p.x, p.y), radius: p.r, density: 0.015,
+          type, colour, shading: ShadingStyle.WORMHOLE,
+        });
         if (!extreme37) {
-          for (let i = 0; i < nPlanets; i++)
-            planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.WORMHOLE_NETWORK, [255,55,55], ShadingStyle.WORMHOLE));
+          for (const p of placed)
+            planets.push(mkWh(p, PlanetType.WORMHOLE_NETWORK, [255,55,55]));
           break;
         }
-        const mkWh = (type, colour) =>
-          makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, type, colour, ShadingStyle.WORMHOLE);
-        let remaining = nPlanets;
-        while (remaining > 0) {
-          const size = 1 + rng.nextInt(Math.min(3, remaining)); // group of 1–3
+        let idx = 0;
+        while (idx < placed.length) {
+          const size = 1 + rng.nextInt(Math.min(3, placed.length - idx)); // group of 1–3
           if (size === 1) {
-            planets.push(mkWh(PlanetType.WORMHOLE_SELF, [255,255,55]));
+            planets.push(mkWh(placed[idx], PlanetType.WORMHOLE_SELF, [255,255,55]));
           } else if (size === 2) {
-            const wa = mkWh(PlanetType.WORMHOLE_PAIRED, [255,55,255]);
-            const wb = mkWh(PlanetType.WORMHOLE_PAIRED, [255,55,255]);
+            const wa = mkWh(placed[idx],     PlanetType.WORMHOLE_PAIRED, [255,55,255]);
+            const wb = mkWh(placed[idx + 1], PlanetType.WORMHOLE_PAIRED, [255,55,255]);
             wa.partner = wb; wb.partner = wa;
             planets.push(wa, wb);
           } else {
-            const wc = [0,1,2].map(() => mkWh(PlanetType.WORMHOLE_CYCLIC, [55,55,255]));
+            const wc = [0,1,2].map(k => mkWh(placed[idx + k], PlanetType.WORMHOLE_CYCLIC, [55,55,255]));
             wc[0].partner = wc[1]; wc[1].partner = wc[2]; wc[2].partner = wc[0];
             planets.push(...wc);
           }
-          remaining -= size;
+          idx += size;
         }
         break;
       }
