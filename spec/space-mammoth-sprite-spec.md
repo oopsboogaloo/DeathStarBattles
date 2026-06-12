@@ -4,7 +4,7 @@
 >
 > **The sprite system is object-agnostic.** The pipeline, module format, and renderer carry no station-specific assumptions: any game entity (ship, drone, projectile, pickup) can be rendered from a sprite module. The space mammoth saucer is the flagship use, not a special case.
 >
-> **Rollout**: the first integration is ship rendering via a simple `ufo` sprite, enabled **only when the performance mode is exactly `'experimental'`** (not `exp-ipad`, not `full`). All other modes keep the procedural Death Star renderer until the sprite system is proven on iPad.
+> **Rollout**: the first integration is ship rendering via a simple `ufo` sprite, enabled **only when the performance mode is exactly `'experimental'`** (not `full`). All other modes keep the procedural Death Star renderer until the sprite system is proven on iPad.
 
 ---
 

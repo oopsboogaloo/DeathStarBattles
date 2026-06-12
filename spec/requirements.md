@@ -1619,16 +1619,15 @@ The game must provide at least two user-selectable performance modes:
 - **Full** — all visual effects enabled (bloom explosions, fireball particles, wormhole particles, gas giant blur). Must hit 60 fps on the platforms above.
 - **Simplified** — reduced effects (classic arc explosions, no wormhole particles, no gas giant blur). Provides headroom for low-end devices or user preference.
 
-Two additional modes are available in developer mode only (`Ctrl+Shift+D`):
+One additional mode is available in developer mode only (`Ctrl+Shift+D`):
 
 - **Experimental** — full effects rendered with bitmaps on desktop, automatically falls back to circles on iOS (detected via user agent). Intended for visual quality testing.
-- **Exp iPad** — full effects always rendered as circles, regardless of platform. Intended for performance testing on iPad.
 
 ### 16.3 Developer Mode
 
 A hidden developer mode must be accessible via `Ctrl+Shift+D` on keyboard, or by triple-tap on the About panel (for mobile access without a keyboard). Dev mode:
 
-- Reveals the `Experimental` and `Exp iPad` performance options in the config panel.
+- Reveals the `Experimental` performance option in the config panel.
 - Unlocks all story missions regardless of completion state.
 - Displays a real-time stats overlay (toggled separately) showing: FPS, planet count, station count, bullet count, and a combined SFX particle count covering all active particle arrays (rocket smoke, comet smoke, wormhole particles, bloom particles, fireballs, fireball smoke).
 - All dev-mode options reset to hidden if dev mode is toggled off during a session.

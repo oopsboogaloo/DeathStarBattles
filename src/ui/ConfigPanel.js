@@ -422,7 +422,7 @@ export class ConfigPanel {
     this._perfValues = ['full', 'simplified'];
     const rowPerformance = this._row('PERFORMANCE',
       this._perfCtrl = this._cycle('performance', this._perfValues,
-        v => ({ full: 'Full', simplified: 'Simplified', experimental: 'Experimental', 'exp-ipad': 'Exp iPad' }[v] ?? v)));
+        v => ({ full: 'Full', simplified: 'Simplified', experimental: 'Experimental' }[v] ?? v)));
     const rowClustering  = this._row('TEAM CLUSTERING',
       this._cycle('teamClustering', ['off', 'tight', 'moderate', 'loose'],
         v => ({ off: 'Off', tight: 'Tight', moderate: 'Moderate', loose: 'Loose' }[v])));
@@ -797,13 +797,10 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
     if (this._perfValues) {
       if (enabled) {
         if (!this._perfValues.includes('experimental')) this._perfValues.push('experimental');
-        if (!this._perfValues.includes('exp-ipad'))    this._perfValues.push('exp-ipad');
       } else {
-        for (const mode of ['experimental', 'exp-ipad']) {
-          const i = this._perfValues.indexOf(mode);
-          if (i >= 0) this._perfValues.splice(i, 1);
-        }
-        if (this._d.performance === 'experimental' || this._d.performance === 'exp-ipad') {
+        const i = this._perfValues.indexOf('experimental');
+        if (i >= 0) this._perfValues.splice(i, 1);
+        if (this._d.performance === 'experimental') {
           this._d.performance = 'full';
           this._perfCtrl._refresh();
         }

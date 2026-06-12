@@ -1497,14 +1497,13 @@ Gas giants are the only planet type deliberately excluded from `bgCanvas`. Every
 
 ### 15.2 Performance Modes
 
-Four modes, exposed via the config panel. Two are hidden behind `Ctrl+Shift+D` dev mode.
+Three modes, exposed via the config panel. One is hidden behind `Ctrl+Shift+D` dev mode.
 
 | Mode | Explosion system | Particle rendering | Wormhole particles | Gas giant blur |
 |---|---|---|---|---|
 | `simplified` | Classic arc flash | Arc circles | Skipped entirely | None |
 | `full` | Bloom + fireballs | Halo+core circles | Halo+core circles | Baked in |
 | `experimental` *(dev)* | Bloom + fireballs | Bitmaps (desktop) / circles (iOS) | Gradients (desktop) / circles (iOS) | Skipped |
-| `exp-ipad` *(dev)* | Bloom + fireballs | Halo+core circles | Halo+core circles | Skipped |
 
 `experimental` auto-detects iOS/iPadOS at construction time:
 
@@ -1513,7 +1512,9 @@ this._isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 ```
 
-The second condition catches modern iPads that report `MacIntel`. When `_isIOS` is true, `experimental` routes through the same circle path as `exp-ipad`.
+The second condition catches modern iPads that report `MacIntel`. When `_isIOS` is true, `experimental` routes through the same circle path as `full`.
+
+> An `exp-ipad` dev mode (always-circles, for iPad performance testing) existed during performance tuning; it was removed once `full` adopted the circle path it validated.
 
 ---
 
@@ -1598,7 +1599,7 @@ Each wormhole planet has a `WormholeParticles` instance. Particle state is store
 
 **Gradient mode** (`experimental` on desktop): 2 concentric `createRadialGradient` passes per particle × 80 particles = 160 gradient objects created per wormhole per frame. Looks best but is expensive on iOS due to Metal pipeline flushes.
 
-**Circle mode** (`full`, `exp-ipad`, `experimental` on iOS): halo+core two-circle pattern — a large dim outer circle at 35% alpha followed by a small bright inner circle at full alpha. No gradients, no compositing state changes. The soft falloff is approximated by the size ratio rather than a gradient.
+**Circle mode** (`full`, `experimental` on iOS): halo+core two-circle pattern — a large dim outer circle at 35% alpha followed by a small bright inner circle at full alpha. No gradients, no compositing state changes. The soft falloff is approximated by the size ratio rather than a gradient.
 
 The draw method accepts a `useCircles` boolean: `particles.draw(ctx, conv, this._useCircles)`.
 
@@ -1633,7 +1634,7 @@ This avoids wasted GPU work on particles that are off-screen.
 
 ### 15.7 Ship Explosion Particle System
 
-The experimental explosion system (`full`, `experimental`, `exp-ipad`) spawns two particle types when a station is destroyed:
+The experimental explosion system (`full`, `experimental`) spawns two particle types when a station is destroyed:
 
 #### Bloom particles (`shipExplosionBloom`)
 
@@ -1641,7 +1642,7 @@ The experimental explosion system (`full`, `experimental`, `exp-ipad`) spawns tw
 
 **Bitmap mode** (`experimental` desktop): per-particle tint via shared `_tintCanvas` (cleared and redrawn each particle). Acceptable at 10 particles max.
 
-**Circle mode** (`full`, `exp-ipad`, `experimental` iOS): halo+core circles with the interpolated colour. The outer halo at 35% alpha and inner core at 45% radius give a similar soft centre-bright look to the bitmap without any offscreen canvas work.
+**Circle mode** (`full`, `experimental` iOS): halo+core circles with the interpolated colour. The outer halo at 35% alpha and inner core at 45% radius give a similar soft centre-bright look to the bitmap without any offscreen canvas work.
 
 #### Fireballs (`fireballs`)
 

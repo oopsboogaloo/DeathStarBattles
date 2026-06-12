@@ -82,8 +82,8 @@ export class Renderer {
     setPlanetRendererSimplified(this._simplified);
   }
   get _simplified()     { return this._performance === 'simplified'; }
-  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
-  get _useCircles()     { return this._performance === 'exp-ipad' || this._performance === 'full' || (this._performance === 'experimental' && this._isIOS); }
+  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'full'; }
+  get _useCircles()     { return this._performance === 'full' || (this._performance === 'experimental' && this._isIOS); }
 
   // Returns game-unit dimensions of the visible viewport.
   get worldSize() { return { w: this._vpW / (this.conv || 1), h: this._vpH / (this.conv || 1) }; }
@@ -688,7 +688,7 @@ export class Renderer {
       }
     }
 
-    // Experimental bitmap explosions (both experimental and exp-ipad)
+    // Experimental bitmap explosions (full and experimental modes)
     if (this._isExperimental) {
       if (gameState.shipExplosionBloom?.length) this._drawShipExplosionBloom(ctx, gameState.shipExplosionBloom);
       if (gameState.fireballs?.length)          this._drawFireballs(ctx, gameState.fireballs);

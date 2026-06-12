@@ -54,7 +54,7 @@ const REINF_SIGNAL_GRAVITY_MULT = 0.2;
 const REINF_SIGNAL_SPEED_MULT   = 0.5;
 
 export class GameLoop {
-  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'exp-ipad' || this._performance === 'full'; }
+  get _isExperimental() { return this._performance === 'experimental' || this._performance === 'full'; }
 
   constructor({ gameState, physics, renderer, rng, speed = 'normal', performance = 'full' }) {
     this.gs           = gameState;
