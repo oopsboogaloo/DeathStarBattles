@@ -725,12 +725,16 @@ export class Renderer {
     if (gameState.vfxList?.length) this._drawVFX(ctx, gameState.vfxList);
 
     // Aiming indicator — active station in AIMING or TP_AIMING mode.
-    // Hidden while electrified: the randomised firing direction stays secret.
+    // Frozen/electrified stations get a selection diamond instead: no aim
+    // circle or direction line (electrified aim is hidden, frozen can't fire).
     const active = gameState.activeStation;
-    if (active && active.status === 'active' && !active.hyperspaceQueued &&
-        (active.electrified ?? 0) === 0) {
+    if (active && active.status === 'active' && !active.hyperspaceQueued) {
       if (gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') {
-        this._drawAimingIndicator(ctx, active, gameState);
+        if ((active.electrified ?? 0) > 0 || (active.frozen ?? 0) > 0) {
+          this._drawSelectionDiamond(ctx, active);
+        } else {
+          this._drawAimingIndicator(ctx, active, gameState);
+        }
       }
     }
 
@@ -1464,6 +1468,29 @@ export class Renderer {
     ctx.stroke();
 
     ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Selection diamond — marks the active station when no aim circle is
+  // shown (frozen/electrified turns): square rotated 45°, same size and
+  // style as the aiming circle
+  // ----------------------------------------------------------------
+
+  _drawSelectionDiamond(ctx, station) {
+    const cx   = station.position.x * this.conv;
+    const cy   = station.position.y * this.conv;
+    const r    = Math.max(3, station.radius * this.conv);
+    const boxR = Math.max(57, 3 * r) * this._aimCircleScale;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - boxR);
+    ctx.lineTo(cx + boxR, cy);
+    ctx.lineTo(cx, cy + boxR);
+    ctx.lineTo(cx - boxR, cy);
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth   = 1;
+    ctx.stroke();
   }
 
   // ----------------------------------------------------------------
