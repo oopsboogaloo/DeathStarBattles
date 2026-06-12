@@ -1,6 +1,7 @@
 // ─── Planet SVG Overlay Config ────────────────────────────────────────────────
 //
-// Each key is a PlanetType value. The value is an array of layer definitions —
+// Each key is a PlanetType value (or a pseudo-key selected via planet.overlayKey,
+// e.g. 'earth' for Sol's Earth). The value is an array of layer definitions —
 // layers are drawn in order (first = bottom). Edit this file to tune visuals.
 //
 // Layer fields:
@@ -36,6 +37,39 @@ export const PLANET_OVERLAYS = {
       scale:         1.0,
       alpha:         0.45,
       colour:        'planetB',  // use the planet's colourB (band colour) for SVG marks
+      rotation:      'random',
+      strokeVisible: false,
+    },
+  ],
+
+  // Sol scenario Earth: green continents over the ocean-blue base colour
+  earth: [
+    {
+      svgs: [
+        'Images/planet1.svg',  'Images/planet2.svg',  'Images/planet3.svg',
+        'Images/planet5.svg',  'Images/planet7.svg',  'Images/planet9.svg',
+        'Images/planet12.svg', 'Images/planet14.svg',
+      ],
+      countRange:    [2, 3],
+      scale:         1.0,
+      alpha:         0.9,
+      colour:        'planetB',  // continent green (set on the planet by the scenario)
+      rotation:      'random',
+      strokeVisible: false,
+    },
+  ],
+
+  // Sol scenario Mars: dark rust marks over the red base
+  mars: [
+    {
+      svgs: [
+        'Images/planet1.svg',  'Images/planet3.svg',  'Images/planet5.svg',
+        'Images/planet8.svg',  'Images/planet10.svg', 'Images/planet13.svg',
+      ],
+      countRange:    [1, 2],
+      scale:         1.0,
+      alpha:         0.75,
+      colour:        'planetB',  // dark rust (set on the planet by the scenario)
       rotation:      'random',
       strokeVisible: false,
     },

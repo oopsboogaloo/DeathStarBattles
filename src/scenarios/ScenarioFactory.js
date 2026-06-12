@@ -1634,6 +1634,183 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 38: Sol — the home system Easter egg ────────────────────────────
+      case 38: {
+        // The Sun: mid-to-small yellow star, either fully on screen or
+        // straddling an edge with most of the disc still visible
+        const sunR = 40 + rng.next() * 25;
+        let sx, sy;
+        if (rng.next() < 0.55) {
+          sx = gw * (0.12 + rng.next() * 0.76);
+          sy = gh * (0.12 + rng.next() * 0.76);
+        } else {
+          const side  = rng.nextInt(4);
+          const out   = sunR * (rng.next() * 0.8 - 0.2); // −0.2R inside … 0.6R beyond
+          const along = 0.15 + rng.next() * 0.7;
+          if      (side === 0) { sx = -out;       sy = gh * along; }
+          else if (side === 1) { sx = gw + out;   sy = gh * along; }
+          else if (side === 2) { sx = gw * along; sy = -out;       }
+          else                 { sx = gw * along; sy = gh + out;   }
+        }
+        planets.push(new Planet({
+          position: new Vec2(sx, sy), radius: sunR, density: 0.015,
+          type: PlanetType.STAR, colour: [255, 214, 60], shading: ShadingStyle.GLOWING,
+        }));
+
+        // Orbital distances interpolate between just outside the Sun and the
+        // farthest screen corner — always in true solar order, but each game
+        // jitters the spacing and every body lands at a random bearing.
+        const dMax = Math.max(
+          Math.hypot(sx, sy),      Math.hypot(gw - sx, sy),
+          Math.hypot(sx, gh - sy), Math.hypot(gw - sx, gh - sy),
+        ) - 25;
+        const inner = sunR + 22;
+        const orbit = f => inner + (dMax - inner) *
+          Math.min(1, Math.max(0, f + (rng.next() - 0.5) * 0.024));
+
+        // Random on-screen, non-overlapping bearing on the orbit circle.
+        // `pad` reserves room around the body (for moons). Retries nudge the
+        // orbit slightly, never far enough to cross a neighbouring orbit.
+        const placeOnOrbit = (f, pr, pad = 0) => {
+          for (const off of [0, 0.015, -0.015, 0.03, -0.03]) {
+            const dist   = orbit(f + off);
+            const margin = pr + pad + 4;
+            const valid  = [];
+            for (let i = 0; i < 360; i++) {
+              const a = (i / 360) * Math.PI * 2;
+              const x = sx + Math.cos(a) * dist;
+              const y = sy + Math.sin(a) * dist;
+              if (x < margin || x > gw - margin || y < margin || y > gh - margin) continue;
+              let ok = true;
+              for (const p of planets) {
+                if (p.position.distanceTo(new Vec2(x, y)) < p.impactRadius + pr + pad + 12) { ok = false; break; }
+              }
+              if (ok) valid.push(a);
+            }
+            if (valid.length) {
+              const a = valid[Math.floor(rng.next() * valid.length)];
+              return new Vec2(sx + Math.cos(a) * dist, sy + Math.sin(a) * dist);
+            }
+          }
+          return null; // no room — body is skipped (vanishingly rare)
+        };
+
+        const rocky38 = (f, rMin, rMax, colour, pad = 0) => {
+          const pr  = rMin + rng.next() * (rMax - rMin);
+          const pos = placeOnOrbit(f, pr, pad);
+          if (!pos) return null;
+          const p = new Planet({
+            position: pos, radius: pr, density: 0.06,
+            type: PlanetType.ROCKY, colour: [...colour], shading: ShadingStyle.ROCKY,
+          });
+          planets.push(p);
+          return p;
+        };
+        const gas38 = (f, rMin, rMax, colA, colB) => {
+          const pr  = rMin + rng.next() * (rMax - rMin);
+          const pos = placeOnOrbit(f, pr);
+          if (!pos) return null;
+          const p = new Planet({
+            position: pos, radius: pr, density: 0.02,
+            type: PlanetType.GAS_GIANT, colour: [...colA], colourB: [...colB],
+            shading: ShadingStyle.GAS_GIANT,
+          });
+          planets.push(p);
+          return p;
+        };
+        const addMoons38 = (parent, specs) => {
+          for (const { r: mr, dist } of specs) {
+            for (let t = 0; t < 60; t++) {
+              const a  = rng.next() * Math.PI * 2;
+              const mx = parent.position.x + Math.cos(a) * dist;
+              const my = parent.position.y + Math.sin(a) * dist;
+              if (mx < mr + 4 || mx > gw - mr - 4 || my < mr + 4 || my > gh - mr - 4) continue;
+              const pos = new Vec2(mx, my);
+              let ok = true;
+              for (const p of planets) {
+                if (p === parent) continue;
+                if (p.position.distanceTo(pos) < p.impactRadius + mr + 12) { ok = false; break; }
+              }
+              if (!ok) continue;
+              const craterData = [];
+              for (let c = 0, nC = 2 + rng.nextInt(2); c < nC; c++) {
+                const ca = rng.next() * Math.PI * 2;
+                const cd = rng.next() * mr * 0.6;
+                craterData.push({ dx: Math.cos(ca) * cd, dy: Math.sin(ca) * cd, cr: 1 + rng.next() * mr * 0.25 });
+              }
+              planets.push(new Planet({
+                position: pos, radius: mr, density: 0.04,
+                type: PlanetType.MOON, colour: [200, 207, 228], shading: ShadingStyle.ROCKY,
+                craterData, hitCount: 0, crackLines: [],
+              }));
+              break;
+            }
+          }
+        };
+
+        // Inner system
+        const mercury = rocky38(0.0,  4,   5.5,  [126, 120, 114]);
+        if (mercury) {
+          mercury.overlayKey = 'moon';                                  // cratered grey
+          mercury.atmosColour = [125, 125, 130];
+        }
+        const venus = rocky38(0.09, 8, 9.5, [228, 192, 128]);           // Venus — cream
+        if (venus) venus.atmosColour = [235, 205, 130];
+        const earth = rocky38(0.18, 9, 10.5, [44, 98, 205], 28);        // Earth — ocean blue
+        if (earth) {
+          earth.colourB     = [56, 142, 66];                            // continent green
+          earth.overlayKey  = 'earth';
+          earth.polarCap    = 0.30;
+          earth.atmosColour = [90, 160, 255];
+          const lunaR = 3.5 + rng.next();
+          // moon orbits keep ≥12 clearance from the parent surface so the
+          // layout passes _validate's 10-unit body gap
+          addMoons38(earth, [{ r: lunaR, dist: earth.radius + lunaR + 12 + rng.next() * 6 }]);
+        }
+        const mars = rocky38(0.27, 5, 7, [198, 80, 48], 26);            // Mars — rust red
+        if (mars) {
+          mars.colourB     = [120, 45, 28];                             // dark rust marks
+          mars.overlayKey  = 'mars';
+          mars.polarCap    = 0.16;
+          mars.atmosColour = [225, 120, 70];
+          const phobosR = 2 + rng.next(), deimosR = 2 + rng.next();
+          addMoons38(mars, [                                            // Phobos & Deimos
+            { r: phobosR, dist: mars.radius + phobosR + 12 + rng.next() * 3 },
+            { r: deimosR, dist: mars.radius + deimosR + 19 + rng.next() * 4 },
+          ]);
+        }
+
+        // Asteroid belt between Mars and Jupiter — circular band around the Sun
+        const beltR    = orbit(0.385);
+        const halfBand = 7 + rng.next() * 6;
+        const visAngles = [];
+        for (let i = 0; i < 720; i++) {
+          const a = (i / 720) * Math.PI * 2;
+          const x = sx + Math.cos(a) * beltR, y = sy + Math.sin(a) * beltR;
+          if (x >= 6 && x <= gw - 6 && y >= 6 && y <= gh - 6) visAngles.push(a);
+        }
+        const nBelt = 9 + rng.nextInt(8);
+        for (let i = 0; i < nBelt && visAngles.length; i++) {
+          const a = visAngles[Math.floor(rng.next() * visAngles.length)] + (rng.next() - 0.5) * 0.04;
+          const r = beltR + (rng.next() * 2 - 1) * halfBand;
+          ScenarioFactory._placeRingAsteroid(
+            rng, sx + Math.cos(a) * r, sy + Math.sin(a) * r, planets, richProb, 2.5 + rng.next() * 3);
+        }
+
+        // Outer system — atmosphere halos pinned to match each body
+        const jupiter = gas38(0.52, 24, 29, [206, 164, 118], [158, 108, 72]); // Jupiter — tan bands
+        if (jupiter) jupiter.atmosColour = [220, 170, 110];
+        const saturn = gas38(0.655, 20, 25, [218, 192, 142], [184, 152, 102]); // Saturn — pale gold
+        if (saturn) { saturn.forceRings = true; saturn.atmosColour = [225, 200, 140]; }
+        const uranus = gas38(0.78, 13, 16, [158, 214, 222], [126, 188, 200]);  // Uranus — pale cyan
+        if (uranus) uranus.atmosColour = [150, 210, 220];
+        const neptune = gas38(0.89, 12.5, 15.5, [70, 112, 218], [52, 88, 182]); // Neptune — deep blue
+        if (neptune) neptune.atmosColour = [80, 110, 220];
+        const pluto = rocky38(1.0, 3, 4, [196, 172, 148]);              // Pluto — icy tan
+        if (pluto) { pluto.overlayKey = 'moon'; pluto.atmosColour = [150, 160, 180]; }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -1693,8 +1870,8 @@ export class ScenarioFactory {
 
   // Try to place a ring/belt asteroid at (ax, ay). Returns false without mutating
   // `planets` if it would overlap an existing body.
-  static _placeRingAsteroid(rng, ax, ay, planets, richProb = false) {
-    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay, richProb);
+  static _placeRingAsteroid(rng, ax, ay, planets, richProb = false, radius = null) {
+    const a = ScenarioFactory._makeRingAsteroid(rng, ax, ay, richProb, radius);
     const minGap = 10;
     for (const p of planets) {
       if (p.position.distanceTo(a.position) < p.impactRadius + a.impactRadius + minGap) return false;
@@ -1704,7 +1881,7 @@ export class ScenarioFactory {
   }
 
   // Create a single asteroid at world position (ax, ay) for ring/belt scenarios.
-  static _makeRingAsteroid(rng, ax, ay, richProb = false) {
+  static _makeRingAsteroid(rng, ax, ay, richProb = false, radius = null) {
     const n        = 6 + Math.floor(rng.next() * 5);
     const vertices = [];
     for (let i = 0; i < n; i++) {
@@ -1715,7 +1892,7 @@ export class ScenarioFactory {
     }
     const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180;
     const rotation = rng.next() * Math.PI * 2;
-    const radius   = rr(rng, 6, 3, 3); // slightly larger than regular asteroids
+    radius       ??= rr(rng, 6, 3, 3); // slightly larger than regular asteroids
     const isRich   = richProb && rng.next() < 0.05;
     const planet   = new Planet({
       position: new Vec2(ax, ay), radius, density: 0.05,

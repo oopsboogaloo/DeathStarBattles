@@ -212,7 +212,9 @@ export class Renderer {
     for (const planet of planets) {
       if (planet.shading !== ShadingStyle.ROCKY && planet.shading !== ShadingStyle.GAS_GIANT) continue;
       if (planet.type === PlanetType.MOON || planet.vertices) continue;
-      this._atmosphereCache.set(planet, ATMOS_COLS[Math.floor(Math.random() * ATMOS_COLS.length)]);
+      // atmosColour lets a scenario pin the halo colour (e.g. Sol's Earth is
+      // always blue, Mars rust); otherwise one is rolled at random
+      this._atmosphereCache.set(planet, planet.atmosColour ?? ATMOS_COLS[Math.floor(Math.random() * ATMOS_COLS.length)]);
     }
     this._renderBackground();
     this._buildGasGiantCanvas();
@@ -242,12 +244,13 @@ export class Renderer {
       if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       PlanetRenderer.draw(ctx, planet, this.conv);
     }
-    // Pass 3: SVG overlays for static bodies, then shading gradient on top
+    // Pass 3: SVG overlays for static bodies, then polar caps and shading gradient on top
     if (!this._simplified) for (const planet of this._planets) {
       if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
       const overlays = this._svgOverlayCache.get(planet);
+      if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      if (planet.polarCap) this._drawPolarCap(ctx, planet);
       if (!overlays) continue;
-      for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
       this._drawShadingOverlay(ctx, planet);
     }
     // Pass 4: space rifts above planets
@@ -945,10 +948,15 @@ export class Renderer {
 
   _getGasGiantRings(planet) {
     if (planet._ringParams !== undefined) return planet._ringParams;
-    if (Math.random() >= 0.30) { planet._ringParams = null; return null; }
+    // forceRings (e.g. Saturn in the Sol scenario) skips the roll and gets a
+    // fuller, brighter ring system
+    const forced = !!planet.forceRings;
+    if (!forced && Math.random() >= 0.30) { planet._ringParams = null; return null; }
     const [ar, ag, ab] = planet.colour;
     const bands = [];
-    const count = 2 + Math.floor(Math.random() * 4);   // 2–5 bands per giant
+    const count = forced
+      ? 3 + Math.floor(Math.random() * 3)              // 3–5 bands when forced
+      : 2 + Math.floor(Math.random() * 4);             // 2–5 bands per giant
     let edge = 1.30 + Math.random() * 0.25;            // innermost edge (× planet radius)
     for (let i = 0; i < count && edge < 2.25; i++) {
       const thick = 0.05 + Math.random() * Math.random() * 0.20; // mostly thin, occasionally broad
@@ -956,7 +964,7 @@ export class Renderer {
       bands.push({
         inner:  edge,
         outer:  edge + thick,
-        alpha:  0.10 + Math.random() * 0.15,
+        alpha:  (0.10 + Math.random() * 0.15) * (forced ? 1.5 : 1),
         colour: [
           Math.round(ar + (228 - ar) * pale),
           Math.round(ag + (218 - ag) * pale),
@@ -1058,7 +1066,9 @@ export class Renderer {
     const rand = (min, max) => min + Math.random() * (max - min);
 
     for (const planet of planets) {
-      const layerDefs = PLANET_OVERLAYS[planet.type];
+      // overlayKey lets a scenario borrow another body's overlay set
+      // (e.g. Sol's Earth continents, or Mercury's moon-style craters)
+      const layerDefs = PLANET_OVERLAYS[planet.overlayKey ?? planet.type];
       if (!layerDefs?.length) continue;
 
       const entries = [];
@@ -1155,6 +1165,23 @@ export class Renderer {
     ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
     ctx.fillStyle = grad;
     ctx.fill();
+  }
+
+  // White polar ice cap hugging the top of the disc. planet.polarCap is the
+  // cap height as a fraction of the planet radius (e.g. Earth 0.30, Mars 0.16).
+  _drawPolarCap(ctx, planet) {
+    const cx = planet.position.x * this.conv;
+    const cy = planet.position.y * this.conv;
+    const r  = Math.max(4, planet.radius * this.conv);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - r, r * 0.78, r * planet.polarCap, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(245,250,255,0.85)';
+    ctx.fill();
+    ctx.restore();
   }
 
   _drawShadingOverlay(ctx, planet) {

@@ -1002,7 +1002,7 @@ function startDemo() {
 
 function getUrlScenario() {
   const s = parseInt(new URLSearchParams(location.search).get('s'));
-  return (s >= 1 && s <= 27) ? s : null;
+  return (s >= 1 && s <= SCENARIO_COUNT) ? s : null;
 }
 
 // Canvas click on game-over → Play Again shortcut (same as the DOM button)
