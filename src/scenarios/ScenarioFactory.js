@@ -248,6 +248,10 @@ function makeWormhole(rng, gw, gh, colour, type, extras = {}) {
   });
 }
 
+// Half-size particle blobs for the large wormholes in scenarios 35–37
+// (read by Renderer via planet.particleConfig; merged over the defaults).
+const HALF_PARTICLE_CFG = Object.freeze({ blobMult: 0.13, blobMinMult: 0.03 });
+
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
@@ -707,7 +711,10 @@ export class ScenarioFactory {
           }
         }
         const nWh = whs.length;
-        for (let i = 0; i < nWh; i++) whs[i].partner = whs[(i + 1) % nWh];
+        for (let i = 0; i < nWh; i++) {
+          whs[i].partner = whs[(i + 1) % nWh];
+          whs[i].particleConfig = HALF_PARTICLE_CFG;
+        }
         planets.push(...whs);
         for (let i = nWh; i < nPlanets; i++)
           planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.08, richProb));
@@ -718,12 +725,14 @@ export class ScenarioFactory {
       case 36: {
         // Red Giant layout with the star swapped for a yellow self wormhole.
         const gsR = rng.nextInRange(80, 160) + 140;
-        planets.push(new Planet({
+        const gsw = new Planet({
           position: new Vec2(rv(rng,0.1,0.1,0.4,gw), rv(rng,0.1,0.1,0.4,gh)),
           radius: gsR, density: 0.015,
           type: PlanetType.WORMHOLE_SELF, colour: [255,255,55],
           shading: ShadingStyle.WORMHOLE,
-        }));
+        });
+        gsw.particleConfig = HALF_PARTICLE_CFG;
+        planets.push(gsw);
         for (let i = 1; i < nPlanets; i++)
           planets.push(makeAsteroid(rng, 1,0,0, 20,5,4, gw,gh, 0.065, richProb));
         break;
@@ -760,10 +769,14 @@ export class ScenarioFactory {
             }
           }
         }
-        const mkWh = (p, type, colour) => new Planet({
-          position: new Vec2(p.x, p.y), radius: p.r, density: 0.015,
-          type, colour, shading: ShadingStyle.WORMHOLE,
-        });
+        const mkWh = (p, type, colour) => {
+          const w = new Planet({
+            position: new Vec2(p.x, p.y), radius: p.r, density: 0.015,
+            type, colour, shading: ShadingStyle.WORMHOLE,
+          });
+          w.particleConfig = HALF_PARTICLE_CFG;
+          return w;
+        };
         if (!extreme37) {
           for (const p of placed)
             planets.push(mkWh(p, PlanetType.WORMHOLE_NETWORK, [255,55,55]));
