@@ -1504,6 +1504,19 @@ export class GameLoop {
           rocket.status = RocketStatus.DEAD; continue;
         }
 
+        // Collectable pickup — rocket gathers any collectable it flies through and keeps going
+        for (const c of this.gs.collectables) {
+          if (!c.alive) continue;
+          if (rocket.position.distanceSqTo(c.position) >= (ROCKET_HITBOX_RADIUS + c.radius) ** 2) continue;
+          c.alive = false;
+          const grant = this._pickCollectableGrant();
+          rocket.owner.team.addStock(grant.id, grant.charges);
+          if (this.gs.storyState && rocket.owner.team.isHuman) this.gs.storyState.collectCount++;
+          this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+          const [cr, cg, cb] = rocket.owner.team.colour;
+          this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+        }
+
         // Shield collision → detonate
         let detonated = false;
         for (const shield of this.gs.shields) {
@@ -1550,6 +1563,8 @@ export class GameLoop {
       // ── Bullet-shield reflection ──────────────────────────────────────────────
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
+        // Gravity Cannon ignores force shields and strikes the ship inside.
+        if (bullet.gravityCannon) continue;
         for (const shield of this.gs.shields) {
           if (!shield.alive) continue;
           if (bullet.owner === shield.station) {
@@ -2200,23 +2215,33 @@ export class GameLoop {
     let px = station.position.x + (station.radius + 1) * ddx;
     let py = station.position.y + (station.radius + 1) * ddy;
     const path = [new Vec2(px, py)];
-    const proxy = { owner: station, status: 'active', teleportCount: 0, trickShotDone: false };
+    const proxy = { owner: station, status: 'active', teleportCount: 0, trickShotDone: false, superLaser: true };
     const hitStations = new Set();
     const moonsToDestroy = [];
     let solidPlanetHit = null;
     let hazardHitPos   = null;
 
     for (let step = 0; step < MAX_STEPS; step++) {
+      const px0 = px, py0 = py;
       px += ddx * STEP;
       py += ddy * STEP;
       path.push(new Vec2(px, py));
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
 
-      // Enemy station hits
+      // Enemy station hits — swept segment vs circle so the wide step can't skip small ships
       for (const s of this.gs.allStations) {
         if (s.status !== 'active' || hitStations.has(s) || s.team === station.team) continue;
-        const sdx = s.position.x - px, sdy = s.position.y - py;
-        if (sdx * sdx + sdy * sdy < s.radius * s.radius) {
+        const sdx = px0 - s.position.x, sdy = py0 - s.position.y;
+        const segDx = px - px0, segDy = py - py0;
+        const a    = segDx * segDx + segDy * segDy;
+        const b    = 2 * (sdx * segDx + sdy * segDy);
+        const c    = sdx * sdx + sdy * sdy - s.radius * s.radius;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a);
+        const t2 = (-b + sq) / (2 * a);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) {
           hitStations.add(s);
           this._resolveStationHit(proxy, s);
         }
@@ -2586,8 +2611,9 @@ export class GameLoop {
     bullet.status = BulletStatus.EXPLODING;
     if (target.status !== 'active') return;
 
-    // Armour absorption — consume one layer instead of destroying the station
-    if ((target.armourLayers ?? 0) > 0) {
+    // Armour absorption — consume one layer instead of destroying the station.
+    // Gravity Cannon and Super Laser punch through armour and destroy outright.
+    if ((target.armourLayers ?? 0) > 0 && !bullet.gravityCannon && !bullet.superLaser) {
       target.armourLayers--;
       target.armourFlash = 1.0;
       return;
