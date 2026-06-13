@@ -540,6 +540,14 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
     // Draw viewport layers at their offset position
     ctx.drawImage(this.bgCanvas,     this._ox, this._oy);
+    // Animated star fire rim (experimental) sits above the cached body but below
+    // the trails canvas, so bullet/ship trails pass over the flames.
+    if (this._performance === 'experimental') {
+      ctx.save();
+      ctx.translate(this._ox, this._oy);
+      this._drawStarFireRims(ctx);
+      ctx.restore();
+    }
     ctx.drawImage(this.trailsCanvas, this._ox, this._oy);
     if (gameState) {
       ctx.save();
@@ -606,10 +614,6 @@ export class Renderer {
   }
 
   _drawLive(ctx, gameState) {
-    // Animated star fire rim (experimental) — drawn live over the cached body so
-    // its flame teeth move; the rest of the star (corona, body) stays in the bg.
-    if (this._performance === 'experimental') this._drawStarFireRims(ctx);
-
     // Wormhole particle spirals (skipped in simplified mode)
     const now = Date.now() / 1000;
     if (!this._simplified) {
