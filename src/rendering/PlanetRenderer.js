@@ -4,6 +4,11 @@ import { ShadingStyle, PlanetType, GAS_GIANT_COLOUR_PAIRS } from '../entities/Pl
 let _simplified = false;
 export function setPlanetRendererSimplified(v) { _simplified = v; }
 
+// Set by Renderer — true only in the 'experimental' performance mode, which
+// enables the up-close star fire rim (3 jagged solid layers at the surface).
+let _experimental = false;
+export function setPlanetRendererExperimental(v) { _experimental = v; }
+
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
   static drawCorona(ctx, planet, conv) {
@@ -263,8 +268,11 @@ export class PlanetRenderer {
     ctx.drawImage(off, bx0, by0);
     ctx.filter = 'none';
 
-    // Short spikey bristles on the star surface
-    if (isStar) {
+    // Star surface edge. Experimental mode swaps the thin spikey bristles for a
+    // chunkier 3-layer fire rim; all other modes keep the original spikes.
+    if (isStar && _experimental && r > 20) {
+      PlanetRenderer._drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, planet.colour);
+    } else if (isStar) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
       spOff.width  = clipW;
@@ -287,6 +295,62 @@ export class PlanetRenderer {
       ctx.drawImage(spOff, bx0, by0);
       ctx.filter = 'none';
     }
+  }
+
+  // ----------------------------------------------------------------
+  // Star fire rim (experimental) — 3 stacked jagged solid bands hugging the
+  // star surface. Each band is a filled ring with a toothed outer edge: wide,
+  // flame-tongue teeth rather than thin corona spikes. The darkest band sits
+  // furthest back (tallest teeth, drawn first), the star colour sits in the
+  // middle, and the brightest band sits nearest the surface (shortest teeth,
+  // drawn last). Fills are fully opaque; depth comes from layering, not alpha.
+  // Composited once through a light 1px blur to soften the silhouette.
+  // ----------------------------------------------------------------
+  static _drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, colour) {
+    const [pr, pg, pb] = colour;
+    const TAU   = Math.PI * 2;
+    const teeth = Math.max(36, Math.round(r * 0.28)); // ~chunky tongues, scales with size
+
+    const off = document.createElement('canvas');
+    off.width  = clipW;
+    off.height = clipH;
+    const g = off.getContext('2d');
+
+    // One jagged solid band: smooth inner edge (rInner) + toothed outer edge
+    // oscillating between rBase (valleys) and rBase + toothH (tips).
+    const band = (rInner, rBase, toothH, fill) => {
+      g.fillStyle = fill;
+      g.beginPath();
+      for (let i = 0; i <= teeth; i++) {
+        const av = (i / teeth) * TAU;                       // valley angle
+        const rv = rBase + (Math.random() - 0.5) * toothH * 0.25;
+        const vx = oCx + Math.cos(av) * rv, vy = oCy + Math.sin(av) * rv;
+        if (i === 0) g.moveTo(vx, vy); else g.lineTo(vx, vy);
+        if (i < teeth) {                                    // tooth tip mid-segment
+          const at = ((i + 0.5) / teeth) * TAU;
+          const rt = rBase + toothH * (0.55 + Math.random() * 0.45);
+          g.lineTo(oCx + Math.cos(at) * rt, oCy + Math.sin(at) * rt);
+        }
+      }
+      for (let i = teeth; i >= 0; i--) {                    // inner edge, traced back
+        const a = (i / teeth) * TAU;
+        g.lineTo(oCx + Math.cos(a) * rInner, oCy + Math.sin(a) * rInner);
+      }
+      g.closePath();
+      g.fill();
+    };
+
+    const rgb    = (cr, cg, cb) => `rgb(${cr | 0},${cg | 0},${cb | 0})`;
+    const darker = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
+    const bright = rgb(pr + (255 - pr) * 0.55, pg + (255 - pg) * 0.55, pb + (210 - pb) * 0.55);
+
+    band(r * 0.90, r * 1.00, r * 0.18, darker);            // furthest back — darkest, tallest
+    band(r * 0.90, r * 0.99, r * 0.12, rgb(pr, pg, pb));   // middle — star colour
+    band(r * 0.90, r * 0.98, r * 0.07, bright);            // nearest surface — brightest, shortest
+
+    ctx.filter = 'blur(1px)';
+    ctx.drawImage(off, bx0, by0);
+    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------

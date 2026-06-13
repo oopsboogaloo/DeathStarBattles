@@ -1,4 +1,4 @@
-import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
+import { PlanetRenderer, setPlanetRendererSimplified, setPlanetRendererExperimental } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
@@ -80,6 +80,7 @@ export class Renderer {
   setPerformance(mode) {
     this._performance = mode ?? 'full';
     setPlanetRendererSimplified(this._simplified);
+    setPlanetRendererExperimental(this._performance === 'experimental');
   }
   get _simplified()     { return this._performance === 'simplified'; }
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'full'; }
