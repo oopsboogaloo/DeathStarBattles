@@ -300,40 +300,59 @@ export class PlanetRenderer {
   // ----------------------------------------------------------------
   // Star fire rim (experimental) — 3 stacked jagged solid bands hugging the
   // star surface. Each band fills from a hidden inner edge up to an irregular
-  // zigzag outer edge: alternating lower/upper vertices whose radii BOTH vary
-  // randomly, and whose angular spacing is jittered, so the rim reads as a
-  // ragged flame fringe rather than regular triangles. The zigzag's low points
-  // float above the star surface (they never reach the base). The nearest band
-  // (drawn last) is the star colour, and each band behind it is progressively
-  // darker, so the fringe deepens outward. Fills are fully opaque; depth comes
-  // from layering, not alpha. Composited through a light 1px blur.
+  // zigzag outer edge whose lower/upper vertices float above the surface (they
+  // never reach the base). The nearest band (drawn last) is the star colour and
+  // each band behind it is progressively darker, so the fringe deepens outward.
+  //
+  // Animated: every vertex radius oscillates within its [lo, hi] envelope as a
+  // smooth function of wall-clock time, so the points glide up and down like
+  // licking flames. Motion is deterministic — a stable per-vertex phase derived
+  // from a hash of the vertex index, summed over two octaves (slow swell + fast
+  // flicker) — so no per-star state is stored and it survives zoom changes. The
+  // angular jitter is hashed (static) too, so teeth keep their identity instead
+  // of sliding sideways. Fills are fully opaque; depth comes from layering, not
+  // alpha. Composited through a light 1px blur.
   // ----------------------------------------------------------------
   static _drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, colour) {
     const [pr, pg, pb] = colour;
     const TAU   = Math.PI * 2;
     const teeth = Math.max(108, Math.round(r * 0.84)); // ~3× the previous density
     const step  = TAU / teeth;
+    const t     = performance.now() / 1000;            // seconds — drives the animation
 
     const off = document.createElement('canvas');
     off.width  = clipW;
     off.height = clipH;
     const g = off.getContext('2d');
 
+    // Stable pseudo-random in [0,1) from a number — used for per-vertex phase,
+    // frequency jitter and angular jitter so each tooth keeps a fixed identity.
+    const hash = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
+    // Smooth oscillation in [-1,1]: a slow swell plus a smaller faster flicker,
+    // each with a per-vertex phase so neighbouring teeth move out of step.
+    const wave = (i, seed, baseFreq) => {
+      const f = baseFreq * (0.8 + 0.4 * hash(i + seed + 3.7));
+      return 0.7 * Math.sin(t * f         + hash(i + seed)        * TAU)
+           + 0.3 * Math.sin(t * f * 2.7   + hash(i + seed + 11.3) * TAU);
+    };
+
     // One jagged solid band. The outer edge zigzags between a lower vertex
-    // (radius random in [vLo, vHi]) and an upper vertex (random in [tLo, tHi]),
-    // both with jittered angles. Solid fill runs from rInner up to that edge.
-    const band = (rInner, vLo, vHi, tLo, tHi, fill) => {
+    // (radius oscillating within [vLo, vHi]) and an upper vertex (within
+    // [tLo, tHi]). Solid fill runs from rInner up to that edge.
+    const band = (rInner, vLo, vHi, tLo, tHi, seed, fill) => {
+      const vMid = (vLo + vHi) / 2, vAmp = (vHi - vLo) / 2;
+      const tMid = (tLo + tHi) / 2, tAmp = (tHi - tLo) / 2;
       g.fillStyle = fill;
       g.beginPath();
       const jit = step * 0.45;
       for (let i = 0; i < teeth; i++) {
         const aB = i * step;
-        const av = aB + (Math.random() - 0.5) * jit;             // lower vertex
-        const rv = vLo + Math.random() * (vHi - vLo);
+        const av = aB + (hash(i + seed + 50) - 0.5) * jit;        // lower vertex (static jitter)
+        const rv = vMid + vAmp * wave(i, seed, 2.2);              // valley oscillates
         const vx = oCx + Math.cos(av) * rv, vy = oCy + Math.sin(av) * rv;
         if (i === 0) g.moveTo(vx, vy); else g.lineTo(vx, vy);
-        const at = aB + step * 0.5 + (Math.random() - 0.5) * jit; // upper vertex
-        const rt = tLo + Math.random() * (tHi - tLo);
+        const at = aB + step * 0.5 + (hash(i + seed + 70) - 0.5) * jit; // upper vertex
+        const rt = tMid + tAmp * wave(i, seed + 5, 2.8);          // tip oscillates a touch faster
         g.lineTo(oCx + Math.cos(at) * rt, oCy + Math.sin(at) * rt);
       }
       for (let i = teeth; i >= 0; i--) {                         // inner edge, traced back
@@ -350,10 +369,10 @@ export class PlanetRenderer {
     const dark = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
     const rIn  = r * 0.88; // hidden behind the body disc; keeps every band solid to the base
 
-    //   rInner  valley range            tip range              fill
-    band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550, dark);  // furthest back — darkest
-    band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, mid);   // middle — dimmed star colour
-    band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, star);  // nearest surface — star colour
+    //   rInner  valley range            tip range            seed  fill
+    band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550,   0, dark);  // furthest back — darkest
+    band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, 100, mid);   // middle — dimmed star colour
+    band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, 200, star);  // nearest surface — star colour
 
     ctx.filter = 'blur(1px)';
     ctx.drawImage(off, bx0, by0);
