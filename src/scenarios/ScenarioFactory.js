@@ -966,9 +966,35 @@ export class ScenarioFactory {
 
       // ── 11: Star Cluster ──────────────────────────────────────────────────
       case 11: {
+        // Stars are placed here with pairwise separation enforced — free
+        // placement plus the generic _validate retry leaves overlapping stars,
+        // because _validate skips pairs whose centres are both off-screen
+        // (cluster stars roam ±10% past the edges) and only guards the solid
+        // core radius. The gap is scaled to the star's glow (≈1.45× the body
+        // radius) so the bright coronae stay clear, not just the cores. A star
+        // that won't fit after 150 attempts is dropped, and an area budget
+        // (55% of the screen) trims very high body counts — matches case 37.
+        const areaBudget = 0.55 * gw * gh;
+        let usedArea = 0;
+        const placed = []; // {x, y, r}
         for (let i = 0; i < nPlanets; i++) {
+          const r = rr(rng, 70, 70, 30);
+          if (usedArea + Math.PI * r * r > areaBudget) break;
+          for (let attempt = 0; attempt < 150; attempt++) {
+            const x = rv(rng, 1.2, 0, -0.1, gw), y = rv(rng, 1.2, 0, -0.1, gh);
+            if (placed.every(p => Math.hypot(p.x - x, p.y - y) >= p.r + r + Math.max(10, 0.5 * (p.r + r)))) {
+              placed.push({ x, y, r });
+              usedArea += Math.PI * r * r;
+              break;
+            }
+          }
+        }
+        for (const p of placed) {
           const col = [Math.floor(rng.next()*30)+215, Math.floor(rng.next()*30)+205, Math.floor(rng.next()*190)+15];
-          planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
+          planets.push(new Planet({
+            position: new Vec2(p.x, p.y), radius: p.r, density: 0.015,
+            type: PlanetType.STAR, colour: col, shading: ShadingStyle.GLOWING,
+          }));
         }
         break;
       }
