@@ -349,10 +349,10 @@ export class PlanetRenderer {
     const bright = rgb(pr + (255 - pr) * 0.55, pg + (255 - pg) * 0.55, pb + (210 - pb) * 0.55);
     const rIn    = r * 0.88; // hidden behind the body disc; keeps every band solid to the base
 
-    //   rInner  valley range          tip range            fill
-    band(rIn, r * 1.020, r * 1.050, r * 1.065, r * 1.110, darker);          // furthest back — darkest
-    band(rIn, r * 1.010, r * 1.040, r * 1.045, r * 1.080, rgb(pr, pg, pb)); // middle — star colour
-    band(rIn, r * 1.005, r * 1.025, r * 1.025, r * 1.055, bright);          // nearest surface — brightest
+    //   rInner  valley range            tip range              fill
+    band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550, darker);          // furthest back — darkest
+    band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, rgb(pr, pg, pb)); // middle — star colour
+    band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, bright);          // nearest surface — brightest
 
     ctx.filter = 'blur(1px)';
     ctx.drawImage(off, bx0, by0);
