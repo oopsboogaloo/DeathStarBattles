@@ -447,6 +447,8 @@ For each star:
   4. No smooth gradient — the bristly texture is the key look.
 ```
 
+In **full and experimental** modes the static surface spikes are replaced, for stars large enough on screen, by an **animated fire rim** drawn live each frame (not baked into `bgCanvas`). See §15.11 for the design, animation model, and off-screen strategy.
+
 ### 5.4 Station Visual
 
 #### Procedural renderer (all modes except `experimental`)
@@ -465,7 +467,7 @@ At Micro/Tiny sizes (radius < 8px) the dome detail is omitted — only the spher
 The team colour is the dominant visual identifier; the Death Star detailing is secondary.
 
 #### Sprite renderer (`experimental` mode only)
-When `_performance === 'experimental'`, normal (non-drone, non-target) stations are drawn from the generic sprite system instead of the procedural renderer. The active sprite is `'ufo'` — a flying saucer silhouette with team-coloured engine glow, rim trim, and porthole ring. See `spec/space-mammoth-sprite-spec.md` for the full pipeline spec; see §15.10 for the performance strategy.
+When `_performance === 'experimental'`, normal (non-drone, non-target) stations are drawn from the generic sprite system instead of the procedural renderer. The active sprite is `'saucer1'` — a flying saucer with four sections (hull, lower band, body, dome), each recoloured per team from a 4-stop tonal **shade ramp** (`team.shade1`–`shade4`) derived from the team colour. See `spec/space-mammoth-sprite-spec.md` for the full pipeline spec (including the shade ramp); see §15.10 for the performance strategy.
 
 The sprite renderer is engaged per-ship via `Renderer._drawSpriteStation()`; all overlays (armour, frozen, electrified, mind control) still draw on top through the existing overlay pipeline.
 
@@ -1480,6 +1482,7 @@ The renderer uses three canvases, all the same pixel dimensions:
 The live layer draw order within each frame:
 
 1. `drawImage(bgCanvas)` — static background
+1a. Animated star fire rim (full + experimental modes) — drawn here, above the cached star body but below the trails, so trails pass over the flames
 2. `drawImage(trailsCanvas)` — accumulated trails
 3. Wormhole particles
 4. Ship explosion bloom + fireballs + fireball smoke
@@ -1713,6 +1716,31 @@ The sprite vector renderer (`drawSprite`) issues ~23 canvas calls per ship. At 9
 **Sheets are built lazily** — only on the first draw call for a given (sprite, team) pair. Teams not in the current game pay nothing.
 
 The direct `drawSprite` path remains the renderer used to *build* sheet frames and as a fallback for one-off or oversized draws. `sprite-bench.html` at the repo root verifies the 60fps target on real hardware with a toggle between cached-sheet and direct-vector modes.
+
+---
+
+### 15.11 Off-screen Rendering Strategy
+
+**Principle (see requirements §12.5):** per-frame work scales with what is *visible*, never with world size or a body's full extent. This matters most for bodies that are far larger than the viewport — supergiant stars whose disc is several times the screen — where naïvely "drawing the body" means touching pixels and geometry that can never be seen.
+
+**Two levels of culling:**
+
+1. **Whole-entity cull.** Before drawing anything per-frame for a body, reject it if its bounding region lies entirely outside the viewport. The fire rim does this in `Renderer._drawStarFireRims`: a star is skipped unless its on-screen-relevant box (`cx ± (r·1.12)`) intersects `[0, vpW] × [0, vpH]`. Coordinates are in the viewport-translated space (the live layer is drawn under `ctx.translate(_ox, _oy)`, matching `bgCanvas`), so `planet.position × conv` maps straight through.
+
+2. **Partial-visibility clip.** For a body that is only *partly* on screen (the common supergiant case — centre off-screen, limb crossing the viewport), generate and draw only the on-screen part. The fire rim builds a per-tooth **visibility mask** (each tooth's surface point tested against the viewport + a tip-reach margin), groups the visible teeth into contiguous angular **runs**, and emits one filled ribbon per run. A supergiant many times the screen size therefore costs only the arc of rim that actually shows, not its full circumference.
+
+**Draw directly; avoid offscreen round-trips.** The rim fills its annular ribbons straight onto `mainCtx`. Because each band is an *annulus* (outer zigzag down to an inner edge at the body radius), only the thin rim pixels rasterise — never the disc interior. There is no scratch canvas, no `clearRect`/`drawImage` over a body-sized box, and no `ctx.filter`.
+
+**Case study — why this design (the supergiant-binary cliff).** An earlier version of the fire rim rendered into a single module-level scratch canvas, then `drawImage`d it onto the main canvas with a 1px blur. Three problems compounded, and the symptom was bizarre: every scenario ran at 60fps until *Supergiant Binary* was opened, which dropped to ~5fps — and from then on even the ordinary *Binary Star* scenario was stuck at 5fps.
+
+- The scratch was **grow-only and shared**: sized to `≈ 2.24 × r` and never shrunk, so once a supergiant inflated it to ~50 MB it stayed that large for the rest of the session — a de-facto resource leak that poisoned later scenarios.
+- It was sized to the **whole star bounding box**, so each frame did a full-disc-area `clearRect` + `drawImage` to show a thin ring — paying to "draw the whole supergiant" twice over.
+- With two stars sharing one scratch, the per-frame **read-after-write** on that one huge surface forced a GPU sync/flush between the two stars; on the inflated canvas each flush was enormous. A single star never hit the hazard (hence 1-star and supergiant-alone stayed 60fps; two stars fell off a cliff).
+- The **`ctx.filter` blur** itself is a Metal pipeline-state change per use (§15.3) — gated off everywhere else in non-simplified modes, and the lone per-frame offender here.
+
+The fix was the strategy above: draw directly, annulus-only, on-screen-arc-only, no offscreen, no filter. Result: per-star cost ≈ the visible rim pixels, two stars ≈ 2× one star with no cliff, 60fps across all star scenarios. Softening (the lost blur) can be reintroduced cheaply later without a per-frame filter (e.g. a thin mid-tone edge stroke), if desired.
+
+**Animation model.** The rim animates by oscillating each vertex radius within its `[lo, hi]` envelope as a pure function of wall-clock time: a stable per-vertex phase/frequency from `hash(index)`, summed over two octaves (slow swell + faster flicker), with the three bands at different phases. No per-star state is stored, it survives zoom changes, and it is replay-safe (a pure function of time, like the sprite system §9). Smaller (non-screen-filling) stars get a 1.5× tip-reach boost so the effect reads at small sizes; supergiants stay at 1×. **Critical**: this must be drawn on the **live** layer — an earlier attempt that left it in the once-built `bgCanvas` looked completely static because the background is only rebuilt on pan/zoom.
 
 ---
 

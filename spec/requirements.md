@@ -387,6 +387,12 @@ Scenarios 1 (Planetary), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pul
 
 **Within those limits, orientation and separation are deliberately free (§6.2):** the portal axis may lie at any angle, and the ring separation varies continuously from nearly touching (a narrow corridor between the rings) to far apart in opposite corners. Placement must not be quantized to fixed corner/edge modes. A corner placement is used as a constructive fallback if sampling fails.
 
+### 6.8 Uneven Binary Scenario (id 9)
+
+**Concept:** A huge supergiant (radius 1.5–1.9× screen height, usually mostly off-screen) paired with a single ordinary on-screen star.
+
+**Placement requirement — halo clearance:** the ordinary star must be kept at least a **halo-width clear of the supergiant**. Its centre must be at least `supergiant radius + (ordinary star's halo radius ≈ 3.2× its own radius)` from the supergiant centre, so the two stars' rims and coronas never collide or "almost touch" — which looks wrong, especially with the animated fire rim (full/experimental modes). The ordinary star's position is re-rolled until it satisfies this, falling back to the farthest sampled position if the supergiant engulfs the whole screen. The **first roll matches the original unconstrained placement**, so seed reproducibility is preserved except in layouts that would otherwise be too close (§6.2 layout variability — reject-and-resample rather than narrowing the random distribution).
+
 ---
 
 ## 7. AI Players
@@ -746,10 +752,11 @@ SVG graphics can be layered over planet/celestial body circles to enrich their a
 
 ### 11.4 Station Visual Design
 - **Full / Simplified modes**: stations are small circular icons (~15–25px diameter) resembling a **Death Star** — a coloured sphere with a visible equatorial band/trench detail. Each station is solid in its team colour. No label on the station itself; team identity comes from colour + the canvas header text.
-- **Experimental mode**: stations are drawn from the **SVG sprite system** — a flying saucer (UFO) shape with a silver hull disc, team-coloured engine glow and rim trim, and a pale dome. Ship art is authored in SVG, converted to a pre-parsed JS module at build time, and rendered via pre-baked per-team animation sheets (`drawImage`). Targets 60fps at 96 ships on iPad. See `spec/space-mammoth-sprite-spec.md` for the full specification.
+- **Experimental mode**: stations are drawn from the **SVG sprite system** — currently the `saucer1` flying-saucer sprite (four sections: hull, lower band, body, dome). Each section is recoloured per team from a **4-stop tonal shade ramp** (`team.shade1`–`shade4`) derived from the team colour — a dark→light range of the single team hue (brightest at the surface, deepening outward) — so one artwork carries an interesting range of team-coloured tones without per-team art. Ship art is authored in SVG (one colour per Inkscape layer, using shade-ramp sentinel fills), converted to a pre-parsed JS module at build time, and rendered via pre-baked per-team animation sheets (`drawImage`). Targets 60fps at 96 ships on iPad. See `spec/space-mammoth-sprite-spec.md` for the full specification.
 
 ### 11.5 Planet & Star Visual Style (from screenshots)
 - **Stars** (yellow/red/giant): bright coloured core circle surrounded by a **fuzzy corona** — a halo of short radiating strokes or dots in a darker shade of the star colour, giving a bristly/spiky appearance. This is the most distinctive visual in the game — preserve it.
+- **Stars — animated fire rim (up close, full + experimental modes):** in full and experimental modes (not simplified), a star large enough on screen replaces the static surface spikes with an animated **fire rim** hugging the surface — three stacked jagged solid bands forming a tonal ramp of the star colour (full star colour nearest the surface, progressively darker behind), with an irregular flame-tongue zigzag whose points float above the surface and oscillate up and down over time. The motion is deterministic (a pure function of wall-clock time), so it is replay-safe and needs no per-star state. Smaller stars get a 50% taller tip reach so the effect still reads at small on-screen sizes; screen-filling supergiants keep the base height. No transparency is used (depth comes from layering). The rim is drawn live each frame, **only over its on-screen arc**, and is layered above the star body but below the bullet/ship trails. See design.md (off-screen rendering strategy) for the performance rationale.
 - **Rocky planets / asteroids**: smaller, brownish or dark-orange circles with simple shading (lighter on one side)
 - **Black holes**: invisible or near-invisible (confirmed by original hints — players must infer from the gap in the map)
 - **Wormholes**: distinctive colour-coded circles (purple/blue/green/grey/yellow) with pulsing or swirling render effect
@@ -836,6 +843,13 @@ Toggled via a keyboard shortcut (dev builds only). Displayed as a fixed top-left
 ### 12.4 No Dependencies (initially)
 - Pure vanilla JS — no frameworks, no build step
 - May add a single lightweight bundler (e.g. esbuild) later if module organisation requires it
+
+### 12.5 Performance & Off-screen Work (non-functional)
+
+The game **must stay performant on the lowest-spec target** — iPad (Safari / WKWebView, Metal backend); 60fps in experimental mode is the bar. Two standing rules follow. (See design.md for the off-screen rendering strategy and the worked example that motivated these.)
+
+- **Do not generate or draw far off-screen.** Per-frame work must scale with what is *actually visible*, not with world size or a body's full extent. A body entirely outside the viewport must not be drawn at all; a body only partly on screen must cost only its on-screen portion. Never allocate buffers, build geometry, or composite over a region proportional to a body's full size when only a sliver is visible (e.g. a supergiant many times the screen size). Cull whole off-screen entities; clip per-vertex / per-segment work to the viewport for partially-visible ones.
+- **Keep the live draw loop cheap on iOS.** Avoid Metal pipeline-state thrash: no `ctx.filter` (blur, etc.) in the per-frame path, no `createRadialGradient` per frame, and minimise offscreen-canvas round-trips — drawing into a second canvas and compositing it back forces a render-target switch/flush per use, and a read-after-write on a shared scratch canvas serialises the GPU. Prefer drawing primitives directly to the target. Never retain a grow-only or shared scratch resource sized to the largest object ever seen — it behaves as a leak and degrades unrelated later scenarios.
 
 ---
 

@@ -1,4 +1,4 @@
-import { PlanetRenderer, setPlanetRendererSimplified, setPlanetRendererExperimental } from './PlanetRenderer.js';
+import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
@@ -80,7 +80,6 @@ export class Renderer {
   setPerformance(mode) {
     this._performance = mode ?? 'full';
     setPlanetRendererSimplified(this._simplified);
-    setPlanetRendererExperimental(this._performance === 'experimental');
   }
   get _simplified()     { return this._performance === 'simplified'; }
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'full'; }
@@ -540,9 +539,10 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
     // Draw viewport layers at their offset position
     ctx.drawImage(this.bgCanvas,     this._ox, this._oy);
-    // Animated star fire rim (experimental) sits above the cached body but below
-    // the trails canvas, so bullet/ship trails pass over the flames.
-    if (this._performance === 'experimental') {
+    // Animated star fire rim (full + experimental modes) sits above the cached
+    // body but below the trails canvas, so bullet/ship trails pass over the
+    // flames. Skipped only in simplified mode.
+    if (!this._simplified) {
       ctx.save();
       ctx.translate(this._ox, this._oy);
       this._drawStarFireRims(ctx);
@@ -597,7 +597,7 @@ export class Renderer {
       `SFX        ${sfx}`;
   }
 
-  // Live per-frame animated fire rim for on-screen stars (experimental mode).
+  // Live per-frame animated fire rim for on-screen stars (full + experimental).
   // ctx is already translated by (_ox, _oy), matching the cached background, so
   // planet positions map straight through this.conv.
   _drawStarFireRims(ctx) {

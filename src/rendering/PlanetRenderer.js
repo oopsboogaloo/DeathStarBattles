@@ -1,13 +1,10 @@
 import { ShadingStyle, PlanetType, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
 
 // Set by Renderer before drawing backgrounds in simplified performance mode.
+// Also gates the animated star fire rim, which runs in full and experimental
+// modes (everything except simplified).
 let _simplified = false;
 export function setPlanetRendererSimplified(v) { _simplified = v; }
-
-// Set by Renderer — true only in the 'experimental' performance mode, which
-// enables the up-close star fire rim (3 jagged solid layers at the surface).
-let _experimental = false;
-export function setPlanetRendererExperimental(v) { _experimental = v; }
 
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
@@ -268,11 +265,11 @@ export class PlanetRenderer {
     ctx.drawImage(off, bx0, by0);
     ctx.filter = 'none';
 
-    // Star surface fringe. In experimental mode the fringe is an ANIMATED fire
-    // rim drawn live every frame (Renderer._drawStarFireRims) rather than baked
-    // into this cached background, so nothing is drawn here for those stars. All
-    // other modes bake the thin spikey bristles into the background as before.
-    if (isStar && !(_experimental && r > 20)) {
+    // Star surface fringe. In full and experimental modes the fringe is an
+    // ANIMATED fire rim drawn live every frame (Renderer._drawStarFireRims)
+    // rather than baked into this cached background, so nothing is drawn here
+    // for those stars. Simplified mode bakes the thin spikey bristles as before.
+    if (isStar && (_simplified || r <= 20)) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
       spOff.width  = clipW;
