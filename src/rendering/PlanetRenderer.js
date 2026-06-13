@@ -325,8 +325,9 @@ export class PlanetRenderer {
     const t     = performance.now() / 1000;            // seconds — drives the animation
 
     // Visibility mask: which teeth sit within the viewport (margin covers the
-    // tip reach). Off-screen teeth are never generated or drawn.
-    const m   = r * 0.08 + 4;
+    // tip reach, including the boosted tips on smaller stars). Off-screen teeth
+    // are never generated or drawn.
+    const m   = r * 0.10 + 4;
     const vis = new Uint8Array(teeth);
     let anyVis = false, allVis = true;
     for (let i = 0; i < teeth; i++) {
@@ -406,10 +407,16 @@ export class PlanetRenderer {
     const dark = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
     const rIn  = r * 1.0; // body edge — only the teeth extend beyond
 
-    //   rInner  valley range            tip range            seed  fill
-    band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550,   0, dark);  // furthest back — darkest
-    band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, 100, mid);   // middle — dimmed star colour
-    band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, 200, star);  // nearest surface — star colour
+    // Smaller (non-supergiant) stars get a 50% taller tip reach — the effect is
+    // too subtle at small on-screen sizes. Screen-filling supergiants already
+    // read well, so they stay at 1×. Classified by on-screen size.
+    const tipScale = r >= 0.6 * Math.min(vpW, vpH) ? 1.0 : 1.5;
+    const tip = k => r * (1 + (k - 1) * tipScale); // scale the tip's height above the surface
+
+    //   rInner  valley range            tip range                   seed  fill
+    band(rIn, r * 1.0100, r * 1.0250, tip(1.0325), tip(1.0550),   0, dark);  // furthest back — darkest
+    band(rIn, r * 1.0050, r * 1.0200, tip(1.0225), tip(1.0400), 100, mid);   // middle — dimmed star colour
+    band(rIn, r * 1.0025, r * 1.0125, tip(1.0125), tip(1.0275), 200, star);  // nearest surface — star colour
   }
 
   // ----------------------------------------------------------------
