@@ -378,7 +378,7 @@ export class PlanetRenderer {
     const star = rgb(pr, pg, pb);
     const mid  = rgb(pr * 0.70, pg * 0.70, pb * 0.70);
     const dark = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
-    const rIn  = r * 0.96; // tucked just under the body edge so only the teeth show
+    const rIn  = r * 1.0; // exactly at the body edge — only the teeth extend beyond
 
     //   rInner  valley range            tip range            seed  fill
     band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550,   0, dark);  // furthest back — darkest
