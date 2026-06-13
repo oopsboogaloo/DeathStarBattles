@@ -303,10 +303,10 @@ export class PlanetRenderer {
   // zigzag outer edge: alternating lower/upper vertices whose radii BOTH vary
   // randomly, and whose angular spacing is jittered, so the rim reads as a
   // ragged flame fringe rather than regular triangles. The zigzag's low points
-  // float above the star surface (they never reach the base). The darkest band
-  // sits furthest back (drawn first), the star colour in the middle, and the
-  // brightest band nearest the surface (drawn last). Fills are fully opaque;
-  // depth comes from layering, not alpha. Composited through a light 1px blur.
+  // float above the star surface (they never reach the base). The nearest band
+  // (drawn last) is the star colour, and each band behind it is progressively
+  // darker, so the fringe deepens outward. Fills are fully opaque; depth comes
+  // from layering, not alpha. Composited through a light 1px blur.
   // ----------------------------------------------------------------
   static _drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, colour) {
     const [pr, pg, pb] = colour;
@@ -344,15 +344,16 @@ export class PlanetRenderer {
       g.fill();
     };
 
-    const rgb    = (cr, cg, cb) => `rgb(${cr | 0},${cg | 0},${cb | 0})`;
-    const darker = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
-    const bright = rgb(pr + (255 - pr) * 0.55, pg + (255 - pg) * 0.55, pb + (210 - pb) * 0.55);
-    const rIn    = r * 0.88; // hidden behind the body disc; keeps every band solid to the base
+    const rgb  = (cr, cg, cb) => `rgb(${cr | 0},${cg | 0},${cb | 0})`;
+    const star = rgb(pr, pg, pb);
+    const mid  = rgb(pr * 0.70, pg * 0.70, pb * 0.70);
+    const dark = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
+    const rIn  = r * 0.88; // hidden behind the body disc; keeps every band solid to the base
 
     //   rInner  valley range            tip range              fill
-    band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550, darker);          // furthest back — darkest
-    band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, rgb(pr, pg, pb)); // middle — star colour
-    band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, bright);          // nearest surface — brightest
+    band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550, dark);  // furthest back — darkest
+    band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, mid);   // middle — dimmed star colour
+    band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, star);  // nearest surface — star colour
 
     ctx.filter = 'blur(1px)';
     ctx.drawImage(off, bx0, by0);
