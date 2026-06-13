@@ -385,9 +385,8 @@ export class PlanetRenderer {
     band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, 100, mid);   // middle — dimmed star colour
     band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, 200, star);  // nearest surface — star colour
 
-    ctx.filter = 'blur(1px)';
+    // Blur dropped (experimental perf test): plain composite, no ctx.filter.
     ctx.drawImage(_fireScratch, 0, 0, box, box, cx - oCx, cy - oCy, box, box);
-    ctx.filter = 'none';
   }
 
   // ----------------------------------------------------------------
