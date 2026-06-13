@@ -299,40 +299,44 @@ export class PlanetRenderer {
 
   // ----------------------------------------------------------------
   // Star fire rim (experimental) — 3 stacked jagged solid bands hugging the
-  // star surface. Each band is a filled ring with a toothed outer edge: wide,
-  // flame-tongue teeth rather than thin corona spikes. The darkest band sits
-  // furthest back (tallest teeth, drawn first), the star colour sits in the
-  // middle, and the brightest band sits nearest the surface (shortest teeth,
-  // drawn last). Fills are fully opaque; depth comes from layering, not alpha.
-  // Composited once through a light 1px blur to soften the silhouette.
+  // star surface. Each band fills from a hidden inner edge up to an irregular
+  // zigzag outer edge: alternating lower/upper vertices whose radii BOTH vary
+  // randomly, and whose angular spacing is jittered, so the rim reads as a
+  // ragged flame fringe rather than regular triangles. The zigzag's low points
+  // float above the star surface (they never reach the base). The darkest band
+  // sits furthest back (drawn first), the star colour in the middle, and the
+  // brightest band nearest the surface (drawn last). Fills are fully opaque;
+  // depth comes from layering, not alpha. Composited through a light 1px blur.
   // ----------------------------------------------------------------
   static _drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, colour) {
     const [pr, pg, pb] = colour;
     const TAU   = Math.PI * 2;
-    const teeth = Math.max(36, Math.round(r * 0.28)); // ~chunky tongues, scales with size
+    const teeth = Math.max(108, Math.round(r * 0.84)); // ~3× the previous density
+    const step  = TAU / teeth;
 
     const off = document.createElement('canvas');
     off.width  = clipW;
     off.height = clipH;
     const g = off.getContext('2d');
 
-    // One jagged solid band: smooth inner edge (rInner) + toothed outer edge
-    // oscillating between rBase (valleys) and rBase + toothH (tips).
-    const band = (rInner, rBase, toothH, fill) => {
+    // One jagged solid band. The outer edge zigzags between a lower vertex
+    // (radius random in [vLo, vHi]) and an upper vertex (random in [tLo, tHi]),
+    // both with jittered angles. Solid fill runs from rInner up to that edge.
+    const band = (rInner, vLo, vHi, tLo, tHi, fill) => {
       g.fillStyle = fill;
       g.beginPath();
-      for (let i = 0; i <= teeth; i++) {
-        const av = (i / teeth) * TAU;                       // valley angle
-        const rv = rBase + (Math.random() - 0.5) * toothH * 0.25;
+      const jit = step * 0.45;
+      for (let i = 0; i < teeth; i++) {
+        const aB = i * step;
+        const av = aB + (Math.random() - 0.5) * jit;             // lower vertex
+        const rv = vLo + Math.random() * (vHi - vLo);
         const vx = oCx + Math.cos(av) * rv, vy = oCy + Math.sin(av) * rv;
         if (i === 0) g.moveTo(vx, vy); else g.lineTo(vx, vy);
-        if (i < teeth) {                                    // tooth tip mid-segment
-          const at = ((i + 0.5) / teeth) * TAU;
-          const rt = rBase + toothH * (0.55 + Math.random() * 0.45);
-          g.lineTo(oCx + Math.cos(at) * rt, oCy + Math.sin(at) * rt);
-        }
+        const at = aB + step * 0.5 + (Math.random() - 0.5) * jit; // upper vertex
+        const rt = tLo + Math.random() * (tHi - tLo);
+        g.lineTo(oCx + Math.cos(at) * rt, oCy + Math.sin(at) * rt);
       }
-      for (let i = teeth; i >= 0; i--) {                    // inner edge, traced back
+      for (let i = teeth; i >= 0; i--) {                         // inner edge, traced back
         const a = (i / teeth) * TAU;
         g.lineTo(oCx + Math.cos(a) * rInner, oCy + Math.sin(a) * rInner);
       }
@@ -343,10 +347,12 @@ export class PlanetRenderer {
     const rgb    = (cr, cg, cb) => `rgb(${cr | 0},${cg | 0},${cb | 0})`;
     const darker = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
     const bright = rgb(pr + (255 - pr) * 0.55, pg + (255 - pg) * 0.55, pb + (210 - pb) * 0.55);
+    const rIn    = r * 0.88; // hidden behind the body disc; keeps every band solid to the base
 
-    band(r * 0.90, r * 1.00, r * 0.18, darker);            // furthest back — darkest, tallest
-    band(r * 0.90, r * 0.99, r * 0.12, rgb(pr, pg, pb));   // middle — star colour
-    band(r * 0.90, r * 0.98, r * 0.07, bright);            // nearest surface — brightest, shortest
+    //   rInner  valley range          tip range            fill
+    band(rIn, r * 1.04, r * 1.10, r * 1.13, r * 1.22, darker);          // furthest back — darkest
+    band(rIn, r * 1.02, r * 1.08, r * 1.09, r * 1.16, rgb(pr, pg, pb)); // middle — star colour
+    band(rIn, r * 1.01, r * 1.05, r * 1.05, r * 1.11, bright);          // nearest surface — brightest
 
     ctx.filter = 'blur(1px)';
     ctx.drawImage(off, bx0, by0);
