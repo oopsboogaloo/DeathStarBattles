@@ -917,16 +917,31 @@ export class ScenarioFactory {
         // Supergiant (off-screen)
         const sg1R = (rng.next()*0.2 + rng.next()*0.2) * gh + 1.5*gh;
         const sg1Col = [Math.floor(rng.next()*10)+245, Math.floor(rng.next()*245), Math.floor(rng.next()*45)];
+        const sg1Pos = new Vec2(rv(rng,3,0,-1,gw), rv(rng,3,0,-1,gh));
         planets.push(new Planet({
-          position: new Vec2(rv(rng,3,0,-1,gw), rv(rng,3,0,-1,gh)),
+          position: sg1Pos,
           radius: sg1R, density: 4000/(sg1R*sg1R), mass: 4000,
           type: PlanetType.STAR, colour: sg1Col, shading: ShadingStyle.GLOWING,
         }));
-        // Regular star (on-screen)
+        // Regular star (on-screen). Keep it at least a halo-width clear of the
+        // supergiant's surface so their rims/coronas don't collide when the two
+        // would otherwise almost touch. HALO_SCALE matches the corona reach in
+        // PlanetRenderer (~3.2× radius). The first roll matches the original
+        // placement, so reproducibility is unchanged unless it lands too close.
         const s2Col = starColour(rng);
         const s2R   = rng.nextInRange(80, 160) + 50;
+        const HALO_SCALE = 3.2;
+        const minSep = sg1R + s2R * HALO_SCALE; // centre-to-centre: supergiant surface + small star's halo
+        let s2Pos = null, bestPos = null, bestD = -1;
+        for (let a = 0; a < 48; a++) {
+          const p = new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh));
+          const d = p.distanceTo(sg1Pos);
+          if (d >= minSep) { s2Pos = p; break; }
+          if (d > bestD) { bestD = d; bestPos = p; }
+        }
+        s2Pos = s2Pos ?? bestPos; // best effort if the supergiant engulfs the screen
         planets.push(new Planet({
-          position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
+          position: s2Pos,
           radius: s2R, density: 0.02,
           type: PlanetType.STAR, colour: s2Col, shading: ShadingStyle.GLOWING,
         }));
