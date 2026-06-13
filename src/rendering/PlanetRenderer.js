@@ -9,6 +9,10 @@ export function setPlanetRendererSimplified(v) { _simplified = v; }
 let _experimental = false;
 export function setPlanetRendererExperimental(v) { _experimental = v; }
 
+// Reusable offscreen for the live (per-frame) star fire rim — grown on demand,
+// shared across all stars so the animation allocates no canvas per frame.
+let _fireScratch = null;
+
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
   static drawCorona(ctx, planet, conv) {
@@ -268,11 +272,11 @@ export class PlanetRenderer {
     ctx.drawImage(off, bx0, by0);
     ctx.filter = 'none';
 
-    // Star surface edge. Experimental mode swaps the thin spikey bristles for a
-    // chunkier 3-layer fire rim; all other modes keep the original spikes.
-    if (isStar && _experimental && r > 20) {
-      PlanetRenderer._drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, planet.colour);
-    } else if (isStar) {
+    // Star surface fringe. In experimental mode the fringe is an ANIMATED fire
+    // rim drawn live every frame (Renderer._drawStarFireRims) rather than baked
+    // into this cached background, so nothing is drawn here for those stars. All
+    // other modes bake the thin spikey bristles into the background as before.
+    if (isStar && !(_experimental && r > 20)) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
       spOff.width  = clipW;
@@ -304,26 +308,33 @@ export class PlanetRenderer {
   // never reach the base). The nearest band (drawn last) is the star colour and
   // each band behind it is progressively darker, so the fringe deepens outward.
   //
-  // Animated: every vertex radius oscillates within its [lo, hi] envelope as a
-  // smooth function of wall-clock time, so the points glide up and down like
-  // licking flames. Motion is deterministic — a stable per-vertex phase derived
-  // from a hash of the vertex index, summed over two octaves (slow swell + fast
+  // Drawn live each frame (NOT baked into the cached background) onto a reusable
+  // scratch canvas, then composited over the star body at (cx, cy). Animated:
+  // every vertex radius oscillates within its [lo, hi] envelope as a smooth
+  // function of wall-clock time, so the points glide up and down like licking
+  // flames. Motion is deterministic — a stable per-vertex phase derived from a
+  // hash of the vertex index, summed over two octaves (slow swell + fast
   // flicker) — so no per-star state is stored and it survives zoom changes. The
   // angular jitter is hashed (static) too, so teeth keep their identity instead
   // of sliding sideways. Fills are fully opaque; depth comes from layering, not
   // alpha. Composited through a light 1px blur.
   // ----------------------------------------------------------------
-  static _drawStarFireRim(ctx, clipW, clipH, oCx, oCy, bx0, by0, r, colour) {
+  static drawStarFireRim(ctx, cx, cy, r, colour) {
     const [pr, pg, pb] = colour;
     const TAU   = Math.PI * 2;
     const teeth = Math.max(108, Math.round(r * 0.84)); // ~3× the previous density
     const step  = TAU / teeth;
     const t     = performance.now() / 1000;            // seconds — drives the animation
 
-    const off = document.createElement('canvas');
-    off.width  = clipW;
-    off.height = clipH;
-    const g = off.getContext('2d');
+    // Reused across stars and frames — no per-frame canvas allocation.
+    const box = Math.ceil(r * 1.12) * 2 + 6;
+    if (!_fireScratch) _fireScratch = document.createElement('canvas');
+    if (_fireScratch.width < box || _fireScratch.height < box) {
+      _fireScratch.width = _fireScratch.height = box;
+    }
+    const g = _fireScratch.getContext('2d');
+    g.clearRect(0, 0, box, box);
+    const oCx = box / 2, oCy = box / 2;
 
     // Stable pseudo-random in [0,1) from a number — used for per-vertex phase,
     // frequency jitter and angular jitter so each tooth keeps a fixed identity.
@@ -367,7 +378,7 @@ export class PlanetRenderer {
     const star = rgb(pr, pg, pb);
     const mid  = rgb(pr * 0.70, pg * 0.70, pb * 0.70);
     const dark = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
-    const rIn  = r * 0.88; // hidden behind the body disc; keeps every band solid to the base
+    const rIn  = r * 0.96; // tucked just under the body edge so only the teeth show
 
     //   rInner  valley range            tip range            seed  fill
     band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550,   0, dark);  // furthest back — darkest
@@ -375,7 +386,7 @@ export class PlanetRenderer {
     band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, 200, star);  // nearest surface — star colour
 
     ctx.filter = 'blur(1px)';
-    ctx.drawImage(off, bx0, by0);
+    ctx.drawImage(_fireScratch, 0, 0, box, box, cx - oCx, cy - oCy, box, box);
     ctx.filter = 'none';
   }
 

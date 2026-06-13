@@ -589,7 +589,27 @@ export class Renderer {
       `SFX        ${sfx}`;
   }
 
+  // Live per-frame animated fire rim for on-screen stars (experimental mode).
+  // ctx is already translated by (_ox, _oy), matching the cached background, so
+  // planet positions map straight through this.conv.
+  _drawStarFireRims(ctx) {
+    for (const planet of this._planets) {
+      if (planet.shading !== ShadingStyle.GLOWING || planet.type !== PlanetType.STAR) continue;
+      const r = Math.max(3, planet.radius * this.conv);
+      if (r <= 20) continue;
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const reach = r * 1.12 + 4;
+      if (cx + reach < 0 || cx - reach > this._vpW || cy + reach < 0 || cy - reach > this._vpH) continue;
+      PlanetRenderer.drawStarFireRim(ctx, cx, cy, r, planet.colour);
+    }
+  }
+
   _drawLive(ctx, gameState) {
+    // Animated star fire rim (experimental) — drawn live over the cached body so
+    // its flame teeth move; the rest of the star (corona, body) stays in the bg.
+    if (this._performance === 'experimental') this._drawStarFireRims(ctx);
+
     // Wormhole particle spirals (skipped in simplified mode)
     const now = Date.now() / 1000;
     if (!this._simplified) {
