@@ -4,9 +4,17 @@
 
 import { initSprite } from './SpriteRenderer.js';
 import { ufoSprite } from './ufo.sprite.js';
+import { saucer1Sprite } from './saucer1.sprite.js';
+import { saucer2Sprite } from './saucer2.sprite.js';
+import { mine1Sprite } from './mine1.sprite.js';
+import { minespikeSprite } from './minespike.sprite.js';
 
 const REGISTRY = new Map([
   ['ufo', ufoSprite],
+  ['saucer1', saucer1Sprite],
+  ['saucer2', saucer2Sprite],
+  ['mine1', mine1Sprite],
+  ['minespike', minespikeSprite],
 ]);
 
 export function getSprite(name) {

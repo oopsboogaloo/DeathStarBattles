@@ -84,8 +84,16 @@ Fills that should be replaced by the team's colours at runtime must use **magic 
 |---|---|
 | `#ff0000` (pure red) | `team.colors.primary` |
 | `#0000ff` (pure blue) | `team.colors.secondary` |
+| `#400000` | `team.colors.shade1` (darkest of the team ramp) |
+| `#800000` | `team.colors.shade2` |
+| `#cc0000` | `team.colors.shade3` (team base tone) |
+| `#ff6666` | `team.colors.shade4` (lightest of the team ramp) |
 
-All other fills are treated as fixed colours and passed through unchanged. This means the artist can use any colour that is not pure red or pure blue for fixed elements (saucer hull silver, mammoth brown, etc.).
+The `shade1`–`shade4` placeholders are a **dark→light tonal ramp** derived from the team colour (§6), so a single artwork can carry an interesting range of team-coloured tones across its sections (e.g. saucer hull → body → dome) while staying recognisably one team.
+
+All other fills are treated as fixed colours and passed through unchanged. This means the artist can use any colour outside the placeholder set for fixed elements (mine hazard rings, saucer hull silver, mammoth brown, etc.).
+
+Fills may be authored either as a `fill="…"` attribute or inside a `style="fill:…"` declaration (Inkscape's default). When each colour is placed on its own Inkscape layer (a `<g inkscape:groupmode="layer">`), the build combines that layer's shapes into one sprite layer and inherits the fill from the layer's first child shape.
 
 ### 3.4 Path morphing requirements
 
@@ -381,8 +389,14 @@ Each team has two colours used for sprite rendering:
 team.spriteColors = {
   primary:   "#e63946",   // mammoth fur, engine glow, saucer interior accent
   secondary: "#f1a208",   // saucer rim trim, porthole ring
+  shade1:    "rgb(...)",  // team colour × 0.40  — darkest ramp tone
+  shade2:    "rgb(...)",  // team colour × 0.65
+  shade3:    "rgb(...)",  // team colour        — base ramp tone
+  shade4:    "rgb(...)",  // team colour mixed 55% toward white — lightest
 }
 ```
+
+`shade1`–`shade4` form a dark→light ramp derived from the team's base colour by scaling brightness (and lightening the top tone toward white). All four keep the team hue, so the saucer reads as a single team while showing tonal depth across its sections. The ramp is computed in `Renderer._spriteTeamColors()` and cached per team colour.
 
 `team.spriteColors` is distinct from the existing `team.colour` (used for trails, HUD, and the aim indicator). `team.colour` is the canonical team identity colour used throughout the rest of the game; `spriteColors` are the fine-grained palette entries specific to the station sprite.
 

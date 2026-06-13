@@ -7,7 +7,12 @@
 // Supported authoring subset (see spec/space-mammoth-sprite-spec.md §3–4):
 //   - <path>, <circle>, <ellipse> elements with an id become layers
 //   - <g id="..."> of circles/ellipses/paths becomes a single combined layer
+//     (Inkscape "layer" groups work — the group's fill is inherited from its
+//      first child shape when the group itself carries none)
+//   - fill is read from a fill="" attribute or a style="fill:..." declaration
 //   - fill #ff0000 → "team.primary", #0000ff → "team.secondary"
+//   - shade-ramp sentinels (dark→light): #400000→shade1, #800000→shade2,
+//                                         #cc0000→shade3, #ff6666→shade4
 //   - data-keyframes  (JSON on the element)  → transform keyframes
 //   - data-min-radius (px)                   → layer skipped below this screen radius
 //   - data-duration   (ms, on <svg>)         → animation loop duration
@@ -27,6 +32,16 @@ const OUT_DIR = join(ROOT, 'src', 'rendering', 'sprites');
 const PRIMARY_FILLS   = new Set(['#ff0000', '#f00', 'red']);
 const SECONDARY_FILLS = new Set(['#0000ff', '#00f', 'blue']);
 
+// Team shade ramp: sentinel fills the artist paints from darkest to lightest.
+// Each resolves at render time to a tone of the team colour (see §6), letting a
+// single artwork carry an interesting range of team-coloured tones.
+const SHADE_FILLS = new Map([
+  ['#400000', 'team.shade1'],   // darkest
+  ['#800000', 'team.shade2'],
+  ['#cc0000', 'team.shade3'],   // base
+  ['#ff6666', 'team.shade4'],   // lightest
+]);
+
 // ---------------------------------------------------------------- helpers
 
 function attr(tag, name) {
@@ -39,11 +54,26 @@ function num(tag, name, fallback = 0) {
   return v === undefined ? fallback : parseFloat(v);
 }
 
+// Read a CSS property out of a style="...;prop:value;..." attribute
+function styleProp(tag, prop) {
+  const style = attr(tag, 'style');
+  if (style === undefined) return undefined;
+  const m = style.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, 'i'));
+  return m ? m[1].trim() : undefined;
+}
+
+// Effective fill of an element: explicit fill attribute, else style fill.
+// Inkscape writes fills into the style attribute, so both must be checked.
+function elementFill(tag) {
+  return attr(tag, 'fill') ?? styleProp(tag, 'fill');
+}
+
 function resolveFill(fill) {
   if (fill === undefined) return '#000000';
   const f = fill.trim().toLowerCase();
   if (PRIMARY_FILLS.has(f))   return 'team.primary';
   if (SECONDARY_FILLS.has(f)) return 'team.secondary';
+  if (SHADE_FILLS.has(f))     return SHADE_FILLS.get(f);
   return fill;
 }
 
@@ -125,20 +155,24 @@ function buildSprite(svgPath) {
       continue;
     }
 
-    let path, pivot;
+    let path, pivot, childFill;
     if (isGroup) {
-      // Combine all child shapes into one path
+      // Combine all child shapes into one path; remember the first child's fill
+      // so an Inkscape layer group (no fill of its own) still gets a colour.
       const parts = [];
       const SHAPE_RE = /<(path|circle|ellipse)\b([^>]*?)\/>/g;
       let c;
-      while ((c = SHAPE_RE.exec(m[2])) !== null) parts.push(shapeToPath(c[1], c[2]));
+      while ((c = SHAPE_RE.exec(m[2])) !== null) {
+        parts.push(shapeToPath(c[1], c[2]));
+        if (childFill === undefined) childFill = elementFill(c[2]);
+      }
       path = parts.join(' ');
     } else {
       path  = shapeToPath(m[3], tag);
       pivot = shapePivot(m[3], tag);
     }
 
-    const layer = { id, path, fill: resolveFill(attr(tag, 'fill')) };
+    const layer = { id, path, fill: resolveFill(elementFill(tag) ?? childFill) };
     if (pivot) layer.pivot = pivot;
 
     const minRadius = attr(tag, 'data-min-radius');

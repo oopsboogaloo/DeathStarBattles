@@ -1304,7 +1304,7 @@ export class Renderer {
       : 1;
     if (alpha <= 0) return;
 
-    const sprite = getSprite('ufo');
+    const sprite = getSprite('saucer1');
     // Global wall-clock phase — all ships animate in sync, no per-station state
     const animPhase = (performance.now() % sprite.duration) / sprite.duration;
 
@@ -1319,16 +1319,24 @@ export class Renderer {
     ctx.restore();
   }
 
-  // Cached {primary, secondary} CSS colours per team colour. Secondary is a
-  // lighter shade of the team colour, used for rim trim and portholes.
+  // Cached team sprite palette. primary/secondary keep the original meaning
+  // (base + a lighter trim). shade1–4 are a dark→light tonal ramp of the team
+  // colour so one artwork can carry an interesting range of team-coloured tones
+  // (saucer hull → body → dome). All share the team hue.
   _spriteTeamColors(colour) {
     const key = `${colour[0]},${colour[1]},${colour[2]}`;
     let c = this._spriteColorCache.get(key);
     if (!c) {
       const [r, g, b] = colour;
+      const scale = k => `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
+      const toward = (v, t) => Math.round(v + (255 - v) * t);
       c = {
         primary:   `rgb(${r},${g},${b})`,
         secondary: `rgb(${Math.min(255, r + 90)},${Math.min(255, g + 90)},${Math.min(255, b + 90)})`,
+        shade1:    scale(0.40),                                              // darkest
+        shade2:    scale(0.65),
+        shade3:    `rgb(${r},${g},${b})`,                                    // base
+        shade4:    `rgb(${toward(r, 0.55)},${toward(g, 0.55)},${toward(b, 0.55)})`, // lightest
       };
       this._spriteColorCache.set(key, c);
     }

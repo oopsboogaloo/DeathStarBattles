@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- mine1 - concentric hazard mine, one colour per Inkscape layer.
+     Fills are fixed (not team shade sentinels), so they pass through unchanged.
+     Layers are listed back-to-front: outer ring, mid ring, core. -->
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+     width="1000" height="1000" viewBox="0 0 264.58333 264.58333" version="1.1">
+  <g inkscape:groupmode="layer" inkscape:label="ring-outer" id="mine-ring-outer">
+    <path style="fill:#ff5555"
+          d="m 233.15886,202.46288 -52.08388,16.8085 -44.01425,32.52694 L 91.445547,221.55743 38.57252,207.42592 33.775201,152.90765 11.857866,102.759 51.49089,65.016716 77.033448,16.613882 l 54.218892,7.454417 53.76838,-10.208697 27.97683,47.037789 41.50552,35.672797 -19.33236,51.200742 z" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="ring-mid" id="mine-ring-mid">
+    <path style="fill:#7a55ff"
+          d="m 211.27666,185.90726 -40.60322,13.10346 -34.31234,25.35714 -35.56039,-23.57499 -41.218408,-11.01655 -3.739863,-42.501 -17.086173,-39.09456 30.896855,-29.422882 19.912301,-37.733566 42.267618,5.811266 41.9164,-7.95843 21.80999,36.669414 32.35661,27.809568 -15.071,39.91474 z" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="core" id="mine-core">
+    <path style="fill:#f6ff55"
+          d="m 167.51225,152.79603 -17.64188,5.69338 -14.90853,11.01754 -15.4508,-10.2432 -17.90917,-4.78664 -1.624952,-18.46645 -7.42385,-16.98637 13.424512,-12.78409 8.65179,-16.395028 18.36505,2.524963 18.21245,-3.457894 9.47633,15.932659 14.05877,12.08311 -6.54827,17.34274 z" />
+  </g>
+</svg>

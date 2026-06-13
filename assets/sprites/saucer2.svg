@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- saucer2 - simpler ship sprite source (rounded-polygon body variant).
+     One colour per Inkscape layer (groupmode="layer"); the build combines each
+     layer's shapes into one sprite layer and reads its fill from the child shape.
+     Team shade ramp sentinels (dark to light) recolour the saucer per team:
+       400000 = team.shade1 (darkest)   cc0000 = team.shade3 (base)
+       800000 = team.shade2             ff6666 = team.shade4 (lightest)
+     Layers are listed back-to-front: hull rim, lower band, body, dome. -->
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+     width="1000" height="1000" viewBox="0 0 264.58333 264.58333" version="1.1">
+  <g inkscape:groupmode="layer" inkscape:label="hull" id="saucer-hull">
+    <path style="fill:#400000"
+          d="m 10.251699,126.02453 -4.0709967,29.53373 9.6589607,27.85862 20.742898,21.11891 38.273032,21.24411 57.871397,11.26658 64.18845,-12.99918 34.60475,-20.68513 17.24301,-21.42402 7.06742,-16.72911 1.36256,-17.97928 -1.57506,-12.43686 -8.7037,25.68492 -26.29086,22.60048 -37.93281,14.00104 -48.08686,5.44076 -48.479038,-4.75088 -37.920467,-15.29981 -26.242058,-21.36368 -9.739757,-24.83462 9.224798,-26.99197" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="lower" id="saucer-lower">
+    <path style="fill:#800000"
+          d="m 101.4653,240.33641 29.48658,5.47273 31.17728,-3.11848 23.07796,-10.33576 13.01295,-9.59945 -24.93424,6.37564 -29.04842,4.32099 -34.92999,-1.29629 -22.091594,-4.52213 -12.094048,-1.82963" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="body" id="saucer-body">
+    <path style="fill:#cc0000"
+          d="m 256.0048,135.04915 -9.5881,26.42004 -26.1476,21.57488 -38.78208,14.54619 -47.49152,5.33396 -47.491525,-5.33396 -38.782076,-14.54619 -26.147602,-21.57488 -9.588099,-26.42004 9.588093,-26.42005 26.147602,-21.574878 38.782079,-14.54619 47.491528,-5.33396 47.49153,5.33396 38.78208,14.54619 26.1476,21.574878 z" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="dome" id="saucer-dome">
+    <path style="fill:#ff6666"
+          d="M 48.322747,120.83673 51.37673,94.58939 59.972503,66.494787 78.002755,37.007966 104.34569,15.833828 l 30.09745,-3.747359 30.09745,3.179877 22.1414,16.083298 17.98506,21.625087 12.98741,32.443162 6.52199,32.904977 -2.64148,8.23194 -23.81568,19.78866 -29.35747,15.63232 -33.10064,3.52865 -34.02428,-3.8604 -30.151037,-13.42901 -20.452906,-18.97079 z" />
+  </g>
+</svg>

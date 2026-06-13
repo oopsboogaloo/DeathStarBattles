@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- minespike - single-spike hazard, one colour per Inkscape layer.
+     Fill is fixed (not a team shade sentinel), so it passes through unchanged. -->
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+     width="1000" height="1000" viewBox="0 0 264.58333 264.58333" version="1.1">
+  <g inkscape:groupmode="layer" inkscape:label="spike" id="mine-spike">
+    <path style="fill:#f6ff55"
+          d="m 132.57838,255.52975 -10.11594,-10.04166 -10.78576,-122.64964 4.40059,-71.943121 13.71239,-45.6704786 14.91683,45.6905566 5.58481,70.431533 -6.40093,122.15283 z" />
+  </g>
+</svg>

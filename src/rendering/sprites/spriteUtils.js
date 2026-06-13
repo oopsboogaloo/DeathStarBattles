@@ -4,6 +4,10 @@
 export function resolveColor(fill, teamColors) {
   if (fill === 'team.primary')   return teamColors.primary;
   if (fill === 'team.secondary') return teamColors.secondary;
+  if (fill === 'team.shade1')    return teamColors.shade1;
+  if (fill === 'team.shade2')    return teamColors.shade2;
+  if (fill === 'team.shade3')    return teamColors.shade3;
+  if (fill === 'team.shade4')    return teamColors.shade4;
   return fill;
 }
 

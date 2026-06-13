@@ -47,7 +47,7 @@ function resize() {
 resize();
 addEventListener('resize', resize);
 
-const sprite = getSprite('ufo');
+const sprite = getSprite('saucer1');
 const sheets = new SpriteSheetCache();
 
 const colorCache = new Map();
@@ -55,9 +55,13 @@ function teamColors(c) {
   const key = c.join(',');
   let v = colorCache.get(key);
   if (!v) {
+    const scale = k => `rgb(${Math.round(c[0]*k)},${Math.round(c[1]*k)},${Math.round(c[2]*k)})`;
+    const toward = (x, t) => Math.round(x + (255 - x) * t);
     v = { key,
           primary:   `rgb(${c[0]},${c[1]},${c[2]})`,
-          secondary: `rgb(${Math.min(255,c[0]+90)},${Math.min(255,c[1]+90)},${Math.min(255,c[2]+90)})` };
+          secondary: `rgb(${Math.min(255,c[0]+90)},${Math.min(255,c[1]+90)},${Math.min(255,c[2]+90)})`,
+          shade1: scale(0.40), shade2: scale(0.65), shade3: `rgb(${c[0]},${c[1]},${c[2]})`,
+          shade4: `rgb(${toward(c[0],0.55)},${toward(c[1],0.55)},${toward(c[2],0.55)})` };
     colorCache.set(key, v);
   }
   return v;
