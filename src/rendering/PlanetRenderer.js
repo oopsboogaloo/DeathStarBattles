@@ -9,10 +9,6 @@ export function setPlanetRendererSimplified(v) { _simplified = v; }
 let _experimental = false;
 export function setPlanetRendererExperimental(v) { _experimental = v; }
 
-// Reusable offscreen for the live (per-frame) star fire rim — grown on demand,
-// shared across all stars so the animation allocates no canvas per frame.
-let _fireScratch = null;
-
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
   static drawCorona(ctx, planet, conv) {
@@ -303,90 +299,117 @@ export class PlanetRenderer {
 
   // ----------------------------------------------------------------
   // Star fire rim (experimental) — 3 stacked jagged solid bands hugging the
-  // star surface. Each band fills from a hidden inner edge up to an irregular
-  // zigzag outer edge whose lower/upper vertices float above the surface (they
-  // never reach the base). The nearest band (drawn last) is the star colour and
-  // each band behind it is progressively darker, so the fringe deepens outward.
+  // star surface. Each band fills from an inner edge at the body radius up to an
+  // irregular zigzag outer edge whose lower/upper vertices float above the
+  // surface. The nearest band (drawn last) is the star colour and each band
+  // behind it is progressively darker, so the fringe deepens outward.
   //
-  // Drawn live each frame (NOT baked into the cached background) onto a reusable
-  // scratch canvas, then composited over the star body at (cx, cy). Animated:
-  // every vertex radius oscillates within its [lo, hi] envelope as a smooth
-  // function of wall-clock time, so the points glide up and down like licking
-  // flames. Motion is deterministic — a stable per-vertex phase derived from a
-  // hash of the vertex index, summed over two octaves (slow swell + fast
+  // Drawn live each frame DIRECTLY onto the main canvas (no offscreen, no blur):
+  // each band is one filled annular ribbon, so only the rim pixels rasterise —
+  // never the star's interior. Only the teeth whose sector is on screen are
+  // generated and drawn, so a supergiant larger than the viewport costs just the
+  // visible arc, not its whole bounding box.
+  //
+  // Animated: every vertex radius oscillates within its [lo, hi] envelope as a
+  // smooth function of wall-clock time, so the points glide up and down like
+  // licking flames. Motion is deterministic — a stable per-vertex phase derived
+  // from a hash of the vertex index, summed over two octaves (slow swell + fast
   // flicker) — so no per-star state is stored and it survives zoom changes. The
-  // angular jitter is hashed (static) too, so teeth keep their identity instead
-  // of sliding sideways. Fills are fully opaque; depth comes from layering, not
-  // alpha. Composited through a light 1px blur.
+  // angular jitter is hashed (static) too, so teeth keep their identity.
   // ----------------------------------------------------------------
-  static drawStarFireRim(ctx, cx, cy, r, colour) {
+  static drawStarFireRim(ctx, cx, cy, r, colour, vpW, vpH) {
     const [pr, pg, pb] = colour;
     const TAU   = Math.PI * 2;
     const teeth = Math.max(108, Math.round(r * 0.84)); // ~3× the previous density
     const step  = TAU / teeth;
     const t     = performance.now() / 1000;            // seconds — drives the animation
 
-    // Reused across stars and frames — no per-frame canvas allocation.
-    const box = Math.ceil(r * 1.12) * 2 + 6;
-    if (!_fireScratch) _fireScratch = document.createElement('canvas');
-    if (_fireScratch.width < box || _fireScratch.height < box) {
-      _fireScratch.width = _fireScratch.height = box;
+    // Visibility mask: which teeth sit within the viewport (margin covers the
+    // tip reach). Off-screen teeth are never generated or drawn.
+    const m   = r * 0.08 + 4;
+    const vis = new Uint8Array(teeth);
+    let anyVis = false, allVis = true;
+    for (let i = 0; i < teeth; i++) {
+      const a = (i + 0.5) * step;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      const v = x >= -m && x <= vpW + m && y >= -m && y <= vpH + m;
+      vis[i] = v ? 1 : 0;
+      if (v) anyVis = true; else allVis = false;
     }
-    const g = _fireScratch.getContext('2d');
-    g.clearRect(0, 0, box, box);
-    const oCx = box / 2, oCy = box / 2;
+    if (!anyVis) return;
 
-    // Stable pseudo-random in [0,1) from a number — used for per-vertex phase,
-    // frequency jitter and angular jitter so each tooth keeps a fixed identity.
+    // Contiguous visible runs as sequences of valley indices (each run carries
+    // one trailing valley so its last tooth closes). Full circle → one run.
+    const runs = [];
+    if (allVis) {
+      const seq = [];
+      for (let i = 0; i <= teeth; i++) seq.push(i);
+      runs.push(seq);
+    } else {
+      let start = 0;
+      for (let i = 0; i < teeth; i++) if (vis[i] && !vis[(i - 1 + teeth) % teeth]) { start = i; break; }
+      let k = 0;
+      while (k < teeth) {
+        const idx = (start + k) % teeth;
+        if (!vis[idx]) { k++; continue; }
+        const seq = [idx];
+        let j = k + 1;
+        while (j < teeth && vis[(start + j) % teeth]) { seq.push((start + j) % teeth); j++; }
+        seq.push((start + j) % teeth); // trailing valley closes the last visible tooth
+        runs.push(seq);
+        k = j + 1;
+      }
+    }
+
+    // Stable pseudo-random in [0,1) — per-vertex phase, frequency and angular jitter.
     const hash = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
-    // Smooth oscillation in [-1,1]: a slow swell plus a smaller faster flicker,
-    // each with a per-vertex phase so neighbouring teeth move out of step.
+    // Smooth oscillation in [-1,1]: slow swell plus a smaller faster flicker.
     const wave = (i, seed, baseFreq) => {
       const f = baseFreq * (0.8 + 0.4 * hash(i + seed + 3.7));
       return 0.7 * Math.sin(t * f         + hash(i + seed)        * TAU)
            + 0.3 * Math.sin(t * f * 2.7   + hash(i + seed + 11.3) * TAU);
     };
+    const jit = step * 0.45;
 
-    // One jagged solid band. The outer edge zigzags between a lower vertex
-    // (radius oscillating within [vLo, vHi]) and an upper vertex (within
-    // [tLo, tHi]). Solid fill runs from rInner up to that edge.
+    // One band: a filled annular ribbon over every visible run (single fill).
     const band = (rInner, vLo, vHi, tLo, tHi, seed, fill) => {
       const vMid = (vLo + vHi) / 2, vAmp = (vHi - vLo) / 2;
       const tMid = (tLo + tHi) / 2, tAmp = (tHi - tLo) / 2;
-      g.fillStyle = fill;
-      g.beginPath();
-      const jit = step * 0.45;
-      for (let i = 0; i < teeth; i++) {
-        const aB = i * step;
-        const av = aB + (hash(i + seed + 50) - 0.5) * jit;        // lower vertex (static jitter)
-        const rv = vMid + vAmp * wave(i, seed, 2.2);              // valley oscillates
-        const vx = oCx + Math.cos(av) * rv, vy = oCy + Math.sin(av) * rv;
-        if (i === 0) g.moveTo(vx, vy); else g.lineTo(vx, vy);
-        const at = aB + step * 0.5 + (hash(i + seed + 70) - 0.5) * jit; // upper vertex
-        const rt = tMid + tAmp * wave(i, seed + 5, 2.8);          // tip oscillates a touch faster
-        g.lineTo(oCx + Math.cos(at) * rt, oCy + Math.sin(at) * rt);
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      for (const seq of runs) {
+        const L = seq.length;
+        for (let p = 0; p < L; p++) {            // outer edge: valley, tip, valley, …
+          const vi = seq[p];
+          const av = vi * step + (hash(vi + seed + 50) - 0.5) * jit;
+          const rv = vMid + vAmp * wave(vi, seed, 2.2);
+          const vx = cx + Math.cos(av) * rv, vy = cy + Math.sin(av) * rv;
+          if (p === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+          if (p < L - 1) {
+            const at = vi * step + step * 0.5 + (hash(vi + seed + 70) - 0.5) * jit;
+            const rt = tMid + tAmp * wave(vi, seed + 5, 2.8);
+            ctx.lineTo(cx + Math.cos(at) * rt, cy + Math.sin(at) * rt);
+          }
+        }
+        for (let p = L - 1; p >= 0; p--) {       // inner edge, traced back
+          const vi = seq[p];
+          const av = vi * step + (hash(vi + seed + 50) - 0.5) * jit;
+          ctx.lineTo(cx + Math.cos(av) * rInner, cy + Math.sin(av) * rInner);
+        }
       }
-      for (let i = teeth; i >= 0; i--) {                         // inner edge, traced back
-        const a = (i / teeth) * TAU;
-        g.lineTo(oCx + Math.cos(a) * rInner, oCy + Math.sin(a) * rInner);
-      }
-      g.closePath();
-      g.fill();
+      ctx.fill();
     };
 
     const rgb  = (cr, cg, cb) => `rgb(${cr | 0},${cg | 0},${cb | 0})`;
     const star = rgb(pr, pg, pb);
     const mid  = rgb(pr * 0.70, pg * 0.70, pb * 0.70);
     const dark = rgb(pr * 0.45, pg * 0.45, pb * 0.45);
-    const rIn  = r * 1.0; // exactly at the body edge — only the teeth extend beyond
+    const rIn  = r * 1.0; // body edge — only the teeth extend beyond
 
     //   rInner  valley range            tip range            seed  fill
     band(rIn, r * 1.0100, r * 1.0250, r * 1.0325, r * 1.0550,   0, dark);  // furthest back — darkest
     band(rIn, r * 1.0050, r * 1.0200, r * 1.0225, r * 1.0400, 100, mid);   // middle — dimmed star colour
     band(rIn, r * 1.0025, r * 1.0125, r * 1.0125, r * 1.0275, 200, star);  // nearest surface — star colour
-
-    // Blur dropped (experimental perf test): plain composite, no ctx.filter.
-    ctx.drawImage(_fireScratch, 0, 0, box, box, cx - oCx, cy - oCy, box, box);
   }
 
   // ----------------------------------------------------------------

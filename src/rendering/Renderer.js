@@ -609,7 +609,7 @@ export class Renderer {
       const cy = planet.position.y * this.conv;
       const reach = r * 1.12 + 4;
       if (cx + reach < 0 || cx - reach > this._vpW || cy + reach < 0 || cy - reach > this._vpH) continue;
-      PlanetRenderer.drawStarFireRim(ctx, cx, cy, r, planet.colour);
+      PlanetRenderer.drawStarFireRim(ctx, cx, cy, r, planet.colour, this._vpW, this._vpH);
     }
   }
 
