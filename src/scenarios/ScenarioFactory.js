@@ -970,10 +970,11 @@ export class ScenarioFactory {
         // placement plus the generic _validate retry leaves overlapping stars,
         // because _validate skips pairs whose centres are both off-screen
         // (cluster stars roam ±10% past the edges) and only guards the solid
-        // core radius. The gap is scaled to the star's glow (≈1.45× the body
-        // radius) so the bright coronae stay clear, not just the cores. A star
-        // that won't fit after 150 attempts is dropped, and an area budget
-        // (55% of the screen) trims very high body counts — matches case 37.
+        // core radius. A small radius-scaled gap keeps the cores clearly apart
+        // while letting the coronae intermingle, so the field still reads as a
+        // tight cluster. A star that won't fit after 150 attempts is dropped,
+        // and an area budget (55% of the screen) trims very high body counts —
+        // matches case 37.
         const areaBudget = 0.55 * gw * gh;
         let usedArea = 0;
         const placed = []; // {x, y, r}
@@ -982,7 +983,7 @@ export class ScenarioFactory {
           if (usedArea + Math.PI * r * r > areaBudget) break;
           for (let attempt = 0; attempt < 150; attempt++) {
             const x = rv(rng, 1.2, 0, -0.1, gw), y = rv(rng, 1.2, 0, -0.1, gh);
-            if (placed.every(p => Math.hypot(p.x - x, p.y - y) >= p.r + r + Math.max(10, 0.5 * (p.r + r)))) {
+            if (placed.every(p => Math.hypot(p.x - x, p.y - y) >= p.r + r + Math.max(8, 0.12 * (p.r + r)))) {
               placed.push({ x, y, r });
               usedArea += Math.PI * r * r;
               break;
