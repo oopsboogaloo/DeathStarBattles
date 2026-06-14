@@ -80,6 +80,16 @@ export class PlanetRenderer {
           y: cy + (v.y - cy) * 0.32,
         }));
 
+        // Base silhouette fill: this polygon is wildly non-convex (deep spikes),
+        // so a flat dark fill of the full outline guarantees space never shows
+        // through any seam between the facet triangles below.
+        ctx.beginPath();
+        ctx.moveTo(outer[0].x, outer[0].y);
+        for (let i = 1; i < n; i++) ctx.lineTo(outer[i].x, outer[i].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgb(${Math.round(pr * 0.35)},${Math.round(pg * 0.35)},${Math.round(pb * 0.35)})`;
+        ctx.fill();
+
         for (let i = 0; i < n; i++) {
           const j = (i + 1) % n, h = (i - 1 + n) % n;
           // A — outer face
@@ -90,10 +100,15 @@ export class PlanetRenderer {
           [nx, ny] = outwardNormal(mid[h].x, mid[h].y, outer[i].x, outer[i].y);
           shade(nx, ny);
           ctx.beginPath(); ctx.moveTo(mid[h].x, mid[h].y); ctx.lineTo(outer[i].x, outer[i].y); ctx.lineTo(mid[i].x, mid[i].y); ctx.closePath(); ctx.fill();
-          // C — inner ledge face
+          // C — inner ledge face (inward-pointing triangle of the mid→core ring)
           [nx, ny] = outwardNormal(mid[h].x, mid[h].y, mid[i].x, mid[i].y);
           shade(nx, ny);
           ctx.beginPath(); ctx.moveTo(mid[h].x, mid[h].y); ctx.lineTo(mid[i].x, mid[i].y); ctx.lineTo(core[i].x, core[i].y); ctx.closePath(); ctx.fill();
+          // D — inner ledge valley (outward-pointing companion of C). Without this
+          // the mid→core ring is only half-tiled, leaving the star-shaped holes.
+          [nx, ny] = outwardNormal(core[i].x, core[i].y, core[j].x, core[j].y);
+          shade(nx, ny);
+          ctx.beginPath(); ctx.moveTo(core[i].x, core[i].y); ctx.lineTo(mid[i].x, mid[i].y); ctx.lineTo(core[j].x, core[j].y); ctx.closePath(); ctx.fill();
         }
         // Deep inner top face
         ctx.beginPath();
