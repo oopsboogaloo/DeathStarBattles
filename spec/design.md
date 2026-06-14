@@ -1071,7 +1071,7 @@ class CollectableGrantVFX {
 }
 ```
 
-Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity follows a pulse: `sin(t * π)` (fade in from 0, peak at t=0.5, fade out to 0). Font matches HUD font (monospace bold), size ~14px screen.
+Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity is a quick fade-in (full by `t = 0.1`), a hold at full opacity, then a fast eased fade-out across the final tail (`t > 0.7`): `alpha = clamp(t / 0.1) * (1 - ((t - 0.7) / 0.3)²)`. This keeps the label readable for most of its life and lets it disappear gracefully instead of cutting off. Font matches HUD font (monospace bold), size ~14px screen.
 
 #### `TripleCannonMuzzleVFX`
 

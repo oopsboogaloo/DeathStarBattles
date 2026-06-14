@@ -499,6 +499,8 @@ Weapons are applied to the recipient team's stock immediately and carry into the
 
 When **Claim Collectables** is enabled (see §10 Page 6), all collectables still on the map at game end are converted into random weapons and distributed to surviving teams. Surviving teams are those with at least one alive station; the winning team is included. Distribution uses a random rotation: surviving teams are shuffled, then each collectable is assigned to the next team in the rotation, cycling if the number of collectables exceeds the number of surviving teams. Each collectable generates one weapon using the standard 80/16/4% tier weighting. The weapons carry over into the next game. If no collectables remain or no teams survived, nothing is distributed.
 
+The claim is resolved **in-game at the end of the round**, while the result is shown on screen, rather than silently after the round. As the game is decided (before the game-over screen appears) each claimed collectable plays the same on-screen feedback as a normal pickup — a shatter VFX at the collectable position and the granted weapon name shown in the **collecting team's colour** (see §6 `CollectableGrantVFX`). The results display is held long enough for the grant animation to finish, so players can see which team claimed each weapon.
+
 ---
 
 ## 10. Configuration Options
@@ -545,7 +547,7 @@ Only accessible when Mode = Tournament.
 | Winner Prize | None (default) / Minor / Mid / Mammoth | Weapon(s) awarded to game winner after each game; see §9.2 |
 | Handicap Prize | None (default) / Minor / Mid / Mammoth | Weapon(s) awarded to last-place team after each game; see §9.2 |
 | Award Prizes | None (default) / Minor / Mid / Major / Mammoth | Weapons awarded to each award winner at the 5-game ceremony; see §8.3 |
-| Claim Collectables | Off (default) / On | Surviving teams receive weapons from remaining map collectables at game end; see §9.2 |
+| Claim Collectables | Off (default) / On | Surviving teams claim weapons from remaining map collectables in-game at the end of the round, with on-screen grant animation; see §9.2 |
 
 ### Page 4 — Collectables
 All sub-options are greyed out and unclickable when Collectables is Off.

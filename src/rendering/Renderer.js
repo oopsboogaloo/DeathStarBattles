@@ -3199,7 +3199,11 @@ export class Renderer {
     const cy   = vfx.y * this.conv;
     const t    = vfx.t;
     const rise = t * 20 * this.conv;
-    const alpha = Math.max(0, Math.sin(t * Math.PI));
+    // Quick fade-in, hold at full, then a fast eased fade-out so the grant
+    // label disappears gracefully instead of cutting off abruptly.
+    const fadeIn  = Math.min(1, t / 0.1);
+    const ft      = t > 0.7 ? (t - 0.7) / 0.3 : 0; // 0→1 across the final tail
+    const alpha   = Math.max(0, fadeIn * (1 - ft * ft));
 
     ctx.save();
     ctx.font         = `bold ${Math.max(10, Math.floor(this._vpW / 55))}px monospace`;
