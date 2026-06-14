@@ -1392,6 +1392,17 @@ export class ScenarioFactory {
             ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, richProb);
           }
         }
+        // Scatter 2–4 loose asteroids across the map so the field isn't too sparse
+        // away from the rings (match ring-asteroid look; reuse overlap avoidance).
+        const numLoose = 2 + Math.floor(rng.next() * 3); // 2–4
+        for (let i = 0; i < numLoose; i++) {
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const lax = gw * (0.06 + rng.next() * 0.88);
+            const lay = gh * (0.06 + rng.next() * 0.88);
+            if (ScenarioFactory._placeRingAsteroid(rng, lax, lay, planets, richProb)) break;
+          }
+        }
+
         // Optional wildcard: one non-gas-giant body (~15%)
         if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
@@ -1460,6 +1471,18 @@ export class ScenarioFactory {
             ScenarioFactory._placeRingAsteroid(rng, ax, ay, planets, richProb);
           }
         }
+
+        // Scatter 2–4 loose asteroids across the map so the field isn't too sparse
+        // away from the belt (match belt-asteroid look; reuse overlap avoidance).
+        const numLoose = 2 + Math.floor(rng.next() * 3); // 2–4
+        for (let i = 0; i < numLoose; i++) {
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const lax = gw * (0.06 + rng.next() * 0.88);
+            const lay = gh * (0.06 + rng.next() * 0.88);
+            if (ScenarioFactory._placeRingAsteroid(rng, lax, lay, planets, richProb)) break;
+          }
+        }
+
         if (rng.next() < 0.15) ScenarioFactory._addBonus(planets, rng, rng.next(), rng.next(), gw, gh, performance);
         break;
       }
