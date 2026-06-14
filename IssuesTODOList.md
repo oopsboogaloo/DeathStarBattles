@@ -9,6 +9,13 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 - [x] Collectable special weapons: if a team has only 1 of a special weapon and a station uses it, it remains selectable by the next station — should be greyed out / disabled once the team's supply hits 0.
 
+- [ ] **Collectable grant label disappears abruptly (UNRESOLVED — 2026-06-14)** — The floating weapon-name text spawned when a collectable is claimed/collected (`collectableGrant` VFX, `Renderer._drawCollectableGrant`) appears to vanish abruptly rather than fading out, observed when shooting a collectable mid-game. Several attempts have not fixed it for the reporter:
+  - Reworked the opacity curve in `_drawCollectableGrant` (sine pulse → hold-then-fade → continuous cosine ease-out with zero slope at the end). The current curve is `clamp(t/0.12) * 0.5*(1+cos(t·π))` over `duration: 2.0`.
+  - Initially suspected the VFX clock was advancing multiple times per frame inside the per-physics-step firing loop. **Ruled out:** the step loop in `_advanceFiring` closes at ~line 1735 and `_advanceVFX` runs once per rAF frame afterwards (see the explicit comment near line 1743).
+  - Added `GameLoop._advanceCollectableVFX` (called from `_advance` in every game mode) so the label keeps fading during the AIMING phase too, where plain `_advanceVFX` (FIRING/RESULTS only) would otherwise freeze it. This is a genuine improvement but did not resolve the reported abruptness.
+  - Confirmed VFX drawing is not mode-gated (`Renderer.drawFrame` always draws `vfxList`), `index.html` loads `src/main.js` directly with no build step, the `drawFrame` wrapper in `main.js` does no throttling, and `vfxList` is never cleared except by the `t < 1` filter.
+  - **Still to investigate next time:** (a) browser/module caching on the reporter's side (hard-refresh needed); (b) high-refresh-rate displays — the game uses a fixed timestep per rAF frame, so on 120/144 Hz everything (including the 2.0 s fade) runs proportionally faster and may read as abrupt — try increasing the grant VFX `duration` (8+ push sites currently hard-code `duration: 2.0`) and/or driving VFX `t` from real delta-time instead of a fixed `1/60`; (c) capture actual frames in the running app to confirm whether intermediate alpha values are ever rendered.
+
 ## Improvements
 
 <!-- e.g. - [x] Description -->

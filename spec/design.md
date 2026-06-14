@@ -1075,6 +1075,8 @@ Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity is 
 
 VFX `t` is advanced once per rendered rAF frame, not per physics sub-step — `_advanceVFX` is called once after the firing step loop (and once in RESULTS). `collectableGrant` and `collectableShatter` are additionally advanced by `_advanceCollectableVFX`, which runs in **every** game mode (including AIMING), so a grant label that outlives the firing/results phases keeps fading instead of freezing on screen while the next player aims. `_advanceVFX` skips these two types to avoid double-advancing them.
 
+> **Known issue (unresolved, 2026-06-14):** the grant label is still reported to disappear abruptly rather than fade for at least one user, despite the eased curve above. See `IssuesTODOList.md` → Bugs for the full investigation log and the leads still to try (caching, high-refresh-rate fixed-timestep compression, delta-time advancement).
+
 #### `TripleCannonMuzzleVFX`
 
 ```js
