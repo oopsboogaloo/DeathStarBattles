@@ -305,7 +305,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 23 | Neutron Star | One pulsar + mix of rocky planets and asteroids |
 | 24 | White Hole | One repulsive white hole + rocky bodies |
 | 25 | White Holes | 2–5 white holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
-| 26 | Hyperspace | 2–8 gravity anomalies (≈80% black hole, ≈20% wormhole-network portal; green if attracting, red if repelling) + 2–4 space rifts |
+| 26 | Hyperspace | 2–8 gravity anomalies (≈80% black hole, ≈20% wormhole-network portal; green if attracting, red if repelling) + 2–4 space rifts. **Unique periodic (wrap-around) boundary** — see §6.9. |
 | 27 | Black Holes | 2–5 black holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 28 | Big Wormhole | Two enormous wormhole portals, mirrored through the screen centre (partially off-screen) + planets. See §6.7. |
 | 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field. 30% of games use the blue reflective variant. |
@@ -398,6 +398,16 @@ Scenarios 1 (Planetary), 21 (White Dwarfs), 25 (White Holes), 27 (Black Holes), 
 **Concept:** A huge supergiant (radius 1.5–1.9× screen height, usually mostly off-screen) paired with a single ordinary on-screen star.
 
 **Placement requirement — halo clearance:** the ordinary star must be kept at least a **halo-width clear of the supergiant**. Its centre must be at least `supergiant radius + (ordinary star's halo radius ≈ 3.2× its own radius)` from the supergiant centre, so the two stars' rims and coronas never collide or "almost touch" — which looks wrong, especially with the animated fire rim (full/experimental modes). The ordinary star's position is re-rolled until it satisfies this, falling back to the farthest sampled position if the supergiant engulfs the whole screen. The **first roll matches the original unconstrained placement**, so seed reproducibility is preserved except in layouts that would otherwise be too close (§6.2 layout variability — reject-and-resample rather than narrowing the random distribution).
+
+### 6.9 Hyperspace Scenario (id 26)
+
+**Concept:** A chaotic anomaly field where space itself wraps around. Contains 2–8 gravity anomalies (each ≈80% black hole, ≈20% wormhole-network portal) of random strength — green-tinted when attracting, red-tinted when repelling (`anomalyRepels`) — plus 2–4 (purple) space rifts. The star field background is disabled.
+
+**Periodic (wrap-around) boundary — unique to this scenario:** `PhysicsEngine.periodicBoundary` is set true only for scenario 26. A bullet or rocket that crosses a play-area edge (0…`gw`, 0…`gh`) re-enters from the opposite edge — its position is taken modulo the play-area size and its trail is reset at the seam. This replaces the default behaviour, where projectiles are killed once they pass the extended off-screen boundary. (The wrap uses the *visible* play area, not the extended boundary.)
+
+**Forced hyperspace every turn:** every active station is teleported to a random clear position at the end of each turn (`_processHyperspace`). Selecting Hyperspace inverts this — it acts as an **anchor**, keeping that ship in place for the turn. Stations themselves do not wrap; they are simply re-placed by the forced teleport.
+
+**Other rules:** collectables never spawn in this scenario; wildcard rift injection here is always purple and never produces grey (planet) wormholes.
 
 ---
 
