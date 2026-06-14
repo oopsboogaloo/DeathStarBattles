@@ -1552,6 +1552,14 @@ export class GameLoop {
           rocket.status = RocketStatus.DEAD; continue;
         }
 
+        // Lifetime cap — same as bullets (BULLET_LIFE trail points). Prevents a rocket
+        // trapped in a stable orbit from keeping the round alive forever; it expires
+        // harmlessly (no blast), like an off-map rocket or a timed-out bullet.
+        if (rocket.trail.length >= BULLET_LIFE) {
+          if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]);
+          rocket.status = RocketStatus.DEAD; continue;
+        }
+
         // Collectable pickup — rocket gathers any collectable it flies through and keeps going
         for (const c of this.gs.collectables) {
           if (!c.alive) continue;
