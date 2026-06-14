@@ -62,6 +62,7 @@ export class Planet {
     supergiant    = false,  // STAR flag for supergiants — drives visual differentiation
     velocity      = null,   // Vec2 — used by COMET type for dynamic movement
     rich          = false,  // true for Rich Asteroid (blue-brown, yields crystal on break)
+    pure          = false,  // true for Pure Asteroid (gold; a rare sub-type of rich)
     craterData    = null,   // [{dx,dy,r}] — crater positions relative to moon centre (MOON only)
     hitCount      = 0,      // damage level 0-2; 3rd hit destroys the moon
     crackLines    = null,   // [[Vec2[]]...] — one crack-set per hit (MOON only)
@@ -87,6 +88,7 @@ export class Planet {
     this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings
     this.velocity      = velocity;
     this.rich          = rich;
+    this.pure          = pure;
     this.craterData    = craterData;
     this.hitCount      = hitCount;
     this.crackLines    = crackLines ?? [];

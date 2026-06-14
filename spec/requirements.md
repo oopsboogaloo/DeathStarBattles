@@ -139,6 +139,7 @@ Fires 8 rockets in succession at Blaster timing (one per second at normal speed)
 - A rocket blast also destroys collectables within its blast radius, granting the weapon to the rocket owner's team
 - The weapon type is decided at collection time, not at spawn
 - When a Rich Asteroid fragments, the collectable **replaces** one child fragment — it does not spawn on top of a child
+- A **Pure Asteroid** (gold; 1% of rich asteroids) additionally drops **2–4 collectables on top** of the standard rich payout, and its children are themselves pure (so the bonus cascades as they are destroyed). The bonus collectables are spawned as extra entities — they do not replace child fragments
 - Weapon stocks are **shared across all stations on a team** and **carry over between tournament games**
 
 | Weapon | Charges per collectable |
@@ -232,6 +233,7 @@ All planets exert gravity unless stated otherwise. Planet impact behaviour when 
 | Asteroid | Dark brown | Bullet explodes on impact; fragments into 2–4 child asteroids |
 | Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed. Exception: **Bounce Cannon** reflects off elastically and smashes the asteroid (bullet survives). |
 | Rich Asteroid | Blue-brown | Same as Asteroid; additionally spawns one Collectable on destruction. Only appears when Collectables setting is ON (5% of asteroids). |
+| Pure Asteroid | Gold | Rare sub-type of Rich Asteroid (**1% of rich asteroids**). Shatters into **Pure Asteroid children** (which are themselves pure) and, on top of the standard rich Collectable payout, drops **2–4 additional Collectables**. Applies to regular, ring, and giant asteroids alike. Only appears when Collectables setting is ON. |
 | Comet | Glowing pale yellow | Takes **two bullet hits** to destroy — the first hit only chips it; the bullet explodes on each hit. Moves under reduced self-gravity and freezes stations on contact (see frozen-condition-spec). |
 | Star | Yellow/orange | Bullet explodes on impact |
 | White Dwarf | White | Bullet explodes on impact; very small radius, very high density |

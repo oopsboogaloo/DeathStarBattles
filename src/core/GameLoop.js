@@ -751,7 +751,11 @@ export class GameLoop {
   // Returns [] if the parent is too small to fragment.
   _fragmentAsteroid(parent) {
     const MIN_RADIUS = 10;
-    if (parent.radius < MIN_RADIUS) return [];
+    if (parent.radius < MIN_RADIUS) {
+      // Too small to break into children, but a pure rock still pays out its bonus.
+      if (parent.pure) this._spawnCollectablesNear(parent.position, parent.radius, 2 + Math.floor(this.rng.next() * 3));
+      return [];
+    }
 
     const n      = 2 + Math.floor(this.rng.next() * 3); // 2, 3, or 4
     const factor = n === 2 ? 0.42 : n === 3 ? 0.35 : 0.30;
@@ -788,15 +792,20 @@ export class GameLoop {
       this.gs.collectables.push(col);
     }
 
+    // Pure rock: drop 2-4 collectables on top of the standard rich payout above.
+    if (parent.pure) this._spawnCollectablesNear(parent.position, parent.radius, 2 + Math.floor(this.rng.next() * 3));
+
     // Skip centers[0] if a collectable replaced that fragment slot
     return centers.slice(spawnedCollectable ? 1 : 0).map(c => {
-      const isRich = richProb > 0 && this.rng.next() < richProb;
-      return this._makeChildAsteroid(new Vec2(c.x, c.y), childR, parent.density, isRich);
+      // Pure parents always shatter into pure children; otherwise re-roll richness.
+      const isRich = parent.pure || (richProb > 0 && this.rng.next() < richProb);
+      return this._makeChildAsteroid(new Vec2(c.x, c.y), childR, parent.density, isRich, parent.pure);
     });
   }
 
   // Create a single child asteroid planet with fresh polygon and rotated-verts cache.
-  _makeChildAsteroid(position, radius, density, rich = false) {
+  // pure implies rich; pure children are gold and themselves shatter into pure children.
+  _makeChildAsteroid(position, radius, density, rich = false, pure = false) {
     const n        = 6 + Math.floor(this.rng.next() * 5);
     const vertices = this._randomAsteroidVerts(n);
     const rotation = this.rng.next() * Math.PI * 2;
@@ -805,13 +814,28 @@ export class GameLoop {
     const planet = new Planet({
       position, radius, density,
       type:          PlanetType.ASTEROID,
-      colour:        rich ? [75, 90, 120] : [120, 80, 10],
+      colour:        pure ? [230, 195, 60] : rich ? [75, 90, 120] : [120, 80, 10],
       shading:       ShadingStyle.ROCKY,
-      vertices, rotation, rotationSpeed: speed, rich,
+      vertices, rotation, rotationSpeed: speed, rich: rich || pure, pure,
     });
 
     this._computeRotatedVerts(planet);
     return planet;
+  }
+
+  // Spawn `count` collectables at random offsets within `spread` of a centre point.
+  _spawnCollectablesNear(center, spread, count) {
+    if (this.gs.config?.collectables === 'off') return;
+    for (let c = 0; c < count; c++) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const dist  = this.rng.next() * spread;
+      const col   = new Collectable(new Vec2(
+        center.x + Math.cos(angle) * dist,
+        center.y + Math.sin(angle) * dist,
+      ));
+      col.radius = this._collectableRadius();
+      this.gs.collectables.push(col);
+    }
   }
 
   // Create a child Crystal Asteroid (same size/shape as regular asteroid child).
@@ -2114,23 +2138,14 @@ export class GameLoop {
       if (this.gs.planets.some(p => p !== moon && !p.destroyed && overlaps(p.position.x, p.position.y, p.impactRadius))) continue;
       if (placed.some(p => overlaps(p.x, p.y, p.r))) continue;
       placed.push({ x: pos.x, y: pos.y, r: childR });
-      this.gs.planets.push(this._makeChildAsteroid(pos, childR, moon.density, moon.rich ?? false));
+      this.gs.planets.push(this._makeChildAsteroid(pos, childR, moon.density, moon.rich ?? false, moon.pure ?? false));
     }
 
     if (moon.rich && this.gs.config?.collectables !== 'off') {
-      const nCols = 3 + Math.floor(this.rng.next() * 4); // 3-6
-      for (let c = 0; c < nCols; c++) {
-        const angle  = this.rng.next() * Math.PI * 2;
-        const dist   = this.rng.next() * moon.radius * 0.8;
-        const colPos = new Vec2(
-          moon.position.x + Math.cos(angle) * dist,
-          moon.position.y + Math.sin(angle) * dist,
-        );
-        const col  = new Collectable(colPos);
-        col.radius = this._collectableRadius();
-        this.gs.collectables.push(col);
-      }
+      this._spawnCollectablesNear(moon.position, moon.radius * 0.8, 3 + Math.floor(this.rng.next() * 4)); // 3-6
     }
+    // Pure giant: 2-4 collectables on top of the standard rich payout above.
+    if (moon.pure) this._spawnCollectablesNear(moon.position, moon.radius * 0.8, 2 + Math.floor(this.rng.next() * 3));
   }
 
   _generateMoonCracks(moon, ix, iy) {

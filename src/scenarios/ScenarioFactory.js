@@ -31,6 +31,8 @@ const ROCKY_COLS = [
 ];
 const ASTEROID_COL          = [120,  80,  10];
 const RICH_ASTEROID_COL     = [ 75,  90, 120]; // blue-brown tint for rich asteroids
+const PURE_ASTEROID_COL     = [230, 195,  60]; // gold — rare "pure" sub-type of rich (1% of rich)
+export const PURE_OF_RICH_PROB = 0.01;         // a rich asteroid is "pure" with this probability
 const CRYSTAL_ASTEROID_COL  = [160, 210, 255]; // icy blue-white for crystal asteroids
 const MOON_COL     = [120, 100,  70];
 const WHITE_COL    = [255, 255, 255];
@@ -81,17 +83,19 @@ function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density, richProb = 0) {
   const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180; // biased toward slow
   const rotation = rng.next() * Math.PI * 2;
   const isRich   = richProb > 0 && rng.next() < richProb;
+  const isPure   = isRich && rng.next() < PURE_OF_RICH_PROB;
   const planet   = new Planet({
     position:      new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
     radius:        rr(rng, D, E, F),
     density,
     type:          PlanetType.ASTEROID,
-    colour:        isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
+    colour:        isPure ? [...PURE_ASTEROID_COL] : isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
     shading:       ShadingStyle.ROCKY,
     vertices,
     rotation,
     rotationSpeed: speed,
     rich:          isRich,
+    pure:          isPure,
   });
   // Pre-compute rotated verts so background rendering has them immediately
   const cos = Math.cos(rotation), sin = Math.sin(rotation);
@@ -173,17 +177,19 @@ function makeGiantAsteroid(rng, gw, gh, richProb) {
   const rotation      = rng.next() * Math.PI * 2;
   const rotationSpeed = (0.02 + rng.next() * 0.08) * Math.PI / 180; // very slow rotation
   const isRich        = richProb > 0 && rng.next() < richProb;
+  const isPure        = isRich && rng.next() < PURE_OF_RICH_PROB;
   const planet = new Planet({
     position: new Vec2(cx, cy),
     radius,
     density:       0.04,
     type:          PlanetType.GIANT_ASTEROID,
-    colour:        isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
+    colour:        isPure ? [...PURE_ASTEROID_COL] : isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
     shading:       ShadingStyle.ROCKY,
     vertices,
     rotation,
     rotationSpeed,
     rich:          isRich,
+    pure:          isPure,
     hitCount:      0,
   });
   // Pre-compute rotated verts so the renderer has them from frame 0
@@ -1993,10 +1999,12 @@ export class ScenarioFactory {
     const rotation = rng.next() * Math.PI * 2;
     radius       ??= rr(rng, 6, 3, 3); // slightly larger than regular asteroids
     const isRich   = richProb && rng.next() < 0.05;
+    const isPure   = isRich && rng.next() < PURE_OF_RICH_PROB;
     const planet   = new Planet({
       position: new Vec2(ax, ay), radius, density: 0.05,
-      type: PlanetType.ASTEROID, colour: isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
-      shading: ShadingStyle.ROCKY, vertices, rotation, rotationSpeed: speed, rich: isRich,
+      type: PlanetType.ASTEROID,
+      colour: isPure ? [...PURE_ASTEROID_COL] : isRich ? [...RICH_ASTEROID_COL] : [...ASTEROID_COL],
+      shading: ShadingStyle.ROCKY, vertices, rotation, rotationSpeed: speed, rich: isRich, pure: isPure,
     });
     const cos = Math.cos(rotation), sin = Math.sin(rotation);
     planet._rotatedVerts = vertices.map(v => new Vec2(
