@@ -82,7 +82,7 @@ export class ConfigPanel {
       collectables:      'normal',
       richAsteroids:     'normal',
       collectableSize:   'medium',
-      startingWeapons:   'none',
+      startingWeapons:   'basic',
       startingArmour:    'none',
       forceExtreme:      false,
       overrideSeed:      '',
@@ -94,7 +94,7 @@ export class ConfigPanel {
       tpRounds:          5,
       tpIncludeAI:       false,
       turnLimit:         'off',
-      winnerPrize:       'none',
+      winnerPrize:       'minor',
       handicapPrize:     'none',
       tournamentGames:   'keepGoing',
       awardPrizes:       'none',
@@ -394,7 +394,7 @@ export class ConfigPanel {
 
     // ── Copyright notice ─────────────────────────────────────────────────────
     const copyright = el('div', {
-      margin:        '-18px 0 22px',
+      margin:        '-6px 0 22px',
       fontSize:      '10px',
       letterSpacing: '0.08em',
       color:         'rgba(150,165,230,0.6)',

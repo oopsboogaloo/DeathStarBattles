@@ -88,6 +88,10 @@ panel.onResign(() => {
   const gs   = loop.gs;
   const team = gs.teams[gs.currentTeamIdx];
   if (!team) return;
+  // Only allow resign during aiming when it is a human player's turn
+  const isHumanAimTurn = (gs.mode === GameMode.AIMING || gs.mode === GameMode.TP_AIMING)
+    && gs.waitingForInput && team.isHuman;
+  if (!isHumanAimTurn) return;
   if (_menuPausedLoop && loop.isPaused) { loop.togglePause(); _menuPausedLoop = false; }
   loop.resignTeam(team);
 });
@@ -184,7 +188,7 @@ function makeBtn(label, accent = 'rgba(10,10,25,0.85)') {
 const endTurnBtn = makeBtn('End Turn');
 const weaponBtn  = makeBtn('CANNON ▲');
 const moveBtn    = makeBtn('Move');
-btnBar.append(endTurnBtn, weaponBtn, moveBtn);
+btnBar.append(moveBtn, weaponBtn, endTurnBtn);
 document.body.appendChild(btnBar);
 
 const weaponSelector = new WeaponSelector();

@@ -216,16 +216,6 @@ Larger stations:
 Smaller stations are harder to hit but also harder to aim well with. Mammoth stations dominate the screen; Micro stations are nearly invisible.`,
   },
   {
-    title: 'Planets',
-    body: `How many planets, stars, asteroids, or other bodies appear in the scenario. Options: Random (3–8) or a specific number from 3 to 50.
-
-More planets = more gravitational obstacles for projectiles to navigate around, and more chaotic trajectories.
-
-Very high counts (30+) make the map extremely dense. Very low counts (3–4) leave open space for long clean shots.
-
-The actual bodies that appear depend on the Scenario setting.`,
-  },
-  {
     title: 'Scenario',
     body: `Which map layout to generate. Options: Lucky Dip or any numbered scenario (1–28).
 
@@ -330,19 +320,55 @@ The game itself is unchanged — only the size of interface elements is affected
 When the final game ends, the results screen shows the complete standings marked ★ FINAL, and the End Tournament button returns to the menu.`,
   },
   {
-    title: 'Tournament Prize',
-    body: `Only available in Tournament mode (Tournament page). Awards random weapons to a team after each game.
+    title: 'Winner Prize',
+    body: `Only available in Tournament mode (Tournament page). Awards weapons to the winning team after each game.
 
-  None            — no reward.
-  Minor           — game winner receives 1 random weapon.
-  Medium          — game winner receives 2 random weapons.
-  Major           — game winner receives 3 random weapons.
-  Mammoth         — game winner receives 5 random weapons.
-  Minor Handicap  — last-place team (standings) receives 1 weapon.
-  Med. Handicap   — last-place team receives 2 weapons.
-  Maj. Handicap   — last-place team receives 3 weapons.
+  None    — no reward.
+  Minor   — winner receives 1 Tier-1 (common) weapon.
+  Mid     — winner receives 1 random weapon.
+  Mammoth — winner receives 2 random weapons.
 
-Weapons are selected using the same tier weighting as pickups: Common (80%), Uncommon (16%), Rare (4%). Awarded weapons are applied immediately and carry into the next game. The results screen names each weapon received.`,
+Awarded weapons carry into the next game. The results screen names each weapon received.`,
+  },
+  {
+    title: 'Handicap Prize',
+    body: `Only available in Tournament mode (Tournament page). Awards weapons to the last-place team (by standings) after each game — a catch-up mechanism for struggling teams.
+
+  None    — no reward.
+  Minor   — last-place team receives 1 Tier-1 (common) weapon.
+  Mid     — last-place team receives 1 random weapon.
+  Mammoth — last-place team receives 2 random weapons.
+
+Weapons carry into the next game.`,
+  },
+  {
+    title: 'Award Prizes',
+    body: `Only available in Tournament mode (Tournament page). Every 5 games an awards ceremony highlights standout performers and grants weapon prizes.
+
+  None    — no prize at award ceremonies.
+  Minor   — award winner receives 1 Tier-1 (common) weapon.
+  Mid     — award winner receives 1 random weapon.
+  Mammoth — award winner receives 2 random weapons.
+
+Award categories are chosen from a rotating pool: Bloodlust, Long Shot, Vengeance, Bully, and others.`,
+  },
+  {
+    title: 'Turn Limit',
+    body: `Only available in Tournament mode (Tournament page). Ends each game automatically after a set number of turns if no winner has been decided.
+
+  Off — no limit; the game runs until one team survives.
+  5 / 10 / 15 / 20 / 30 / 50 — game ends after that many turns.
+
+When the limit is reached, the team with the most surviving stations wins. Use this to keep matches from running too long with many players or stations.`,
+  },
+  {
+    title: 'Claim Collectables',
+    body: `Only available in Tournament mode (Tournament page). Controls whether weapon collectables picked up during a game are kept for future games in the tournament.
+
+  On  — collected weapons persist and carry into the next game (default).
+  Off — collected weapons are discarded at the end of each game.
+
+When On, hunting collectables is a meaningful tournament strategy. When Off, each game starts fresh regardless of what was gathered.`,
   },
   {
     title: 'Map Seed',
@@ -627,60 +653,168 @@ export class AboutModal {
 
 // ── InstructionsModal ─────────────────────────────────────────────────────────
 
+const INSTRUCTIONS_PAGES = [
+  {
+    title: 'How to Play',
+    body: `Each turn, every player selects a weapon, sets an angle and power, then fires at their opponents. When all players have chosen, all projectiles launch simultaneously.
+
+Projectiles are affected by the gravity of every planet and star on the map. A shot that looks like a miss may curve into an enemy; one that looks on-target may be pulled off course.
+
+Last team with a surviving station wins.
+
+Use the arrow keys or click the navigation buttons below to read about controls, movement, weapons, and collectables.`,
+  },
+  {
+    title: 'Controls',
+    body: `MOUSE
+
+Click inside the white targeting circle around your station to aim. The line from your station to your cursor shows the angle; its length sets the power.
+
+KEYBOARD
+
+  Z / A          Rotate aim counter-clockwise
+  X / S          Rotate aim clockwise
+  K / J          Increase power
+  M / N          Decrease power
+  W              Cycle weapon
+  Return         Fire / End turn
+  P              Pause / Unpause
+  O              Slow motion (while paused)
+
+BUTTONS
+
+The bottom bar shows End Turn (fire and pass the turn), the weapon selector, and the Move button (when movement is enabled). End Turn can always be clicked even when aim controls are locked.`,
+  },
+  {
+    title: 'Movement',
+    body: `When station movement is enabled (Options → Movement Speed is not Off), a Move button appears at the bottom of the screen during your turn.
+
+Click Move, then click anywhere on the map to set a destination. Your station will drift toward that point during the firing phase. You can still aim and fire normally — movement and shooting happen at the same time.
+
+HAZARDS
+
+Stations bounce off map edges. Colliding with certain planets will destroy a station — stars are fatal, but crystal asteroids and some others can be passed through safely. Stations also teleport through wormholes.
+
+Use movement to escape a hazard, dodge an incoming shot, or reposition for a better firing angle.`,
+  },
+  {
+    title: 'Weapons',
+    body: `Your default weapon is the Cannon — unlimited shots, affected by gravity.
+
+SPECIAL WEAPONS
+
+Special weapons are collected as power-ups during play (or granted by the Starting Weapons setting). Use the weapon selector button or press W to cycle through what you have.
+
+Notable weapons:
+  Triple Cannon     — fires three shots in a spread
+  Rocket            — guided missile, not affected by gravity
+  Laser             — instant beam, not affected by gravity
+  Bounce Cannon     — reflects off crystal asteroids
+  Force Shield      — deploys a barrier around your station
+  Quantum Torpedo   — passes through planets
+
+HYPERSPACE
+
+Selecting Hyperspace instead of a weapon teleports your station to a random map location. Useful when surrounded or pinned against a planet.`,
+  },
+  {
+    title: 'Collectables & Winning',
+    body: `COLLECTABLES
+
+Collectables appear on the map as glowing gems. Hit one with your own projectile to claim it — the reward is applied to your station automatically. Rewards include extra weapons, armour, and shields.
+
+Collectables can be enabled and configured in the Collectables options page. Asteroids can also hide collectables — destroying them may reveal a hidden prize.
+
+WINNING
+
+Destroy all enemy stations to win. Stations are destroyed by a direct projectile hit (unless armoured). Watch out for gravity — your own shots can curve back and destroy you.
+
+In Tournament mode, scores accumulate across games: +1 per win, +1 per kill, +1 per surviving station, −1 per own-team kill.`,
+  },
+];
+
 export class InstructionsModal {
   constructor() {
-    this._wrap = overlay();
-    const p    = panel('560px');
+    this._page    = 0;
+    this._visible = false;
+    this._wrap    = overlay();
+    const p       = panel('560px');
     this._wrap.appendChild(p);
 
     const close = () => this.hide();
     p.appendChild(closeBtn(close));
-    p.appendChild(heading('✦  HOW TO PLAY'));
 
-    p.appendChild(bodyText(
-`Each turn, every player selects a weapon, sets an angle and power, then fires at their opponents. When all players have chosen, all projectiles fire simultaneously. Projectiles are affected by the gravity of planets and stars. Last station standing wins.
+    this._titleEl = heading('', '15px');
+    p.appendChild(this._titleEl);
 
+    this._bodyEl = bodyText('');
+    p.appendChild(this._bodyEl);
 
-CONTROLS
-
-Mouse:  Click the circle around your station to aim directly.
-        The line length shows current power.
-
-Keyboard:
-  Z / A               Rotate aim counter-clockwise
-  X / S               Rotate aim clockwise
-  K / J               Increase power
-  M / N               Decrease power
-  W                   Cycle weapon
-  Return              Fire / End turn
-  P                   Pause / Unpause
-  O                   Slow motion (while paused)
-
-
-WEAPONS
-
-Use the weapon selector button to cycle through available weapons. Special weapons (triple cannon, laser, rocket, and others) are collected as power-ups during play.
-
-Hyperspace is also a weapon choice — select it instead of firing to teleport your station to a random location. Useful when surrounded by hazards or planets.
-
-Force Shield deploys a protective barrier around your station for the duration of the firing phase.
-
-
-COLLECTABLES
-
-Collectables appear on the map as glowing gems. Hit one with your own projectile to claim it — you receive the reward automatically. Rewards include extra weapons, shields, and other bonuses.
-
-
-WINNING
-
-Destroy all enemy stations to win. Stations are destroyed by direct projectile hit. Watch out for gravity wells — your own shots can curve back and hit you.`));
+    const nav = el('div', {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      marginTop: '24px',
+    });
+    this._prevBtn   = this._navBtn('◄  Previous', () => this._go(-1));
+    this._indicator = el('span', { fontSize: '12px', color: '#778', letterSpacing: '0.06em' });
+    this._nextBtn   = this._navBtn('Next  ►',     () => this._go(+1));
+    nav.appendChild(this._prevBtn);
+    nav.appendChild(this._indicator);
+    nav.appendChild(this._nextBtn);
+    p.appendChild(nav);
 
     this._wrap.addEventListener('click', e => { if (e.target === this._wrap) close(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    document.addEventListener('keydown', e => {
+      if (!this._visible) return;
+      if (e.key === 'Escape')     close();
+      if (e.key === 'ArrowLeft')  this._go(-1);
+      if (e.key === 'ArrowRight') this._go(+1);
+    });
   }
 
-  show() { this._wrap.style.display = 'flex'; }
-  hide() { this._wrap.style.display = 'none'; }
+  _navBtn(label, onClick) {
+    const btn = el('button', {
+      background:   'transparent',
+      border:       '1px solid rgba(100,120,255,0.3)',
+      borderRadius: '4px',
+      color:        'rgba(170,185,255,0.75)',
+      fontFamily:   'monospace',
+      fontSize:     '13px',
+      padding:      '4px 14px',
+      cursor:       'pointer',
+    });
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'rgba(150,170,255,0.7)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'rgba(100,120,255,0.3)'; });
+    return btn;
+  }
+
+  _go(delta) {
+    this._page = Math.max(0, Math.min(INSTRUCTIONS_PAGES.length - 1, this._page + delta));
+    this._render();
+  }
+
+  _render() {
+    const pg = INSTRUCTIONS_PAGES[this._page];
+    this._titleEl.textContent = `✦  ${pg.title.toUpperCase()}`;
+    this._bodyEl.textContent  = pg.body;
+    this._indicator.textContent = `${this._page + 1} / ${INSTRUCTIONS_PAGES.length}`;
+    this._prevBtn.style.visibility = this._page === 0 ? 'hidden' : 'visible';
+    this._nextBtn.style.visibility = this._page === INSTRUCTIONS_PAGES.length - 1 ? 'hidden' : 'visible';
+  }
+
+  show() {
+    this._visible = true;
+    this._page    = 0;
+    this._render();
+    this._wrap.style.display = 'flex';
+  }
+
+  hide() {
+    this._visible = false;
+    this._wrap.style.display = 'none';
+  }
+
   get element() { return this._wrap; }
 }
 
