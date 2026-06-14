@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright © 2026 Chloe Bolland
+  contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+-->
 <!-- minespike - single-spike hazard, one colour per Inkscape layer.
      Fill is fixed (not a team shade sentinel), so it passes through unchanged. -->
 <svg xmlns="http://www.w3.org/2000/svg"

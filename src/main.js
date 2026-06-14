@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 import { Renderer }             from './rendering/Renderer.js';
 import { ScenarioFactory }      from './scenarios/ScenarioFactory.js';
 import { weightedRandomId, hashString, SCENARIO_COUNT } from './scenarios/scenarioData.js';

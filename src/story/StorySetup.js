@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 import { Vec2 }                                                       from '../core/Vec2.js';
 import { Planet, PlanetType, ShadingStyle, GAS_GIANT_COLOUR_PAIRS }  from '../entities/Planet.js';
 import { Team }                                                        from '../entities/Team.js';

@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright © 2026 Chloe Bolland
+  contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+-->
 <!-- mine1 - concentric hazard mine, one colour per Inkscape layer.
      Fills are fixed (not team shade sentinels), so they pass through unchanged.
      Layers are listed back-to-front: outer ring, mid ring, core. -->

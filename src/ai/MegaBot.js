@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 import { SuperBot }     from './SuperBot.js';
 import { AIController } from './AIController.js';
 import { WeaponId } from '../entities/Collectable.js';

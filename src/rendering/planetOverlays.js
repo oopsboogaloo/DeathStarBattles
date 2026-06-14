@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // ─── Planet SVG Overlay Config ────────────────────────────────────────────────
 //
 // Each key is a PlanetType value (or a pseudo-key selected via planet.overlayKey,

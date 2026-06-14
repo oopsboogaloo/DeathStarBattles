@@ -2,6 +2,8 @@
 
 > HTML5 port of the original DeathStarBattles Java applet (© Ian Bolland 2001). Faithful to the 2D gameplay and physics, with a modern UI replacing the Java AWT controls. The original was itself a remake of *Gravity Wars* by Edward Bartz (Amiga/DOS), which this project continues the lineage of.
 
+> **Copyright & licensing.** This HTML5 game is **Copyright © 2026 Chloe Bolland**. The notice "contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way" must be carried as a header comment in every source file (`src/**/*.js`, game HTML entry points) and as an XML comment in every SVG asset; re-run `scripts/add_copyright.py` after adding new files to apply it. The notice is also surfaced in-app: a "Copyright © 2026 Chloe Bolland" line on the config/intro screen shown on load, and the copyright plus contact line on the About panel.
+
 ---
 
 ## 1. Overview

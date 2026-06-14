@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Sprite registry — maps sprite names to generated sprite modules.
 // To add a new sprite: drop the .svg in assets/sprites/, run
 // `node scripts/build-sprites.mjs`, import the module and register it here.

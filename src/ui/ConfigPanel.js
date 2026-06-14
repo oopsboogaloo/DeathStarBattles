@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 import { SCENARIO_NAMES, SCENARIO_COUNT } from '../scenarios/scenarioData.js';
 
 const AI_NAMES  = ['RandBot', 'AimBot', 'CleverBot', 'SuperBot', 'MegaBot'];
@@ -388,6 +391,17 @@ export class ConfigPanel {
     this._devBadge.textContent = 'DEV';
     this._title.appendChild(this._devBadge);
     panel.appendChild(this._title);
+
+    // ── Copyright notice ─────────────────────────────────────────────────────
+    const copyright = el('div', {
+      margin:        '-18px 0 22px',
+      fontSize:      '10px',
+      letterSpacing: '0.08em',
+      color:         'rgba(150,165,230,0.6)',
+      textAlign:     'center',
+    });
+    copyright.textContent = 'Copyright © 2026 Chloe Bolland';
+    panel.appendChild(copyright);
 
     // ── Build all row elements once ──────────────────────────────────────────
 

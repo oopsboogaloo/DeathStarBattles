@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 export const WORMHOLE_PARTICLE_DEFAULTS = {
   count:         80,    // particles per wormhole
   spawnMult:     1.55,  // spawn ring = visualRing * spawnMult

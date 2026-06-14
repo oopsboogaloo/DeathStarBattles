@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
 import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';

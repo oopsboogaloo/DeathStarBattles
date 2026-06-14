@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // SpriteSheetCache.js — per-team pre-rendered animation frames for mass sprite drawing.
 //
 // Animation phase is global (spec §9), so every instance of a sprite with the same

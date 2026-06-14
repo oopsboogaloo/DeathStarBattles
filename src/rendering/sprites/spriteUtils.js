@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // spriteUtils.js — keyframe interpolation and colour resolution for the sprite renderer.
 // All functions are allocation-free in the draw loop (results written into caller scratch).
 

@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Compact live leaderboard overlay — shown during play, hidden during demo/gameover.
 // Toggle with L key or programmatically.
 

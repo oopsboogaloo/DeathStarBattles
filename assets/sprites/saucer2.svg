@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright © 2026 Chloe Bolland
+  contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+-->
 <!-- saucer2 - simpler ship sprite source (rounded-polygon body variant).
      One colour per Inkscape layer (groupmode="layer"); the build combines each
      layer's shapes into one sprite layer and reads its fill from the child shape.

@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Combined end-of-game stats + tournament standings + awards screen.
 // In tournament mode, an awards sub-section is shown every 5 games.
 

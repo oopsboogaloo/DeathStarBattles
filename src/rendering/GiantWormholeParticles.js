@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Particle spirals for giant off-screen wormholes.
 // Physics state is kept in game units; canvas pixels are used only at draw time.
 // Only the visible arc of the ring is populated; off-screen positions are culled.

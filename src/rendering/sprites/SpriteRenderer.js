@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // SpriteRenderer.js — generic runtime renderer for generated *.sprite.js modules.
 //
 // Sprites are object-agnostic: any game entity (ship, drone, projectile, …) can be

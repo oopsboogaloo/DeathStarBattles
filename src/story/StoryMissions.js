@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Scenario IDs (from scenarioData.js)
 // 3=Crystal Asteroids, 4=Star System, 5=Binary Star, 8=Super Giant Binary,
 // 10=Red Giant, 11=Star Cluster, 12=Gas Giants, 17=Asteroid Belt,

@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Base class + registration factory.
 // Concrete bots self-register at module evaluation time; main.js imports them
 // to trigger registration before any call to AIController.create().

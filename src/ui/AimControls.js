@@ -1,3 +1,6 @@
+// Copyright © 2026 Chloe Bolland
+// contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
+
 // Hold-down angle / power controls shown during AIMING phase.
 // Replaces the canvas-drawn Angle/Power text with interactive DOM buttons.
 // Holding a button starts slow and accelerates up to MAX_RATE units/tick.
