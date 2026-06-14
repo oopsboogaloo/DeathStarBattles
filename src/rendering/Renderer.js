@@ -204,8 +204,8 @@ export class Renderer {
       } else if (planet.type === PlanetType.WHITE_HOLE) {
         this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
       } else if (planet.type === PlanetType.STAR && planet.shading === ShadingStyle.GLOWING) {
-        // Surface bubbling — only consumed in experimental mode (gated in _drawLive),
-        // but built unconditionally so toggling performance mode needs no rebuild.
+        // Surface bubbling — consumed in full and experimental modes (gated in
+        // _drawLive), but built unconditionally so toggling mode needs no rebuild.
         this._starSurfaceParticles.set(planet, new StarSurfaceParticles(planet));
       }
     }
@@ -578,8 +578,8 @@ export class Renderer {
     const bullets   = (gs?.activeBullets?.length ?? 0) + (gs?.rockets?.length ?? 0);
     const wormholePCount   = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
     const wholeParticleCount = [...this._whiteHoleParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
-    // Star surface bubbles only run (and so only count) in experimental mode.
-    const starSurfaceCount = this._performance === 'experimental'
+    // Star surface bubbles run (and so count) in full and experimental modes.
+    const starSurfaceCount = !this._simplified
       ? [...this._starSurfaceParticles.values()].reduce((s, sp) => s + sp.count, 0)
       : 0;
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
@@ -643,9 +643,10 @@ export class Renderer {
       }
     }
 
-    // Star surface bubbling — experimental mode only. White foreshortened ovals
-    // boil across each star's visible surface (off-screen patches are skipped).
-    if (this._performance === 'experimental') {
+    // Star surface bubbling — full and experimental modes (not simplified).
+    // White foreshortened ovals boil across each star's visible surface
+    // (off-screen patches are skipped).
+    if (!this._simplified) {
       for (const [planet, particles] of this._starSurfaceParticles) {
         if (planet.destroyed) continue;
         particles.update(now);

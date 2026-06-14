@@ -1,4 +1,4 @@
-// Star surface bubbling — experimental performance mode only.
+// Star surface bubbling — full and experimental performance modes.
 //
 // Small white, partly-transparent ovals that boil across a star's visible
 // surface to suggest convective bubbling. Each bubble fades in quickly while
