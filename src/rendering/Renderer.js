@@ -3,6 +3,7 @@ import { ShadingStyle, PlanetType } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
 import { WhiteHoleParticles } from './WhiteHoleParticles.js';
+import { StarSurfaceParticles } from './StarSurfaceParticles.js';
 import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
 import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
@@ -54,6 +55,7 @@ export class Renderer {
     this._wormholeParticles      = new Map(); // planet → WormholeParticles
     this._giantWormholeParticles = new Map(); // planet → GiantWormholeParticles
     this._whiteHoleParticles     = new Map(); // planet → WhiteHoleParticles
+    this._starSurfaceParticles   = new Map(); // planet → StarSurfaceParticles (experimental)
     this._gasGiantCanvas      = null;      // combined viewport-sized canvas, rebuilt on game start/resize/SVG load
     this._gasGiantBitmap      = null;      // ImageBitmap snapshot for zero-flush drawImage
     this._smokeImg            = null;
@@ -177,6 +179,7 @@ export class Renderer {
     this._wormholeParticles.clear();
     this._giantWormholeParticles.clear();
     this._whiteHoleParticles.clear();
+    this._starSurfaceParticles.clear();
     this._gasGiantCanvas = null;
     this._gasGiantBitmap = null;
     for (const planet of planets) {
@@ -200,6 +203,10 @@ export class Renderer {
         }
       } else if (planet.type === PlanetType.WHITE_HOLE) {
         this._whiteHoleParticles.set(planet, new WhiteHoleParticles(planet));
+      } else if (planet.type === PlanetType.STAR && planet.shading === ShadingStyle.GLOWING) {
+        // Surface bubbling — only consumed in experimental mode (gated in _drawLive),
+        // but built unconditionally so toggling performance mode needs no rebuild.
+        this._starSurfaceParticles.set(planet, new StarSurfaceParticles(planet));
       }
     }
 
@@ -628,6 +635,16 @@ export class Renderer {
       for (const [planet, particles] of this._whiteHoleParticles) {
         particles.update(now);
         particles.draw(ctx, this.conv, this._useCircles);
+      }
+    }
+
+    // Star surface bubbling — experimental mode only. White foreshortened ovals
+    // boil across each star's visible surface (off-screen patches are skipped).
+    if (this._performance === 'experimental') {
+      for (const [planet, particles] of this._starSurfaceParticles) {
+        if (planet.destroyed) continue;
+        particles.update(now);
+        particles.draw(ctx, this.conv, this._vpW, this._vpH);
       }
     }
 
