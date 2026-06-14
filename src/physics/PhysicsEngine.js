@@ -122,8 +122,10 @@ export class PhysicsEngine {
       }
     }
 
-    // Rift repulsion — linear-falloff force from each vertex, bullets only
+    // Rift repulsion — linear-falloff force from each vertex, bullets only.
+    // Reflective (blue) rifts exert no force; their bounce is handled in GameLoop.
     for (const rift of rifts) {
+      if (rift.reflective) continue;
       for (const v of rift.vertices) {
         const rdx = bullet.position.x - v.x;
         const rdy = bullet.position.y - v.y;
@@ -280,8 +282,9 @@ export class PhysicsEngine {
 
       if (stop) break;
 
-      // Rift repulsion in simulation
+      // Rift repulsion in simulation (reflective rifts exert no force — see below)
       for (const rift of rifts) {
+        if (rift.reflective) continue;
         for (const v of rift.vertices) {
           const rdx = px - v.x, rdy = py - v.y;
           const d   = Math.sqrt(rdx * rdx + rdy * rdy);
@@ -293,7 +296,12 @@ export class PhysicsEngine {
       }
 
       vx += ax * dt; vy += ay * dt;
+      const ppx = px, ppy = py;
       px += vx * dt; py += vy * dt;
+
+      // Reflective rift bounce — mirror the velocity if the step crossed a segment
+      const bounce = PhysicsEngine._reflectOffRifts(ppx, ppy, px, py, vx, vy, rifts);
+      if (bounce) { px = bounce.x; py = bounce.y; vx = bounce.vx; vy = bounce.vy; }
 
       if (px < -this.gw || px > 2 * this.gw || py < -this.gw || py > this.gh + this.gw) break;
 
@@ -538,6 +546,48 @@ export class PhysicsEngine {
       bullet.position.x + dx + nx * (surfaceRadius + INIT_DIST),
       bullet.position.y + dy + ny * (surfaceRadius + INIT_DIST),
     );
+  }
+
+  // ─── Reflective rift bounce (mirror) ─────────────────────────────────────
+  // If the path p0→p1 crosses a reflective rift segment, returns the reflected
+  // state { x, y, vx, vy } at the first crossing; otherwise null. Pure geometry,
+  // shared by the AI trajectory sim and (via GameLoop) live bullets and lasers.
+  static _reflectOffRifts(p0x, p0y, p1x, p1y, vx, vy, rifts) {
+    let bestT = Infinity, bestNx = 0, bestNy = 0;
+    for (const rift of rifts) {
+      if (!rift.reflective) continue;
+      const verts = rift.vertices;
+      for (let i = 0; i < verts.length - 1; i++) {
+        const ax = verts[i].x, ay = verts[i].y;
+        const bx = verts[i + 1].x, by = verts[i + 1].y;
+        const t = PhysicsEngine._segIntersectT(p0x, p0y, p1x, p1y, ax, ay, bx, by);
+        if (t === null || t >= bestT) continue;
+        const sdx = bx - ax, sdy = by - ay;
+        const len = Math.hypot(sdx, sdy);
+        if (len < 1e-10) continue;
+        let nx = -sdy / len, ny = sdx / len;
+        // Orient the normal toward the incoming side
+        if (nx * (p0x - ax) + ny * (p0y - ay) < 0) { nx = -nx; ny = -ny; }
+        bestT = t; bestNx = nx; bestNy = ny;
+      }
+    }
+    if (bestT === Infinity) return null;
+    const dot = vx * bestNx + vy * bestNy;
+    // Bounce point on the segment, nudged back onto the incoming side
+    const ix = p0x + (p1x - p0x) * bestT + bestNx * 0.5;
+    const iy = p0y + (p1y - p0y) * bestT + bestNy * 0.5;
+    return { x: ix, y: iy, vx: vx - 2 * dot * bestNx, vy: vy - 2 * dot * bestNy };
+  }
+
+  // Intersection parameter t∈[0,1] of segment AB where it crosses CD, else null.
+  static _segIntersectT(ax, ay, bx, by, cx, cy, dx, dy) {
+    const d1x = bx - ax, d1y = by - ay;
+    const d2x = dx - cx, d2y = dy - cy;
+    const cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return null;
+    const t = ((cx - ax) * d2y - (cy - ay) * d2x) / cross;
+    const u = ((cx - ax) * d1y - (cy - ay) * d1x) / cross;
+    return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ? t : null;
   }
 
   // ─── SAT circle-vs-polygon collision (world-space rotated verts) ─────────

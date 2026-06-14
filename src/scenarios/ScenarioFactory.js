@@ -279,17 +279,38 @@ export class ScenarioFactory {
 
     // Scenario-specific rifts (generated after planets are placed)
     const rifts = [];
+    // Per-game reflective decision: when true, EVERY rift in this game (including
+    // any wildcard-injected one) is the blue reflective variant. Rift (29) & Rifts
+    // (30) roll 30%; Wormhole Tunnel (34) is always blue; all others stay purple.
+    let riftsReflective = false;
     if (scenarioId === 26) { // Hyperspace: 2–4 rifts per SR-06
       const nRifts = rng.nextInt(3) + 2;
       for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
     } else if (scenarioId === 29) { // Rift: 1 rift, 1–3× segment length, 5–20 segments
-      rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets, 1 + rng.next() * 2, 5 + rng.nextInt(16)));
+      riftsReflective = rng.next() < 0.30;
+      const r = ScenarioFactory.generateRift(gw, gh, rng, planets, 1 + rng.next() * 2, 5 + rng.nextInt(16));
+      r.reflective = riftsReflective;
+      rifts.push(r);
     } else if (scenarioId === 30) { // Rifts: 2–6 rifts
+      riftsReflective = rng.next() < 0.30;
       const nRifts = rng.nextInt(5) + 2;
-      for (let i = 0; i < nRifts; i++) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+      for (let i = 0; i < nRifts; i++) {
+        const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
+        r.reflective = riftsReflective;
+        rifts.push(r);
+      }
     } else if (scenarioId === 34) { // Wormhole Tunnel: oval boundary rift + 0–1 interior rifts
-      rifts.push(ScenarioFactory._generateWormholeBoundary(rng, gw, gh));
-      if (rng.next() < 0.4) rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+      // Wormhole Tunnel always uses blue reflective rifts — projectiles bounce off
+      // the boundary and any interior rift instead of being absorbed.
+      riftsReflective = true;
+      const boundary = ScenarioFactory._generateWormholeBoundary(rng, gw, gh);
+      boundary.reflective = true;
+      rifts.push(boundary);
+      if (rng.next() < 0.4) {
+        const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
+        r.reflective = true;
+        rifts.push(r);
+      }
     }
 
     // Wildcard bonus injection — frequency controlled by wildcardFrequency setting
@@ -305,13 +326,17 @@ export class ScenarioFactory {
     if (threshold > 0 && rn[1] < threshold) {
       const noGrey = scenarioId === 26;
       if (rn[2] < 0.10) {
-        rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+        const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
+        r.reflective = riftsReflective; // match the per-game variant
+        rifts.push(r);
       } else {
         ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
       }
       if (rn[4] < 0.35) {
         if (rn[5] < 0.10) {
-          rifts.push(ScenarioFactory.generateRift(gw, gh, rng, planets));
+          const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
+          r.reflective = riftsReflective; // match the per-game variant
+          rifts.push(r);
         } else {
           ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
         }

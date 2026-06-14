@@ -91,7 +91,7 @@ Human players control angle and power via:
 - Movement is purely positional drift — it does not affect the station's angle or power settings
 
 #### 4.5.1 Rift bounce (11.10)
-During movement resolution, a station may not cross a rift segment. When the station's movement path would intersect any rift segment (geometric line check), its velocity vector is reflected elastically off that segment's normal — identical to the screen-edge bounce. Applies to all movement modes. Stations placed by hyperspace inside a rift's geometric boundary are immediately ejected perpendicular to the nearest rift segment to the nearest clear side. Bullet trajectories are unaffected by this rule.
+During movement resolution, a station may not cross a rift segment. When the station's movement path would intersect any rift segment (geometric line check), its velocity vector is reflected elastically off that segment's normal — identical to the screen-edge bounce. Applies to all movement modes and both rift variants. Stations placed by hyperspace inside a rift's geometric boundary are immediately ejected perpendicular to the nearest rift segment to the nearest clear side. Bullet trajectories are governed by the rift variant: purple rifts repel them, blue (reflective) rifts bounce them off segments via the same mirror geometry (§5.3).
 
 #### 4.5.2 Pulsar nudge (11.11)
 When movement is enabled (any speed other than Off), pulsar pressure rings interact with stations. Each time a pressure ring sweeps through a station's position (i.e. the ring's expanding radius crosses the station's distance from that pulsar), the station receives a single outward velocity nudge of `0.2 × MAX_MOVE_SPEED` in the radially-outward direction. Nudges accumulate; total speed is capped at the station's configured move speed. If the station had no queued move that turn, nudges still apply and set it in motion. Multiple pulsars and multiple rings act independently.
@@ -251,19 +251,21 @@ A bullet may teleport a maximum of 100 times before it is destroyed (prevents in
 
 ### 5.3 Space Rifts
 
-A **space rift** is a non-solid map object — a piecewise-linear chain of 3–11 connected segments, each approximately one Medium station diameter long (≤30° turn between segments). Rifts have no solid geometry; bullets, stations, and planets pass through them freely.
+A **space rift** is a non-solid map object — a piecewise-linear chain of 3–11 connected segments, each approximately one Medium station diameter long (≤30° turn between segments). Rifts have no solid geometry; bullets, stations, and planets pass through them freely. Two variants exist: the default **purple (repulsive)** rift and the **blue (reflective)** rift — distinguished by the `reflective` flag on `SpaceRift`.
 
-**Repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
+**Purple rift — repulsive force:** Each vertex of the rift exerts a linear-falloff repulsive force on bullets within an influence radius equal to the total rift length. Force: `F = RIFT_REPULSION_STRENGTH × max(0, 1 − d / RIFT_INFLUENCE_RADIUS)`, directed away from the vertex. Forces from all vertices across all rifts are summed each simulation step. Collectables are unaffected. Design intent: slow shots curve away; fast shots punch through.
 
-**Station bounce:** Stations cannot cross rift segments during movement — see §4.5.1.
+**Blue rift — reflection (reflect-only):** A reflective rift applies **no** repulsion force. Instead it acts as a mirror: any projectile whose path crosses one of its line segments in a step is reflected elastically about that segment's normal (speed preserved), reusing the same geometry as the station rift bounce (§4.5.1). The crossing is detected with a swept segment-vs-segment test, so even fast lasers cannot tunnel through. This applies to **every** projectile type — cannon-family bullets, guided rockets, and all beam/laser weapons (Laser, Antimatter Laser, Super Laser, Mind Control Beam) alike — since all are traced against reflective rifts. (Note: rockets are immune to the *purple* repulsion force but still bounce off a *blue* mirror barrier.) Collectables are unaffected.
 
-**Rendering:** Drawn on the static background layer. Outer glow: wide soft-blurred purple-white line (~20–30px, alpha 0.25–0.35). Forked lightning branches: 2–4 branching paths from random rift positions, 3–6 irregular segments with ±40° deflections and at least one fork, alpha 0.2–0.4. Rift line itself: bright white-purple polyline at 2px / alpha 0.95 with an inner luminescent glow pass. Renders above planets, below stations and bullets.
+**Station bounce:** Stations cannot cross rift segments during movement — see §4.5.1. Stations bounce off both rift variants.
 
-**Generation:** Random start position and direction; each subsequent vertex turns ±0–30° from the previous. System attempts to avoid placing segments over existing planets.
+**Rendering:** Drawn on the static background layer. Purple rifts use a purple-white palette (glow `rgb(192,96,255)`, core `rgb(232,192,255)`); blue reflective rifts use a blue palette (glow `rgb(64,160,255)`, core `rgb(180,224,255)`, shadow `#B4E0FF`). Outer glow: wide soft-blurred line (~20–30px, alpha 0.25–0.35). Forked lightning branches: 2–4 branching paths from random rift positions, 3–6 irregular segments with ±40° deflections and at least one fork, alpha 0.2–0.4, matched to the rift's palette. Rift line itself: bright core polyline at 2px / alpha 0.95 with an inner luminescent glow pass. Renders above planets, below stations and bullets.
 
-**Wildcard:** 10% chance of injecting one space rift when a wildcard object is rolled (§6.1). Hyperspace scenario (26) includes 2–4 rifts.
+**Generation:** Random start position and direction; each subsequent vertex turns ±0–30° from the previous. System attempts to avoid placing segments over existing planets. The `reflective` flag is assigned once per game (see §6 scenario table): the **Rift (29)** and **Rifts (30)** scenarios roll once and use the blue reflective variant for **30%** of games; **Wormhole Tunnel (34)** is always blue; all other scenarios are purple. The decision is all-or-nothing — every rift in the game, **including any wildcard-injected rift**, shares the game's variant, so a game never mixes purple and blue rifts.
 
-**AI:** All AI levels handle rift repulsion automatically — it is applied through the standard per-step force loop alongside gravity; no special-case handling required.
+**Wildcard:** 10% chance of injecting one space rift when a wildcard object is rolled (§6.1); the injected rift inherits the game's variant (blue in a blue Rift/Rifts game or in Wormhole Tunnel, purple otherwise). Hyperspace scenario (26) includes 2–4 (always purple) rifts.
+
+**AI:** All AI levels handle both rift variants automatically. Purple repulsion is applied through the standard per-step force loop alongside gravity; blue reflection is applied as a post-step mirror bounce in the same trajectory simulation the AI uses to aim, so predicted paths and laser aim previews both account for bounces. No per-AI-level special-casing is required.
 
 **Named constants:** `RIFT_SEGMENT_LENGTH`, `RIFT_INFLUENCE_RADIUS`, `RIFT_REPULSION_STRENGTH`.
 
@@ -306,8 +308,8 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 26 | Hyperspace | No planets; hyperspace is forced every turn |
 | 27 | Black Holes | 2–5 black holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 28 | Big Wormhole | Two enormous wormhole portals, mirrored through the screen centre (partially off-screen) + planets. See §6.7. |
-| 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field |
-| 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids |
+| 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field. 30% of games use the blue reflective variant. |
+| 30 | Rifts | 2–6 space rifts + moderate mix of rocky planets and asteroids. 30% of games make all rifts blue reflective. |
 | 31 | Moons | One large rocky planet + 2–5 moons + asteroid filler. 10% chance of extreme version (§6.4). |
 | 32 | Giant Asteroid | One enormous multi-hit asteroid surrounded by smaller asteroids |
 | 33 | Pulsars | 2–5 pulsars biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
@@ -353,9 +355,9 @@ Scenarios 1 (Planetary), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pul
 
 **Concept:** The play area is the interior of a living wormhole. A jagged glowing boundary rift surrounds all interior bodies; outside is black void.
 
-**Boundary rift:** A single `SpaceRift` with `isBoundary: true`, `strengthMultiplier: 2`, and a fixed `influenceRadius: 40`. Its 44–60 vertices are distributed around an ellipse centred on the play area (semi-axes ≈ 43% of each dimension), each displaced radially ±10% at random plus 2–4 shared group displacements of ±6% to break up machine regularity. The last vertex is identical to the first, closing the loop exactly. The boundary rift participates in the normal rift bounce mechanic (§4.5.1). Stations are ejected to just inside the boundary at placement time (15 + station.radius inward from nearest segment); at runtime, any station detected outside the closed polygon is hard-teleported to the same point.
+**Boundary rift:** A single `SpaceRift` with `isBoundary: true`, `reflective: true`, `strengthMultiplier: 2`, and a fixed `influenceRadius: 40`. Its 44–60 vertices are distributed around an ellipse centred on the play area (semi-axes ≈ 43% of each dimension), each displaced radially ±10% at random plus 2–4 shared group displacements of ±6% to break up machine regularity. The last vertex is identical to the first, closing the loop exactly. The boundary rift participates in the normal rift bounce mechanic (§4.5.1). Both the boundary and any interior rift in this scenario are always blue reflective. Stations are ejected to just inside the boundary at placement time (15 + station.radius inward from nearest segment); at runtime, any station detected outside the closed polygon is hard-teleported to the same point.
 
-**Out-of-bounds bullets:** Bullets whose position falls outside the boundary polygon are killed immediately (status → DEAD).
+**Out-of-bounds bullets:** Because the boundary is reflective, projectiles bounce off it and remain inside the arena (rather than being killed on exit, as a non-reflective boundary would do). The point-in-polygon test is retained only as a safety net: any projectile that slips outside is snapped back to the nearest boundary segment with its velocity reflected inward.
 
 **Interior bodies (2–6):** Randomly selected from: rocky planet, asteroid, gas giant, wormhole pair, wormhole triple, white hole, moon, star. Placed with standard no-overlap validation. The scenario also has a 40% chance of spawning one additional interior space rift.
 
@@ -697,7 +699,7 @@ Fixed-speed weapons use their actual launch speed in the simulation (not `statio
 
 Laser uses a dedicated preview (team-coloured fading path) simulated at very high speed under reduced gravity, matching laser physics. Rocket shows the thrust-then-coast arc. Both are drawn behind aim lines.
 
-The preview uses coarse stepping (same as the AI simulator) so paths may diverge from actual trajectories near massive bodies. Wormhole teleportation, rift repulsion forces, and Hyperspace-scenario boundaries are not modelled in the preview — this is intentional: the feature is an aid, not a guarantee.
+The preview uses coarse stepping (same as the AI simulator) so paths may diverge from actual trajectories near massive bodies. Wormhole teleportation, purple-rift repulsion forces, and Hyperspace-scenario boundaries are not modelled in the preview — this is intentional: the feature is an aid, not a guarantee. Blue (reflective) rift bounces **are** modelled in the bullet, laser and rocket previews, so aim lines show where shots ricochet off a mirror rift.
 
 ### 11.12 Bullet Path Assistance Disclosure
 

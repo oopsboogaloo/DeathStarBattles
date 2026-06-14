@@ -7,7 +7,7 @@ import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
 import { WhiteHoleParticles } from './WhiteHoleParticles.js';
 import { StarSurfaceParticles } from './StarSurfaceParticles.js';
-import { G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
+import { PhysicsEngine, G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/PhysicsEngine.js';
 import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
@@ -276,6 +276,11 @@ export class Renderer {
     const pts      = rift.vertices.map(v => ({ x: v.x * conv, y: v.y * conv }));
     if (pts.length < 2) return;
 
+    // Blue palette for reflective rifts; purple for standard repulsion rifts.
+    const glowRGB   = rift.reflective ? '64,160,255'  : '192,96,255';
+    const coreRGB   = rift.reflective ? '180,224,255' : '232,192,255';
+    const shadowHex = rift.reflective ? '#B4E0FF'     : '#E8C0FF';
+
     const buildPath = () => {
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
@@ -296,7 +301,7 @@ export class Renderer {
       { width: 10, alpha: 0.28 },
     ];
     for (const pass of glowPasses) {
-      ctx.strokeStyle = `rgba(192,96,255,${pass.alpha})`;
+      ctx.strokeStyle = `rgba(${glowRGB},${pass.alpha})`;
       ctx.lineWidth   = pass.width;
       buildPath();
       ctx.stroke();
@@ -311,14 +316,14 @@ export class Renderer {
       const frac  = t * (pts.length - 1) - seg;
       const startX = pts[seg].x + (pts[seg + 1].x - pts[seg].x) * frac;
       const startY = pts[seg].y + (pts[seg + 1].y - pts[seg].y) * frac;
-      this._drawLightningBranch(ctx, startX, startY, Math.random() * Math.PI * 2, 3 + Math.floor(Math.random() * 4), 0.3 + Math.random() * 0.2, 2);
+      this._drawLightningBranch(ctx, startX, startY, Math.random() * Math.PI * 2, 3 + Math.floor(Math.random() * 4), 0.3 + Math.random() * 0.2, 2, glowRGB);
     }
 
     // Inner glow pass
     ctx.save();
-    ctx.shadowColor = '#E8C0FF';
+    ctx.shadowColor = shadowHex;
     ctx.shadowBlur  = 8;
-    ctx.strokeStyle = 'rgba(232,192,255,0.35)';
+    ctx.strokeStyle = `rgba(${coreRGB},0.35)`;
     ctx.lineWidth   = 7;
     ctx.lineCap     = 'round';
     ctx.lineJoin    = 'round';
@@ -328,7 +333,7 @@ export class Renderer {
 
     // Core line
     ctx.save();
-    ctx.strokeStyle = 'rgba(232,192,255,0.95)';
+    ctx.strokeStyle = `rgba(${coreRGB},0.95)`;
     ctx.lineWidth   = 2;
     ctx.lineCap     = 'round';
     ctx.lineJoin    = 'round';
@@ -337,11 +342,11 @@ export class Renderer {
     ctx.restore();
   }
 
-  _drawLightningBranch(ctx, x, y, dir, segs, alpha, depth) {
+  _drawLightningBranch(ctx, x, y, dir, segs, alpha, depth, rgb = '192,96,255') {
     if (segs <= 0 || alpha < 0.05) return;
     const segLen = 12 + Math.random() * 18; // 12–30 px per segment
     ctx.save();
-    ctx.strokeStyle = `rgba(192,96,255,${alpha.toFixed(2)})`;
+    ctx.strokeStyle = `rgba(${rgb},${alpha.toFixed(2)})`;
     ctx.lineWidth   = 1;
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -364,8 +369,8 @@ export class Renderer {
         by += Math.sin(ba) * segLen;
       }
       const subSegs = Math.max(1, Math.floor(segs * 0.6));
-      this._drawLightningBranch(ctx, bx, by, ba + (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
-      this._drawLightningBranch(ctx, bx, by, ba - (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1);
+      this._drawLightningBranch(ctx, bx, by, ba + (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1, rgb);
+      this._drawLightningBranch(ctx, bx, by, ba - (Math.random() - 0.5) * Math.PI, subSegs, alpha * 0.6, depth - 1, rgb);
     }
   }
 
@@ -1743,6 +1748,9 @@ export class Renderer {
       const prevX = px, prevY = py;
       px += vx * TIMESTEP;
       py += vy * TIMESTEP;
+      // Reflective (blue) rift bounce — mirror the previewed beam off blue rifts
+      const rb = PhysicsEngine._reflectOffRifts(prevX, prevY, px, py, vx, vy, this._rifts ?? []);
+      if (rb) { px = rb.x; py = rb.y; vx = rb.vx; vy = rb.vy; }
       distTravelled += Math.sqrt((px - prevX) ** 2 + (py - prevY) ** 2);
       path.push({ x: px, y: py });
       if (distTravelled >= maxLength) break;
@@ -1799,6 +1807,9 @@ export class Renderer {
       const prevX = px, prevY = py;
       px += vx * dt;
       py += vy * dt;
+      // Reflective (blue) rift bounce — mirror the previewed rocket off blue rifts
+      const rb = PhysicsEngine._reflectOffRifts(prevX, prevY, px, py, vx, vy, this._rifts ?? []);
+      if (rb) { px = rb.x; py = rb.y; vx = rb.vx; vy = rb.vy; }
       distTravelled += Math.sqrt((px - prevX) ** 2 + (py - prevY) ** 2);
       path.push({ x: px, y: py });
       if (distTravelled >= maxLength) break;
@@ -1847,6 +1858,9 @@ export class Renderer {
       const prevX = px, prevY = py;
       px += vx * dt;
       py += vy * dt;
+      // Reflective (blue) rift bounce — mirror the previewed arc off blue rifts
+      const rb = PhysicsEngine._reflectOffRifts(prevX, prevY, px, py, vx, vy, this._rifts ?? []);
+      if (rb) { px = rb.x; py = rb.y; vx = rb.vx; vy = rb.vy; }
       distTravelled += Math.sqrt((px - prevX) ** 2 + (py - prevY) ** 2);
       path.push({ x: px, y: py });
       if (distTravelled >= maxLength) break;

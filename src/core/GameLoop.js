@@ -4,7 +4,7 @@
 import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
-import { PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
+import { PhysicsEngine, PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
          SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION, PULSE_MAX_R } from '../physics/PhysicsEngine.js';
 import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
@@ -78,6 +78,7 @@ export class GameLoop {
     this._tpResultsCb     = null;
 
     this._boundaryRift = this.gs.rifts?.find(r => r.isBoundary) ?? null;
+    this._hasReflectiveRift = (this.gs.rifts ?? []).some(r => r.reflective);
 
     // TP mode: caller is responsible for calling startTP() after construction
     if (!gameState.tpGame) this._startTurn();
@@ -373,6 +374,36 @@ export class GameLoop {
     const push = 15 + station.radius;
     station.position = new Vec2(nearX + (inX / inLen) * push, nearY + (inY / inLen) * push);
     station.velocity = null;
+  }
+
+  // Safety net for a reflective boundary rift: snap a bullet that slipped outside
+  // back to the nearest boundary segment and reflect its velocity inward.
+  _nudgeBulletInsideBoundary(bullet) {
+    const rift = this._boundaryRift;
+    const verts = rift.vertices;
+    const px = bullet.position.x, py = bullet.position.y;
+    let bestDist = Infinity, nearX = px, nearY = py, nx = 0, ny = 0;
+    for (let i = 0; i < verts.length - 1; i++) {
+      const ax = verts[i].x, ay = verts[i].y;
+      const bx = verts[i + 1].x, by = verts[i + 1].y;
+      const dx = bx - ax, dy = by - ay;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq < 1e-10) continue;
+      const t  = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+      const cx = ax + t * dx, cy = ay + t * dy;
+      const d  = Math.hypot(px - cx, py - cy);
+      if (d < bestDist) {
+        bestDist = d; nearX = cx; nearY = cy;
+        const len = Math.sqrt(lenSq);
+        nx = -dy / len; ny = dx / len;
+      }
+    }
+    // Orient normal toward the interior (map centre) and reflect velocity inward
+    const inX = this.physics.gw / 2 - nearX, inY = this.physics.gh / 2 - nearY;
+    if (nx * inX + ny * inY < 0) { nx = -nx; ny = -ny; }
+    bullet.position = new Vec2(nearX + nx * 1, nearY + ny * 1);
+    const dot = bullet.velocity.x * nx + bullet.velocity.y * ny;
+    if (dot < 0) bullet.velocity = new Vec2(bullet.velocity.x - 2 * dot * nx, bullet.velocity.y - 2 * dot * ny);
   }
 
   // Move all stations one physics step and check for collisions.
@@ -1488,10 +1519,22 @@ export class GameLoop {
           );
         }
 
+        const rPrevX = rocket.position.x, rPrevY = rocket.position.y;
         rocket.position = new Vec2(
           rocket.position.x + rocket.velocity.x * TIMESTEP,
           rocket.position.y + rocket.velocity.y * TIMESTEP,
         );
+
+        // Reflective (blue) rift bounce — a mirror barrier bounces rockets too
+        if (this._hasReflectiveRift) {
+          const rb = PhysicsEngine._reflectOffRifts(
+            rPrevX, rPrevY, rocket.position.x, rocket.position.y,
+            rocket.velocity.x, rocket.velocity.y, this.gs.rifts);
+          if (rb) {
+            rocket.position = new Vec2(rb.x, rb.y);
+            rocket.velocity = new Vec2(rb.vx, rb.vy);
+          }
+        }
 
         // Record trail point
         if (this.gs.firingStep % PRINT_EVERY === 0) rocket.trail.push(new Vec2(rocket.position.x, rocket.position.y));
@@ -1596,7 +1639,19 @@ export class GameLoop {
       for (const bullet of this.gs.activeBullets) {
         if (bullet.status !== BulletStatus.ACTIVE) continue;
 
+        const preX = bullet.position.x, preY = bullet.position.y;
         this.physics.step(bullet, this.gs.planets, this.gs.rifts, this.gs.repulsorFields ?? []);
+
+        // Reflective (blue) rift bounce — mirror the bullet off any segment its path crossed
+        if (bullet.status === BulletStatus.ACTIVE && this._hasReflectiveRift) {
+          const bounce = PhysicsEngine._reflectOffRifts(
+            preX, preY, bullet.position.x, bullet.position.y,
+            bullet.velocity.x, bullet.velocity.y, this.gs.rifts);
+          if (bounce) {
+            bullet.position = new Vec2(bounce.x, bounce.y);
+            bullet.velocity = new Vec2(bounce.vx, bounce.vy);
+          }
+        }
 
         // Reinforcement Signal: detect when it exits the map boundary
         if (bullet.reinforcementSignal && bullet.status === BulletStatus.ACTIVE) {
@@ -1612,12 +1667,19 @@ export class GameLoop {
           }
         }
 
-        // Wormhole Tunnel boundary: kill bullets that leave the oval boundary
+        // Wormhole Tunnel boundary. A reflective (blue) boundary bounces bullets
+        // back into the arena (handled above); the polygon test is only a safety
+        // net that nudges any escapee back inside. A non-reflective boundary kills
+        // bullets that leave the oval, as before.
         if (this._boundaryRift && bullet.status === BulletStatus.ACTIVE &&
             !this._isInsideBoundaryPolygon(bullet.position.x, bullet.position.y, this._boundaryRift)) {
-          bullet.status = BulletStatus.DEAD;
-          if (bullet.owner.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
-          continue;
+          if (this._boundaryRift.reflective) {
+            this._nudgeBulletInsideBoundary(bullet);
+          } else {
+            bullet.status = BulletStatus.DEAD;
+            if (bullet.owner.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
+            continue;
+          }
         }
 
         // Moon hit — must check before trail recording since step() may EXPLODE the bullet
@@ -2132,6 +2194,12 @@ export class GameLoop {
 
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
 
+      // Reflective (blue) rift bounce — mirror the beam off any segment it crossed
+      if (this._hasReflectiveRift) {
+        const rb = PhysicsEngine._reflectOffRifts(px0, py0, px, py, vx, vy, this.gs.rifts);
+        if (rb) { px = rb.x; py = rb.y; vx = rb.vx; vy = rb.vy; path.push(new Vec2(px, py)); continue; }
+      }
+
       // Shield reflection
       let reflected = false;
       for (const shield of this.gs.shields) {
@@ -2216,7 +2284,7 @@ export class GameLoop {
     const MAX_STEPS  = 1200;
     const STEP       = 4;
     const rad  = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
-    const ddx  = Math.sin(rad), ddy = Math.cos(rad);
+    let ddx  = Math.sin(rad), ddy = Math.cos(rad);
     let px = station.position.x + (station.radius + 1) * ddx;
     let py = station.position.y + (station.radius + 1) * ddy;
     const path = [new Vec2(px, py)];
@@ -2232,6 +2300,12 @@ export class GameLoop {
       py += ddy * STEP;
       path.push(new Vec2(px, py));
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      // Reflective (blue) rift bounce — the super laser ricochets off blue rifts
+      if (this._hasReflectiveRift) {
+        const rb = PhysicsEngine._reflectOffRifts(px0, py0, px, py, ddx, ddy, this.gs.rifts);
+        if (rb) { px = rb.x; py = rb.y; ddx = rb.vx; ddy = rb.vy; path.push(new Vec2(px, py)); continue; }
+      }
 
       // Enemy station hits — swept segment vs circle so the wide step can't skip small ships
       for (const s of this.gs.allStations) {
@@ -2363,6 +2437,12 @@ export class GameLoop {
       path.push(new Vec2(px, py));
 
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      // Reflective (blue) rift bounce — mirror the beam off any segment it crossed
+      if (this._hasReflectiveRift) {
+        const rb = PhysicsEngine._reflectOffRifts(px0, py0, px, py, vx, vy, this.gs.rifts);
+        if (rb) { px = rb.x; py = rb.y; vx = rb.vx; vy = rb.vy; path.push(new Vec2(px, py)); continue; }
+      }
 
       // Station hit — swept segment check
       let stationBlocked = false;
