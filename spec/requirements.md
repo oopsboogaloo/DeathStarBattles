@@ -1663,6 +1663,7 @@ One additional mode is available in developer mode only (`Ctrl+Shift+D`):
 A hidden developer mode must be accessible via `Ctrl+Shift+D` on keyboard, or by triple-tap on the About panel (for mobile access without a keyboard). Dev mode:
 
 - Reveals the `Experimental` performance option in the config panel.
+- Reveals the `Force Extreme` and `Pure Asteroids` config options. **Pure Asteroids** (`pureRate`) overrides the chance a rich asteroid is gold/pure — `1% (default)`, `10%`, `25%`, `50%`, or `Always` — to make the otherwise extremely-rare pure asteroids testable. Greyed out when Collectables is Off (pure requires rich, which requires collectables).
 - Unlocks all story missions regardless of completion state.
 - Displays a real-time stats overlay (toggled separately) showing: FPS, planet count, station count, bullet count, and a combined SFX particle count covering all active particle arrays (rocket smoke, comet smoke, wormhole particles, bloom particles, fireballs, fireball smoke).
 - All dev-mode options reset to hidden if dev mode is toggled off during a session.

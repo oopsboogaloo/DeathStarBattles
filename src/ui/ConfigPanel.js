@@ -81,6 +81,7 @@ export class ConfigPanel {
       wildcardFrequency: 'rare',
       collectables:      'normal',
       richAsteroids:     'normal',
+      pureRate:          'default',
       collectableSize:   'medium',
       startingWeapons:   'basic',
       startingArmour:    'none',
@@ -489,6 +490,11 @@ export class ConfigPanel {
         v => ({ tiny: 'Tiny  (½×)', medium: 'Medium', large: 'Large  (1.5×)', huge: 'Huge  (2×)', mammoth: 'Mammoth  (3×)', varied: 'Varied' }[v])));
     const rowForceExtreme = this._row('FORCE EXTREME',
       this._cycle('forceExtreme', [false, true], v => v ? 'On' : 'Off'));
+    // Dev-only: boost the chance a rich asteroid is "pure" (gold) above the 1% default.
+    const rowPureRate = this._row('PURE ASTEROIDS',
+      this._cycle('pureRate',
+        ['default', '10', '25', '50', '100'],
+        v => ({ default: '1%  (default)', '10': '10%', '25': '25%', '50': '50%', '100': 'Always' }[v])));
 
     // Player-visible loadouts; richer dev tiers appended by _updateDevRows()
     this._startWepValues = ['none', 'basic', 'marines', 'demolition', 'luckyDip', 'quantum', 'dambusters'];
@@ -512,17 +518,18 @@ export class ConfigPanel {
     const rowTPAI      = this._row('INCLUDE AI',
       this._cycle('tpIncludeAI', [false, true], v => v ? 'On' : 'Off'));
 
-    this._collectSubRows = [rowRichAst, rowColSize];
+    this._collectSubRows = [rowRichAst, rowColSize, rowPureRate];
     this._seedSubRows    = [rowScenario];
-    this._devRows        = [rowForceExtreme];
+    this._devRows        = [rowForceExtreme, rowPureRate];
     rowForceExtreme.style.display = 'none';
+    rowPureRate.style.display     = 'none';
     this._updateCollectableGrey();
     this._updateSeedGrey();
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
-    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowStartWep, rowStartArmour, rowForceExtreme];
+    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowPureRate, rowStartWep, rowStartArmour, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
 

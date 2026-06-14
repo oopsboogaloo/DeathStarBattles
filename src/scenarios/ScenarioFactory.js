@@ -32,7 +32,10 @@ const ROCKY_COLS = [
 const ASTEROID_COL          = [120,  80,  10];
 const RICH_ASTEROID_COL     = [ 75,  90, 120]; // blue-brown tint for rich asteroids
 const PURE_ASTEROID_COL     = [230, 195,  60]; // gold — rare "pure" sub-type of rich (1% of rich)
-export const PURE_OF_RICH_PROB = 0.01;         // a rich asteroid is "pure" with this probability
+const PURE_OF_RICH_PROB     = 0.01;            // default chance a rich asteroid is "pure"
+// Dev-mode "PURE ASTEROIDS" option maps a label to the chance a rich asteroid is pure.
+const PURE_RATE_VALUES      = { default: PURE_OF_RICH_PROB, '10': 0.10, '25': 0.25, '50': 0.50, '100': 1.0 };
+let   _pureOfRichProb       = PURE_OF_RICH_PROB; // current value, set per-game in create()
 const CRYSTAL_ASTEROID_COL  = [160, 210, 255]; // icy blue-white for crystal asteroids
 const MOON_COL     = [120, 100,  70];
 const WHITE_COL    = [255, 255, 255];
@@ -83,7 +86,7 @@ function makeAsteroid(rng, A, B, C, D, E, F, gw, gh, density, richProb = 0) {
   const speed    = (0.1 + rng.next() * rng.next() * 0.7) * Math.PI / 180; // biased toward slow
   const rotation = rng.next() * Math.PI * 2;
   const isRich   = richProb > 0 && rng.next() < richProb;
-  const isPure   = isRich && rng.next() < PURE_OF_RICH_PROB;
+  const isPure   = isRich && rng.next() < _pureOfRichProb;
   const planet   = new Planet({
     position:      new Vec2(rv(rng, A, B, C, gw), rv(rng, A, B, C, gh)),
     radius:        rr(rng, D, E, F),
@@ -177,7 +180,7 @@ function makeGiantAsteroid(rng, gw, gh, richProb) {
   const rotation      = rng.next() * Math.PI * 2;
   const rotationSpeed = (0.02 + rng.next() * 0.08) * Math.PI / 180; // very slow rotation
   const isRich        = richProb > 0 && rng.next() < richProb;
-  const isPure        = isRich && rng.next() < PURE_OF_RICH_PROB;
+  const isPure        = isRich && rng.next() < _pureOfRichProb;
   const planet = new Planet({
     position: new Vec2(cx, cy),
     radius,
@@ -264,7 +267,8 @@ const HALF_PARTICLE_CFG = Object.freeze({ blobMult: 0.13, blobMinMult: 0.03 });
 // ─── main API ───────────────────────────────────────────────────────────────
 
 export class ScenarioFactory {
-  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal', forceExtreme = false) {
+  static create(scenarioId, gw, gh, nPlanets, rng, wildcardFrequency = 'rare', performance = 'full', collectables = 'off', richAsteroids = 'normal', forceExtreme = false, pureRate = 'default') {
+    _pureOfRichProb = PURE_RATE_VALUES[pureRate] ?? PURE_OF_RICH_PROB; // dev-mode override of the pure pick rate
     const richProb = collectables === 'off' ? 0 : (
       { off: 0, rare: 0.01, normal: 0.05, common: 0.10, abundant: 0.25, overwhelming: 1.0 }[richAsteroids] ?? 0.05
     );
@@ -1999,7 +2003,7 @@ export class ScenarioFactory {
     const rotation = rng.next() * Math.PI * 2;
     radius       ??= rr(rng, 6, 3, 3); // slightly larger than regular asteroids
     const isRich   = richProb && rng.next() < 0.05;
-    const isPure   = isRich && rng.next() < PURE_OF_RICH_PROB;
+    const isPure   = isRich && rng.next() < _pureOfRichProb;
     const planet   = new Planet({
       position: new Vec2(ax, ay), radius, density: 0.05,
       type: PlanetType.ASTEROID,
