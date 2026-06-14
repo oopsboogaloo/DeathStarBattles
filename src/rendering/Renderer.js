@@ -3199,11 +3199,12 @@ export class Renderer {
     const cy   = vfx.y * this.conv;
     const t    = vfx.t;
     const rise = t * 20 * this.conv;
-    // Quick fade-in, hold at full, then a fast eased fade-out so the grant
-    // label disappears gracefully instead of cutting off abruptly.
-    const fadeIn  = Math.min(1, t / 0.1);
-    const ft      = t > 0.7 ? (t - 0.7) / 0.3 : 0; // 0→1 across the final tail
-    const alpha   = Math.max(0, fadeIn * (1 - ft * ft));
+    // Quick fade-in, then a continuous, gentle ease all the way down to zero
+    // (no opacity plateau, smooth/zero slope as it vanishes) so the grant label
+    // melts away gracefully instead of holding solid then cutting off.
+    const fadeIn  = Math.min(1, t / 0.12);
+    const fadeOut = 0.5 * (1 + Math.cos(Math.min(1, t) * Math.PI)); // 1 → 0, eased
+    const alpha   = Math.max(0, fadeIn * fadeOut);
 
     ctx.save();
     ctx.font         = `bold ${Math.max(10, Math.floor(this._vpW / 55))}px monospace`;

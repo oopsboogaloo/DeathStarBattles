@@ -1071,9 +1071,9 @@ class CollectableGrantVFX {
 }
 ```
 
-Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity is a quick fade-in (full by `t = 0.1`), a hold at full opacity, then a fast eased fade-out across the final tail (`t > 0.7`): `alpha = clamp(t / 0.1) * (1 - ((t - 0.7) / 0.3)²)`. This keeps the label readable for most of its life and lets it disappear gracefully instead of cutting off. Font matches HUD font (monospace bold), size ~14px screen.
+Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity is a quick fade-in then a single continuous eased fade-out to zero (no opacity plateau): `alpha = clamp(t / 0.12) * 0.5 * (1 + cos(t·π))`. The cosine has zero slope as it reaches full transparency, so the label melts away gracefully rather than holding solid and then cutting off. Font matches HUD font (monospace bold), size ~14px screen.
 
-`collectableGrant` and `collectableShatter` VFX advance their `t` in real wall-clock time — exactly once per rendered frame (via `_advanceCollectableVFX`), independent of the number of physics sub-steps run that frame. All other VFX advance per physics step inside the firing loop. This keeps the grant label's fade smooth at any game speed; advancing it per sub-step would skip the intermediate fade frames and make it pop out abruptly.
+VFX `t` is advanced once per rendered rAF frame, not per physics sub-step — `_advanceVFX` is called once after the firing step loop (and once in RESULTS). `collectableGrant` and `collectableShatter` are additionally advanced by `_advanceCollectableVFX`, which runs in **every** game mode (including AIMING), so a grant label that outlives the firing/results phases keeps fading instead of freezing on screen while the next player aims. `_advanceVFX` skips these two types to avoid double-advancing them.
 
 #### `TripleCannonMuzzleVFX`
 
