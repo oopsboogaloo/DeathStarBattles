@@ -17,9 +17,13 @@
 // touch the huge off-screen remainder — only the visible patch is populated.
 
 export const STAR_SURFACE_PARTICLE_DEFAULTS = {
-  count:      320,    // bubbles per star
-  sizeMult:   0.025,  // full oval tangential radius = visualR * sizeMult
-  maxSize:    5,      // px cap on the full radius so supergiants don't get huge ovals
+  count:        320,    // bubbles per ordinary star
+  supergiantMult: 3,    // supergiants get this many times as many bubbles
+  supergiantFrac: 0.6,  // a star counts as a supergiant when its on-screen radius
+                        // reaches this fraction of min(viewport w,h) — matches the
+                        // fire-rim convention in PlanetRenderer.drawStarFireRim
+  sizeMult:     0.025,  // full oval tangential radius = visualR * sizeMult
+  maxSize:      5,      // px cap on the full radius so supergiants don't get huge ovals
   sizeJitter: 0.6,    // per-bubble size randomisation: size ∈ [1-j, 1+j]
   alphaMax:   0.50,   // peak opacity of the white ovals
   fadeInFrac: 0.18,   // fraction of life spent fading in + expanding (quick)
@@ -34,7 +38,11 @@ export class StarSurfaceParticles {
   constructor(planet, config = {}) {
     this._cfg    = { ...STAR_SURFACE_PARTICLE_DEFAULTS, ...config };
     this._planet = planet;
-    const n = this._cfg.count;
+    // Arrays are sized for the supergiant case; ordinary stars use only the
+    // first `count` slots. The active count is resolved per frame in draw()
+    // once the on-screen radius is known.
+    const n = this._cfg.count * this._cfg.supergiantMult;
+    this._activeCount = this._cfg.count;
     this._dx     = new Float32Array(n); // normalised disc x: (px - cx) / R, in [-1,1]
     this._dy     = new Float32Array(n); // normalised disc y: (py - cy) / R, in [-1,1]
     this._phase  = new Float32Array(n); // 0..1 life progress
@@ -67,7 +75,7 @@ export class StarSurfaceParticles {
     if (this._lastT === null) { this._lastT = nowSec; return; }
     const dt = Math.min(nowSec - this._lastT, 0.1);
     this._lastT = nowSec;
-    for (let i = 0; i < this._cfg.count; i++) {
+    for (let i = 0; i < this._activeCount; i++) {
       this._phase[i] += dt / this._life[i];
       if (this._phase[i] >= 1) {
         this._phase[i] -= 1;
@@ -85,6 +93,11 @@ export class StarSurfaceParticles {
     const cy     = planet.position.y * conv;
     const R      = Math.max(3, planet.radius * conv);
 
+    // Supergiants (on-screen radius past supergiantFrac of the smaller viewport
+    // dimension) get supergiantMult times as many bubbles.
+    const isSupergiant = R >= cfg.supergiantFrac * Math.min(vpW, vpH);
+    this._activeCount  = isSupergiant ? cfg.count * cfg.supergiantMult : cfg.count;
+
     // Full oval radius, capped in pixels so supergiants don't get huge ovals.
     const fullSize = Math.min(R * cfg.sizeMult, cfg.maxSize);
 
@@ -100,7 +113,7 @@ export class StarSurfaceParticles {
     const boxW = bx1 - bx0, boxH = by1 - by0;
 
     ctx.fillStyle = '#fff';
-    for (let i = 0; i < cfg.count; i++) {
+    for (let i = 0; i < this._activeCount; i++) {
       // Place (or replace) this bubble somewhere on the visible surface.
       if (!this._placed[i] && !this._sampleVisible(i, cx, cy, R, bx0, by0, boxW, boxH)) continue;
 
