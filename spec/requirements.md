@@ -300,7 +300,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 18 | Oort Cloud | Orbiting comets around a white dwarf |
 | 19 | Wormhole | Primarily wormhole portals (type varies: paired/cyclic/random/self) |
 | 20 | Wormholes | All wormhole portals, no regular planets |
-| 21 | White Dwarfs | Multiple white dwarfs |
+| 21 | White Dwarfs | 2–8 white dwarfs (no other bodies). 10% chance of extreme version (§6.4): 1–20 white dwarfs. |
 | 22 | Black Hole | One central black hole + rocky bodies |
 | 23 | Neutron Star | One pulsar + mix of rocky planets and asteroids |
 | 24 | White Hole | One repulsive white hole + rocky bodies |
@@ -333,7 +333,7 @@ A configurable wildcard frequency option controls whether a bonus special object
 Stations **must never be rendered inside a planet**, even on extreme scenarios (e.g. large binary stars that leave almost no free space). The placement algorithm uses a three-tier fallback:
 
 ### 6.4 Extreme Scenario Variants
-Scenarios 1 (Planetary), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pulsars), 35 (Binary Wormhole), and 37 (Giant Wormhole Network) each have a 10% chance of generating an **extreme** version. The dev-mode FORCE EXTREME config option (`forceExtreme`) forces the extreme version in every game. Extreme variants are silently tracked via `gameState.config.isExtreme` and displayed in dev mode stats (§12.3).
+Scenarios 1 (Planetary), 21 (White Dwarfs), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pulsars), 35 (Binary Wormhole), and 37 (Giant Wormhole Network) each have a 10% chance of generating an **extreme** version. The dev-mode FORCE EXTREME config option (`forceExtreme`) forces the extreme version in every game. Extreme variants are silently tracked via `gameState.config.isExtreme` and displayed in dev mode stats (§12.3).
 
 **Extreme rules (scenarios 25, 27, 33):**
 - Body count: 0–15 (uniform random), chosen independently of `nPlanets`
@@ -342,6 +342,7 @@ Scenarios 1 (Planetary), 25 (White Holes), 27 (Black Holes), 31 (Moons), 33 (Pul
 
 **Extreme rules (other scenarios):**
 - **1 (Planetary):** 1–10 extra small rocky planets (radius 7–20) placed near the screen edges, on top of the normal layout
+- **21 (White Dwarfs):** body count 1–20 (uniform random) instead of the normal 2–8; all white dwarfs, no filler. Both versions ignore `nPlanets` and use standard random placement (no edge preference).
 - **31 (Moons):** the central rocky planet becomes a giant cratered moon (radius 35–55, destructible like all moons) and every remaining body slot is a moon — no asteroid filler
 - **35 (Binary Wormhole):** three large wormholes instead of two, linked as a cyclic triple A→B→C→A (blue) instead of a pair (purple); same density, asteroid filler unchanged. The triple is slightly smaller than the pair (radius 100–160 vs 120–200) and spread across a wider band (10–90% of each axis) with pairwise separation enforced at placement — the discs never overlap; on cramped fields all three shrink 10% per placement round until they fit. The extreme decision is pre-rolled before the layout-validation retry loop so placement failures cannot bias the 10% rate.
 - **37 (Giant Wormhole Network):** same layout, sizes and masses, but the red network wormholes are replaced by a random combination of yellow self wormholes, purple linked pairs and blue cyclic triples (A→B→C→A). Body slots are filled by groups of 1–3 (uniform among the group sizes that still fit), so every wormhole has a complete link structure. Extreme decision pre-rolled, as for scenario 35.

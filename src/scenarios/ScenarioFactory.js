@@ -1098,7 +1098,10 @@ export class ScenarioFactory {
 
       // ── 21: White Dwarfs ──────────────────────────────────────────────────
       case 21: {
-        for (let i = 0; i < nPlanets; i++) {
+        const extreme21 = forceExtreme || rng.next() < 0.10;
+        if (extreme21) isExtreme = true;
+        const nWD = extreme21 ? 1 + rng.nextInt(20) : 2 + rng.nextInt(7); // extreme: 1–20, normal: 2–8
+        for (let i = 0; i < nWD; i++) {
           const p = makePlanet(rng, 0.9,0,0.1, 3,3,4, gw,gh, 3, PlanetType.WHITE_DWARF, WHITE_COL, ShadingStyle.GLOWING);
           p.halo = 15.0;
           planets.push(p);
