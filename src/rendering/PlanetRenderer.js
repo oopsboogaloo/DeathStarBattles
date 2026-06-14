@@ -265,11 +265,12 @@ export class PlanetRenderer {
     ctx.drawImage(off, bx0, by0);
     ctx.filter = 'none';
 
-    // Star surface fringe. In full and experimental modes the fringe is an
-    // ANIMATED fire rim drawn live every frame (Renderer._drawStarFireRims)
-    // rather than baked into this cached background, so nothing is drawn here
-    // for those stars. Simplified mode bakes the thin spikey bristles as before.
-    if (isStar && (_simplified || r <= 20)) {
+    // Star surface fringe — thin spikey bristles baked into the cached
+    // background for every star, in all performance modes and at all sizes.
+    // In full and experimental modes an ANIMATED fire rim is also drawn live
+    // every frame on top (Renderer._drawStarFireRims); this baked fringe sits
+    // beneath it.
+    if (isStar) {
       const nSpikes = Math.max(350, Math.floor(r * 7));
       const spOff   = document.createElement('canvas');
       spOff.width  = clipW;
