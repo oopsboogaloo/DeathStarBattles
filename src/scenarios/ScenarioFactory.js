@@ -31,8 +31,8 @@ const ROCKY_COLS = [
 ];
 const ASTEROID_COL          = [120,  80,  10];
 const RICH_ASTEROID_COL     = [ 75,  90, 120]; // blue-brown tint for rich asteroids
-const PURE_ASTEROID_COL     = [230, 195,  60]; // gold — rare "pure" sub-type of rich (1% of rich)
-const PURE_OF_RICH_PROB     = 0.01;            // default chance a rich asteroid is "pure"
+const PURE_ASTEROID_COL     = [230, 195,  60]; // gold — rare "pure" sub-type of rich (3% of rich)
+const PURE_OF_RICH_PROB     = 0.03;            // default chance a rich asteroid is "pure"
 // Dev-mode "PURE ASTEROIDS" option maps a label to the chance a rich asteroid is pure.
 const PURE_RATE_VALUES      = { default: PURE_OF_RICH_PROB, '10': 0.10, '25': 0.25, '50': 0.50, '100': 1.0 };
 let   _pureOfRichProb       = PURE_OF_RICH_PROB; // current value, set per-game in create()

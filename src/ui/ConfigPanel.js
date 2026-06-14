@@ -480,9 +480,10 @@ export class ConfigPanel {
       this._cycle('collectables',
         ['off', 'rare', 'normal', 'common', 'continuous'],
         (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i])));
+    // 'overwhelming' (100%) is dev-only; appended/removed by _updateDevRows().
+    this._richAstValues = ['off', 'rare', 'normal', 'common', 'abundant'];
     const rowRichAst     = this._row('RICH ASTEROIDS',
-      this._cycle('richAsteroids',
-        ['off', 'rare', 'normal', 'common', 'abundant', 'overwhelming'],
+      this._richAstCtrl = this._cycle('richAsteroids', this._richAstValues,
         v => ({ off: 'Off', rare: 'Rare  (1%)', normal: 'Normal  (5%)', common: 'Common  (10%)', abundant: 'Abundant  (25%)', overwhelming: 'Overwhelming' }[v])));
     const rowColSize     = this._row('COLLECTABLE SIZE',
       this._cycle('collectableSize',
@@ -490,11 +491,11 @@ export class ConfigPanel {
         v => ({ tiny: 'Tiny  (½×)', medium: 'Medium', large: 'Large  (1.5×)', huge: 'Huge  (2×)', mammoth: 'Mammoth  (3×)', varied: 'Varied' }[v])));
     const rowForceExtreme = this._row('FORCE EXTREME',
       this._cycle('forceExtreme', [false, true], v => v ? 'On' : 'Off'));
-    // Dev-only: boost the chance a rich asteroid is "pure" (gold) above the 1% default.
+    // Dev-only: boost the chance a rich asteroid is "pure" (gold) above the 3% default.
     const rowPureRate = this._row('PURE ASTEROIDS',
       this._cycle('pureRate',
         ['default', '10', '25', '50', '100'],
-        v => ({ default: '1%  (default)', '10': '10%', '25': '25%', '50': '50%', '100': 'Always' }[v])));
+        v => ({ default: '3%  (default)', '10': '10%', '25': '25%', '50': '50%', '100': 'Always' }[v])));
 
     // Player-visible loadouts; richer dev tiers appended by _updateDevRows()
     this._startWepValues = ['none', 'basic', 'marines', 'demolition', 'luckyDip', 'quantum', 'dambusters'];
@@ -838,6 +839,17 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
     const show = this._devModeOn || this._campaignUnlocked;
     for (const row of this._devRows ?? []) {
       row.style.display = show ? '' : 'none';
+    }
+    // Rich Asteroids 'Overwhelming' (100%) is dev-mode only.
+    if (this._richAstValues) {
+      const has = this._richAstValues.includes('overwhelming');
+      if (this._devModeOn && !has) {
+        this._richAstValues.push('overwhelming');
+      } else if (!this._devModeOn && has) {
+        this._richAstValues.splice(this._richAstValues.indexOf('overwhelming'), 1);
+        if (this._d.richAsteroids === 'overwhelming') this._d.richAsteroids = 'abundant';
+      }
+      this._richAstCtrl?._refresh();
     }
     // Richer starting-weapon tiers are only selectable in dev mode / after campaign completion
     if (this._startWepValues) {

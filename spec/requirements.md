@@ -139,7 +139,7 @@ Fires 8 rockets in succession at Blaster timing (one per second at normal speed)
 - A rocket blast also destroys collectables within its blast radius, granting the weapon to the rocket owner's team
 - The weapon type is decided at collection time, not at spawn
 - When a Rich Asteroid fragments, the collectable **replaces** one child fragment — it does not spawn on top of a child
-- A **Pure Asteroid** (gold; 1% of rich asteroids) additionally drops **2–4 collectables on top** of the standard rich payout, and its children are themselves pure (so the bonus cascades as they are destroyed). The bonus collectables are spawned as extra entities — they do not replace child fragments
+- A **Pure Asteroid** (gold; 3% of rich asteroids by default) additionally drops **2–4 collectables on top** of the standard rich payout, and its children are themselves pure (so the bonus cascades as they are destroyed). The bonus collectables are spawned as extra entities — they do not replace child fragments
 - Weapon stocks are **shared across all stations on a team** and **carry over between tournament games**
 
 | Weapon | Charges per collectable |
@@ -233,7 +233,7 @@ All planets exert gravity unless stated otherwise. Planet impact behaviour when 
 | Asteroid | Dark brown | Bullet explodes on impact; fragments into 2–4 child asteroids |
 | Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed. Exception: **Bounce Cannon** reflects off elastically and smashes the asteroid (bullet survives). |
 | Rich Asteroid | Blue-brown | Same as Asteroid; additionally spawns one Collectable on destruction. Only appears when Collectables setting is ON (5% of asteroids). |
-| Pure Asteroid | Gold | Rare sub-type of Rich Asteroid (**1% of rich asteroids**). Shatters into **Pure Asteroid children** (which are themselves pure) and, on top of the standard rich Collectable payout, drops **2–4 additional Collectables**. Applies to regular, ring, and giant asteroids alike. Only appears when Collectables setting is ON. |
+| Pure Asteroid | Gold | Rare sub-type of Rich Asteroid (**3% of rich asteroids** by default; adjustable in dev mode). Shatters into **Pure Asteroid children** (which are themselves pure) and, on top of the standard rich Collectable payout, drops **2–4 additional Collectables**. Applies to regular, ring, and giant asteroids alike. Only appears when Collectables setting is ON. |
 | Comet | Glowing pale yellow | Takes **two bullet hits** to destroy — the first hit only chips it; the bullet explodes on each hit. Moves under reduced self-gravity and freezes stations on contact (see frozen-condition-spec). |
 | Star | Yellow/orange | Bullet explodes on impact |
 | White Dwarf | White | Bullet explodes on impact; very small radius, very high density |
@@ -573,8 +573,9 @@ All sub-options are greyed out and unclickable when Collectables is Off.
 | Option | Values | Notes |
 |---|---|---|
 | Collectables | Off (default) / Rare / Normal / Common / Continuous | Spawn probability per turn end; see §4.6 |
-| Rich Asteroids | Off / Rare (1%) / Normal (5%) / Common (10%) / Abundant (25%) / Overwhelming (100%) | Only active when Collectables ≠ Off |
+| Rich Asteroids | Off / Rare (1%) / Normal (5%) / Common (10%) / Abundant (25%) | Only active when Collectables ≠ Off. **Overwhelming (100%)** is appended only in dev mode (§16.3) |
 | Collectable Size | Tiny (½×) / Medium / Large (1.5×) / Huge (2×) / Mammoth (3×) / Varied | Varied picks a random size each spawn |
+| Pure Asteroids (dev only) | 3% (default) / 10% / 25% / 50% / Always | Chance a rich asteroid is gold/pure; see §16.3. Greyed out when Collectables is Off |
 | Starting Weapons | None / One at Random / Minor (2 Triple Cannons) / One of Each / Lots (3 of each) / Too Many (7 of each) | Topped up to minimum each game; One at Random always adds one |
 
 ### 10.5 Map Seeds
@@ -1663,7 +1664,7 @@ One additional mode is available in developer mode only (`Ctrl+Shift+D`):
 A hidden developer mode must be accessible via `Ctrl+Shift+D` on keyboard, or by triple-tap on the About panel (for mobile access without a keyboard). Dev mode:
 
 - Reveals the `Experimental` performance option in the config panel.
-- Reveals the `Force Extreme` and `Pure Asteroids` config options. **Pure Asteroids** (`pureRate`) overrides the chance a rich asteroid is gold/pure — `1% (default)`, `10%`, `25%`, `50%`, or `Always` — to make the otherwise extremely-rare pure asteroids testable. Greyed out when Collectables is Off (pure requires rich, which requires collectables).
+- Reveals the `Force Extreme` and `Pure Asteroids` config options, and appends the dev-only `Overwhelming` (100%) choice to **Rich Asteroids**. **Pure Asteroids** (`pureRate`) overrides the chance a rich asteroid is gold/pure — `3% (default)`, `10%`, `25%`, `50%`, or `Always` — to make the otherwise rare pure asteroids testable. Greyed out when Collectables is Off (pure requires rich, which requires collectables).
 - Unlocks all story missions regardless of completion state.
 - Displays a real-time stats overlay (toggled separately) showing: FPS, planet count, station count, bullet count, and a combined SFX particle count covering all active particle arrays (rocket smoke, comet smoke, wormhole particles, bloom particles, fireballs, fireball smoke).
 - All dev-mode options reset to hidden if dev mode is toggled off during a session.
