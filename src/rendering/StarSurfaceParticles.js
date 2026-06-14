@@ -17,8 +17,9 @@
 // touch the huge off-screen remainder — only the visible patch is populated.
 
 export const STAR_SURFACE_PARTICLE_DEFAULTS = {
-  count:      160,    // bubbles per star (>= 100 as requested)
-  sizeMult:   0.05,   // full oval tangential radius = visualR * sizeMult
+  count:      320,    // bubbles per star
+  sizeMult:   0.025,  // full oval tangential radius = visualR * sizeMult
+  maxSize:    5,      // px cap on the full radius so supergiants don't get huge ovals
   sizeJitter: 0.6,    // per-bubble size randomisation: size ∈ [1-j, 1+j]
   alphaMax:   0.50,   // peak opacity of the white ovals
   fadeInFrac: 0.18,   // fraction of life spent fading in + expanding (quick)
@@ -84,18 +85,19 @@ export class StarSurfaceParticles {
     const cy     = planet.position.y * conv;
     const R      = Math.max(3, planet.radius * conv);
 
+    // Full oval radius, capped in pixels so supergiants don't get huge ovals.
+    const fullSize = Math.min(R * cfg.sizeMult, cfg.maxSize);
+
     // Visible disc region = intersection of the disc's bounding box and the
     // viewport (widened by the largest possible oval reach). Empty → fully
     // off-screen, nothing to do.
-    const m   = R * cfg.sizeMult * (1 + cfg.sizeJitter) * cfg.growTo + cfg.edgeMargin;
+    const m   = fullSize * (1 + cfg.sizeJitter) * cfg.growTo + cfg.edgeMargin;
     const bx0 = Math.max(-m,      cx - R);
     const by0 = Math.max(-m,      cy - R);
     const bx1 = Math.min(vpW + m, cx + R);
     const by1 = Math.min(vpH + m, cy + R);
     if (bx1 <= bx0 || by1 <= by0) return;
     const boxW = bx1 - bx0, boxH = by1 - by0;
-
-    const fullSize = R * cfg.sizeMult;
 
     ctx.fillStyle = '#fff';
     for (let i = 0; i < cfg.count; i++) {
