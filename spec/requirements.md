@@ -230,6 +230,7 @@ All planets exert gravity unless stated otherwise. Planet impact behaviour when 
 | Asteroid | Dark brown | Bullet explodes on impact; fragments into 2–4 child asteroids |
 | Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed. Exception: **Bounce Cannon** reflects off elastically and smashes the asteroid (bullet survives). |
 | Rich Asteroid | Blue-brown | Same as Asteroid; additionally spawns one Collectable on destruction. Only appears when Collectables setting is ON (5% of asteroids). |
+| Comet | Glowing pale yellow | Takes **two bullet hits** to destroy — the first hit only chips it; the bullet explodes on each hit. Moves under reduced self-gravity and freezes stations on contact (see frozen-condition-spec). |
 | Star | Yellow/orange | Bullet explodes on impact |
 | White Dwarf | White | Bullet explodes on impact; very small radius, very high density |
 | Black Hole | Black | Bullet vanishes silently (no explosion); very high density |

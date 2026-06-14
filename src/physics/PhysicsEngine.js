@@ -14,6 +14,7 @@ export const MIN_POWER     = 0.2;
 export const MAX_POWER     = 0.8;
 export const INIT_DIST     = 1.0;   // gap between station surface and bullet spawn
 export const PULSE_MAX_R   = 180;   // pulsar pressure ring max radius (game units)
+export const COMET_HITS_TO_DESTROY = 2; // bullet hits required to destroy a comet
 
 // ─── Projectile skimming constants (NFR-2) ────────────────────────────────────
 export const MAX_CANNON_SPEED       = (800 / 1000 + MIN_POWER) * MAX_POWER; // = 0.8
@@ -315,8 +316,11 @@ export class PhysicsEngine {
                          planet.type === PlanetType.WORMHOLE_NETWORK;
       if (!isHazard && !isWormhole) {
         bullet._qtTeleportPlanet = planet;
-        // Comets break apart; asteroids and crystals are passed through intact
-        if (planet.type === PlanetType.COMET) planet.destroyed = true;
+        // Comets take two hits to destroy; asteroids and crystals pass through intact
+        if (planet.type === PlanetType.COMET) {
+          planet.hitCount = (planet.hitCount ?? 0) + 1;
+          if (planet.hitCount >= COMET_HITS_TO_DESTROY) planet.destroyed = true;
+        }
         // Moon / giant asteroid: register crack hit without destroying bullet
         if (planet.type === PlanetType.MOON || planet.type === PlanetType.GIANT_ASTEROID) {
           bullet._hitMoon  = planet;
@@ -445,8 +449,10 @@ export class PhysicsEngine {
         break;
 
       case PlanetType.COMET:
-        // Both bullet and comet are destroyed on collision
-        planet.destroyed = true;
+        // Comets take two bullet hits to destroy: the first hit only chips it.
+        // The bullet still detonates on each hit.
+        planet.hitCount = (planet.hitCount ?? 0) + 1;
+        if (planet.hitCount >= COMET_HITS_TO_DESTROY) planet.destroyed = true;
         bullet.status = BulletStatus.EXPLODING;
         break;
 
