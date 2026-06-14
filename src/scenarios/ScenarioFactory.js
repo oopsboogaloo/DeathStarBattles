@@ -1309,7 +1309,8 @@ export class ScenarioFactory {
       // ── 26: Hyperspace ────────────────────────────────────────────────────
       case 26: {
         const useWormholeShading = rn[0] >= 0.8;
-        for (let i = 0; i < nPlanets; i++) {
+        const nAnomalies = 2 + rng.nextInt(7); // 2–8 anomalies
+        for (let i = 0; i < nAnomalies; i++) {
           const density  = rng.next() < 0.5 ?  6 * rng.next() : -5 * rng.next();
           const positive = density >= 0;
           const colour   = positive

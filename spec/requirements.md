@@ -305,7 +305,7 @@ A **space rift** is a non-solid map object — a piecewise-linear chain of 3–1
 | 23 | Neutron Star | One pulsar + mix of rocky planets and asteroids |
 | 24 | White Hole | One repulsive white hole + rocky bodies |
 | 25 | White Holes | 2–5 white holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
-| 26 | Hyperspace | No planets; hyperspace is forced every turn |
+| 26 | Hyperspace | 2–8 gravity anomalies (≈80% black hole, ≈20% wormhole-network portal; green if attracting, red if repelling) + 2–4 space rifts |
 | 27 | Black Holes | 2–5 black holes biased toward screen edges + rocky/asteroid filler. 10% chance of extreme version (§6.4). |
 | 28 | Big Wormhole | Two enormous wormhole portals, mirrored through the screen centre (partially off-screen) + planets. See §6.7. |
 | 29 | Rift | 1 space rift + 0–3 rocky planets + sparse asteroid field. 30% of games use the blue reflective variant. |
