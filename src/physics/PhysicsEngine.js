@@ -91,7 +91,7 @@ export class PhysicsEngine {
       if (rSq >= R * R) {
         // gravity only (below)
       } else if ((planet.type === PlanetType.ASTEROID || planet.type === PlanetType.GIANT_ASTEROID) && planet._rotatedVerts?.length) {
-        if (PhysicsEngine._satCollides(bullet.position, planet._rotatedVerts)) {
+        if (PhysicsEngine._pointInPolygon(bullet.position, planet._rotatedVerts)) {
           this._handlePlanetImpact(bullet, planet, dx, dy, planets);
           return;
         }
@@ -590,53 +590,23 @@ export class PhysicsEngine {
     return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ? t : null;
   }
 
-  // ─── SAT circle-vs-polygon collision (world-space rotated verts) ─────────
-  // Tests each polygon edge normal; if any axis separates the bullet point
-  // from the polygon, returns false. Also tests the closest-vertex axis.
-  static _satCollides(point, verts) {
-    const bx = point.x, by = point.y;
+  // ─── Exact point-in-polygon test (world-space rotated verts) ─────────────
+  // Ray-casting (even-odd) test: counts how many polygon edges a ray cast to
+  // +x from the bullet crosses; an odd count means the point is inside. Unlike
+  // SAT this is exact for *concave* polygons, so the deep valleys between an
+  // asteroid's spikes correctly register as empty space rather than as hull.
+  static _pointInPolygon(point, verts) {
+    const px = point.x, py = point.y;
     const n  = verts.length;
-
-    for (let i = 0; i < n; i++) {
-      const a  = verts[i];
-      const b  = verts[(i + 1) % n];
-      const ex = b.x - a.x, ey = b.y - a.y;
-      const len = Math.sqrt(ex * ex + ey * ey);
-      if (len === 0) continue;
-      // Edge normal (either direction works for SAT)
-      const nx = -ey / len, ny = ex / len;
-
-      let polyMin = Infinity, polyMax = -Infinity;
-      for (const v of verts) {
-        const proj = v.x * nx + v.y * ny;
-        if (proj < polyMin) polyMin = proj;
-        if (proj > polyMax) polyMax = proj;
-      }
-      const bulletProj = bx * nx + by * ny;
-      if (bulletProj < polyMin || bulletProj > polyMax) return false;
-    }
-
-    // Closest-vertex axis (handles bullet approaching a vertex from outside)
-    let closestDistSq = Infinity, closestV = null;
-    for (const v of verts) {
-      const dsq = (bx - v.x) ** 2 + (by - v.y) ** 2;
-      if (dsq < closestDistSq) { closestDistSq = dsq; closestV = v; }
-    }
-    if (closestV) {
-      const vlen = Math.sqrt(closestDistSq);
-      if (vlen > 0) {
-        const nx = (bx - closestV.x) / vlen, ny = (by - closestV.y) / vlen;
-        let polyMin = Infinity, polyMax = -Infinity;
-        for (const v of verts) {
-          const proj = v.x * nx + v.y * ny;
-          if (proj < polyMin) polyMin = proj;
-          if (proj > polyMax) polyMax = proj;
-        }
-        const bulletProj = bx * nx + by * ny;
-        if (bulletProj < polyMin || bulletProj > polyMax) return false;
+    let inside = false;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = verts[i].x, yi = verts[i].y;
+      const xj = verts[j].x, yj = verts[j].y;
+      if (((yi > py) !== (yj > py)) &&
+          (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+        inside = !inside;
       }
     }
-
-    return true;
+    return inside;
   }
 }
