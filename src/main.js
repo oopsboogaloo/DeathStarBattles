@@ -383,7 +383,9 @@ function _onGameOver(gs) {
     if (!tournament) tournament = new TournamentState();
     tournament.recordGame(gs);
     tournament.generateRewards(activeConfig, gs);
-    // Snapshot weapon stocks so they carry into the next game
+    // Snapshot weapon stocks so they carry into the next game. Any leftover
+    // collectables (claim collectables setting) were already granted in-game at
+    // the end of the round, so they are reflected in each team's weaponStock.
     _prevWeaponStocks = new Map(gs.teams.map(t => [t.index, new Map(t.weaponStock)]));
     // Apply per-game prize weapons into carry-over stocks
     if (tournament.lastRewards) {
@@ -404,27 +406,6 @@ function _onGameOver(gs) {
             for (const g of grants) stocks.set(g.id, (stocks.get(g.id) ?? 0) + g.charges);
           }
         }
-      }
-    }
-    // Distribute remaining map collectables to surviving teams
-    if (activeConfig.claimCollectables) {
-      const remaining = gs.collectables.filter(c => c.alive);
-      const survivors = gs.teams.filter(t => t.stations.some(s => s.status === 'active'));
-      if (remaining.length && survivors.length) {
-        // Shuffle survivors randomly
-        for (let i = survivors.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [survivors[i], survivors[j]] = [survivors[j], survivors[i]];
-        }
-        remaining.forEach((_, i) => {
-          const team   = survivors[i % survivors.length];
-          const r      = Math.random();
-          const tier   = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
-          const pool   = WEAPON_GRANTS.filter(g => g.tier === tier);
-          const grant  = pool[Math.floor(Math.random() * pool.length)];
-          const stocks = _prevWeaponStocks.get(team.index);
-          if (stocks) stocks.set(grant.id, (stocks.get(grant.id) ?? 0) + grant.charges);
-        });
       }
     }
     const limit   = activeConfig.tournamentGames;

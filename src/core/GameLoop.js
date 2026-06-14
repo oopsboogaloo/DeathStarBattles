@@ -70,6 +70,7 @@ export class GameLoop {
     this._turnOrder       = [];      // active stations for this turn, in order
     this._turnIdx         = 0;
     this._resultsTimer    = 0;
+    this._collectablesClaimed = false; // leftover collectables granted at game end (once)
     this._fastFwdPrevSpeed = null;   // non-null when Fast FWD is active
     this._tpResultsCb     = null;
 
@@ -3034,6 +3035,17 @@ export class GameLoop {
 
     this._advanceVFX();
 
+    // Once the game is decided, claim any leftover collectables in-game so the
+    // grant animation (weapon name in the collecting team's colour) plays on
+    // screen before the game-over screen appears, keeping it visible to players.
+    if (this.gs.winner !== undefined && !this._collectablesClaimed) {
+      this._collectablesClaimed = true;
+      if (this._claimRemainingCollectables() > 0) {
+        // Hold on RESULTS long enough for the grant animation to finish.
+        this._resultsTimer = Math.max(this._resultsTimer, 150);
+      }
+    }
+
     if (--this._resultsTimer <= 0) {
       if (this.gs.storyState && !this.gs.storyState.passed && !this.gs.storyState.failed) {
         const ss = this.gs.storyState;
@@ -3074,6 +3086,15 @@ export class GameLoop {
         this.gs.turn++;
         this._checkTurnLimit();
         if (this.gs.winner !== undefined) {
+          // Winner just decided by the turn limit — claim leftover collectables
+          // in-game and hold on RESULTS so the grant animation is visible.
+          if (!this._collectablesClaimed) {
+            this._collectablesClaimed = true;
+            if (this._claimRemainingCollectables() > 0) {
+              this._resultsTimer = 150;
+              return;
+            }
+          }
           this.gs.mode = GameMode.GAMEOVER;
         } else {
           this.renderer.clearTrails();
@@ -3303,6 +3324,34 @@ export class GameLoop {
       return new Vec2(x, y);
     }
     return null;
+  }
+
+  // Distribute the collectables still on the map to the surviving teams when a
+  // game ends (tournament "claim collectables" setting). Grants are applied to
+  // each team's weapon stock — so they carry over via the game-end snapshot —
+  // and the same shatter + named-grant VFX used for normal pickups is spawned
+  // so players can see who claimed what, in the collecting team's colour.
+  // Returns the number of collectables claimed.
+  _claimRemainingCollectables() {
+    if (this.gs.config?.mode !== 'tournament' || !this.gs.config?.claimCollectables) return 0;
+    const remaining = this.gs.collectables.filter(c => c.alive);
+    const survivors = this.gs.teams.filter(t => t.stations.some(s => s.status === 'active'));
+    if (!remaining.length || !survivors.length) return 0;
+    // Shuffle survivors so the leftovers are split fairly at random.
+    for (let i = survivors.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng.next() * (i + 1));
+      [survivors[i], survivors[j]] = [survivors[j], survivors[i]];
+    }
+    remaining.forEach((c, i) => {
+      const team  = survivors[i % survivors.length];
+      const grant = this._pickCollectableGrant();
+      team.addStock(grant.id, grant.charges);
+      c.alive = false;
+      this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+      const [cr, cg, cb] = team.colour;
+      this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+    });
+    return remaining.length;
   }
 
   _makeCollectableShatterVFX(collectable) {
