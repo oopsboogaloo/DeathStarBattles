@@ -1620,8 +1620,8 @@ export class GameLoop {
           if (this._isWormhole(planet.type)) {
             this._teleportRocket(rocket, planet);
           } else {
-            // Giant asteroid is multi-hit: a rocket deals 1 hit before detonating.
-            if (planet.type === PlanetType.GIANT_ASTEROID) {
+            // Multi-hit bodies (moon, giant asteroid): a rocket deals 1 hit before detonating.
+            if (planet.type === PlanetType.GIANT_ASTEROID || planet.type === PlanetType.MOON) {
               this._handleMoonHit(planet, rocket.position.x, rocket.position.y);
             }
             this._detonateRocket(rocket); detonated = true;
