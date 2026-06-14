@@ -1073,6 +1073,8 @@ class CollectableGrantVFX {
 
 Draw: text drawn at `position` offset upward by `t * 20` game units. Opacity is a quick fade-in (full by `t = 0.1`), a hold at full opacity, then a fast eased fade-out across the final tail (`t > 0.7`): `alpha = clamp(t / 0.1) * (1 - ((t - 0.7) / 0.3)²)`. This keeps the label readable for most of its life and lets it disappear gracefully instead of cutting off. Font matches HUD font (monospace bold), size ~14px screen.
 
+`collectableGrant` and `collectableShatter` VFX advance their `t` in real wall-clock time — exactly once per rendered frame (via `_advanceCollectableVFX`), independent of the number of physics sub-steps run that frame. All other VFX advance per physics step inside the firing loop. This keeps the grant label's fade smooth at any game speed; advancing it per sub-step would skip the intermediate fade frames and make it pop out abruptly.
+
 #### `TripleCannonMuzzleVFX`
 
 ```js

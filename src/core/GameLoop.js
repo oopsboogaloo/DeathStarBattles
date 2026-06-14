@@ -104,6 +104,7 @@ export class GameLoop {
 
   _advance() {
     this._advancePulsars(); // always animate pulsars regardless of game phase
+    this._advanceCollectableVFX(); // real-time fade, decoupled from sim sub-steps
     switch (this.gs.mode) {
       case GameMode.AIMING:
         this._advanceAiming();
@@ -3369,7 +3370,27 @@ export class GameLoop {
 
   _advanceVFX() {
     const DT = 1 / 60;
-    for (const vfx of this.gs.vfxList) vfx.t += DT / vfx.duration;
+    // Collectable shatter/grant VFX are advanced once per frame in
+    // _advanceCollectableVFX so their fade stays smooth at any game speed;
+    // skip them here to avoid advancing multiple times per physics sub-step.
+    for (const vfx of this.gs.vfxList) {
+      if (vfx.type === 'collectableGrant' || vfx.type === 'collectableShatter') continue;
+      vfx.t += DT / vfx.duration;
+    }
+    this.gs.vfxList = this.gs.vfxList.filter(v => v.t < 1);
+  }
+
+  // Advance collectable shatter/grant VFX in real wall-clock time — exactly
+  // once per rendered frame, independent of how many physics sub-steps run that
+  // frame — so the named-grant label fades in and out smoothly instead of
+  // popping at higher game speeds.
+  _advanceCollectableVFX() {
+    const DT = 1 / 60;
+    for (const vfx of this.gs.vfxList) {
+      if (vfx.type === 'collectableGrant' || vfx.type === 'collectableShatter') {
+        vfx.t += DT / vfx.duration;
+      }
+    }
     this.gs.vfxList = this.gs.vfxList.filter(v => v.t < 1);
   }
 
