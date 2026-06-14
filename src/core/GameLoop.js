@@ -2039,7 +2039,7 @@ export class GameLoop {
 
   _handleMoonHit(moon, impactX, impactY) {
     moon.hitCount++;
-    const hitLimit = moon.type === PlanetType.GIANT_ASTEROID ? 6 : 3;
+    const hitLimit = moon.type === PlanetType.GIANT_ASTEROID ? 9 : 3;
     if (moon.hitCount >= hitLimit) {
       moon.destroyed = true;
 

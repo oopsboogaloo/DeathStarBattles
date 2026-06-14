@@ -154,7 +154,7 @@ function makeComet(rng, position, velocity) {
   });
 }
 
-// Giant asteroid: diameter ≈ half the shorter screen dimension; 3 hits to shatter
+// Giant asteroid: diameter ≈ half the shorter screen dimension; 9 hits to shatter
 function makeGiantAsteroid(rng, gw, gh, richProb) {
   const radius = Math.floor(Math.min(gw, gh) / 4); // radius = ¼ of shorter dimension
   const cx     = radius + rng.next() * (gw - 2 * radius);
