@@ -1610,14 +1610,23 @@ export class GameLoop {
         // Planet collision → teleport through wormhole or detonate (gas giants passed through)
         for (const planet of this.gs.planets) {
           if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
-          if (rocket.position.distanceSqTo(planet.position) < planet.impactRadius ** 2) {
-            if (this._isWormhole(planet.type)) {
-              this._teleportRocket(rocket, planet);
-            } else {
-              this._detonateRocket(rocket); detonated = true;
+          // Broad-phase bounding circle, then exact polygon narrow-phase for asteroids
+          // (same test bullets use) so a rocket only strikes the actual jagged rock,
+          // not the empty circle around it.
+          if (rocket.position.distanceSqTo(planet.position) >= planet.impactRadius ** 2) continue;
+          if ((planet.type === PlanetType.ASTEROID || planet.type === PlanetType.GIANT_ASTEROID)
+              && planet._rotatedVerts?.length
+              && !PhysicsEngine._pointInPolygon(rocket.position, planet._rotatedVerts)) continue;
+          if (this._isWormhole(planet.type)) {
+            this._teleportRocket(rocket, planet);
+          } else {
+            // Giant asteroid is multi-hit: a rocket deals 1 hit before detonating.
+            if (planet.type === PlanetType.GIANT_ASTEROID) {
+              this._handleMoonHit(planet, rocket.position.x, rocket.position.y);
             }
-            break;
+            this._detonateRocket(rocket); detonated = true;
           }
+          break;
         }
         if (detonated) continue;
 
