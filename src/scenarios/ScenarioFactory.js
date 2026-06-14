@@ -905,6 +905,7 @@ export class ScenarioFactory {
             position: new Vec2(g.x, g.y),
             radius: g.r, density: 4000/(g.r*g.r), mass: 4000,
             type: PlanetType.STAR, colour: sCol, shading: ShadingStyle.GLOWING,
+            supergiant: true,
           }));
         }
         for (let i = 2; i < nPlanets; i++)
@@ -922,6 +923,7 @@ export class ScenarioFactory {
           position: sg1Pos,
           radius: sg1R, density: 4000/(sg1R*sg1R), mass: 4000,
           type: PlanetType.STAR, colour: sg1Col, shading: ShadingStyle.GLOWING,
+          supergiant: true,
         }));
         // Regular star (on-screen). Keep it at least a halo-width clear of the
         // supergiant's surface so their rims/coronas don't collide when the two

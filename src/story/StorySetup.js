@@ -85,9 +85,10 @@ function buildPlanet(def, gw, gh, rng) {
     case PlanetType.STAR:
       return new Planet({
         position, radius, density,
-        type:    PlanetType.STAR,
-        colour:  [...STAR_COL],
-        shading: ShadingStyle.GLOWING,
+        type:       PlanetType.STAR,
+        colour:     [...STAR_COL],
+        shading:    ShadingStyle.GLOWING,
+        supergiant: def.supergiant ?? false,
       });
 
     case PlanetType.GAS_GIANT: {

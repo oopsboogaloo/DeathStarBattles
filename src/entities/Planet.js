@@ -56,6 +56,7 @@ export class Planet {
     colourB       = null,   // secondary colour for GAS_GIANT stripes ([r,g,b] or null)
     pulsarPeriod  = 0,      // seconds between pressure pulses (PULSAR type only)
     pulsarPhase   = 0,      // current phase within period (seconds)
+    supergiant    = false,  // STAR flag for supergiants — drives visual differentiation
     velocity      = null,   // Vec2 — used by COMET type for dynamic movement
     rich          = false,  // true for Rich Asteroid (blue-brown, yields crystal on break)
     craterData    = null,   // [{dx,dy,r}] — crater positions relative to moon centre (MOON only)
@@ -79,6 +80,7 @@ export class Planet {
     this.colourB       = colourB;
     this.pulsarPeriod  = pulsarPeriod;
     this.pulsarPhase   = pulsarPhase;
+    this.supergiant    = supergiant;
     this.pulsarPulses  = pulsarPeriod > 0 ? [] : null; // active expanding rings
     this.velocity      = velocity;
     this.rich          = rich;

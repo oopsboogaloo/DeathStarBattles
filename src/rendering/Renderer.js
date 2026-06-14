@@ -578,6 +578,10 @@ export class Renderer {
     const bullets   = (gs?.activeBullets?.length ?? 0) + (gs?.rockets?.length ?? 0);
     const wormholePCount   = [...this._wormholeParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
     const wholeParticleCount = [...this._whiteHoleParticles.values()].reduce((s, wp) => s + wp._cfg.count, 0);
+    // Star surface bubbles only run (and so only count) in experimental mode.
+    const starSurfaceCount = this._performance === 'experimental'
+      ? [...this._starSurfaceParticles.values()].reduce((s, sp) => s + sp.count, 0)
+      : 0;
     const sfx       = (gs?.rocketSmoke?.length ?? 0)
                     + (gs?.cometSmoke?.length ?? 0)
                     + (gs?.skimParticles?.length ?? 0)
@@ -587,7 +591,8 @@ export class Renderer {
                     + (gs?.fireballs?.length ?? 0)
                     + (gs?.fireballSmoke?.length ?? 0)
                     + wormholePCount
-                    + wholeParticleCount;
+                    + wholeParticleCount
+                    + starSurfaceCount;
 
     const sid          = gs?.config?.scenarioId;
     const scenarioName = sid ? (SCENARIO_NAMES[sid] ?? `#${sid}`) : '—';

@@ -90,7 +90,7 @@ export const STORY_MISSIONS = [
     layout: {
       planets: [
         // Supergiant star just off the bottom edge — gravitationally dominates lower half
-        { type: 'star', x: 0.50, y: 1.08, radius: 80, density: 0.0625 },
+        { type: 'star', x: 0.50, y: 1.08, radius: 80, density: 0.0625, supergiant: true },
       ],
       stations: [
         { x: 0.50, y: 0.82, team: 0, role: 'human',  visualStyle: 'station' },
