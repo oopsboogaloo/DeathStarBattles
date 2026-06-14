@@ -22,7 +22,10 @@ export const STAR_SURFACE_PARTICLE_DEFAULTS = {
   sizeMult:     0.025,  // full oval tangential radius = visualR * sizeMult
   maxSize:      5,      // px cap on the full radius so supergiants don't get huge ovals
   sizeJitter: 0.6,    // per-bubble size randomisation: size ∈ [1-j, 1+j]
-  alphaMax:   0.50,   // peak opacity of the white ovals
+  alphaMax:   0.50,   // peak opacity of the white ovals (for bright stars)
+  brightRef:  0.85,   // star luminance at/above which alpha is full (white/yellow);
+                      // dimmer stars (e.g. red giants) get proportionally fainter ovals
+  minAlphaScale: 0.35,// floor on the dim-star alpha multiplier
   fadeInFrac: 0.18,   // fraction of life spent fading in + expanding (quick)
   minLife:    0.7,    // seconds — shortest bubble life
   maxLife:    1.8,    // seconds — longest bubble life
@@ -38,6 +41,14 @@ export class StarSurfaceParticles {
     // Supergiants get supergiantMult times as many bubbles (see planet.supergiant).
     const n = this._cfg.count * (planet.supergiant ? this._cfg.supergiantMult : 1);
     this.count   = n; // exposed so the SFX/debug counter can include these bubbles
+
+    // Fainter white ovals on darker stars (e.g. red giants); bright white/yellow
+    // stars sit at full alpha. Scaled by perceived luminance of the star colour.
+    const [pr, pg, pb] = planet.colour ?? [255, 255, 255];
+    const lum   = (0.299 * pr + 0.587 * pg + 0.114 * pb) / 255;
+    const scale = Math.max(this._cfg.minAlphaScale, Math.min(1, lum / this._cfg.brightRef));
+    this._alphaMax = this._cfg.alphaMax * scale;
+
     this._dx     = new Float32Array(n); // normalised disc x: (px - cx) / R, in [-1,1]
     this._dy     = new Float32Array(n); // normalised disc y: (py - cy) / R, in [-1,1]
     this._phase  = new Float32Array(n); // 0..1 life progress
@@ -115,11 +126,11 @@ export class StarSurfaceParticles {
       let alpha, grow;
       if (ph < cfg.fadeInFrac) {
         const u = ph / cfg.fadeInFrac;          // quick fade-in + expansion
-        alpha = cfg.alphaMax * u;
+        alpha = this._alphaMax * u;
         grow  = cfg.growFrom + (1 - cfg.growFrom) * u;
       } else {
         const u = (ph - cfg.fadeInFrac) / (1 - cfg.fadeInFrac); // slow fade-out
-        alpha = cfg.alphaMax * (1 - u);
+        alpha = this._alphaMax * (1 - u);
         grow  = 1 + (cfg.growTo - 1) * u;
       }
       if (alpha <= 0.003) continue;
