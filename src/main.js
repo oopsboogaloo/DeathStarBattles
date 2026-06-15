@@ -26,6 +26,7 @@ import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
 import { StoryPersistence }     from './story/StoryPersistence.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
 import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
+import { SoundManager, SOUND_VOL_GAIN } from './audio/SoundManager.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
 import { TargetPracticeGame }          from './core/TargetPracticeGame.js';
 import { TargetPracticeResultsScreen } from './ui/TargetPracticeResultsScreen.js';
@@ -118,6 +119,7 @@ tpResultsScreen.onMainMenu(() => {
   tournament = null;
   if (loop) { loop.stop(); loop = null; }
   renderer.setGameAspect(null, null);
+  SoundManager.stopAmbient();
   panel.show();
 });
 
@@ -130,6 +132,7 @@ gameOverScreen.onContinue(() => {
       _prevWeaponStocks = null;
       if (loop) { loop.stop(); loop = null; }
       renderer.setGameAspect(null, null);
+      SoundManager.stopAmbient();
       panel.show();
     } else {
       startGame(activeConfig);    // next tournament game
@@ -142,10 +145,12 @@ gameOverScreen.onNewGame(() => {
   tournament = null;
   if (loop) { loop.stop(); loop = null; }
   renderer.setGameAspect(null, null); // unlock aspect ratio while on menu
+  SoundManager.stopAmbient();
   panel.show();
 });
 
 panel.onStart(cfg => {
+  SoundManager.init();
   isDemo       = false;
   activeConfig = cfg;
   tournament        = null;
@@ -201,16 +206,17 @@ const storyScreen = new StoryModeScreen();
 storyScreen.setOnStartMission(mission => startStoryMission(mission));
 storyScreen.setOnClose(() => panel.show());
 
-endTurnBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanFire(); });
+endTurnBtn.addEventListener('click', e => { e.stopPropagation(); SoundManager.play('uiClick'); if (loop) loop.humanFire(); });
 weaponBtn.addEventListener('click',  e => {
   e.stopPropagation();
   if (!loop) return;
+  SoundManager.play('uiClick');
   const gs = loop.gs;
   if (gs.mode === 'aiming' && gs.waitingForInput && gs.activeStation) {
     weaponSelector.toggle(gs.activeStation, weaponBtn, gs);
   }
 });
-moveBtn.addEventListener('click', e => { e.stopPropagation(); if (loop) loop.humanStartMove(); });
+moveBtn.addEventListener('click', e => { e.stopPropagation(); SoundManager.play('uiClick'); if (loop) loop.humanStartMove(); });
 document.addEventListener('click', () => weaponSelector.close());
 
 // ─── All-humans-eliminated overlay (Fast FWD + Skip) ─────────────────────────
@@ -524,6 +530,9 @@ async function startGame(cfg) {
 
   renderer.drawBackground(stars, planets, rifts, { noStarField: scenarioId === 26, tunnelBackground: scenarioId === 34 });
 
+  _loadBar.update(82, 'Loading sounds...');
+  await SoundManager.preload(pct => _loadBar.update(82 + Math.round(pct * 10), 'Loading sounds...'));
+
   const gameState = new GameState({ planets, rifts, teams, config: { ...cfg, scenarioId, isExtreme, wildcardDesc }, movementSpeed: cfg.movementSpeed ?? 'off' });
   if (wildcardCollectablePositions?.length) {
     const colSizes = { tiny: 2.5, medium: 5, large: 7.5, huge: 10, mammoth: 15 };
@@ -544,6 +553,10 @@ async function startGame(cfg) {
   _loadBar.update(95, 'Starting...');
   await _yieldFrame();
 
+  SoundManager.setEnabled(cfg.soundEnabled ?? true);
+  SoundManager.setMasterVolume(SOUND_VOL_GAIN[cfg.masterVolume  ?? 'low']);
+  SoundManager.setAmbientVolume(SOUND_VOL_GAIN[cfg.ambientVolume ?? 'medium']);
+
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   aimControls.setLoop(loop);
 
@@ -559,6 +572,7 @@ async function startGame(cfg) {
 
   handler = new InputHandler({ canvas, loop, renderer });
   loop.start();
+  SoundManager.startAmbient();
   _loadBar.hide();
 
   updateButtons(gameState);
@@ -618,8 +632,16 @@ async function startStoryMission(mission) {
 
   renderer.drawBackground(stars, gameState.planets);
 
+  _loadBar.update(82, 'Loading sounds...');
+  await SoundManager.preload(pct => _loadBar.update(82 + Math.round(pct * 10), 'Loading sounds...'));
+
   _loadBar.update(95, 'Starting...');
   await _yieldFrame();
+
+  const _smCfg = panel.getData();
+  SoundManager.setEnabled(_smCfg.soundEnabled ?? true);
+  SoundManager.setMasterVolume(SOUND_VOL_GAIN[_smCfg.masterVolume  ?? 'low']);
+  SoundManager.setAmbientVolume(SOUND_VOL_GAIN[_smCfg.ambientVolume ?? 'medium']);
 
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: mission.settings.gameSpeed ?? 'normal', performance: 'full' });
   aimControls.setLoop(loop);
@@ -632,6 +654,7 @@ async function startStoryMission(mission) {
 
   handler = new InputHandler({ canvas, loop, renderer });
   loop.start();
+  SoundManager.startAmbient();
   _loadBar.hide();
 
   updateButtons(gameState);

@@ -9,6 +9,7 @@ const NO_POWER_WEAPONS = new Set([
   'blunderbuss', 'laser', 'antimatterLaser',
   'resupply', 'hedgehog', 'teamShield', 'armour', 'superLaser',
   'reinforcementSignal', 'mindControlBeam',
+  'minigun', 'spiral',
 ]);
 
 const NO_AIM_WEAPONS = new Set([
@@ -64,7 +65,8 @@ export class AimControls {
         const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
         this._powerVal.textContent = `⏱${val}`;
       } else if (isShotgun) {
-        this._powerVal.textContent = `∠2 ${(station.angle2 ?? station.angle).toFixed(0)}°`;
+        const label = w === 'dualBlaster' ? 'G2' : '∠2';
+        this._powerVal.textContent = `${label} ${(station.angle2 ?? station.angle).toFixed(0)}°`;
       } else if (isBlaster) {
         this._powerVal.textContent = `±${station.power}°`;
       } else if (isElectroStun) {
@@ -79,7 +81,8 @@ export class AimControls {
         const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
         this._powerVal.textContent = `Timer: ${val}`;
       } else if (isShotgun) {
-        this._powerVal.textContent = `Barrel 2: ${(station.angle2 ?? station.angle).toFixed(1)}°`;
+        const label = w === 'dualBlaster' ? 'Gun 2' : 'Barrel 2';
+        this._powerVal.textContent = `${label}: ${(station.angle2 ?? station.angle).toFixed(1)}°`;
       } else if (isBlaster) {
         this._powerVal.textContent = `Spread: ±${station.power}°`;
       } else if (isElectroStun) {

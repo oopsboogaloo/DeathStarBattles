@@ -2,6 +2,7 @@
 // contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
 
 import { SCENARIO_NAMES, SCENARIO_COUNT } from '../scenarios/scenarioData.js';
+import { SoundManager, SOUND_VOL_GAIN } from '../audio/SoundManager.js';
 
 const AI_NAMES  = ['RandBot', 'AimBot', 'CleverBot', 'SuperBot', 'MegaBot'];
 const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT', 'MAMMOTH'];
@@ -9,8 +10,8 @@ const SIZE_KEYS = ['MICRO', 'TINY', 'SMALL', 'MEDIUM', 'LARGE', 'GIANT', 'MAMMOT
 
 const SCENARIO_VALS = [0, ...Array.from({ length: SCENARIO_COUNT }, (_, i) => i + 1)];
 
-const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS', 'COLLECTABLES', 'TARGET PRACTICE', 'TOURNAMENT'];
-const NUM_PAGES   = 6; // index 4 only in target-practice; index 5 only in tournament
+const PAGE_TITLES = ['SETUP', 'WORLD', 'OPTIONS', 'COLLECTABLES', 'TARGET PRACTICE', 'TOURNAMENT', 'SOUNDS'];
+const NUM_PAGES   = 7; // index 4 only in target-practice; index 5 only in tournament; index 6 always
 
 // Style tokens — normal vs compact (paged mobile) mode
 const S = {
@@ -94,6 +95,9 @@ export class ConfigPanel {
       tpSize:            'MEDIUM',
       tpRounds:          5,
       tpIncludeAI:       false,
+      soundEnabled:      true,
+      masterVolume:      'low',
+      ambientVolume:     'medium',
       turnLimit:         'off',
       winnerPrize:       'minor',
       handicapPrize:     'none',
@@ -194,6 +198,7 @@ export class ConfigPanel {
       for (const row of this._page4Rows) this._pageEls[3].appendChild(row);
       for (const row of this._page5Rows) this._pageEls[4].appendChild(row);
       for (const row of this._page6Rows) this._pageEls[5].appendChild(row);
+      for (const row of this._page7Rows) this._pageEls[6].appendChild(row);
       this._flatSection.style.display  = 'none';
       this._pagedSection.style.display = 'block';
       this._panel.style.minWidth  = S.compact.panelMinW;
@@ -209,6 +214,7 @@ export class ConfigPanel {
       for (const row of this._page4Rows) this._advancedInner.appendChild(row);
       for (const row of this._page5Rows) this._advancedInner.appendChild(row);
       for (const row of this._page6Rows) this._advancedInner.appendChild(row);
+      for (const row of this._page7Rows) this._advancedInner.appendChild(row);
       this._flatSection.style.display  = 'block';
       this._pagedSection.style.display = 'none';
       this._panel.style.minWidth  = S.norm.panelMinW;
@@ -229,7 +235,7 @@ export class ConfigPanel {
     this._resumeBtn.style.padding      = t.resumePad;
     this._resumeBtn.style.fontSize     = t.resumeFont;
 
-    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows, ...this._page4Rows, ...this._page5Rows, ...this._page6Rows]) {
+    for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows, ...this._page4Rows, ...this._page5Rows, ...this._page6Rows, ...this._page7Rows]) {
       row.style.marginBottom = t.rowMarginB;
       row.style.minHeight    = t.rowMinH;
       const lbl  = row.children[0];
@@ -260,11 +266,7 @@ export class ConfigPanel {
     this._navBar.style.paddingTop = t.navPadT;
   }
 
-  get _maxPage() {
-    if (this._d.mode === 'target-practice') return 4;
-    if (this._d.mode === 'tournament')      return 5;
-    return 3;
-  }
+  get _maxPage() { return 6; }
 
   _showPage(n) {
     // Clamp to valid range for current mode
@@ -527,12 +529,25 @@ export class ConfigPanel {
     this._updateCollectableGrey();
     this._updateSeedGrey();
 
+    // Page 7 — Sounds
+    const rowSoundEnabled = this._row('SOUND EFFECTS',
+      this._cycle('soundEnabled', [false, true], v => v ? 'On' : 'Off'));
+    const rowMasterVol = this._row('MASTER VOLUME',
+      this._cycle('masterVolume', ['mute', 'low', 'medium', 'high'],
+        v => ({ mute: 'Mute', low: 'Low', medium: 'Medium', high: 'High' }[v])));
+    const rowAmbientVol = this._row('AMBIENT VOLUME',
+      this._cycle('ambientVolume', ['off', 'low', 'medium', 'high'],
+        v => ({ off: 'Off', low: 'Low', medium: 'Medium', high: 'High' }[v])));
+    this._ambientVolumeRow = rowAmbientVol;
+
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
     this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowPureRate, rowStartWep, rowStartArmour, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
+    this._page7Rows = [rowSoundEnabled, rowMasterVol, rowAmbientVol];
+    this._updateSoundGrey();
 
     // ── Flat section ─────────────────────────────────────────────────────────
     this._flatSection = el('div', {});
@@ -598,6 +613,7 @@ export class ConfigPanel {
     this._prevBtn = this._navBtn('◄', () => {
       if (this._currentPage > 0) {
         let p = this._currentPage - 1;
+        if (p === 5 && this._d.mode !== 'tournament')      p = 4;
         if (p === 4 && this._d.mode !== 'target-practice') p = 3;
         this._showPage(p);
       }
@@ -609,10 +625,10 @@ export class ConfigPanel {
       const dot = el('span', {
         fontSize: '16px', cursor: 'pointer',
         color: 'rgba(170,185,255,0.8)', userSelect: 'none',
-        display: (i === 4 || i === 5) ? 'none' : '', // mode-specific dots start hidden
+        display: (i === 4 || i === 5) ? 'none' : '', // mode-specific dots start hidden; 6 always shown
       });
       dot.textContent = '○';
-      dot.addEventListener('click', () => this._showPage(i));
+      dot.addEventListener('click', () => { SoundManager.play('uiClick'); this._showPage(i); });
       this._dotEls.push(dot);
       dotsWrap.appendChild(dot);
     }
@@ -622,6 +638,7 @@ export class ConfigPanel {
       if (this._currentPage < this._maxPage) {
         let p = this._currentPage + 1;
         if (p === 4 && this._d.mode !== 'target-practice') p = 5;
+        if (p === 5 && this._d.mode !== 'tournament')      p = 6;
         this._showPage(p);
       }
     });
@@ -699,7 +716,7 @@ export class ConfigPanel {
       cursor:       'pointer',
     });
     btn.textContent = label;
-    btn.addEventListener('click', onClick);
+    btn.addEventListener('click', () => { if (!btn.disabled) SoundManager.play('uiClick'); onClick(); });
     btn.addEventListener('mouseenter', () => { if (!btn.disabled) btn.style.background = 'rgba(40,45,90,0.95)'; });
     btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(10,10,25,0.82)'; });
     return btn;
@@ -791,7 +808,7 @@ export class ConfigPanel {
     btn.textContent = ch;
     btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'rgba(150,170,255,0.7)'; });
     btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'rgba(100,120,255,0.3)'; });
-    btn.addEventListener('click', onClick);
+    btn.addEventListener('click', () => { SoundManager.play('uiClick'); onClick(); });
     return btn;
   }
 
@@ -810,6 +827,12 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
       if (page === 5 && this._d.mode !== 'tournament')      page = 3;
       this._showPage(Math.min(page, this._maxPage));
     }
+    if (key === 'soundEnabled') {
+      this._updateSoundGrey();
+      SoundManager.setEnabled(this._d.soundEnabled);
+    }
+    if (key === 'masterVolume')  SoundManager.setMasterVolume(SOUND_VOL_GAIN[this._d.masterVolume]);
+    if (key === 'ambientVolume') SoundManager.setAmbientVolume(SOUND_VOL_GAIN[this._d.ambientVolume]);
   }
 
   setDevMode(enabled) {
@@ -867,6 +890,13 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
       }
       this._startWepCtrl._refresh();
     }
+  }
+
+  _updateSoundGrey() {
+    if (!this._ambientVolumeRow) return;
+    const on = this._d.soundEnabled;
+    this._ambientVolumeRow.style.opacity       = on ? '1' : '0.35';
+    this._ambientVolumeRow.style.pointerEvents = on ? '' : 'none';
   }
 
   _updateCollectableGrey() {

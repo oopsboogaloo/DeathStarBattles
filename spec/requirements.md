@@ -70,7 +70,7 @@ Each station selects a weapon, then either fires or takes its weapon's action:
 - **Laser** — fires a beam after a randomised brief delay (varies per station so simultaneous lasers stagger visually). The path is simulated as an extremely fast bullet under 100% normal gravity (enough to visibly bend around neutron stars and black holes), then rendered as a bright glowing line (white core, team-colour glow). The laser pierces all targets — destroying asteroids and killing stations without stopping. Reflected elastically by Force Shields. Power controls are hidden (angle only). 1 charge per collectable.
 - **Rocket** — fires a self-propelled rocket that starts slow and accelerates under thrust using a fuel model. Power sets fuel load: more fuel = heavier start but longer burn. When fuel is exhausted the rocket becomes a ballistic projectile. Travels through wormholes (teleports like a bullet) and passes through gas giants. Contact with an asteroid (or giant asteroid) uses the same exact polygon hit-test as bullets, so the rocket only strikes the actual rock, not the bounding circle. A direct hit on a multi-hit body (**moon** or **giant asteroid**) registers **one hit** toward its destruction before the rocket detonates (so it takes the same number of rockets as bullets to shatter). On impact or shoot-down, an expanding blast circle grows to its maximum radius over ~0.4 seconds — any station, bullet, asteroid, or collectable inside the circle when the blast reaches it is destroyed; collectables grant their weapon to the rocket owner. (The blast's area-destroy does not by itself break moons or giant asteroids — those take damage only from the direct per-hit registration.) Leaves a team-coloured smoke trail of expanding-then-contracting puffs that linger as a visible trail. Off-screen edge indicators shown like bullets. 1 charge per collectable.
 - **Blaster** — fires 5 shots in succession, one approximately every second of real time (at normal game speed). Shots are spread progressively: −10°, −5°, 0°, +5°, +10° from the aimed angle, at 55% of max cannon speed. Velocity not adjustable. Thin transparent trails. 3 charges per collectable.
-- **Minigun** — fires 13 shots in rapid succession at 3× the Blaster rate, each with ±2° random angle variation, at 150% of max cannon speed. Velocity not adjustable. Thin semi-transparent trails. 1 charge per collectable.
+- **Minigun** — fires 13 shots in rapid succession at 3× the Blaster rate, each with ±2° random angle variation, at 150% of max cannon speed. Velocity not adjustable; power control hidden (direction only). Thin semi-transparent trails. 1 charge per collectable.
 - **Force Shield** — deploys a protective shield for the remainder of the turn instead of firing, analogous to Hyperspace. All incoming bullets and lasers are reflected elastically off the shield boundary. Rockets detonate on contact. The shield is displayed as a pulsing ring slightly larger than the station in the team colour. UI indicates the shielded state in the same way as Hyperspace. 2 charges per collectable.
 
 ### 4.3 Aiming Controls
@@ -122,6 +122,16 @@ A double-barrelled spread weapon. Each barrel fires 6 pellets in a ±8° cone at
 2 charges per collectable.
 
 **Named constants:** `SHOTGUN_PELLETS` (6 per barrel), `SHOTGUN_SPREAD` (8°), `SHOTGUN_SPEED_MIN` (0.25 × MAX_V), `SHOTGUN_SPEED_MAX` (0.30 × MAX_V), `SHOTGUN_INTERVAL_STEPS` (300), `SHOTGUN_LIFETIME_MIN` (0.17 × BULLET_LIFE), `SHOTGUN_LIFETIME_MAX` (0.23 × BULLET_LIFE).
+
+#### Dual Blaster
+Two independent guns that each fire a single thin bullet at 55% of max cannon speed. Gun 2 fires ~0.5 s after Gun 1. Speed is not adjustable.
+
+**Aiming UI:** The right-hand control is repurposed as a **Gun 2 angle** control — labelled "Gun 2" (full UI) / "G2" (minimal UI). Works identically to Shotgun's Barrel 2 control. Power control hidden (direction only per gun).
+
+3 charges per collectable.
+
+#### Spiral
+Fires 13 thin bullets in rapid succession (at Minigun timing), each offset by 360°/13 ≈ 27.7° from the previous, so bullets fan out evenly across the full circle regardless of aim direction. Each fires at 55% of max cannon speed. Speed not adjustable; power control hidden (direction sets the starting angle of the first bullet). Thin semi-transparent trails. 1 charge per collectable.
 
 #### Rocket Pod
 Fires 8 rockets in succession at Blaster timing (one per second at normal speed). Each rocket is a standard Rocket with ½ blast radius and ±1° independent random angle deviation per rocket. Rockets alternate spawning perpendicular-left/right of the aim direction, offset 1× station diameter (2× hit-radius) from the station centre — odd-indexed (1, 3, 5, 7) spawn left, even-indexed (2, 4, 6, 8) spawn right. Trajectories are parallel (not converging). Turn does not end until all 8 rockets have resolved. 1 charge per collectable.
@@ -234,19 +244,19 @@ All planets exert gravity unless stated otherwise. Planet impact behaviour when 
 | Crystal Asteroid | Icy blue-white | **Bullet passes through** — asteroid shatters and fragments into Crystal Asteroid children; bullet is not destroyed. Exception: **Bounce Cannon** reflects off elastically and smashes the asteroid (bullet survives). |
 | Rich Asteroid | Blue-brown | Same as Asteroid; additionally spawns one Collectable on destruction. Only appears when Collectables setting is ON (5% of asteroids). |
 | Pure Asteroid | Gold | Rare sub-type of Rich Asteroid (**3% of rich asteroids** by default; adjustable in dev mode). Shatters into **Pure Asteroid children** (which are themselves pure) and, on top of the standard rich Collectable payout, drops **2–4 additional Collectables**. Applies to regular, ring, and giant asteroids alike. Only appears when Collectables setting is ON. |
-| Comet | Glowing pale yellow | Takes **two bullet hits** to destroy — the first hit only chips it; the bullet explodes on each hit. Moves under reduced self-gravity and freezes stations on contact (see frozen-condition-spec). |
+| Comet | Glowing pale yellow | Takes **two bullet hits** to destroy — the first hit only chips it; the bullet explodes on each hit. Moves under reduced self-gravity and freezes stations on contact (see frozen-condition-spec). Travels through wormholes (teleports, preserving velocity direction, like bullets and rockets); destroyed on contact with all other solid bodies. |
 | Star | Yellow/orange | Bullet explodes on impact |
 | White Dwarf | White | Bullet explodes on impact; very small radius, very high density |
 | Black Hole | Black | Bullet vanishes silently (no explosion); very high density |
 | White Hole | White | Bullet vanishes silently; **negative mass** — repels instead of attracts |
-| Wormhole (paired, purple) | Purple | Bullet teleports to the paired wormhole and exits on the other side |
-| Wormhole (cyclic, blue) | Blue | Bullet teleports to the next in a cyclic chain |
-| Wormhole (random, green) | Green | Bullet teleports to a random location on the map |
-| Wormhole (random-planet, grey) | Grey | Bullet teleports to near a randomly chosen planet |
-| Wormhole (self, yellow) | Yellow | Bullet teleports back to near the same wormhole |
+| Wormhole (paired, purple) | Purple | Bullets, rockets, and comets teleport to the paired wormhole and exit on the other side |
+| Wormhole (cyclic, blue) | Blue | Bullets, rockets, and comets teleport to the next in a cyclic chain |
+| Wormhole (random, green) | Green | Bullets, rockets, and comets teleport to a random location on the map |
+| Wormhole (random-planet, grey) | Grey | Bullets, rockets, and comets teleport to near a randomly chosen planet |
+| Wormhole (self, yellow) | Yellow | Bullets, rockets, and comets teleport back to near the same wormhole |
 
 ### 5.1 Wormhole Exit
-When a bullet teleports through a wormhole, it exits the destination wormhole travelling in the same direction it was going when it entered (preserving velocity vector).
+When a bullet, rocket, or comet teleports through a wormhole, it exits the destination wormhole travelling in the same direction it was going when it entered (preserving velocity vector).
 
 ### 5.2 Bullet Teleport Limit
 A bullet may teleport a maximum of 100 times before it is destroyed (prevents infinite loops).
@@ -709,7 +719,7 @@ Per-weapon preview paths:
 | Laser | 0 | — | See below |
 | Force Shield | 0 | — | No shot |
 
-Fixed-speed weapons use their actual launch speed in the simulation (not `station.power`): Blaster uses MAX_V × 0.55, Blunderbuss uses MAX_V × 0.275, Minigun uses MAX_V × 1.5.
+Fixed-speed weapons use their actual launch speed in the simulation (not `station.power`): Blaster uses MAX_V × 0.55, Blunderbuss uses MAX_V × 0.275, Minigun uses MAX_V × 1.5, Spiral uses MAX_V × 0.55.
 
 Laser uses a dedicated preview (team-coloured fading path) simulated at very high speed under reduced gravity, matching laser physics. Rocket shows the thrust-then-coast arc. Both are drawn behind aim lines.
 

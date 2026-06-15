@@ -3,6 +3,7 @@
 
 import { Vec2 }                       from './Vec2.js';
 import { GameMode }                    from './GameState.js';
+import { SoundManager }               from '../audio/SoundManager.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PhysicsEngine, PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
          SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION, PULSE_MAX_R } from '../physics/PhysicsEngine.js';
@@ -238,15 +239,18 @@ export class GameLoop {
         comet.position.y + comet.velocity.y * TIMESTEP,
       );
 
-      // Check comet-planet collision (gas giants pass through)
+      // Check comet-planet collision (gas giants pass through; wormholes teleport)
       for (const planet of this.gs.planets) {
         if (planet === comet || planet.destroyed || planet.type === PlanetType.COMET) continue;
         if (planet.type === PlanetType.GAS_GIANT) continue;
         const d = comet.position.distanceTo(planet.position);
-        if (d < planet.impactRadius + comet.impactRadius) {
+        if (d >= planet.impactRadius + comet.impactRadius) continue;
+        if (this._isWormhole(planet.type)) {
+          this._teleportComet(comet, planet);
+        } else {
           comet.destroyed = true;
-          break;
         }
+        break;
       }
 
       if (comet.destroyed) continue;
@@ -1057,6 +1061,7 @@ export class GameLoop {
         this.gs.shields.push({ station, radius: station.radius * 1.6, alive: true });
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
         station.lastTrails = []; // allow bullet trail to accumulate
+        SoundManager.play('pop');
         station.stats.turns++;
         continue;
       }
@@ -1069,6 +1074,7 @@ export class GameLoop {
         for (const dAngle of [-5, 0, 5]) {
           this.gs.activeBullets.push(this._makeBullet(station, station.angle + dAngle, station.power));
         }
+        SoundManager.play('cannon', { volume: 0.8 });
       } else if (w === WeaponId.BLUNDERBUSS && station.team.spendStock(WeaponId.BLUNDERBUSS)) {
         const MAX_V = (800 / 1000 + 0.2) * 0.8;
         for (let i = 0; i < 11; i++) {
@@ -1079,8 +1085,10 @@ export class GameLoop {
           b.maxLifetime = Math.floor(BULLET_LIFE * (0.17 + this.rng.next() * 0.06)); // 17–23% lifespan
           this.gs.activeBullets.push(b);
         }
+        SoundManager.play('blunderbuss');
       } else if (w === WeaponId.LASER && station.team.spendStock(WeaponId.LASER)) {
         this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400) });
+        SoundManager.play('laser');
       } else if (w === WeaponId.ROCKET && station.team.spendStock(WeaponId.ROCKET)) {
         const fuel  = ROCKET_MIN_FUEL + (station.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
         const rad   = (station.angle * Math.PI) / 180;
@@ -1092,24 +1100,28 @@ export class GameLoop {
         const rocket = new Rocket({ owner: station, position: pos, velocity: vel });
         rocket.fuel  = fuel;
         this.gs.rockets.push(rocket);
+        SoundManager.play('rocket');
       } else if (w === WeaponId.ROCKET_POD && station.team.spendStock(WeaponId.ROCKET_POD)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.ROCKET_POD, shotsRemaining: 8, totalShots: 8,
           intervalSteps: 600, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+        SoundManager.play('rocketPod');
       } else if (w === WeaponId.BLASTER && station.team.spendStock(WeaponId.BLASTER)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.BLASTER, shotsRemaining: 5, totalShots: 5,
           intervalSteps: 600, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+        SoundManager.play('blaster');
       } else if (w === WeaponId.MINIGUN && station.team.spendStock(WeaponId.MINIGUN)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.MINIGUN, shotsRemaining: 13,
           intervalSteps: 200, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+        SoundManager.play('minigun');
       } else if (w === WeaponId.SEPTUPLE_CANNON && station.team.spendStock(WeaponId.SEPTUPLE_CANNON)) {
         this.gs.vfxList.push({
           type: 'tripleCannonMuzzle', x: station.position.x, y: station.position.y,
@@ -1118,50 +1130,59 @@ export class GameLoop {
         for (const dAngle of [-10, -20 / 3, -10 / 3, 0, 10 / 3, 20 / 3, 10]) {
           this.gs.activeBullets.push(this._makeBullet(station, station.angle + dAngle, station.power));
         }
+        SoundManager.play('cannon', { volume: 0.8 });
       } else if (w === WeaponId.ANTIMATTER_LASER && station.team.spendStock(WeaponId.ANTIMATTER_LASER)) {
         for (let i = 0; i < 9; i++) {
           const baseAngle = station.angle - 15 + i * (30 / 8);
           const jitter    = (this.rng.next() * 2 - 1) * 1.0;
           this.gs.pendingLasers.push({ station, angle: baseAngle + jitter, delaySteps: 50 + i * 60, vfxDuration: 0.75 });
         }
+        SoundManager.play('laserCharged');
       } else if (w === WeaponId.SHOTGUN && station.team.spendStock(WeaponId.SHOTGUN)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.SHOTGUN, shotsRemaining: 2, totalShots: 2,
           intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
+        SoundManager.play('shotgun');
       } else if (w === WeaponId.SCATTER_CANNON && station.team.spendStock(WeaponId.SCATTER_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
         b.scatterTimer = 2700;
         this.gs.activeBullets.push(b);
+        SoundManager.play('cannon');
       } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.SPIRAL, shotsRemaining: 13, totalShots: 13,
           intervalSteps: 600, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+        SoundManager.play('cannon');
       } else if (w === WeaponId.BOUNCE_CANNON && station.team.spendStock(WeaponId.BOUNCE_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
         b.fragBouncy       = true;
         b.bouncePlanetOnly = true;
         b.thickTrail       = true;
         this.gs.activeBullets.push(b);
+        SoundManager.play('cannon');
       } else if (w === WeaponId.AUTO_CANNON && station.team.spendStock(WeaponId.AUTO_CANNON)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.AUTO_CANNON, shotsRemaining: 5, totalShots: 5,
           intervalSteps: 500, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+        SoundManager.play('minigun');
       } else if (w === WeaponId.STAR_SHOT && station.team.spendStock(WeaponId.STAR_SHOT)) {
         for (let i = 0; i < 5; i++) {
           this.gs.activeBullets.push(this._makeBullet(station, station.angle + i * 72, station.power));
         }
+        SoundManager.play('rocketPod');
       } else if (w === WeaponId.DUAL_BLASTER && station.team.spendStock(WeaponId.DUAL_BLASTER)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.DUAL_BLASTER, shotsRemaining: 2, totalShots: 2,
           intervalSteps: 900, nextFireStep: 0,
           angle: station.angle, angle2: station.angle2 ?? station.angle, power: station.power,
         });
+        SoundManager.play('blaster');
       } else if (w === WeaponId.FRAGMENTATION_SHOT && station.team.spendStock(WeaponId.FRAGMENTATION_SHOT)) {
         const MAX_V = (800 / 1000 + 0.2) * 0.8;
         const b = this._makeBulletVelocity(station, station.angle, MAX_V * 0.75);
@@ -1169,6 +1190,7 @@ export class GameLoop {
         b.fragTimer  = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
         b.thickTrail = true;
         this.gs.activeBullets.push(b);
+        SoundManager.play('cannon');
       } else if (w === WeaponId.RESUPPLY && station.team.spendStock(WeaponId.RESUPPLY)) {
         const count = 3 + Math.floor(this.rng.next() * 3); // 3–5
         for (let i = 0; i < count; i++) {
@@ -1182,6 +1204,7 @@ export class GameLoop {
           col.radius = this._collectableRadius();
           this.gs.collectables.push(col);
         }
+        SoundManager.play('nova', { volume: 0.5 });
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.HEDGEHOG && station.team.spendStock(WeaponId.HEDGEHOG)) {
@@ -1197,6 +1220,7 @@ export class GameLoop {
             });
           }
         }
+        SoundManager.play('rocketPod');
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.TEAM_SHIELD && station.team.spendStock(WeaponId.TEAM_SHIELD)) {
@@ -1205,15 +1229,18 @@ export class GameLoop {
             this.gs.shields.push({ station: s, radius: s.radius * 1.6, alive: true });
           }
         }
+        SoundManager.play('pop');
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.ARMOUR && station.team.spendStock(WeaponId.ARMOUR)) {
         station.armourLayers += 2;
+        SoundManager.play('pop2');
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.REPULSOR_FIELD && station.team.spendStock(WeaponId.REPULSOR_FIELD)) {
         this.gs.repulsorFields.push({ station, influenceRadius: REPULSOR_FIELD_RADIUS, strength: REPULSOR_FIELD_STRENGTH });
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
+        SoundManager.play('pop2');
       } else if (w === WeaponId.MAMMOTH_CANNON && station.team.spendStock(WeaponId.MAMMOTH_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
         b.velocity         = new Vec2(b.velocity.x * 0.5, b.velocity.y * 0.5);
@@ -1222,10 +1249,12 @@ export class GameLoop {
         b.thickTrail        = true;
         b.mammothCannon     = true;
         this.gs.activeBullets.push(b);
+        SoundManager.play('cannon', { pitch: -0.2 });
       } else if (w === WeaponId.QUANTUM_TORPEDO && station.team.spendStock(WeaponId.QUANTUM_TORPEDO)) {
         const b = this._makeBullet(station, station.angle, station.power);
         b.quantumTorpedo = true;
         this.gs.activeBullets.push(b);
+        SoundManager.play('teleport', { volume: 0.6, pitch: 0.15 });
       } else if (w === WeaponId.TRIPLE_QUANTUM_TORPEDO && station.team.spendStock(WeaponId.TRIPLE_QUANTUM_TORPEDO)) {
         for (const dAngle of [-5, 0, 5]) {
           const b = this._makeBullet(station, station.angle + dAngle, station.power);
@@ -1236,12 +1265,14 @@ export class GameLoop {
           type: 'tripleCannonMuzzle', x: station.position.x, y: station.position.y,
           angle: station.angle, colour: station.colour, t: 0, duration: 0.3,
         });
+        SoundManager.play('teleport', { volume: 0.6 });
       } else if (w === WeaponId.QUANTUM_AUTO_CANNON && station.team.spendStock(WeaponId.QUANTUM_AUTO_CANNON)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.QUANTUM_AUTO_CANNON, shotsRemaining: 5, totalShots: 5,
           intervalSteps: 500, nextFireStep: 0,
           angle: station.angle, power: station.power,
         });
+        SoundManager.play('minigun');
       } else if (w === WeaponId.GRAVITY_CANNON && station.team.spendStock(WeaponId.GRAVITY_CANNON)) {
         const b = this._makeBullet(station, station.angle, station.power);
         b.velocity          = new Vec2(b.velocity.x * 0.5, b.velocity.y * 0.5);
@@ -1250,6 +1281,7 @@ export class GameLoop {
         b.thickTrail        = true;
         b.gravityCannon     = true;
         this.gs.activeBullets.push(b);
+        SoundManager.play('nova');
       } else if (w === WeaponId.ELECTRO_STUN && station.team.spendStock(WeaponId.ELECTRO_STUN)) {
         const t            = (station.power - 1) / 799;
         const spreadDeg    = ELECTRO_STUN_MAX_SPREAD - t * (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD);
@@ -1306,6 +1338,7 @@ export class GameLoop {
         const rawY        = station.position.y + Math.cos(rad) * dist;
         const [safeX, safeY] = this._findSafeTeleportDest(station, rawX, rawY, gw, gh);
         this.gs.pendingTeleports.push({ station, destX: safeX, destY: safeY, fireStep: TELEPORT_FIRE_STEP });
+        SoundManager.play('teleport');
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.SUPER_LASER && station.team.spendStock(WeaponId.SUPER_LASER)) {
@@ -1316,6 +1349,7 @@ export class GameLoop {
         this.gs.pendingLasers.push({ station, angle: station.angle,
           delaySteps: SUPER_LASER_CHARGE_STEPS, superLaser: true,
           vfxDuration: SUPER_LASER_BEAM_DURATION });
+        SoundManager.play('laserAlt', { pitch: -0.10 });
       } else if (w === WeaponId.REINFORCEMENT_SIGNAL && station.team.spendStock(WeaponId.REINFORCEMENT_SIGNAL)) {
         const MAX_V = (800 / 1000 + 0.2) * 0.8;
         const b = this._makeBulletVelocity(station, station.angle, MAX_V * REINF_SIGNAL_SPEED_MULT);
@@ -1324,6 +1358,7 @@ export class GameLoop {
         b.bounceRetention     = 1.0;
         b.reinforcementSignal = true;
         this.gs.activeBullets.push(b);
+        SoundManager.play('rocketPod');
       } else if (w === WeaponId.MIND_CONTROL_BEAM && station.team.spendStock(WeaponId.MIND_CONTROL_BEAM)) {
         const [mr, mg, mb] = station.team.colour;
         this.gs.vfxList.push({ type: 'mindControlCharge',
@@ -1331,9 +1366,11 @@ export class GameLoop {
           r: mr, g: mg, b: mb, t: 0, duration: 0.5 });
         this.gs.pendingLasers.push({ station, angle: station.angle,
           delaySteps: MIND_CONTROL_DELAY_STEPS, mindControlBeam: true });
+        SoundManager.play('laserBeam');
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
+        SoundManager.play('cannon');
       }
 
       station.lastAngle  = station.angle;
@@ -1503,6 +1540,7 @@ export class GameLoop {
         const [tr, tg, tb] = pt.station.team.colour;
         this.gs.vfxList.push({ type: 'teleportFlash', x: oldX,                 y: oldY,                 r: tr, g: tg, b: tb, t: 0, duration: 0.5 });
         this.gs.vfxList.push({ type: 'teleportFlash', x: pt.station.position.x, y: pt.station.position.y, r: tr, g: tg, b: tb, t: 0, duration: 0.5 });
+        SoundManager.play('teleport');
         this.gs.pendingTeleports.splice(pti, 1);
       }
 
@@ -1643,6 +1681,7 @@ export class GameLoop {
           if (bullet.status !== BulletStatus.ACTIVE) continue;
           if (bullet.position.distanceSqTo(rocket.position) < ROCKET_HITBOX_RADIUS ** 2) {
             bullet.status = BulletStatus.EXPLODING;
+            if (bullet.owner?.lastTrails && bullet.trail.length > 1) bullet.owner.lastTrails.push([...bullet.trail]);
             this._detonateRocket(rocket);
             break;
           }
@@ -1671,6 +1710,7 @@ export class GameLoop {
               shield.station.position.x + nx * (shield.radius + 0.5),
               shield.station.position.y + ny * (shield.radius + 0.5),
             );
+            SoundManager.play('pop');
             break;
           }
         }
@@ -1801,6 +1841,7 @@ export class GameLoop {
           const grant = this._pickCollectableGrant();
           bullet.owner.team.addStock(grant.id, grant.charges);
           if (this.gs.storyState && bullet.owner.team.isHuman) this.gs.storyState.collectCount++;
+          SoundManager.play('glassSmash');
           this.gs.vfxList.push(this._makeCollectableShatterVFX(hitCollectable));
           const [r, g, b] = bullet.owner.team.colour;
           this.gs.vfxList.push({
@@ -1814,6 +1855,9 @@ export class GameLoop {
         // Save trail as ghost the moment a bullet leaves the active state
         if (bullet.status !== BulletStatus.ACTIVE && bullet.trail.length > 1) {
           if (bullet.owner.lastTrails) bullet.owner.lastTrails.push([...bullet.trail]);
+          if (bullet.status === BulletStatus.EXPLODING) {
+            SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+          }
         }
       }
 
@@ -2061,6 +2105,7 @@ export class GameLoop {
 
   // Spawn a freestanding explosion for an asteroid (position in game units).
   _spawnAsteroidExplosion(planet) {
+    SoundManager.playRandom(['explosionSmall', 'explosionSmall2']);
     const r = 139, g = 26, b = 26; // dark red
     this.gs.activeExplosions.push({
       x: planet.position.x, y: planet.position.y,
@@ -2596,6 +2641,62 @@ export class GameLoop {
            type === PlanetType.WORMHOLE_PLANET || type === PlanetType.WORMHOLE_SELF;
   }
 
+  _teleportComet(comet, planet) {
+    if ((comet._wormholeTeleports ?? 0) >= 20) { comet.destroyed = true; return; }
+    const theta = Math.atan2(
+      comet.position.y - planet.position.y,
+      comet.position.x - planet.position.x,
+    );
+    const r = comet.impactRadius + 0.5;
+    const { gw, gh } = this.physics;
+
+    switch (planet.type) {
+      case PlanetType.WORMHOLE_PAIRED:
+      case PlanetType.WORMHOLE_CYCLIC: {
+        if (!planet.partner) { comet.destroyed = true; return; }
+        const d = planet.partner;
+        comet.position = new Vec2(
+          d.position.x + Math.cos(theta) * (d.impactRadius + r),
+          d.position.y + Math.sin(theta) * (d.impactRadius + r),
+        );
+        break;
+      }
+      case PlanetType.WORMHOLE_RANDOM:
+        comet.position = new Vec2(Math.random() * gw, Math.random() * gh);
+        break;
+      case PlanetType.WORMHOLE_NETWORK: {
+        const others = this.gs.planets.filter(p => p !== planet && p.type === PlanetType.WORMHOLE_NETWORK && !p.destroyed);
+        if (others.length > 0) {
+          const dest = others[Math.floor(Math.random() * others.length)];
+          comet.position = new Vec2(
+            dest.position.x + Math.cos(theta) * (dest.impactRadius + r),
+            dest.position.y + Math.sin(theta) * (dest.impactRadius + r),
+          );
+        } else {
+          comet.position = new Vec2(Math.random() * gw, Math.random() * gh);
+        }
+        break;
+      }
+      case PlanetType.WORMHOLE_PLANET: {
+        const others = this.gs.planets.filter(p => p !== planet && p.type === PlanetType.WORMHOLE_PLANET && !p.destroyed);
+        const dest = others.length > 0 ? others[0] : null;
+        comet.position = dest
+          ? new Vec2(dest.position.x + Math.cos(theta) * (dest.impactRadius + r), dest.position.y + Math.sin(theta) * (dest.impactRadius + r))
+          : new Vec2(Math.random() * gw, Math.random() * gh);
+        break;
+      }
+      case PlanetType.WORMHOLE_SELF:
+        comet.position = new Vec2(
+          planet.position.x + Math.cos(theta + Math.PI) * (planet.impactRadius + r),
+          planet.position.y + Math.sin(theta + Math.PI) * (planet.impactRadius + r),
+        );
+        break;
+      default:
+        comet.destroyed = true; return;
+    }
+    comet._wormholeTeleports = (comet._wormholeTeleports ?? 0) + 1;
+  }
+
   _teleportRocket(rocket, planet) {
     if (rocket.teleportCount >= 100) { this._detonateRocket(rocket); return; }
     const dx    = planet.position.x - rocket.position.x;
@@ -2654,6 +2755,7 @@ export class GameLoop {
     if (rocket.status !== RocketStatus.ACTIVE) return;
     if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]);
     rocket.status = RocketStatus.EXPLODING;
+    SoundManager.playRandom(['explosionMed', 'explosionMed2']);
     // Spawn an expanding blast zone — damage is applied progressively as it grows.
     this.gs.rocketBlasts.push({
       x: rocket.position.x, y: rocket.position.y,
@@ -2666,6 +2768,7 @@ export class GameLoop {
 
   // Spawn a bright blue sparkle explosion for a destroyed crystal.
   _spawnCrystalExplosion(crystal) {
+    SoundManager.play('glassSmash');
     const r = 140, g = 210, b = 255;
     this.gs.activeExplosions.push({
       x: crystal.position.x, y: crystal.position.y,
@@ -2733,6 +2836,7 @@ export class GameLoop {
     if ((target.armourLayers ?? 0) > 0 && !bullet.gravityCannon && !bullet.superLaser) {
       target.armourLayers--;
       target.armourFlash = 1.0;
+      SoundManager.play('pop2');
       return;
     }
 
@@ -2753,6 +2857,7 @@ export class GameLoop {
     } else {
       this._spawnStationExplosion(target);
     }
+    SoundManager.playRandom(['explosionLarge', 'explosionLarge2']);
 
     const shooter = bullet.owner;
     target.stats.killedBy = shooter;
@@ -2813,6 +2918,7 @@ export class GameLoop {
     const rotOffset      = this.rng.next() * Math.PI * 2;
 
     bullet.status = BulletStatus.EXPLODING;
+    SoundManager.play('fireworkBang');
 
     for (let i = 0; i < fragCount; i++) {
       const angle = rotOffset + i * (Math.PI * 2 / fragCount);
