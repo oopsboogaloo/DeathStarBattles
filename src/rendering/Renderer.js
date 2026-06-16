@@ -817,7 +817,7 @@ export class Renderer {
     const statNum  = gameState.currentStatIdx + 1;
 
     // ── "T e a m  N     S t a t i o n  N" — top centre ──
-    const headerPx = Math.max(22, Math.floor(this._vpW / 32));
+    const headerPx = Math.max(14, Math.floor(this._vpW / 44));
     ctx.save();
     ctx.font         = `bold ${headerPx}px monospace`;
     ctx.textAlign    = 'center';
@@ -827,7 +827,10 @@ export class Renderer {
     ctx.shadowBlur   = 6;
     const tp = gameState.tpGame;
     const roundSuffix = tp ? `   —   Round ${tp.currentRound} / ${tp.totalRounds}` : '';
-    const header = `T e a m  ${teamNum}        S t a t i o n  ${statNum}${roundSuffix}`;
+    const minimal = gameState.config?.minimalUI ?? false;
+    const header = minimal
+      ? `Team ${teamNum}   S${statNum}${roundSuffix}`
+      : `T e a m  ${teamNum}        S t a t i o n  ${statNum}${roundSuffix}`;
     ctx.fillText(header, this._vpW / 2, 10);
     ctx.restore();
 
