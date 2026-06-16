@@ -98,6 +98,7 @@ export class ConfigPanel {
       soundEnabled:      true,
       masterVolume:      'low',
       ambientVolume:     'medium',
+      screenOrientation: 'auto',
       turnLimit:         'off',
       winnerPrize:       'minor',
       handicapPrize:     'none',
@@ -130,6 +131,9 @@ export class ConfigPanel {
     this._devModeOn        = false;
     this._flatSection     = null;
     this._pagedSection    = null;
+    this._ctrlWraps       = [];
+    this._phoneLandscape  = false;
+    this._onOrientCb      = null;
     this.element          = this._build();
   }
 
@@ -140,10 +144,11 @@ export class ConfigPanel {
   hide() { this.element.style.display = 'none'; }
   get isVisible() { return this.element.style.display !== 'none'; }
 
-  onStart(cb)  { this._onStartCb  = cb; }
-  onInfo(cb)   { this._onInfoBtn  = cb; }
-  onResume(cb) { this._onResumeCb = cb; }
-  onResign(cb) { this._onResignCb = cb; }
+  onStart(cb)       { this._onStartCb  = cb; }
+  onInfo(cb)        { this._onInfoBtn  = cb; }
+  onResume(cb)      { this._onResumeCb = cb; }
+  onResign(cb)      { this._onResignCb = cb; }
+  onOrientChange(cb){ this._onOrientCb = cb; }
   getData()    { return this._d; }
 
   setCanResume(bool) {
@@ -154,14 +159,30 @@ export class ConfigPanel {
       this._resignBtn.textContent   = 'RESIGN';
       this._resignConfirm = false;
     }
+    // In phone landscape the top-right bar is the container for these buttons
+    if (this._topRightBar) {
+      this._topRightBar.style.display = (this._phoneLandscape && bool) ? 'flex' : 'none';
+    }
   }
 
   get config() { return { ...this._d }; }
 
   // ── Fit detection ────────────────────────────────────────────────────────────
 
+  _isPhoneLandscape() {
+    const shortSide = Math.min(window.screen.width, window.screen.height);
+    const isPhone   = navigator.maxTouchPoints > 0 && shortSide <= 500;
+    return isPhone && window.innerWidth > window.innerHeight;
+  }
+
   _checkFit() {
     if (!this._panel) return;
+    // Check phone landscape layout
+    const phoneLandscape = this._isPhoneLandscape();
+    if (phoneLandscape !== this._phoneLandscape) {
+      this._phoneLandscape = phoneLandscape;
+      this._applyPhoneLayout(phoneLandscape);
+    }
     // Always use the compact paged layout regardless of screen size.
     if (!this._pagedMode) this._applyLayout(true);
     return;
@@ -225,6 +246,46 @@ export class ConfigPanel {
     }
   }
 
+  _applyPhoneLayout(phone) {
+    // Hide copyright to save vertical space on phone landscape
+    if (this._copyrightEl) this._copyrightEl.style.display = phone ? 'none' : '';
+
+    // Add right padding to title so it doesn't overlap the top-right buttons
+    if (this._title) this._title.style.paddingRight = phone ? '110px' : '0';
+
+    // Make panel wider to use horizontal space
+    if (this._panel) this._panel.style.width = phone ? '95vw' : '';
+
+    if (phone) {
+      // Move Resume + Resign into the top-right bar
+      this._topRightBar.appendChild(this._resumeBtn);
+      this._topRightBar.appendChild(this._resignBtn);
+      // Restore margin overrides (these buttons had margin: 0 auto)
+      this._resumeBtn.style.margin = '0';
+      this._resignBtn.style.margin = '0';
+      this._topRightBar.style.display = this._canResume ? 'flex' : 'none';
+
+      // Move Start Game into nav bar (right of dots/arrows)
+      this._navBar.style.justifyContent = 'space-between';
+      this._navBar.appendChild(this._startBtn);
+      this._startBtn.style.margin    = '0';
+      this._startBtn.style.marginLeft = '8px';
+    } else {
+      // Restore Resume + Resign to normal panel flow (before title)
+      this._resumeBtn.style.margin = `0 auto ${S.compact.resumeMarginB}`;
+      this._resignBtn.style.margin = '0 auto 8px';
+      this._panel.insertBefore(this._resumeBtn, this._title);
+      this._panel.insertBefore(this._resignBtn, this._title);
+      this._topRightBar.style.display = 'none';
+
+      // Restore Start Game to below pagedSection
+      this._navBar.style.justifyContent = 'center';
+      this._panel.insertBefore(this._startBtn, this._infoBar);
+      this._startBtn.style.margin    = `${S.compact.startMarginT} auto 0`;
+      this._startBtn.style.marginLeft = '';
+    }
+  }
+
   _setCompact(c) {
     const t = c ? S.compact : S.norm;
 
@@ -264,6 +325,10 @@ export class ConfigPanel {
 
     this._navBar.style.marginTop  = t.navMarginT;
     this._navBar.style.paddingTop = t.navPadT;
+
+    // Tighten the ◄ value ► control gaps in compact mode
+    const ctrlGap = c ? '3px' : '6px';
+    for (const w of this._ctrlWraps) w.style.gap = ctrlGap;
   }
 
   get _maxPage() { return 6; }
@@ -298,6 +363,7 @@ export class ConfigPanel {
     });
 
     const panel = el('div', {
+      position:     'relative',
       background:   'rgba(3,3,18,0.97)',
       border:       '1px solid rgba(80,110,255,0.4)',
       borderRadius: '8px',
@@ -310,6 +376,18 @@ export class ConfigPanel {
     });
     this._panel = panel;
     overlay.appendChild(panel);
+
+    // Container for Resume + Resign in phone landscape mode (top-right)
+    this._topRightBar = el('div', {
+      position:       'absolute',
+      top:            '14px',
+      right:          '16px',
+      display:        'none',
+      flexDirection:  'column',
+      gap:            '6px',
+      alignItems:     'flex-end',
+    });
+    panel.appendChild(this._topRightBar);
 
     window.addEventListener('resize', () => this._checkFit());
 
@@ -396,15 +474,15 @@ export class ConfigPanel {
     panel.appendChild(this._title);
 
     // ── Copyright notice ─────────────────────────────────────────────────────
-    const copyright = el('div', {
+    this._copyrightEl = el('div', {
       margin:        '-6px 0 22px',
       fontSize:      '10px',
       letterSpacing: '0.08em',
       color:         'rgba(150,165,230,0.6)',
       textAlign:     'center',
     });
-    copyright.textContent = 'Copyright © 2026 Chloe Bolland';
-    panel.appendChild(copyright);
+    this._copyrightEl.textContent = 'Copyright © 2026 Chloe Bolland';
+    panel.appendChild(this._copyrightEl);
 
     // ── Build all row elements once ──────────────────────────────────────────
 
@@ -455,6 +533,9 @@ export class ConfigPanel {
         v => ({ off: 'Off', eighth: 'Minor  (⅛ screen)', quarter: 'Major  (¼ screen)', half: 'Extreme  (½ screen)', full: 'Cheating  (1 screen)' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
       this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
+    const rowScreenOrient = this._row('SCREEN ORIENTATION',
+      this._cycle('screenOrientation', ['auto', 'landscape', 'portrait'],
+        v => ({ auto: 'Auto', landscape: 'Landscape', portrait: 'Portrait' }[v])));
     // Page 6 — Tournament
     const rowNumGames = this._row('NO. OF GAMES',
       this._cycle('tournamentGames', ['keepGoing', 5, 10, 15, 20, 30, 50],
@@ -542,7 +623,7 @@ export class ConfigPanel {
 
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
     this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
-    this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI];
+    this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI, rowScreenOrient];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowPureRate, rowStartWep, rowStartArmour, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
@@ -603,12 +684,15 @@ export class ConfigPanel {
       this._pagedSection.appendChild(pageEl);
     }
 
-    // Nav bar: ◄  ● ○ ○  ►
+    // Nav bar: ◄  ● ○ ○  ►  (+ START GAME in phone landscape)
     this._navBar = el('div', {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       gap: '14px', marginTop: S.norm.navMarginT, paddingTop: S.norm.navPadT,
       borderTop: '1px solid rgba(80,110,255,0.18)',
     });
+
+    // Group prev + dots + next so Start Game can sit alongside as a sibling
+    this._navLeft = el('div', { display: 'flex', alignItems: 'center', gap: '14px' });
 
     this._prevBtn = this._navBtn('◄', () => {
       if (this._currentPage > 0) {
@@ -618,7 +702,7 @@ export class ConfigPanel {
         this._showPage(p);
       }
     });
-    this._navBar.appendChild(this._prevBtn);
+    this._navLeft.appendChild(this._prevBtn);
 
     const dotsWrap = el('div', { display: 'flex', gap: '10px', alignItems: 'center' });
     for (let i = 0; i < NUM_PAGES; i++) {
@@ -632,7 +716,7 @@ export class ConfigPanel {
       this._dotEls.push(dot);
       dotsWrap.appendChild(dot);
     }
-    this._navBar.appendChild(dotsWrap);
+    this._navLeft.appendChild(dotsWrap);
 
     this._nextBtn = this._navBtn('►', () => {
       if (this._currentPage < this._maxPage) {
@@ -642,8 +726,9 @@ export class ConfigPanel {
         this._showPage(p);
       }
     });
-    this._navBar.appendChild(this._nextBtn);
+    this._navLeft.appendChild(this._nextBtn);
 
+    this._navBar.appendChild(this._navLeft);
     this._pagedSection.appendChild(this._navBar);
     panel.appendChild(this._pagedSection);
 
@@ -788,6 +873,7 @@ export class ConfigPanel {
 
   _cycleCtrl(display, onNext, onPrev) {
     const wrap = el('div', { display: 'flex', alignItems: 'center', gap: '6px' });
+    this._ctrlWraps.push(wrap);
     wrap.appendChild(this._arrow('◄', onPrev));
     wrap.appendChild(display);
     wrap.appendChild(this._arrow('►', onNext));
@@ -831,8 +917,9 @@ if (this._d.numPlayers > 4)   { this._d.numPlayers = 4;   this._playersCtrl?._re
       this._updateSoundGrey();
       SoundManager.setEnabled(this._d.soundEnabled);
     }
-    if (key === 'masterVolume')  SoundManager.setMasterVolume(SOUND_VOL_GAIN[this._d.masterVolume]);
-    if (key === 'ambientVolume') SoundManager.setAmbientVolume(SOUND_VOL_GAIN[this._d.ambientVolume]);
+    if (key === 'masterVolume')     SoundManager.setMasterVolume(SOUND_VOL_GAIN[this._d.masterVolume]);
+    if (key === 'ambientVolume')    SoundManager.setAmbientVolume(SOUND_VOL_GAIN[this._d.ambientVolume]);
+    if (key === 'screenOrientation') this._onOrientCb?.(this._d.screenOrientation);
   }
 
   setDevMode(enabled) {

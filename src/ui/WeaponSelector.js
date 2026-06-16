@@ -57,16 +57,26 @@ const LIMITED = new Set([
   WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
 ]);
 
+// Max items in each column before adding another column
+const COL_SIZE = 8;
+
 export class WeaponSelector {
   constructor() {
     this._onSelect = null;
     this._isOpen   = false;
+    this._minimal  = false;
+    this._colMode  = 1; // 1 | 2 | 3 | 'scroll'
     this.popup     = this._buildPopup();
     document.body.appendChild(this.popup);
   }
 
   setOnSelect(cb) { this._onSelect = cb; }
   get isOpen()    { return this._isOpen; }
+
+  setMinimal(minimal) {
+    this._minimal = minimal;
+    this.popup.style.fontSize = minimal ? '12px' : '14px';
+  }
 
   updateBtn(btn, station) {
     if (!station) return;
@@ -78,7 +88,7 @@ export class WeaponSelector {
 
   open(station, anchorEl, gs) {
     this._rebuildRows(station, gs);
-    this.popup.style.display = this._twoCol ? 'flex' : 'block';
+    this.popup.style.display = this._colMode > 1 ? 'flex' : 'block';
     this._isOpen = true;
     this._position(anchorEl);
   }
@@ -93,10 +103,31 @@ export class WeaponSelector {
   }
 
   _position(anchorEl) {
-    const rect = anchorEl.getBoundingClientRect();
+    const rect   = anchorEl.getBoundingClientRect();
+    const bottom = window.innerHeight - rect.top + 6;
+
+    // Reset scroll state
+    this.popup.style.overflowY = this._colMode === 'scroll' ? 'auto' : 'hidden';
+    this.popup.style.WebkitOverflowScrolling = this._colMode === 'scroll' ? 'touch' : '';
+    this.popup.style.maxHeight = this._colMode === 'scroll'
+      ? `${Math.round(window.innerHeight * 0.65)}px` : '';
+
     this.popup.style.left   = `${rect.left}px`;
-    this.popup.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+    this.popup.style.bottom = `${bottom}px`;
     this.popup.style.top    = 'auto';
+
+    // Clamp to screen bounds after layout
+    requestAnimationFrame(() => {
+      if (!this._isOpen) return;
+      const pr = this.popup.getBoundingClientRect();
+      if (pr.right > window.innerWidth - 4) {
+        this.popup.style.left = `${Math.max(4, window.innerWidth - pr.width - 4)}px`;
+      }
+      if (pr.top < 4) {
+        this.popup.style.bottom = 'auto';
+        this.popup.style.top    = '4px';
+      }
+    });
   }
 
   _buildPopup() {
@@ -115,6 +146,12 @@ export class WeaponSelector {
       minWidth:     '190px',
     });
     return popup;
+  }
+
+  _makeCol() {
+    const col = document.createElement('div');
+    Object.assign(col.style, { display: 'flex', flexDirection: 'column' });
+    return col;
   }
 
   _rebuildRows(station, gs) {
@@ -161,7 +198,8 @@ export class WeaponSelector {
       WeaponId.MIND_CONTROL_BEAM,
     ];
 
-    // Build visible rows first so we know the total count
+    // Build visible rows
+    const rowPad = this._minimal ? '5px 10px' : '8px 16px';
     const rows = [];
     for (const weaponId of allWeapons) {
       const isLimited  = LIMITED.has(weaponId);
@@ -178,7 +216,7 @@ export class WeaponSelector {
       const row = document.createElement('div');
       row.textContent = (isSelected ? '▶ ' : '   ') + lbl + suffix;
       Object.assign(row.style, {
-        padding:    '8px 16px',
+        padding:    rowPad,
         cursor:     'pointer',
         color:      isSelected ? '#fff' : '#99b',
         background: 'transparent',
@@ -194,24 +232,43 @@ export class WeaponSelector {
       rows.push(row);
     }
 
-    const COL_THRESHOLD = 8;
-    if (rows.length > COL_THRESHOLD) {
-      const mid  = Math.ceil(rows.length / 2);
-      const col1 = document.createElement('div');
-      const col2 = document.createElement('div');
-      Object.assign(col1.style, { display: 'flex', flexDirection: 'column' });
-      Object.assign(col2.style, {
-        display: 'flex', flexDirection: 'column',
-        borderLeft: '1px solid rgba(80,110,255,0.3)',
-      });
-      rows.slice(0, mid).forEach(r => col1.appendChild(r));
-      rows.slice(mid).forEach(r => col2.appendChild(r));
+    const colBorder = '1px solid rgba(80,110,255,0.3)';
+
+    if (rows.length <= COL_SIZE) {
+      // Single column
+      rows.forEach(r => this.popup.appendChild(r));
+      this._colMode = 1;
+
+    } else if (rows.length <= COL_SIZE * 2) {
+      // Two columns: col1 (left) | col2 (right)
+      const col1 = this._makeCol();
+      const col2 = this._makeCol();
+      col2.style.borderLeft = colBorder;
+      rows.slice(0, COL_SIZE).forEach(r => col1.appendChild(r));
+      rows.slice(COL_SIZE).forEach(r => col2.appendChild(r));
       this.popup.appendChild(col1);
       this.popup.appendChild(col2);
-      this._twoCol = true;
+      this._colMode = 2;
+
+    } else if (rows.length <= COL_SIZE * 3) {
+      // Three columns: col3 (left) | col1 (center) | col2 (right)
+      const col1 = this._makeCol();
+      const col2 = this._makeCol();
+      const col3 = this._makeCol();
+      col1.style.borderLeft = colBorder; // between col3 and col1
+      col2.style.borderLeft = colBorder; // between col1 and col2
+      rows.slice(0, COL_SIZE).forEach(r => col1.appendChild(r));
+      rows.slice(COL_SIZE, COL_SIZE * 2).forEach(r => col2.appendChild(r));
+      rows.slice(COL_SIZE * 2).forEach(r => col3.appendChild(r));
+      this.popup.appendChild(col3); // leftmost
+      this.popup.appendChild(col1); // center
+      this.popup.appendChild(col2); // rightmost
+      this._colMode = 3;
+
     } else {
+      // Overflow: single scrollable column
       rows.forEach(r => this.popup.appendChild(r));
-      this._twoCol = false;
+      this._colMode = 'scroll';
     }
   }
 }

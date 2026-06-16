@@ -38,6 +38,37 @@ import './ai/CleverBot.js';
 import './ai/SuperBot.js';
 import './ai/MegaBot.js';
 
+// ─── Mobile / orientation utilities ──────────────────────────────────────────
+
+function _isPhone() {
+  return navigator.maxTouchPoints > 0 &&
+    Math.min(window.screen.width, window.screen.height) <= 500;
+}
+
+async function applyOrientationSetting(setting) {
+  if (!('orientation' in screen)) return;
+  try {
+    if (_isPhone()) {
+      // On a phone: Auto → landscape, Landscape → landscape, Portrait → portrait
+      if (setting === 'portrait') {
+        await screen.orientation.lock('portrait');
+      } else {
+        await screen.orientation.lock('landscape');
+      }
+    } else if (setting === 'landscape') {
+      await screen.orientation.lock('landscape');
+    } else if (setting === 'portrait') {
+      await screen.orientation.lock('portrait');
+    } else {
+      screen.orientation.unlock();
+    }
+  } catch (_) { /* requires fullscreen on some browsers */ }
+}
+
+// SVG icons for minimal UI buttons (monotone, currentColor)
+const _MOVE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="display:block;pointer-events:none"><line x1="3" y1="12" x2="17" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><polyline points="11,6 18,12 11,18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const _ENDTURN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="display:block;pointer-events:none"><polyline points="4,12 9,17 20,6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+
 // ─── Canvas + renderer ────────────────────────────────────────────────────────
 
 const canvas   = document.getElementById('canvas-main');
@@ -83,6 +114,8 @@ panel.onResume(() => {
   if (_menuPausedLoop && loop?.isPaused) { loop.togglePause(); }
   _menuPausedLoop = false;
 });
+
+panel.onOrientChange(setting => applyOrientationSetting(setting));
 
 panel.onResign(() => {
   if (!loop) return;
@@ -339,8 +372,16 @@ function updateButtons(gs) {
   btnBar.style.display      = isAiming ? 'flex' : 'none';
   moveBtn.style.display     = (isAiming && gs.stationMovement && !isTP && !conditionLocked) ? 'inline-block' : 'none';
   weaponBtn.style.display   = (isTP || conditionLocked) ? 'none' : 'inline-block';
-  moveBtn.textContent       = gs.waitingForMove ? 'Cancel Move' : (_minimalUI ? 'M' : 'Move');
-  moveBtn.style.background  = gs.waitingForMove ? 'rgba(80,40,170,0.85)' : 'rgba(10,10,25,0.85)';
+  if (gs.waitingForMove) {
+    moveBtn.textContent       = 'Cancel Move';
+    moveBtn.style.background  = 'rgba(80,40,170,0.85)';
+  } else if (_minimalUI) {
+    moveBtn.innerHTML         = _MOVE_SVG;
+    moveBtn.style.background  = 'rgba(10,10,25,0.85)';
+  } else {
+    moveBtn.textContent       = 'Move';
+    moveBtn.style.background  = 'rgba(10,10,25,0.85)';
+  }
   gameOverBar.style.display = 'none';
 
   // AimControls: shown when aiming, not during move selection, not during hyperspace,
@@ -456,9 +497,18 @@ async function startGame(cfg) {
 
   _minimalUI = cfg.minimalUI ?? false;
   aimControls.setMinimal(_minimalUI);
-  endTurnBtn.textContent    = _minimalUI ? 'X' : 'End Turn';
-  endTurnBtn.style.padding  = _minimalUI ? '9px 14px' : '9px 26px';
+  weaponSelector.setMinimal(_minimalUI);
+  if (_minimalUI) {
+    endTurnBtn.innerHTML   = _ENDTURN_SVG;
+    endTurnBtn.style.padding = '9px 14px';
+    weaponBtn.style.fontSize = '11px';
+  } else {
+    endTurnBtn.textContent   = 'End Turn';
+    endTurnBtn.style.padding = '9px 26px';
+    weaponBtn.style.fontSize = '15px';
+  }
   weaponBtn.style.padding = _minimalUI ? '9px 12px' : '9px 18px';
+  applyOrientationSetting(cfg.screenOrientation ?? 'auto');
 
   // Reset Fast FWD button state
   fastFwdBtn.disabled      = false;

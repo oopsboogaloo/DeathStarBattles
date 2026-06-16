@@ -38,13 +38,16 @@ export class AimControls {
 
   setMinimal(isMinimal) {
     this._minimal = isMinimal;
-    const fs = isMinimal ? '14px' : '18px';
-    const mw = isMinimal ? '70px'  : '130px';
-    const pm = isMinimal ? '70px'  : '120px';
-    this._angleVal.style.fontSize = fs;
-    this._angleVal.style.minWidth = mw;
-    this._powerVal.style.fontSize = fs;
-    this._powerVal.style.minWidth = pm;
+    const fs  = isMinimal ? '14px' : '18px';
+    const mw  = isMinimal ? '70px'  : '130px';
+    const pm  = isMinimal ? '70px'  : '120px';
+    const gap = isMinimal ? '2px'   : '5px';
+    this._angleVal.style.fontSize  = fs;
+    this._angleVal.style.minWidth  = mw;
+    this._powerVal.style.fontSize  = fs;
+    this._powerVal.style.minWidth  = pm;
+    this._angleGroup.style.gap     = gap;
+    this._powerGroup.style.gap     = gap;
   }
 
   // Call each frame while aiming so values stay in sync
