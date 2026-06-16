@@ -335,6 +335,54 @@ menuBtn.addEventListener('click', e => {
 });
 document.body.appendChild(menuBtn);
 
+// ─── Fullscreen button (phones only) ─────────────────────────────────────────
+
+const _FS_ENTER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" style="display:block;pointer-events:none"><polyline points="3,9 3,3 9,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="15,3 21,3 21,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="21,15 21,21 15,21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="9,21 3,21 3,15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const _FS_EXIT_SVG  = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" style="display:block;pointer-events:none"><polyline points="9,3 9,9 3,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="15,9 21,9 21,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="21,15 15,15 15,21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/><polyline points="3,15 9,15 9,21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+
+const fullscreenBtn = document.createElement('button');
+Object.assign(fullscreenBtn.style, {
+  position: 'fixed', top: '10px', right: '10px',
+  display: 'none', // shown only when _isPhone() && supported
+  background: 'rgba(10,10,25,0.6)', color: 'rgba(255,255,255,0.55)',
+  border: '1px solid rgba(255,255,255,0.2)',
+  borderRadius: '4px', padding: '6px 8px',
+  cursor: 'pointer', zIndex: '10', lineHeight: '1',
+});
+document.body.appendChild(fullscreenBtn);
+
+function _updateFsBtn() {
+  const inFS = !!document.fullscreenElement;
+  fullscreenBtn.innerHTML = inFS ? _FS_EXIT_SVG : _FS_ENTER_SVG;
+  fullscreenBtn.title     = inFS ? 'Exit fullscreen' : 'Enter fullscreen (landscape)';
+}
+
+// Only show the button on phones that support the Fullscreen API
+if (_isPhone() && document.fullscreenEnabled) {
+  fullscreenBtn.style.display = 'block';
+  _updateFsBtn();
+}
+
+fullscreenBtn.addEventListener('click', async e => {
+  e.stopPropagation();
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      // Orientation lock is applied inside the fullscreenchange handler below
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (_) {}
+});
+
+document.addEventListener('fullscreenchange', () => {
+  _updateFsBtn();
+  if (document.fullscreenElement) {
+    // Re-apply orientation lock every time we (re-)enter fullscreen
+    applyOrientationSetting(panel.config.screenOrientation ?? 'auto').catch(() => {});
+  }
+});
+
 // ─── Button visibility sync ───────────────────────────────────────────────────
 
 let _prevMode  = null;
