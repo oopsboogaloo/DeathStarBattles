@@ -621,9 +621,9 @@ export class ConfigPanel {
         v => ({ off: 'Off', low: 'Low', medium: 'Medium', high: 'High' }[v])));
     this._ambientVolumeRow = rowAmbientVol;
 
-    this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel];
-    this._page2Rows = [rowMode, rowScenario, rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement];
-    this._page3Rows = [rowPerformance, rowClustering, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI, rowScreenOrient];
+    this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel, rowMode, rowScenario];
+    this._page2Rows = [rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement, rowClustering];
+    this._page3Rows = [rowPerformance, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI, rowScreenOrient];
     this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowPureRate, rowStartWep, rowStartArmour, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
