@@ -651,9 +651,10 @@ async function startGame(cfg) {
   _loadBar.update(95, 'Starting...');
   await _yieldFrame();
 
-  SoundManager.setEnabled(cfg.soundEnabled ?? true);
-  SoundManager.setMasterVolume(SOUND_VOL_GAIN[cfg.masterVolume  ?? 'low']);
-  SoundManager.setAmbientVolume(SOUND_VOL_GAIN[cfg.ambientVolume ?? 'medium']);
+  const _smCfg = panel.getData();
+  SoundManager.setEnabled(_smCfg.soundEnabled ?? true);
+  SoundManager.setMasterVolume(SOUND_VOL_GAIN[_smCfg.masterVolume  ?? 'low']);
+  SoundManager.setAmbientVolume(SOUND_VOL_GAIN[_smCfg.ambientVolume ?? 'medium']);
 
   loop = new GameLoop({ gameState, physics, renderer, rng, speed: cfg.speed ?? 'normal', performance: cfg.performance ?? 'full' });
   aimControls.setLoop(loop);
