@@ -15,8 +15,9 @@ export class InputHandler {
 
   _bind() {
     window.addEventListener('keydown', e => this._onKey(e));
-    this.canvas.addEventListener('mousedown', e => this._onMouseDown(e));
-    this.canvas.addEventListener('mousemove', e => this._onMouseMove(e));
+    // Pointer (mouse/touch) input is owned by CameraControls, which forwards
+    // single-pointer drags here via aimDown()/aimMove() so navigation gestures
+    // and aiming never fight over the same events.
   }
 
   // ─── keyboard ─────────────────────────────────────────────────────────────
@@ -50,10 +51,12 @@ export class InputHandler {
     }
   }
 
-  // ─── mouse aiming ─────────────────────────────────────────────────────────
-  // Click or drag within the aiming circle to set angle and power.
+  // ─── pointer aiming ─────────────────────────────────────────────────────────
+  // Click or drag within the aiming circle to set angle and power. Called by
+  // CameraControls with canvas-pixel coordinates. All screen↔world conversion
+  // goes through the camera (FR-2) so aiming works at any zoom/pan.
 
-  _onMouseDown(e) {
+  aimDown(mx, my) {
     if (this._isHumanAiming()) {
       const station = this.loop?.gs?.activeStation;
       const w = station?.selectedWeapon;
@@ -63,38 +66,35 @@ export class InputHandler {
         this._shotgunAimBarrel = 1;
       }
     }
-    this._tryAim(e);
+    this._tryAim(mx, my);
   }
 
-  _onMouseMove(e) {
-    if (e.buttons === 1) this._tryAim(e);  // only while left button held
-  }
+  aimMove(mx, my) { this._tryAim(mx, my); }
 
-  _tryAim(e) {
+  _tryAim(mx, my) {
     if (!this._isHumanAiming()) return;
     const station = this.loop.gs.activeStation;
     if (!station || station.status !== 'active') return;
     if ((station.frozen ?? 0) > 0 || (station.electrified ?? 0) > 0) return;
 
-    const conv = this.renderer.conv;
-    const ox   = this.renderer._ox;
-    const oy   = this.renderer._oy;
-    const rect = this.canvas.getBoundingClientRect();
-    // Mouse in canvas pixels
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const conv   = this.renderer.conv;
+    const camera = this.renderer.camera;
 
     // If waiting for a move-target click, convert canvas px → game units
     if (this.loop.gs.waitingForMove) {
-      this.loop.humanSetMove((mx - ox) / conv, (my - oy) / conv);
+      const w = camera.screenToWorld(mx, my);
+      this.loop.humanSetMove(w.x, w.y);
       return;
     }
 
-    // Station position in canvas pixels (viewport-relative + letterbox offset)
-    const cx   = station.position.x * conv + ox;
-    const cy   = station.position.y * conv + oy;
-    const dx   = mx - cx;
-    const dy   = my - cy;
+    // Work in viewport-z1 (world*conv) space: the camera maps pointer px back
+    // into the same space the aim circle is drawn in, so the existing pixel
+    // thresholds below are unchanged and scale automatically with zoom.
+    const loc  = camera.screenToLocal(mx, my);
+    const cx   = station.position.x * conv;
+    const cy   = station.position.y * conv;
+    const dx   = loc.x - cx;
+    const dy   = loc.y - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     const stationR_px = station.radius * conv;

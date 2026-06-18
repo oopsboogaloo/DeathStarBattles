@@ -9,6 +9,7 @@ import { GameState, GameMode }  from './core/GameState.js';
 import { GameLoop }             from './core/GameLoop.js';
 import { PhysicsEngine }        from './physics/PhysicsEngine.js';
 import { InputHandler }         from './input/InputHandler.js';
+import { CameraControls }       from './input/CameraControls.js';
 import { Team }                 from './entities/Team.js';
 import { Station, StationSize } from './entities/Station.js';
 import { Vec2 }                 from './core/Vec2.js';
@@ -75,6 +76,12 @@ const canvas   = document.getElementById('canvas-main');
 const renderer = new Renderer(canvas);
 // Capture original before any monkey-patching in startGame
 const _baseDrawFrame = renderer.drawFrame.bind(renderer);
+
+// Camera zoom/pan gestures. Created once; it reads the live InputHandler (which
+// is recreated per game) lazily so it never leaks canvas listeners.
+const cameraControls = new CameraControls({
+  canvas, renderer, getInputHandler: () => handler,
+});
 
 // ─── Config panel ─────────────────────────────────────────────────────────────
 

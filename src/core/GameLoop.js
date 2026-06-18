@@ -926,6 +926,8 @@ export class GameLoop {
     this.gs.waitingForInput = false;
     this.gs.waitingForMove  = false;
     this.gs.mode = GameMode.AIMING;
+    // Each new round opens at the full-battlefield view (FR-22).
+    this.renderer?.camera?.resetToDefault({ animated: true });
     const cannonEnabled = this.gs.storyState?.mission.settings.cannonEnabled !== false;
     for (const s of this._turnOrder) {
       if (!cannonEnabled && s.team.getStock(WeaponId.ROCKET) > 0) {

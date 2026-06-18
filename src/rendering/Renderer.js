@@ -14,6 +14,7 @@ import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
 import { PLANET_OVERLAYS } from './planetOverlays.js';
 import { getSprite } from './sprites/index.js';
 import { SpriteSheetCache } from './sprites/SpriteSheetCache.js';
+import { Camera } from './Camera.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
@@ -71,6 +72,16 @@ export class Renderer {
     this._debugEl   = null;
     this._fpsPrev   = null;
     this._fpsSmooth = 0;
+
+    // View camera (zoom & pan). Cached layers record the camera they were
+    // rasterised at so they can be composited via a delta transform (soft)
+    // until they are re-baked crisply on settle. See spec/camera-design.md.
+    this.camera        = new Camera();
+    this._bgCamera     = this.camera.snapshot();
+    this._trailsCamera = this.camera.snapshot();
+    this._camDirty     = false;          // camera moved, layers awaiting re-bake
+    this._camStillT    = 0;              // timestamp the camera last changed
+    this._lastCamSnap  = this.camera.snapshot();
   }
 
   setAimCircleScale(scale)      { this._aimCircleScale = scale ?? 1; }
@@ -123,6 +134,11 @@ export class Renderer {
     this.bgCanvas.height     = this._vpH;
     this.trailsCanvas.width  = this._vpW;
     this.trailsCanvas.height = this._vpH;
+    this._configureCamera();
+  }
+
+  _configureCamera() {
+    this.camera.configure(this._vpW, this._vpH, this._ox, this._oy, this.conv, this.gameHeight);
   }
 
   // Compute letterbox/pillarbox dimensions to fit _gameAspect into w×h.
@@ -157,6 +173,7 @@ export class Renderer {
     this.bgCanvas.height    = this._vpH;
     this.trailsCanvas.width  = this._vpW;
     this.trailsCanvas.height = this._vpH;
+    this._configureCamera();             // re-clamps centre after the resize (EC-2)
     if (this._stars.length) { this._renderBackground(); this._buildGasGiantCanvas(); }
   }
 
@@ -234,8 +251,14 @@ export class Renderer {
 
   _renderBackground() {
     const ctx = this.bgCtx;
+    // Clear in device space, then bake the current camera so the cached layer
+    // holds a crisp image of the visible (zoomed/panned) view. At the default
+    // view the bake transform is the identity, reproducing today's frame (FR-1).
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this._vpW, this._vpH);
+    this._bgCamera = this.camera.snapshot();
+    ctx.setTransform(...this.camera.matrixFor(this._bgCamera, 0, 0));
     if (this._tunnelBackground) this._drawWormholeTunnel(ctx);
     else if (!this._noStarField) this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
@@ -265,6 +288,7 @@ export class Renderer {
     }
     // Pass 4: space rifts above planets
     for (const rift of this._rifts ?? []) this._drawRift(ctx, rift);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   rebuildBackground() {
@@ -484,7 +508,12 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   clearTrails() {
-    this.trailsCtx.clearRect(0, 0, this._vpW, this._vpH);
+    const ctx = this.trailsCtx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this._vpW, this._vpH);
+    // New trail segments accumulate in the current camera's baked space.
+    this._trailsCamera = this.camera.snapshot();
+    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, 0, 0));
   }
 
   // Draw the latest trail segment — call each time a trail point is pushed.
@@ -496,6 +525,8 @@ export class Renderer {
     const cur  = trail[trail.length - 1];
     if (!cur) return; // cur is a wormhole marker — nothing to draw yet
     const ctx  = this.trailsCtx;
+    // Append in the same baked space the rest of the trails layer lives in.
+    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, 0, 0));
     const conv = this.conv;
     const [tr, tg, tb] = bullet.owner.team.colour;
 
@@ -549,28 +580,73 @@ export class Renderer {
 
   drawFrame(gameState) {
     const ctx = this.mainCtx;
+    const cam = this.camera;
+    const now = performance.now();
+    cam.tick(now);                 // advance any reset tween (FR-18/FR-22)
+    this._settleCheck(now, gameState);
+
     // Fill entire canvas black — letterbox/pillarbox bars are simply unpainted
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, this.width, this.height);
-    // Draw viewport layers at their offset position
-    ctx.drawImage(this.bgCanvas,     this._ox, this._oy);
+
+    // Cached background — composited from its bake snapshot via the delta
+    // transform (identity blit when settled, soft scaled blit mid-gesture).
+    ctx.setTransform(...cam.deltaMatrix(this._bgCamera, this._ox, this._oy));
+    ctx.drawImage(this.bgCanvas, 0, 0);
+
     // Animated star fire rim (full + experimental modes) sits above the cached
     // body but below the trails canvas, so bullet/ship trails pass over the
-    // flames. Skipped only in simplified mode.
+    // flames. Live content → full camera transform, always crisp.
     if (!this._simplified) {
-      ctx.save();
-      ctx.translate(this._ox, this._oy);
+      ctx.setTransform(...cam.matrix(this._ox, this._oy));
       this._drawStarFireRims(ctx);
-      ctx.restore();
     }
-    ctx.drawImage(this.trailsCanvas, this._ox, this._oy);
+
+    // Cached trails — same delta-composite scheme as the background.
+    ctx.setTransform(...cam.deltaMatrix(this._trailsCamera, this._ox, this._oy));
+    ctx.drawImage(this.trailsCanvas, 0, 0);
+
     if (gameState) {
-      ctx.save();
-      ctx.translate(this._ox, this._oy);
+      // World-anchored live content under the camera transform (FR-24).
+      ctx.setTransform(...cam.matrix(this._ox, this._oy));
       this._drawLive(ctx, gameState);
-      ctx.restore();
+      // Screen-fixed UI — HUD and overlays never move with the camera (FR-28).
+      ctx.setTransform(1, 0, 0, 1, this._ox, this._oy);
+      this._drawHUD(ctx, gameState);
+      this._drawOverlay(ctx, gameState);
     }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (this._debugOn && this._debugEl) this._updateDebugOverlay(gameState);
+  }
+
+  // Watch the camera each frame; once it has been still for a short debounce,
+  // re-rasterise the cached layers crisply at the new zoom (FR-26). While it is
+  // still moving, layers stay soft via the delta blit (FR-25).
+  _settleCheck(now, gameState) {
+    const s    = this.camera.snapshot();
+    const prev = this._lastCamSnap;
+    const moved = s.z !== prev.z || s.cx !== prev.cx || s.cy !== prev.cy;
+    if (moved) {
+      this._lastCamSnap = s;
+      this._camStillT   = now;
+      this._camDirty    = true;
+      return;
+    }
+    if (this._camDirty && now - this._camStillT > 130) {
+      this._camDirty = false;
+      this.rebuildForCamera(gameState?.activeBullets ?? []);
+    }
+  }
+
+  // Re-bake the cached static layers (background + trails) at the current camera
+  // so they are crisp at the settled zoom. Gas giants keep their z=1 baseline and
+  // ride the live transform (they are blur-heavy, so scaling reads acceptably).
+  rebuildForCamera(bullets) {
+    if (!this._stars.length) return;
+    this._renderBackground();
+    this.redrawTrails(bullets ?? []);
   }
 
   _updateDebugOverlay(gs) {
@@ -669,9 +745,12 @@ export class Renderer {
       }
     }
 
-    // Gas giants — single drawImage of the pre-built combined canvas
+    // Gas giants — single drawImage of the pre-built combined canvas. Drawn at
+    // (0,0): the ctx already carries the camera transform (which supplies the
+    // letterbox offset), so the gas-giant layer lines up with every other
+    // world-anchored layer at all zoom levels.
     const ggSource = this._gasGiantBitmap ?? this._gasGiantCanvas;
-    if (ggSource) ctx.drawImage(ggSource, this._ox, this._oy);
+    if (ggSource) ctx.drawImage(ggSource, 0, 0);
 
     // Comets — drawn live every frame (they move and are not in the static bg layer)
     for (const planet of gameState.planets) {
@@ -794,11 +873,8 @@ export class Renderer {
       }
     }
 
-    // HUD (drawn above everything)
-    this._drawHUD(ctx, gameState);
-
-    // Mode overlays (gameover screen, turn counter)
-    this._drawOverlay(ctx, gameState);
+    // HUD (_drawHUD) and mode overlays (_drawOverlay) are drawn screen-fixed by
+    // drawFrame after the camera transform is reset (FR-28).
   }
 
   // ----------------------------------------------------------------
@@ -2509,6 +2585,11 @@ export class Renderer {
 
   redrawTrails(bullets) {
     const ctx  = this.trailsCtx;
+    // Re-bake all stored trail points crisply at the current camera (FR-26).
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this._vpW, this._vpH);
+    this._trailsCamera = this.camera.snapshot();
+    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, 0, 0));
     const conv = this.conv;
     for (const bullet of bullets) {
       const trail = bullet.trail;
