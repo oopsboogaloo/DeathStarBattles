@@ -1,0 +1,9 @@
+{
+  "name": "Death Star Battles",
+  "short_name": "DeathStar",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000008",
+  "theme_color": "#000818",
+  "start_url": "."
+}
