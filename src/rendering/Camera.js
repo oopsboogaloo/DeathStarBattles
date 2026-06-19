@@ -16,6 +16,10 @@
 //
 // The camera owns no DOM and listens for no events — CameraControls drives it.
 
+// Screen-pixel overscroll allowed past the world edge (so edge stations' aim
+// circles are reachable). A bit larger than the largest aim circle.
+const OVERSCROLL_PX = 120;
+
 export class Camera {
   constructor() {
     this.z  = 1;
@@ -151,9 +155,16 @@ export class Camera {
 
   _clamp() {
     this.z = Math.max(this.MIN_Z, Math.min(this.MAX_Z, this.z));
+    // Allow a small overscroll past the world edge so a station sitting right on
+    // the boundary can be panned far enough in that its (off-station) aim circle
+    // is fully reachable. The margin is a constant screen distance regardless of
+    // zoom, so it never reveals more black than necessary.
+    const marginW = OVERSCROLL_PX / (this._conv * this.z);
     const halfW = 350 / this.z;
     const halfH = (this._gameHeight / 2) / this.z;
-    this.cx = Math.max(halfW, Math.min(700 - halfW, this.cx));
-    this.cy = Math.max(halfH, Math.min(this._gameHeight - halfH, this.cy));
+    const minX = halfW - marginW, maxX = (700 - halfW) + marginW;
+    const minY = halfH - marginW, maxY = (this._gameHeight - halfH) + marginW;
+    this.cx = minX > maxX ? 350                  : Math.max(minX, Math.min(maxX, this.cx));
+    this.cy = minY > maxY ? this._gameHeight / 2 : Math.max(minY, Math.min(maxY, this.cy));
   }
 }

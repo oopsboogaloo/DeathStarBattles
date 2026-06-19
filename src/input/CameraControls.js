@@ -57,9 +57,23 @@ export class CameraControls {
     const c = this.canvas;
     c.addEventListener('pointerdown',   e => this._onDown(e));
     c.addEventListener('pointermove',   e => this._onMove(e));
-    c.addEventListener('pointerup',     e => this._onUp(e));
-    c.addEventListener('pointercancel', e => this._onUp(e));
     c.addEventListener('wheel',         e => this._onWheel(e), { passive: false });
+    // Listen for releases on the window so a finger/cursor that lifts off the
+    // canvas (or whose up event iOS would otherwise drop) still clears state.
+    window.addEventListener('pointerup',     e => this._onUp(e));
+    window.addEventListener('pointercancel', e => this._onUp(e));
+    // App-switch / focus loss can silently abandon in-flight touches — reset so
+    // the next gesture starts clean rather than wedged mid-pinch.
+    window.addEventListener('blur', () => this._reset());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this._reset(); });
+  }
+
+  _reset() {
+    this._pointers.clear();
+    this._navigating = false;
+    this._mousePan   = null;
+    this._lastDist   = 0;
+    this._lastMid    = null;
   }
 
   // ── pointer down ────────────────────────────────────────────────────────────
@@ -87,6 +101,12 @@ export class CameraControls {
     }
 
     // touch / pen
+    // A primary pointerdown begins a brand-new touch sequence, so any pointers
+    // still in the map are stale (a missed up/cancel) — drop them. This is the
+    // watchdog that recovers from the iOS "stuck mid-gesture" state on the very
+    // next tap, instead of treating it as a phantom second finger.
+    if (e.isPrimary) this._reset();
+    try { this.canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
     this._pointers.set(e.pointerId, p);
     const n = this._pointers.size;
     if (n === 1) {
@@ -141,6 +161,9 @@ export class CameraControls {
       return;
     }
 
+    // Window-level listener: ignore releases for pointers that did not start as
+    // a canvas gesture (e.g. a tap on an on-screen button).
+    if (!this._pointers.has(e.pointerId)) return;
     this._pointers.delete(e.pointerId);
     const n = this._pointers.size;
 

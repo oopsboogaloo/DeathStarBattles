@@ -583,7 +583,7 @@ export class Renderer {
     const cam = this.camera;
     const now = performance.now();
     cam.tick(now);                 // advance any reset tween (FR-18/FR-22)
-    this._settleCheck(now, gameState);
+    this._settleCheck(now);
 
     // Fill entire canvas black — letterbox/pillarbox bars are simply unpainted
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -624,7 +624,7 @@ export class Renderer {
   // Watch the camera each frame; once it has been still for a short debounce,
   // re-rasterise the cached layers crisply at the new zoom (FR-26). While it is
   // still moving, layers stay soft via the delta blit (FR-25).
-  _settleCheck(now, gameState) {
+  _settleCheck(now) {
     const s    = this.camera.snapshot();
     const prev = this._lastCamSnap;
     const moved = s.z !== prev.z || s.cx !== prev.cx || s.cy !== prev.cy;
@@ -636,17 +636,47 @@ export class Renderer {
     }
     if (this._camDirty && now - this._camStillT > 130) {
       this._camDirty = false;
-      this.rebuildForCamera(gameState?.activeBullets ?? []);
+      this.rebuildForCamera();
     }
   }
 
-  // Re-bake the cached static layers (background + trails) at the current camera
-  // so they are crisp at the settled zoom. Gas giants keep their z=1 baseline and
-  // ride the live transform (they are blur-heavy, so scaling reads acceptably).
-  rebuildForCamera(bullets) {
+  // Re-bake the static background crisply at the settled zoom. Trails are NOT
+  // re-baked: re-rasterising would replay only the *live* bullets, erasing the
+  // completed arcs/loops that are a defining feature of the game. They instead
+  // ride their z=1 baseline (soft when zoomed, but always complete). Gas giants
+  // likewise keep their baseline (blur-heavy, so scaling reads acceptably).
+  rebuildForCamera() {
     if (!this._stars.length) return;
     this._renderBackground();
-    this.redrawTrails(bullets ?? []);
+  }
+
+  // True when the cached background was baked at a different camera than the live
+  // one — i.e. it is currently being shown as a soft scaled/panned blit.
+  _bgIsStale() {
+    const c = this.camera, b = this._bgCamera;
+    return c.z !== b.z || c.cx !== b.cx || c.cy !== b.cy;
+  }
+
+  // Cheap crisp star disc — the "basic shape" shown over the soft cached body
+  // during a zoom/pan gesture. Drawn in world*conv space (under the live camera
+  // transform) so it is sharp at any magnification.
+  _drawStarDiscs(ctx) {
+    for (const planet of this._planets) {
+      if (planet.shading !== ShadingStyle.GLOWING || planet.type !== PlanetType.STAR) continue;
+      if (planet.destroyed) continue;
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const r  = Math.max(2, planet.radius * this.conv);
+      const [pr, pg, pb] = planet.colour;
+      const grad = ctx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
+      grad.addColorStop(0,   `rgb(${Math.min(255, pr + 70)},${Math.min(255, pg + 70)},${Math.min(255, pb + 70)})`);
+      grad.addColorStop(0.7, `rgb(${pr},${pg},${pb})`);
+      grad.addColorStop(1,   `rgb(${Math.floor(pr * 0.5)},${Math.floor(pg * 0.5)},${Math.floor(pb * 0.5)})`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
   }
 
   _updateDebugOverlay(gs) {
@@ -726,6 +756,12 @@ export class Renderer {
         particles.draw(ctx, this.conv, this._useCircles);
       }
     }
+
+    // While the cached background is a soft scaled blit (mid-gesture / pre-settle)
+    // the baked star body goes blurry, leaving the live surface particles floating
+    // on near-black. Draw a crisp basic star disc underneath them so the star's
+    // shape still reads at any zoom. Skipped once the background re-bakes crisply.
+    if (this._bgIsStale()) this._drawStarDiscs(ctx);
 
     // Star surface bubbling — full and experimental modes (not simplified).
     // White foreshortened ovals boil across each star's visible surface

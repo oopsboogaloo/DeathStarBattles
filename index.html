@@ -18,18 +18,12 @@
 <body>
   <canvas id="canvas-main"></canvas>
   <script type="module" src="src/main.js"></script>
-  <script>
-    // Prevent double-tap zoom on iOS (user-scalable=no is ignored since iOS 10).
-    // The game canvas drives its own zoom/pan via Pointer Events (touch-action:
-    // none), so skip it here — otherwise this would swallow the double-tap that
-    // resets the view camera.
-    let _lastTap = 0;
-    document.addEventListener('touchend', e => {
-      if (e.target && e.target.id === 'canvas-main') return;
-      const now = Date.now();
-      if (now - _lastTap < 300) e.preventDefault();
-      _lastTap = now;
-    }, { passive: false });
-  </script>
+  <!--
+    Double-tap-to-zoom is already disabled by `touch-action: manipulation` (set
+    on every element above) plus the canvas's own `touch-action: none`. The old
+    JS touchend suppressor here was redundant and harmful — preventDefault() on
+    touchend ate the synthesised click, so quick taps on the on-screen buttons
+    were silently dropped. Removed.
+  -->
 </body>
 </html>
