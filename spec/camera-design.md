@@ -2,6 +2,8 @@
 
 > Translates [camera-spec.md](camera-spec.md) into concrete implementation decisions. Covers the chosen injection strategy (native Canvas 2D transform), the new `Camera` and `CameraControls` modules, the exact transform math, the changes to the layered render pipeline, gesture recognition, re-rasterisation/performance, and a file-by-file change list. Terminology and symbols follow the spec.
 
+> **Status: Implemented.** The strategy and math below shipped as designed. A few behaviours changed during implementation/playtesting — see **§11 Implementation deltas** for the authoritative list; the spec ([camera-spec.md](camera-spec.md)) has been updated to match.
+
 ---
 
 ## 1. Design Goals
@@ -203,9 +205,23 @@ Trails accumulate via `appendTrailPoint` into `trailsCanvas`, which is baked at 
 
 ---
 
-## 10. Open Questions (carried from spec §14)
+## 10. Resolved Decisions (were spec §14 open questions)
 
-1. Turn-change reset (FR-22): animated ease vs instant snap. *(Design defaults to animated; trivially switchable.)*
-2. Desktop pan binding (FR-16): space+left-drag (proposed) vs middle/right-drag vs edge-scroll.
-3. A visible "reset view" affordance in addition to double-tap?
-4. Optional "centre on my active station" helper while zoomed in?
+1. Turn-change reset (FR-22): **animated** ease.
+2. Desktop pan binding (FR-16): **middle-button drag** (not space+left-drag).
+3. Visible "reset view" affordance: **not added** — double-tap/double-click only, documented in the in-game Controls page.
+4. "Centre on my active station" helper: **not added** — manual pan + edge-overscroll margin suffices.
+
+---
+
+## 11. Implementation Deltas
+
+What shipped differs from the design above in these ways (spec is updated to match):
+
+1. **Trails are not re-rasterised on settle.** `redrawTrails()` only sees live bullets, but completed shots are removed from `activeBullets` once `DEAD` — re-baking erased their loops. Instead trails **always bake at the default full-world view** (so a whole arc fits the viewport-sized canvas) and are composited via the camera delta: crisp at the default view, gently soft when zoomed, always complete. §4.2/§4.3's "trails re-bake crisp on settle" is therefore superseded; only `bgCanvas` re-bakes crisp. Gas giants keep their `z=1` baseline.
+2. **Live "basic star disc."** While the background is mid-gesture-soft, a cheap crisp star disc is drawn live (under the camera transform) so the star's shape reads; skipped once the background re-bakes crisp.
+3. **Edge-overscroll margin** added to `_clamp` (FR-4): a constant ≈120 screen-px margin past the world edge so edge stations' aim circles are reachable; pan at `z=1` is no longer a strict no-op.
+4. **Off-screen indicators redrawn in screen space** so they track the visible (zoomed) view rather than the world rect.
+5. **Turn reset also wired into Target Practice** (`GameLoop._startTPTeamTurn`), not just `_startTurn`.
+6. **Input ownership unified.** Rather than InputHandler keeping its mouse listeners and checking a shared `navigating` flag, `CameraControls` is the **sole** owner of canvas pointer/wheel input and forwards single-pointer drags to `InputHandler.aimDown/aimMove`. Adds pointer hardening for the iOS stuck-gesture case (spec EC-7): primary-pointerdown state reset, pointer capture, window-level up/cancel, focus-loss reset.
+7. **iOS double-tap suppressor removed** from `index.html` entirely (CSS `touch-action` already disables double-tap zoom; the JS was eating quick button taps) rather than merely relaxed.

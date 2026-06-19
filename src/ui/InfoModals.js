@@ -666,9 +666,19 @@ Use the arrow keys or click the navigation buttons below to read about controls,
   },
   {
     title: 'Controls',
-    body: `MOUSE
+    body: `MOUSE / TOUCH
 
-Click inside the white targeting circle around your station to aim. The line from your station to your cursor shows the angle; its length sets the power.
+Click or tap inside the white targeting circle around your station to aim. The line from your station to your cursor shows the angle; its length sets the power. On a touch screen, drag with one finger.
+
+VIEW (ZOOM & PAN)
+
+Zoom in and pan the battlefield to line up tricky shots, reach a station near the edge, or watch the action. This only changes your view — never the aim, physics, or game state.
+
+  Touch     Pinch to zoom; drag with two fingers to pan; double-tap to reset
+  Mouse     Wheel to zoom toward the cursor; middle-button drag to pan;
+            double-click to reset
+
+The view returns to the full battlefield at the start of each turn. A station sitting right on the edge can be nudged into view so its whole aiming circle is reachable.
 
 KEYBOARD
 
