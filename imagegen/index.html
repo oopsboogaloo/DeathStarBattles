@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>imagegen — Starfield &amp; Nebula</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <canvas id="scene" width="1280" height="720"></canvas>
+
+    <div id="panel">
+      <h1>imagegen</h1>
+      <p class="sub">procedural starfield &amp; nebula</p>
+
+      <label>
+        Seed
+        <span class="row">
+          <input id="seed" type="text" inputmode="numeric" />
+          <button id="reroll" title="New random seed">🎲</button>
+        </span>
+      </label>
+
+      <label>
+        Nebula colour palette
+        <select id="palette"></select>
+      </label>
+
+      <label>
+        Detail (octaves) <span id="octavesVal" class="val"></span>
+        <input id="octaves" type="range" min="3" max="8" step="1" />
+      </label>
+
+      <label>
+        Warp strength <span id="warpVal" class="val"></span>
+        <input id="warp" type="range" min="0" max="6" step="0.1" />
+      </label>
+
+      <label>
+        Dust / dark patches <span id="dustVal" class="val"></span>
+        <input id="dust" type="range" min="0" max="1" step="0.02" />
+      </label>
+
+      <label>
+        Star density <span id="starsVal" class="val"></span>
+        <input id="stars" type="range" min="0" max="2500" step="50" />
+      </label>
+
+      <div class="row">
+        <button id="render" class="primary">Generate</button>
+        <button id="save">Save PNG</button>
+      </div>
+
+      <p id="status" class="status"></p>
+    </div>
+  </main>
+
+  <script src="noise.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
