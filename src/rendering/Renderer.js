@@ -507,12 +507,16 @@ export class Renderer {
   // Layer 1 — Trails (cleared each turn, appended during fire phase)
   // ----------------------------------------------------------------
 
+  // Trails always bake at the default full-world view (never the live camera) so
+  // the whole arc — loops and all — fits in the viewport-sized trail canvas. The
+  // layer is composited soft via the camera delta when zoomed (see drawFrame).
+  _defaultCamSnap() { return { z: 1, cx: 350, cy: this.gameHeight / 2 }; }
+
   clearTrails() {
     const ctx = this.trailsCtx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this._vpW, this._vpH);
-    // New trail segments accumulate in the current camera's baked space.
-    this._trailsCamera = this.camera.snapshot();
+    this._trailsCamera = this._defaultCamSnap();
     ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, 0, 0));
   }
 
@@ -2631,10 +2635,11 @@ export class Renderer {
 
   redrawTrails(bullets) {
     const ctx  = this.trailsCtx;
-    // Re-bake all stored trail points crisply at the current camera (FR-26).
+    // Re-bake all stored trail points at the default full-world view (e.g. after
+    // a resize). Composited soft via the camera delta when zoomed.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this._vpW, this._vpH);
-    this._trailsCamera = this.camera.snapshot();
+    this._trailsCamera = this._defaultCamSnap();
     ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, 0, 0));
     const conv = this.conv;
     for (const bullet of bullets) {

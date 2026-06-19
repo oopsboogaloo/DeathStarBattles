@@ -3661,6 +3661,8 @@ export class GameLoop {
     this.renderer.clearTrails();
     this.gs.mode  = GameMode.TP_AIMING;
     this._turnIdx = 0;
+    // Each Target Practice turn opens at the full-battlefield view (FR-22).
+    this.renderer?.camera?.resetToDefault({ animated: true });
     for (const s of this._turnOrder) s.selectedWeapon = 'cannon';
 
     this._advanceTPAiming();
