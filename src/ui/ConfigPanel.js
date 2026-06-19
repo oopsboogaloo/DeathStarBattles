@@ -253,8 +253,12 @@ export class ConfigPanel {
     // Add right padding to title so it doesn't overlap the top-right buttons
     if (this._title) this._title.style.paddingRight = phone ? '110px' : '0';
 
-    // Make panel wider to use horizontal space
-    if (this._panel) this._panel.style.width = phone ? '95vw' : '';
+    // Make panel wider to use horizontal space.
+    // Apply 95vw on any phone (portrait or landscape) to stop the right ► arrow
+    // from being clipped when the panel falls back to its narrow minWidth.
+    const shortSide = Math.min(window.screen.width, window.screen.height);
+    const isAnyPhone = navigator.maxTouchPoints > 0 && shortSide <= 500;
+    if (this._panel) this._panel.style.width = isAnyPhone ? '95vw' : '';
 
     if (phone) {
       // Move Resume + Resign into the top-right bar
