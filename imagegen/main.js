@@ -61,6 +61,10 @@ const el = {
   warpVal: document.getElementById('warpVal'),
   dust: document.getElementById('dust'),
   dustVal: document.getElementById('dustVal'),
+  drama: document.getElementById('drama'),
+  dramaVal: document.getElementById('dramaVal'),
+  bloom: document.getElementById('bloom'),
+  bloomVal: document.getElementById('bloomVal'),
   stars: document.getElementById('stars'),
   starsVal: document.getElementById('starsVal'),
   render: document.getElementById('render'),
@@ -79,13 +83,17 @@ PALETTES.forEach((p, i) => {
 el.seed.value = String((Math.random() * 1e9) | 0);
 el.octaves.value = '6';
 el.warp.value = '4';
-el.dust.value = '0.5';
+el.dust.value = '0.6';
+el.drama.value = '2.4';
+el.bloom.value = '0.8';
 el.stars.value = '900';
 
 function syncLabels() {
   el.octavesVal.textContent = el.octaves.value;
   el.warpVal.textContent = Number(el.warp.value).toFixed(1);
   el.dustVal.textContent = Number(el.dust.value).toFixed(2);
+  el.dramaVal.textContent = Number(el.drama.value).toFixed(1);
+  el.bloomVal.textContent = Number(el.bloom.value).toFixed(2);
   el.starsVal.textContent = el.stars.value;
 }
 syncLabels();
@@ -129,6 +137,8 @@ function render() {
   const octaves = parseInt(el.octaves.value, 10);
   const warp = parseFloat(el.warp.value);
   const dustAmount = parseFloat(el.dust.value);
+  const drama = parseFloat(el.drama.value);
+  const bloomAmount = parseFloat(el.bloom.value);
   const starCount = parseInt(el.stars.value, 10);
   const palette = PALETTES[parseInt(el.palette.value, 10)];
 
@@ -171,8 +181,18 @@ function render() {
     col = mix(col, c3, qLen);
     col = mix(col, c4, rLen * 0.8);
 
-    // Tone curve: bright cores, falling to black.
-    let intensity = Math.pow(clamp01(f * 1.5 - 0.25), 1.7);
+    // Saturation boost — push colours away from grey for punchier emission.
+    const SAT = 1.45;
+    const luma = 0.299 * col[0] + 0.587 * col[1] + 0.114 * col[2];
+    col = [
+      luma + (col[0] - luma) * SAT,
+      luma + (col[1] - luma) * SAT,
+      luma + (col[2] - luma) * SAT,
+    ];
+
+    // Tone curve: bright cores, falling to black. `drama` sharpens the
+    // dark/bright separation for a more contrasty image.
+    let intensity = Math.pow(clamp01(f * 1.6 - 0.28), drama);
 
     // Composition envelope: keep the nebula concentrated, not a flat haze.
     const env = smoothstep(
@@ -183,12 +203,16 @@ function render() {
     // Dust / dark patches: a separate field carves voids and lanes.
     const d = nDust.fbm(x * 1.35 + 21.0, y * 1.35 + 4.0, octaves);
     const occl = smoothstep(clamp01((d - (0.62 - dustAmount * 0.32)) * 4.0));
-    intensity *= 1 - occl * (0.7 + dustAmount * 0.3);
+    intensity *= 1 - occl * (0.78 + dustAmount * 0.22);
+
+    // Hot cores: the densest regions blow out toward bright white, like the
+    // ionised heart of an emission nebula.
+    const core = Math.pow(clamp01(f * 1.7 - 0.78), 2.2) * env * (1 - occl);
 
     return {
-      r: bg[0] + col[0] * intensity,
-      g: bg[1] + col[1] * intensity,
-      b: bg[2] + col[2] * intensity,
+      r: bg[0] + col[0] * intensity + (col[0] * 0.5 + 255 * 0.6) * core,
+      g: bg[1] + col[1] * intensity + (col[1] * 0.5 + 255 * 0.6) * core,
+      b: bg[2] + col[2] * intensity + (col[2] * 0.5 + 255 * 0.6) * core,
     };
   }
 
@@ -224,6 +248,7 @@ function render() {
     } else {
       ctx.putImageData(img, 0, 0);
       drawStars(seed, starCount, dustOcclusion);
+      if (bloomAmount > 0) applyBloom(bloomAmount);
       el.status.textContent = `Done — seed ${el.seed.value}`;
       rendering = false;
       el.render.disabled = false;
@@ -294,9 +319,48 @@ function drawStars(seed, count, dustOcclusion) {
 }
 
 // ---------------------------------------------------------------------------
+// Bloom / glow post-process.
+//
+// Emission nebulae glow: bright regions bleed light into their surroundings.
+// We isolate the bright parts (squaring the image via a 'multiply' self-draw
+// suppresses the darks), blur them, and add them back additively. Two radii
+// give a tight halo plus a broad atmospheric glow.
+// ---------------------------------------------------------------------------
+function applyBloom(amount) {
+  const bright = document.createElement('canvas');
+  bright.width = W;
+  bright.height = H;
+  const bx = bright.getContext('2d');
+
+  // Squared brightness: darks fall away, highlights remain.
+  bx.drawImage(canvas, 0, 0);
+  bx.globalCompositeOperation = 'multiply';
+  bx.drawImage(canvas, 0, 0);
+  bx.globalCompositeOperation = 'source-over';
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Broad, soft glow.
+  ctx.filter = 'blur(22px)';
+  ctx.globalAlpha = Math.min(1, amount * 0.7);
+  ctx.drawImage(bright, 0, 0);
+
+  // Tight, punchy halo around the brightest cores and stars.
+  ctx.filter = 'blur(6px)';
+  ctx.globalAlpha = Math.min(1, amount);
+  ctx.drawImage(bright, 0, 0);
+
+  ctx.restore();
+  ctx.filter = 'none';
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
-[el.octaves, el.warp, el.dust, el.stars].forEach((c) =>
+[el.octaves, el.warp, el.dust, el.drama, el.bloom, el.stars].forEach((c) =>
   c.addEventListener('input', syncLabels)
 );
 el.render.addEventListener('click', render);
