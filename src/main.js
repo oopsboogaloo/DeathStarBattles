@@ -1080,7 +1080,9 @@ function _showDemoHint() {
     });
     document.body.appendChild(hint);
   }
-  hint.textContent = 'CLICK OR PRESS ANY KEY TO START';
+  hint.textContent = (_isPhone() && document.fullscreenEnabled)
+    ? 'TAP TO PLAY'
+    : 'CLICK OR PRESS ANY KEY TO START';
   hint.style.display = 'block';
 }
 
@@ -1110,6 +1112,11 @@ function startDemo() {
     isDemo = false;
     _hideDemoHint(); // always hide before any early return
     if (e.target?.closest?.('#btn-bar')) return;
+    // Request fullscreen immediately while we're still inside the user gesture.
+    // Must happen before any await / async gap or browsers will reject it.
+    if (_isPhone() && document.fullscreenEnabled && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    }
     if (loop) { loop.stop(); loop = null; }
     updateButtons(null);
     panel.show();
