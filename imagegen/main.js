@@ -8,6 +8,7 @@
 //                blackbody colours, glow + diffraction spikes on bright stars,
 //                and attenuation inside thick dust so dark lanes read as nearer.
 
+(function () {
 const { hashSeed, ValueNoise, smoothstep, lerp } = window.ImageGenNoise;
 
 const canvas = document.getElementById('scene');
@@ -312,3 +313,4 @@ el.save.addEventListener('click', () => {
 
 // First render.
 render();
+})();
