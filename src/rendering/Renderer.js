@@ -2544,7 +2544,15 @@ export class Renderer {
   // ----------------------------------------------------------------
 
   _drawOffScreenIndicators(ctx, bullets, rockets = []) {
-    const cx = this._vpW / 2, cy = this._vpH / 2;
+    // Drawn screen-fixed (constant size, at the real viewport edge) so they
+    // track whatever the camera is currently showing — when zoomed in, anything
+    // outside the visible region gets an arrow, not just shots outside the world.
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    const conv = this.conv, z = this.camera.z;
+    const L = this._ox, T = this._oy, R = this._ox + this._vpW, B = this._oy + this._vpH;
+    const cx = (L + R) / 2, cy = (T + B) / 2;
 
     const entities = [
       ...bullets.filter(b => b.status === 'active').map(b => ({
@@ -2556,9 +2564,9 @@ export class Renderer {
     ];
 
     for (const entity of entities) {
-      const bx = entity.x * this.conv;
-      const by = entity.y * this.conv;
-      if (bx >= 0 && bx <= this._vpW && by >= 0 && by <= this._vpH) continue;
+      const s  = this.camera.worldToScreen(entity.x, entity.y);
+      const bx = s.x, by = s.y;
+      if (bx >= L && bx <= R && by >= T && by <= B) continue;
 
       const [tr, tg, tb] = entity.colour;
       const colour = `rgb(${tr},${tg},${tb})`;
@@ -2567,14 +2575,14 @@ export class Renderer {
 
       const edgeT = m => {
         let t = Infinity;
-        if (cosA > 0) t = Math.min(t, (this._vpW - m - cx) / cosA);
-        if (cosA < 0) t = Math.min(t, (m         - cx) / cosA);
-        if (sinA > 0) t = Math.min(t, (this._vpH - m - cy) / sinA);
-        if (sinA < 0) t = Math.min(t, (m         - cy) / sinA);
+        if (cosA > 0) t = Math.min(t, (R - m - cx) / cosA);
+        if (cosA < 0) t = Math.min(t, (L + m - cx) / cosA);
+        if (sinA > 0) t = Math.min(t, (B - m - cy) / sinA);
+        if (sinA < 0) t = Math.min(t, (T + m - cy) / sinA);
         return t;
       };
 
-      // Triangle sits at the very canvas edge (m = 6 so it's not clipped)
+      // Triangle sits at the very viewport edge (m = 6 so it's not clipped)
       const tTri = edgeT(6);
       const tx   = cx + cosA * tTri, ty = cy + sinA * tTri;
 
@@ -2582,9 +2590,9 @@ export class Renderer {
       const tNum = edgeT(30);
       const nx   = cx + cosA * tNum, ny = cy + sinA * tNum;
 
-      // Distance from nearest screen edge in game units
-      const distPx = Math.max(0, -bx, bx - this._vpW, -by, by - this._vpH);
-      const dist   = Math.round(distPx / this.conv);
+      // World-unit distance the shot is beyond the visible region
+      const distPx = Math.max(0, L - bx, bx - R, T - by, by - B);
+      const dist   = Math.round(distPx / (conv * z));
 
       // Draw number at inset position — keep text right-side-up on left half
       const textAngle = (Math.abs(angle) > Math.PI / 2)
@@ -2613,6 +2621,8 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+
+    ctx.restore();   // back to the live camera transform
   }
 
   // ----------------------------------------------------------------
