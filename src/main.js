@@ -1020,17 +1020,16 @@ const _yieldFrame = () => new Promise(r => setTimeout(r, 0));
 // ─── Demo title + hint overlay ───────────────────────────────────────────────
 
 function _showDemoHint() {
-  // Title block — "DEATH STAR BATTLES" + author
-  let titleEl = document.getElementById('demo-title');
-  if (!titleEl) {
-    titleEl = document.createElement('div');
-    titleEl.id = 'demo-title';
-    Object.assign(titleEl.style, {
-      position: 'fixed', top: '28%', left: '50%',
-      transform: 'translateX(-50%)',
-      textAlign: 'center',
-      pointerEvents: 'none', userSelect: 'none',
-      zIndex: '5',
+  let overlay = document.getElementById('demo-launch');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'demo-launch';
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '5',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,10,0.45)',
+      cursor: 'pointer',
     });
 
     const titleLine = document.createElement('div');
@@ -1039,6 +1038,7 @@ function _showDemoHint() {
       fontFamily: 'monospace',
       fontSize: 'clamp(26px, 5vw, 62px)',
       letterSpacing: '0.22em',
+      textAlign: 'center',
       color: '#000',
       textShadow: [
         '-1px -1px 0 #fff', '1px -1px 0 #fff',
@@ -1048,6 +1048,7 @@ function _showDemoHint() {
         '0 0 70px rgba(180,200,255,0.35)',
       ].join(', '),
       marginBottom: '10px',
+      pointerEvents: 'none', userSelect: 'none',
     });
 
     const authorLine = document.createElement('div');
@@ -1056,41 +1057,58 @@ function _showDemoHint() {
       fontFamily: 'monospace',
       fontSize: 'clamp(12px, 1.4vw, 18px)',
       letterSpacing: '0.18em',
+      textAlign: 'center',
       color: '#000',
       textShadow: '0 0 8px rgba(255,255,255,0.9), 0 0 20px rgba(220,230,255,0.55)',
+      marginBottom: 'clamp(32px, 6vh, 56px)',
+      pointerEvents: 'none', userSelect: 'none',
     });
 
-    titleEl.appendChild(titleLine);
-    titleEl.appendChild(authorLine);
-    document.body.appendChild(titleEl);
-  }
-  titleEl.style.display = 'block';
-
-  // "Click to start" hint at the bottom
-  let hint = document.getElementById('demo-hint');
-  if (!hint) {
-    hint = document.createElement('div');
-    hint.id = 'demo-hint';
-    Object.assign(hint.style, {
-      position: 'fixed', bottom: '38px', left: '50%',
-      transform: 'translateX(-50%)',
-      color: 'rgba(200,210,255,0.55)', fontFamily: 'monospace', fontSize: '13px',
-      letterSpacing: '0.1em', pointerEvents: 'none', userSelect: 'none',
-      zIndex: '5',
+    const playBtn = document.createElement('button');
+    playBtn.textContent = '▶  PLAY';
+    Object.assign(playBtn.style, {
+      fontFamily: 'monospace',
+      fontSize: 'clamp(16px, 2.5vw, 26px)',
+      letterSpacing: '0.2em',
+      padding: 'clamp(12px, 2vh, 18px) clamp(36px, 6vw, 64px)',
+      background: 'rgba(35,55,175,0.75)',
+      border: '2px solid rgba(110,140,255,0.7)',
+      borderRadius: '6px',
+      color: '#eef',
+      cursor: 'pointer',
+      textShadow: '0 0 12px rgba(150,170,255,0.6)',
+      boxShadow: '0 0 30px rgba(80,110,255,0.3)',
+      transition: 'background 0.15s, box-shadow 0.15s',
     });
-    document.body.appendChild(hint);
+    playBtn.addEventListener('mouseenter', () => {
+      playBtn.style.background  = 'rgba(55,80,210,0.92)';
+      playBtn.style.boxShadow   = '0 0 44px rgba(100,140,255,0.55)';
+    });
+    playBtn.addEventListener('mouseleave', () => {
+      playBtn.style.background  = 'rgba(35,55,175,0.75)';
+      playBtn.style.boxShadow   = '0 0 30px rgba(80,110,255,0.3)';
+    });
+
+    const subLine = document.createElement('div');
+    subLine.textContent = _isPhone() ? '' : 'or press any key';
+    Object.assign(subLine.style, {
+      fontFamily: 'monospace', fontSize: '11px', letterSpacing: '0.12em',
+      color: 'rgba(180,190,255,0.4)', marginTop: '20px',
+      pointerEvents: 'none', userSelect: 'none',
+    });
+
+    overlay.appendChild(titleLine);
+    overlay.appendChild(authorLine);
+    overlay.appendChild(playBtn);
+    overlay.appendChild(subLine);
+    document.body.appendChild(overlay);
   }
-  hint.textContent = (_isPhone() && document.fullscreenEnabled)
-    ? 'TAP TO PLAY'
-    : 'CLICK OR PRESS ANY KEY TO START';
-  hint.style.display = 'block';
+  overlay.style.display = 'flex';
 }
 
 function _hideDemoHint() {
-  const hint  = document.getElementById('demo-hint');
-  if (hint)  hint.style.display  = 'none';
-  const title = document.getElementById('demo-title');
-  if (title) title.style.display = 'none';
+  const overlay = document.getElementById('demo-launch');
+  if (overlay) overlay.style.display = 'none';
 }
 
 // ─── Demo mode ────────────────────────────────────────────────────────────────
