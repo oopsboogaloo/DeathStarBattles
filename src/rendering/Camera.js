@@ -82,15 +82,16 @@ export class Camera {
             oy + this._vpH / 2 - (this._vpH / 2) * ratio + (snap.cy - this.cy) * s];
   }
 
-  // Like deltaMatrix but for full-canvas cached bitmaps (width×height) that have the
-  // letterbox offset _ox/_oy baked into their content. At settled camera this degenerates
-  // to the identity transform — the cheapest possible blit. See spec/extended-background-spec.md §5.2.
-  fullDeltaMatrix(snap) {
+  // Like deltaMatrix but for extended cached bitmaps that have _ox/_oy baked in plus
+  // an optional overscrollPx border on each side. Pass overscrollPx = BG_PAD (120) when
+  // compositing bg/trails canvases so the 120 px camera overscroll region is covered.
+  // At settled camera with overscrollPx=0 this is the identity blit. See §5.2.
+  fullDeltaMatrix(snap, overscrollPx = 0) {
     const ratio = this.z / snap.z;
     const s     = this._conv * this.z;
     return [ratio, 0, 0, ratio,
-            this._ox * (1 - ratio) + this._vpW / 2 * (1 - ratio) + (snap.cx - this.cx) * s,
-            this._oy * (1 - ratio) + this._vpH / 2 * (1 - ratio) + (snap.cy - this.cy) * s];
+            this._ox * (1 - ratio) + this._vpW / 2 * (1 - ratio) + (snap.cx - this.cx) * s - overscrollPx * ratio,
+            this._oy * (1 - ratio) + this._vpH / 2 * (1 - ratio) + (snap.cy - this.cy) * s - overscrollPx * ratio];
   }
 
   // canvas px → world*conv (viewport-z1) px, in which stations sit at world*conv.

@@ -18,6 +18,10 @@ import { Camera } from './Camera.js';
 
 const MAX_STATION_SPEED = 0.015; // must match GameLoop.MAX_STATION_SPEED
 
+// Extra pixels added to each side of bgCanvas/trailsCanvas beyond the main canvas.
+// Must equal Camera.js OVERSCROLL_PX so the overscroll region is always covered.
+const BG_PAD = 120;
+
 const ANOMALY_INWARD_CFG = {
   count: 35, spawnMult: 8.0, voidMult: 1.2,
   angularSpeed: 0.4, momentumExp: 1.4, inwardFrac: 0.35,
@@ -131,10 +135,10 @@ export class Renderer {
   setGameAspect(gw, gh) {
     this._gameAspect = (gw && gh) ? gw / gh : null;
     this._calcViewport(this.width, this.height);
-    this.bgCanvas.width      = this.width;
-    this.bgCanvas.height     = this.height;
-    this.trailsCanvas.width  = this.width;
-    this.trailsCanvas.height = this.height;
+    this.bgCanvas.width      = this.width  + 2 * BG_PAD;
+    this.bgCanvas.height     = this.height + 2 * BG_PAD;
+    this.trailsCanvas.width  = this.width  + 2 * BG_PAD;
+    this.trailsCanvas.height = this.height + 2 * BG_PAD;
     this._configureCamera();
   }
 
@@ -174,10 +178,10 @@ export class Renderer {
     this.mainCanvas.width  = cw;
     this.mainCanvas.height = ch;
     this._calcViewport(cw, ch);
-    this.bgCanvas.width      = this.width;
-    this.bgCanvas.height     = this.height;
-    this.trailsCanvas.width  = this.width;
-    this.trailsCanvas.height = this.height;
+    this.bgCanvas.width      = this.width  + 2 * BG_PAD;
+    this.bgCanvas.height     = this.height + 2 * BG_PAD;
+    this.trailsCanvas.width  = this.width  + 2 * BG_PAD;
+    this.trailsCanvas.height = this.height + 2 * BG_PAD;
     this._configureCamera();             // re-clamps centre after the resize (EC-2)
     if (this._stars.length) { this._renderBackground(); this._buildGasGiantCanvas(); }
   }
@@ -261,10 +265,10 @@ export class Renderer {
     // view the bake transform is the identity, reproducing today's frame (FR-1).
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.fillRect(0, 0, this.width + 2 * BG_PAD, this.height + 2 * BG_PAD);
     this._bgCamera = this.camera.snapshot();
-    // Bake with _ox/_oy so bar regions receive content (EB-1..3).
-    ctx.setTransform(...this.camera.matrixFor(this._bgCamera, this._ox, this._oy));
+    // Bake with (_ox+BG_PAD, _oy+BG_PAD) so the 120 px overscroll border is rendered.
+    ctx.setTransform(...this.camera.matrixFor(this._bgCamera, this._ox + BG_PAD, this._oy + BG_PAD));
     if (this._tunnelBackground) this._drawWormholeTunnel(ctx);
     else if (!this._noStarField) { this._drawBarFill(ctx); this._drawStarField(ctx); }
     // Pass 1: coronas/bristles behind everything
@@ -509,26 +513,25 @@ export class Renderer {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  // Sparse starfield for bar (letterbox/pillarbox) regions outside the game world.
-  // Called before _drawStarField so the main nebula field sits on top inside the viewport.
+  // Sparse starfield for the border region outside the game world — covers both the
+  // letterbox/pillarbox bars and the 120 px overscroll zone at the world edge.
+  // Called before _drawStarField so the main nebula sits on top inside the world.
   _drawBarFill(ctx) {
-    const conv   = this.conv;
-    const gw     = this.gameWidth;
-    const gh     = this.gameHeight;
-    const extraX = this._ox / conv;
-    const extraY = this._oy / conv;
-    if (extraX < 1 && extraY < 1) return;
+    const conv  = this.conv;
+    const gw    = this.gameWidth;
+    const gh    = this.gameHeight;
+    // World-unit extension on each side = letterbox offset + overscroll padding.
+    const extX  = (this._ox + BG_PAD) / conv;
+    const extY  = (this._oy + BG_PAD) / conv;
 
     const mainDensity = this._stars.length / (gw * gh);
-    const regions = [];
-    if (extraX >= 1) {
-      regions.push({ x0: -extraX, x1: 0,        y0: 0, y1: gh });
-      regions.push({ x0: gw,      x1: gw+extraX, y0: 0, y1: gh });
-    }
-    if (extraY >= 1) {
-      regions.push({ x0: 0, x1: gw, y0: -extraY, y1: 0  });
-      regions.push({ x0: 0, x1: gw, y0: gh,       y1: gh+extraY });
-    }
+    // Four strips around the world rectangle; corners included in left/right columns.
+    const regions = [
+      { x0: -extX, x1: 0,       y0: -extY, y1: gh+extY },
+      { x0: gw,    x1: gw+extX, y0: -extY, y1: gh+extY },
+      { x0: 0,     x1: gw,      y0: -extY, y1: 0        },
+      { x0: 0,     x1: gw,      y0: gh,    y1: gh+extY  },
+    ];
 
     ctx.globalCompositeOperation = 'lighter';
     for (const { x0, x1, y0, y1 } of regions) {
@@ -573,9 +576,9 @@ export class Renderer {
   clearTrails() {
     const ctx = this.trailsCtx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.clearRect(0, 0, this.width + 2 * BG_PAD, this.height + 2 * BG_PAD);
     this._trailsCamera = this._defaultCamSnap();
-    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, this._ox, this._oy));
+    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, this._ox + BG_PAD, this._oy + BG_PAD));
   }
 
   // Draw the latest trail segment — call each time a trail point is pushed.
@@ -588,7 +591,7 @@ export class Renderer {
     if (!cur) return; // cur is a wormhole marker — nothing to draw yet
     const ctx  = this.trailsCtx;
     // Append in the same baked space the rest of the trails layer lives in.
-    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, this._ox, this._oy));
+    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, this._ox + BG_PAD, this._oy + BG_PAD));
     const conv = this.conv;
     const [tr, tg, tb] = bullet.owner.team.colour;
 
@@ -647,10 +650,9 @@ export class Renderer {
     cam.tick(now);                 // advance any reset tween (FR-18/FR-22)
     this._settleCheck(now);
 
-    // bgCanvas and trailsCanvas now cover the full canvas (bars included), so
-    // no black fill is needed first — the baked background covers everything.
-    // fullDeltaMatrix degenerates to the identity blit when camera is settled (EB-4).
-    ctx.setTransform(...cam.fullDeltaMatrix(this._bgCamera));
+    // bgCanvas covers main canvas + BG_PAD border on each side. At settled camera
+    // fullDeltaMatrix stamps it at (-BG_PAD, -BG_PAD), filling the entire canvas.
+    ctx.setTransform(...cam.fullDeltaMatrix(this._bgCamera, BG_PAD));
     ctx.drawImage(this.bgCanvas, 0, 0);
 
     // Animated star fire rim (full + experimental modes) sits above the cached
@@ -661,8 +663,8 @@ export class Renderer {
       this._drawStarFireRims(ctx);
     }
 
-    // Cached trails — same full-canvas delta-composite scheme as the background.
-    ctx.setTransform(...cam.fullDeltaMatrix(this._trailsCamera));
+    // Cached trails — same extended composite scheme as the background.
+    ctx.setTransform(...cam.fullDeltaMatrix(this._trailsCamera, BG_PAD));
     ctx.drawImage(this.trailsCanvas, 0, 0);
 
     if (gameState) {
@@ -2716,9 +2718,9 @@ export class Renderer {
     // Re-bake all stored trail points at the default full-world view (e.g. after
     // a resize). Composited soft via the camera delta when zoomed.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.clearRect(0, 0, this.width + 2 * BG_PAD, this.height + 2 * BG_PAD);
     this._trailsCamera = this._defaultCamSnap();
-    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, this._ox, this._oy));
+    ctx.setTransform(...this.camera.matrixFor(this._trailsCamera, this._ox + BG_PAD, this._oy + BG_PAD));
     const conv = this.conv;
     for (const bullet of bullets) {
       const trail = bullet.trail;
