@@ -470,6 +470,11 @@ function updateButtons(gs) {
     aimControls.hide();
   }
 
+  // In portrait-rotated mode, both aim controls and btn bar sit at the bottom.
+  // Lift btn bar above the aim controls row so they don't overlap.
+  const aimVisible = isAiming && !gs.waitingForMove && !hyperspaceQueued && !conditionLocked;
+  btnBar.style.bottom = (_viewRotated && aimVisible) ? '60px' : '14px';
+
   // Weapon button label: refresh each frame so stock counts stay current
   if (isAiming && gs.activeStation) {
     weaponSelector.updateBtn(weaponBtn, gs.activeStation);
