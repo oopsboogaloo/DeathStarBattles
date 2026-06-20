@@ -952,7 +952,15 @@ export class Renderer {
     const header = minimal
       ? `Team ${teamNum}   S${statNum}${roundSuffix}`
       : `T e a m  ${teamNum}        S t a t i o n  ${statNum}${roundSuffix}`;
-    ctx.fillText(header, this._vpW / 2, 10);
+    if (this._viewRotated) {
+      // In portrait-rotated mode draw the header upright at the portrait top-centre.
+      // Canvas (10, _vpH/2) maps to screen (W_s/2, 10) after the CW CSS rotation.
+      ctx.translate(10, this._vpH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(header, 0, 0);
+    } else {
+      ctx.fillText(header, this._vpW / 2, 10);
+    }
     ctx.restore();
 
     // ── Angle / Power corners (bottom) — or HYPERSPACING ──
@@ -963,23 +971,34 @@ export class Renderer {
     ctx.shadowColor  = 'rgba(0,0,0,0.9)';
     ctx.shadowBlur   = 5;
 
+    let condText = null, condStyle = null;
     if ((station.frozen ?? 0) > 0) {
       const labels = ['', 'F R O Z E N', 'D O U B L E   F R O Z E N', 'T R I P L E   F R O Z E N'];
-      const pulse  = 0.55 + 0.45 * Math.sin(Date.now() / 300);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
-      ctx.fillText(labels[station.frozen] ?? labels[1], this._vpW / 2, this._vpH - 60);
+      condText  = labels[station.frozen] ?? labels[1];
+      condStyle = `rgba(${cr},${cg},${cb},${0.55 + 0.45 * Math.sin(Date.now() / 300)})`;
     } else if ((station.electrified ?? 0) > 0) {
       const labels = ['', 'E L E C T R I F I E D', 'D O U B L E   E L E C T R I F I E D', 'T R I P L E   E L E C T R I F I E D'];
-      const pulse  = 0.55 + 0.45 * Math.sin(Date.now() / 150);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
-      ctx.fillText(labels[station.electrified] ?? labels[1], this._vpW / 2, this._vpH - 60);
+      condText  = labels[station.electrified] ?? labels[1];
+      condStyle = `rgba(${cr},${cg},${cb},${0.55 + 0.45 * Math.sin(Date.now() / 150)})`;
     } else if (station.hyperspaceQueued) {
-      const pulse  = 0.6 + 0.4 * Math.sin(Date.now() / 250);
+      condText  = 'H Y P E R S P A C I N G . . .';
+      condStyle = `rgba(${cr},${cg},${cb},${0.6 + 0.4 * Math.sin(Date.now() / 250)})`;
+    }
+    if (condText) {
       ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${pulse})`;
-      ctx.fillText('H Y P E R S P A C I N G . . .', this._vpW / 2, this._vpH - 60);
+      ctx.fillStyle = condStyle;
+      if (this._viewRotated) {
+        // Portrait-rotated: draw upright at portrait bottom-centre.
+        // Canvas (_vpW-60, _vpH/2) maps to screen (W_s/2, H_s-60) after CW CSS rotation.
+        ctx.save();
+        ctx.translate(this._vpW - 60, this._vpH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(condText, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.fillText(condText, this._vpW / 2, this._vpH - 60);
+      }
     }
     // Angle / Power values are now rendered by AimControls DOM buttons
     ctx.restore();
@@ -3371,7 +3390,15 @@ export class Renderer {
     ctx.fillStyle    = vfx.colour;
     ctx.shadowColor  = 'rgba(0,0,0,0.85)';
     ctx.shadowBlur   = 4;
-    ctx.fillText(vfx.text, cx, cy - rise);
+    if (this._viewRotated) {
+      // In portrait-rotated mode "up" on screen = decreasing canvas-x, so the text
+      // rises toward cx - rise. Rotate -90° so the label appears upright to the player.
+      ctx.translate(cx - rise, cy);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(vfx.text, 0, 0);
+    } else {
+      ctx.fillText(vfx.text, cx, cy - rise);
+    }
     ctx.restore();
   }
 
