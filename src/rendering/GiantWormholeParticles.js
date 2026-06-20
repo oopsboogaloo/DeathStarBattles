@@ -133,7 +133,7 @@ export class GiantWormholeParticles {
     }
   }
 
-  draw(ctx, conv, vpW, vpH) {
+  draw(ctx, conv, bounds) {
     const cfg    = this._cfg;
     const planet = this._planet;
     const cx     = planet.position.x * conv;
@@ -150,7 +150,8 @@ export class GiantWormholeParticles {
       const px = cx + Math.cos(this._angles[i]) * r * conv;
       const py = cy + Math.sin(this._angles[i]) * r * conv;
 
-      if (px < -cull || px > vpW + cull || py < -cull || py > vpH + cull) continue;
+      if (px < bounds.xMin - cull || px > bounds.xMax + cull ||
+          py < bounds.yMin - cull || py > bounds.yMax + cull) continue;
 
       // Fade in near the event horizon, full alpha beyond alphaFadeMult * ir
       const alpha = cfg.alphaMax * Math.min(1, r / (ir * cfg.alphaFadeMult));

@@ -779,36 +779,35 @@ export class Renderer {
     // Wormhole particle spirals (skipped in simplified mode)
     const now = Date.now() / 1000;
     if (!this._simplified) {
+      const b = this._liveLocalBounds();
       for (const [planet, particles] of this._wormholeParticles) {
         particles.update(now);
         particles.draw(ctx, this.conv, this._useCircles);
       }
       for (const [planet, particles] of this._giantWormholeParticles) {
         particles.update(now);
-        particles.draw(ctx, this.conv, this._vpW, this._vpH);
+        particles.draw(ctx, this.conv, b);
       }
       for (const [planet, particles] of this._whiteHoleParticles) {
         particles.update(now);
         particles.draw(ctx, this.conv, this._useCircles);
       }
-    }
 
-    // While the cached background is a soft scaled blit (mid-gesture / pre-settle)
-    // the baked star body goes blurry, leaving the live surface particles floating
-    // on near-black. Draw a crisp basic star disc underneath them so the star's
-    // shape still reads at any zoom. Skipped once the background re-bakes crisply.
-    if (this._bgIsStale()) this._drawStarDiscs(ctx);
+      // While the cached background is a soft scaled blit (mid-gesture / pre-settle)
+      // the baked star body goes blurry, leaving the live surface particles floating
+      // on near-black. Draw a crisp basic star disc underneath them so the star's
+      // shape still reads at any zoom. Skipped once the background re-bakes crisply.
+      if (this._bgIsStale()) this._drawStarDiscs(ctx);
 
-    // Star surface bubbling — full and experimental modes (not simplified).
-    // White foreshortened ovals boil across each star's visible surface
-    // (off-screen patches are skipped).
-    if (!this._simplified) {
-      const sb = this._liveLocalBounds();
+      // Star surface bubbling — white foreshortened ovals boil across each star's
+      // visible surface (off-screen patches are skipped).
       for (const [planet, particles] of this._starSurfaceParticles) {
         if (planet.destroyed) continue;
         particles.update(now);
-        particles.draw(ctx, this.conv, sb);
+        particles.draw(ctx, this.conv, b);
       }
+    } else {
+      if (this._bgIsStale()) this._drawStarDiscs(ctx);
     }
 
     // Pulsar expanding pressure rings
@@ -818,12 +817,11 @@ export class Renderer {
       }
     }
 
-    // Gas giants — single drawImage of the pre-built combined canvas. Drawn at
-    // (0,0): the ctx already carries the camera transform (which supplies the
-    // letterbox offset), so the gas-giant layer lines up with every other
-    // world-anchored layer at all zoom levels.
+    // Gas giants — single drawImage of the pre-built combined canvas. The canvas
+    // is width×height (full screen including bars); drawn at (-_ox,-_oy) in local
+    // space so its (0,0) pixel aligns with screen (0,0) under cam.matrix(_ox,_oy).
     const ggSource = this._gasGiantBitmap ?? this._gasGiantCanvas;
-    if (ggSource) ctx.drawImage(ggSource, 0, 0);
+    if (ggSource) ctx.drawImage(ggSource, -this._ox, -this._oy);
 
     // Comets — drawn live every frame (they move and are not in the static bg layer)
     for (const planet of gameState.planets) {
@@ -1120,9 +1118,11 @@ export class Renderer {
     if (!gasGiants.length) { this._gasGiantCanvas = null; this._gasGiantBitmap = null; return; }
 
     const c   = document.createElement('canvas');
-    c.width   = this._vpW;
-    c.height  = this._vpH;
+    c.width   = this.width;
+    c.height  = this.height;
     const ctx = c.getContext('2d');
+    // Shift so planet coords (world*conv) map onto the full canvas including bars.
+    ctx.translate(this._ox, this._oy);
 
     // Ring back halves — under atmosphere and body so the far side of each
     // ring reads as passing behind the planet (full and experimental modes)
