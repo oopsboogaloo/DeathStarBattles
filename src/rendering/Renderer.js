@@ -192,6 +192,12 @@ export class Renderer {
   get gameWidth()  { return 700; }
   get gameHeight() { return this._vpH / this.conv; }
 
+  // World-unit margin the bg/trails canvases cover beyond the world edge on each side:
+  // letterbox/pillarbox bars (_ox/_oy) plus the 120 px camera overscroll (BG_PAD). The
+  // star field is generated this much larger so the border is seamlessly filled.
+  get bgExtraW()   { return (this._ox + BG_PAD) / this.conv; }
+  get bgExtraH()   { return (this._oy + BG_PAD) / this.conv; }
+
   // ----------------------------------------------------------------
   // Layer 0 — Background (stars + planets, drawn once per game)
   // ----------------------------------------------------------------
@@ -270,7 +276,7 @@ export class Renderer {
     // Bake with (_ox+BG_PAD, _oy+BG_PAD) so the 120 px overscroll border is rendered.
     ctx.setTransform(...this.camera.matrixFor(this._bgCamera, this._ox + BG_PAD, this._oy + BG_PAD));
     if (this._tunnelBackground) this._drawWormholeTunnel(ctx);
-    else if (!this._noStarField) { this._drawBarFill(ctx); this._drawStarField(ctx); }
+    else if (!this._noStarField) this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
@@ -509,76 +515,6 @@ export class Renderer {
       ctx.arc(px, py, pr, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
-    }
-    ctx.globalCompositeOperation = 'source-over';
-  }
-
-  // Starfield for the border region outside the game world — covers letterbox/pillarbox
-  // bars and the 120 px overscroll zone at the world edge. Uses the same visual vocabulary
-  // as generateStarField (same palette, giants, alpha) at ~45% density so it reads as
-  // "deep space" rather than an abrupt cut-off. Called before _drawStarField so the main
-  // nebula draws on top inside the world.
-  _drawBarFill(ctx) {
-    const conv  = this.conv;
-    const gw    = this.gameWidth;
-    const gh    = this.gameHeight;
-    const extX  = (this._ox + BG_PAD) / conv;
-    const extY  = (this._oy + BG_PAD) / conv;
-
-    const mainDensity = this._stars.length / (gw * gh);
-    const regions = [
-      { x0: -extX, x1: 0,       y0: -extY, y1: gh+extY },
-      { x0: gw,    x1: gw+extX, y0: -extY, y1: gh+extY },
-      { x0: 0,     x1: gw,      y0: -extY, y1: 0        },
-      { x0: 0,     x1: gw,      y0: gh,    y1: gh+extY  },
-    ];
-
-    ctx.globalCompositeOperation = 'lighter';
-    for (const { x0, x1, y0, y1 } of regions) {
-      const count = Math.round((x1 - x0) * (y1 - y0) * mainDensity * 0.45);
-      for (let i = 0; i < count; i++) {
-        const gx = x0 + Math.random() * (x1 - x0);
-        const gy = y0 + Math.random() * (y1 - y0);
-        const px = gx * conv;
-        const py = gy * conv;
-
-        // Same palette as generateStarField
-        const palette = Math.random();
-        let r, g, b;
-        if      (palette < 0.45) { r = 10+Math.random()*40;  g = 10+Math.random()*30;  b = 150+Math.random()*105; }
-        else if (palette < 0.72) { r = 50+Math.random()*90;  g = 5+Math.random()*25;   b = 130+Math.random()*125; }
-        else if (palette < 0.88) { r = 90+Math.random()*90;  g = 5+Math.random()*25;   b = 15+Math.random()*45;   }
-        else                     { r = 170+Math.random()*60; g = 175+Math.random()*55; b = 210+Math.random()*45;  }
-
-        // Giants at ~12% — less than interior but still present for nebula feel
-        const isGiant = Math.random() < 0.12;
-        const gr = isGiant
-          ? (0.4 + Math.random() * 1.0) * 10
-          : Math.random() < 0.85 ? 0.4 + Math.random() * 1.0
-                                 : 1.4 + Math.random() * Math.random() * 2.0;
-        const alpha = isGiant
-          ? (0.18 + Math.random() * 0.32) / 1.5
-          : 0.18 + Math.random() * 0.32;
-        const pr = Math.max(0.5, gr * conv);
-
-        const grad = ctx.createRadialGradient(px, py, 0, px, py, pr);
-        if (isGiant) {
-          grad.addColorStop(0,    `rgba(${r},${g},${b},${alpha * 0.5})`);
-          grad.addColorStop(0.25, `rgba(${r},${g},${b},${alpha * 0.3})`);
-          grad.addColorStop(0.6,  `rgba(${r},${g},${b},${alpha * 0.1})`);
-          grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-        } else {
-          const cr = Math.min(255, r+60), cg = Math.min(255, g+60), cb = Math.min(255, b+60);
-          grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${alpha})`);
-          grad.addColorStop(0.55, `rgba(${r},${g},${b},${alpha})`);
-          grad.addColorStop(0.82, `rgba(${Math.floor(r*0.4)},${Math.floor(g*0.4)},${Math.floor(b*0.4)},${alpha*0.4})`);
-          grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-        }
-        ctx.beginPath();
-        ctx.arc(px, py, pr, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.fill();
-      }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -3866,7 +3802,12 @@ export class Renderer {
   // stars, composited with a light blur for a nebula feel.
   // ----------------------------------------------------------------
 
-  static generateStarField(gameWidth, gameHeight, count = 8000) {
+  // Generate the nebula star field. `extraW`/`extraH` (world units) extend the field
+  // beyond the [0,gw]×[0,gh] world on every side so the letterbox/pillarbox bars and the
+  // 120 px camera overscroll border are filled by the SAME continuous field — no seam
+  // at the world edge (spec/extended-background-spec.md §6). count is the interior budget;
+  // it is scaled up proportionally so interior density is unchanged.
+  static generateStarField(gameWidth, gameHeight, count = 8000, extraW = 0, extraH = 0) {
     // Build a layered value-noise density map — three octaves for large cloud shapes down to fine detail
     const makeNoise = (G) => {
       const grid = Array.from({ length: (G + 1) * (G + 1) }, () => Math.random());
@@ -3891,18 +3832,46 @@ export class Renderer {
     const rawDensity = (nx, ny) => noise1(nx, ny) * 0.50 + noise2(nx, ny) * 0.35 + noise3(nx, ny) * 0.15;
     const density    = (nx, ny) => Math.pow(rawDensity(nx, ny), 3);
 
+    const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+    // Extended sampling domain: world + border on each side.
+    const xMin = -extraW, xMax = gameWidth  + extraW;
+    const yMin = -extraH, yMax = gameHeight + extraH;
+    const totalW = xMax - xMin, totalH = yMax - yMin;
+    // Scale the star budget with the area so interior density stays constant (EB-4/EB-6).
+    const totalCount = Math.round(count * (totalW * totalH) / (gameWidth * gameHeight));
+
+    // Density fade from the world edge (1.0) outward into the border so it reads as deep
+    // space yet stays continuous with the interior nebula (the cloud at the edge bleeds out
+    // via clamped noise; this just thins it with distance). 1.0 at the boundary, no abrupt cut.
+    const borderFalloff = (wx, wy) => {
+      let fx = 0, fy = 0;
+      if (extraW > 0) {
+        if (wx < 0)              fx = -wx / extraW;
+        else if (wx > gameWidth) fx = (wx - gameWidth) / extraW;
+      }
+      if (extraH > 0) {
+        if (wy < 0)               fy = -wy / extraH;
+        else if (wy > gameHeight) fy = (wy - gameHeight) / extraH;
+      }
+      const out = Math.max(fx, fy);
+      return out <= 0 ? 1 : 1 - 0.5 * Math.min(1, out);
+    };
+
     const stars = [];
     const deadline = Date.now() + 5000;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < totalCount; i++) {
       if (i % 100 === 0 && Date.now() > deadline) break;
-      // Rejection sampling: accept candidate with probability = density at that point
+      // Rejection sampling over the extended domain. Noise is sampled with the normalised
+      // coord clamped to [0,1] so the edge cloud structure continues smoothly into the border.
       let gx, gy, placedDensity = 0.3; // fallback density for randomly-placed stars
       for (let attempt = 0; attempt < 20; attempt++) {
-        const cx = Math.random(), cy = Math.random();
-        const d = density(cx, cy);
-        if (Math.random() < d) { gx = cx * gameWidth; gy = cy * gameHeight; placedDensity = d; break; }
+        const wx = xMin + Math.random() * totalW;
+        const wy = yMin + Math.random() * totalH;
+        const d  = density(clamp01(wx / gameWidth), clamp01(wy / gameHeight)) * borderFalloff(wx, wy);
+        if (Math.random() < d) { gx = wx; gy = wy; placedDensity = d; break; }
       }
-      if (gx === undefined) { gx = Math.random() * gameWidth; gy = Math.random() * gameHeight; }
+      if (gx === undefined) { gx = xMin + Math.random() * totalW; gy = yMin + Math.random() * totalH; }
 
       // Small radii — mostly sub-pixel, occasional slightly larger
       // Giants are weighted by local density — sparse areas rarely get large fuzzy smears

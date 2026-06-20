@@ -667,7 +667,7 @@ async function startGame(cfg) {
   _loadBar.update(45, 'Placing stars...');
   await _yieldFrame();
 
-  const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined);
+  const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined, renderer.bgExtraW, renderer.bgExtraH);
 
   _loadBar.update(70, 'Rendering...');
   await _yieldFrame();
@@ -771,7 +771,7 @@ async function startStoryMission(mission) {
   _loadBar.update(45, 'Placing stars...');
   await _yieldFrame();
 
-  const stars = Renderer.generateStarField(gw, gh, panel.getData().performance === 'simplified' ? 1000 : undefined);
+  const stars = Renderer.generateStarField(gw, gh, panel.getData().performance === 'simplified' ? 1000 : undefined, renderer.bgExtraW, renderer.bgExtraH);
 
   _loadBar.update(70, 'Rendering...');
   await _yieldFrame();
@@ -902,7 +902,7 @@ async function startTPGame(cfg) {
   _loadBar.update(45, 'Placing stars...');
   await _yieldFrame();
 
-  const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined);
+  const stars = Renderer.generateStarField(gw, gh, cfg.performance === 'simplified' ? 1000 : undefined, renderer.bgExtraW, renderer.bgExtraH);
 
   _loadBar.update(70, 'Rendering...');
   await _yieldFrame();

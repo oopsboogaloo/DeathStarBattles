@@ -6,9 +6,14 @@
 > is pure black. Planets near the world edge have their corona/body clipped at the
 > viewport boundary. Bullet trails are similarly clipped.
 >
-> **Fix.** Grow both cached canvases to the full main canvas size (`width × height`),
-> bake with the letterbox offset baked in, and composite with an adjusted delta matrix.
-> The camera system is **not changed**. No new gameplay. Purely visual.
+> **Fix.** Grow both cached canvases to the full main canvas size **plus a `BG_PAD` (120 px)
+> border on every side** — `(width + 2·BG_PAD) × (height + 2·BG_PAD)` — bake with the
+> letterbox offset *and* the pad baked in, and composite with an adjusted delta matrix.
+> The pad matches the camera's `OVERSCROLL_PX` clamp, so the 120 px of overscroll the camera
+> allows past the world edge is always covered even on screens with no letterbox bars
+> (`_ox = _oy = 0`, e.g. a phone). The star field is generated across the same extended
+> domain so it is one continuous field — no seam at the world edge. The camera system is
+> **not changed**. No new gameplay. Purely visual.
 
 ---
 
@@ -87,24 +92,27 @@ Composite (drawFrame):
 
 ### 4.2 After this change
 
+`BG_PAD = 120` (must equal `Camera.OVERSCROLL_PX`).
+
 ```
-bgCanvas      → size width × height   (full main canvas)
-trailsCanvas  → size width × height
+bgCanvas      → size (width + 2·BG_PAD) × (height + 2·BG_PAD)
+trailsCanvas  → same
 
 Bake transform (background):
-  ctx.setTransform(...camera.matrixFor(snap, _ox, _oy))  ← _ox/_oy baked IN to canvas
+  ctx.setTransform(...camera.matrixFor(snap, _ox + BG_PAD, _oy + BG_PAD))  ← offset + pad baked IN
 
 Composite (drawFrame):
-  ctx.setTransform(...cam.fullDeltaMatrix(bgSnap))
-  ctx.drawImage(bgCanvas, 0, 0)                           ← stamps from canvas origin
+  ctx.setTransform(...cam.fullDeltaMatrix(bgSnap, BG_PAD))
+  ctx.drawImage(bgCanvas, 0, 0)                           ← settled view stamps at (−BG_PAD, −BG_PAD)
 ```
 
 Because the letterbox offset is now baked into the canvas content rather than applied at
 composite time, the composite uses a **different delta matrix** (§5).
 
-At the default settled view (`ratio = 1`, camera == bake snap), `fullDeltaMatrix` is the
-**identity** — `drawImage(bgCanvas, 0, 0)` with no transform, which is the cheapest possible
-blit.
+At the default settled view (`ratio = 1`, camera == bake snap), `fullDeltaMatrix(snap, BG_PAD)`
+is a pure translation by `(−BG_PAD, −BG_PAD)` — `drawImage(bgCanvas, 0, 0)` stamps the padded
+canvas so its inner `width × height` region lands exactly on the main canvas, the cheapest
+possible blit.
 
 ---
 
@@ -123,24 +131,27 @@ ty = _oy  +  _vpH/2 · (1 − ratio)  +  (snap.cy − cy) · conv · z
 ```
 At `ratio=1, snap=current`: `tx = _ox, ty = _oy` → stamps canvas at viewport offset ✓
 
-### 5.2 New `fullDeltaMatrix(snap)` — for `width × height` canvas
+### 5.2 New `fullDeltaMatrix(snap, overscrollPx)` — for the padded canvas
 
 Bake places world point `W` at canvas pixel `bx`:
 ```
-bx = W.x · conv · z_snap  +  _ox  +  _vpW/2 − cx_snap · conv · z_snap
+bx = W.x · conv · z_snap  +  (_ox + BG_PAD)  +  _vpW/2 − cx_snap · conv · z_snap
 ```
-(_ox/_oy baked in). Inverting and substituting into current camera formula gives composite:
+(_ox/_oy and the pad baked in). Inverting and substituting into the current camera formula,
+with `P = overscrollPx`, gives the composite:
 ```
-tx = _ox · (1 − ratio)  +  _vpW/2 · (1 − ratio)  +  (snap.cx − cx) · conv · z
-ty = _oy · (1 − ratio)  +  _vpH/2 · (1 − ratio)  +  (snap.cy − cy) · conv · z
+tx = _ox · (1 − ratio)  +  _vpW/2 · (1 − ratio)  +  (snap.cx − cx) · conv · z  −  P · ratio
+ty = _oy · (1 − ratio)  +  _vpH/2 · (1 − ratio)  +  (snap.cy − cy) · conv · z  −  P · ratio
 matrix = [ratio, 0, 0, ratio, tx, ty]
 ```
+The `−P·ratio` term cancels the `+BG_PAD` baked into `bx`, so an in-world point still lands at
+exactly `cam.matrix(_ox,_oy)` — proven in code. Call with `P = BG_PAD` for the bg/trails canvases.
 
-**Checks:**
-- `ratio=1, snap=current` → `tx=0, ty=0` → identity blit ✓
-- `ratio=1, snap≠current` (pan only) → `tx=(snap.cx−cx)·conv, ty=...` — correct pixel shift ✓
-- `ratio=2, snap=current` (zoom only, full-canvas) → `tx=−_ox−_vpW/2, ty=−_oy−_vpH/2` → scales canvas
-  around its centre `(_ox+_vpW/2, _oy+_vpH/2)` = the viewport centre ✓
+**Checks (with `P = BG_PAD`):**
+- `ratio=1, snap=current` → `tx=ty=−BG_PAD` → stamps padded canvas at `(−BG_PAD,−BG_PAD)`,
+  covering the full main canvas plus the overscroll fringe ✓
+- `ratio=1, snap≠current` (pan only) → `tx=(snap.cx−cx)·conv − BG_PAD` — correct pixel shift ✓
+- `ratio=2, snap=current` (zoom only) → scales the padded canvas around the viewport centre ✓
 
 `fullDeltaMatrix` is a new method on `Camera`; it needs `_vpW, _vpH, _ox, _oy, conv` from the
 renderer, which are already stored in `Camera._vpW` etc. after `configure()`.
@@ -158,33 +169,39 @@ drawn inside the viewport rectangle; the extended area is bars only.
 world units. To fill bars, stars need to span the extended world area that maps to the full
 canvas pixel space.
 
-The bar regions in world coordinates (at default camera, z = 1):
+The border region in world coordinates (at default camera, z = 1) spans the bars **and** the
+overscroll pad on each side:
 ```
-x ∈ [−_ox / conv,  gw + _ox / conv]
-y ∈ [−_oy / conv,  gh + _oy / conv]
+x ∈ [−(_ox + BG_PAD)/conv,  gw + (_ox + BG_PAD)/conv]
+y ∈ [−(_oy + BG_PAD)/conv,  gh + (_oy + BG_PAD)/conv]
 ```
+This domain maps *exactly* onto the padded `bgCanvas` (`[0, bgCanvas.width]`), so generating
+stars across it fills the canvas edge-to-edge with no gap.
 
-At call time the renderer knows `_ox, _oy, conv`. Pass `{xMin, xMax, yMin, yMax}` to
-`generateStarField`, or (simpler) pass `extraW = _ox / conv` and `extraH = _oy / conv` so
-the function can extend its sampling domain symmetrically. Star count scales proportionally
-with the area increase (typically < 5 % more stars; on portrait phone at most ~2× more).
+The renderer exposes `bgExtraW = (_ox + BG_PAD)/conv` and `bgExtraH = (_oy + BG_PAD)/conv`;
+`main.js` passes these to `generateStarField(gw, gh, count, extraW, extraH)`. The function
+samples over `[−extraW, gw+extraW] × [−extraH, gh+extraH]` and scales `count` by the area
+ratio so interior density is unchanged.
 
-The density-noise map is already generated from normalised `[0,1]` coordinates; for the
-extended region clamp to the nearest noise edge or extend with a constant low density (deep
-space feel in the bars — deliberately sparser than the centre).
+The density-noise map is normalised over `[0,1]`; for the extended region the normalised
+coordinate is **clamped to `[0,1]`** so the edge cloud structure continues smoothly outward
+(no seam at the boundary), then multiplied by a linear `borderFalloff` (1.0 at the world edge
+→ 0.5 at the outer pad) for a deep-space feel. Because this is one continuous field generated
+by one function, there is no density discontinuity at the world edge — this is the key
+difference from a separate bar-fill pass, which always shows a visible rectangular seam.
 
 ---
 
 ## 7. Trails Extension
 
-`trailsCanvas` grows to `width × height`. Three call sites change:
+`trailsCanvas` grows to `(width+2·BG_PAD) × (height+2·BG_PAD)`. Three call sites change:
 
 | Call | Today | After |
 |---|---|---|
-| `clearTrails()` | `clearRect(0,0,_vpW,_vpH)` | `clearRect(0,0,width,height)` |
-| `redrawTrails(bullets)` | bake at `matrixFor(defaultSnap, 0, 0)` | bake at `matrixFor(defaultSnap, _ox, _oy)` |
-| `appendTrailPoint(bullet)` | draw into viewport-origin context | draw into full-canvas context (unchanged draw code — the offset comes from the canvas size / transform, not the draw call) |
-| composite in `drawFrame` | `deltaMatrix(trailsSnap, _ox, _oy)` | `fullDeltaMatrix(trailsSnap)` |
+| `clearTrails()` | `clearRect(0,0,_vpW,_vpH)` | `clearRect(0,0,width+2·BG_PAD,height+2·BG_PAD)` |
+| `redrawTrails(bullets)` | bake at `matrixFor(defaultSnap, 0, 0)` | bake at `matrixFor(defaultSnap, _ox+BG_PAD, _oy+BG_PAD)` |
+| `appendTrailPoint(bullet)` | draw into viewport-origin context | bake at `matrixFor(trailsSnap, _ox+BG_PAD, _oy+BG_PAD)` (unchanged draw code — offset comes from the transform) |
+| composite in `drawFrame` | `deltaMatrix(trailsSnap, _ox, _oy)` | `fullDeltaMatrix(trailsSnap, BG_PAD)` |
 
 Note: trails are always baked at the **default camera** (`z = 1`, world-centred). This is
 unchanged (§camera-spec FR-25 note). `fullDeltaMatrix` handles the soft scale when the live
@@ -196,9 +213,10 @@ camera is zoomed in relative to the trails bake.
 
 | File | Change |
 |---|---|
-| `src/rendering/Camera.js` | Add `fullDeltaMatrix(snap)` — uses stored `_vpW, _vpH, _ox, _oy, _conv`. |
-| `src/rendering/Renderer.js` | Resize `bgCanvas`/`trailsCanvas` to `width × height` in `resize()`, `setGameAspect()`, and constructor. Change bake transforms to `matrixFor(snap, _ox, _oy)`. Change compositing to `fullDeltaMatrix`. Change `clearTrails` rect. Pass extended star domain to `generateStarField`. |
-| `src/rendering/Renderer.js` | `generateStarField`: accept optional `{xMin, xMax, yMin, yMax}` override; extend noise sampling and star count proportionally. |
+| `src/rendering/Camera.js` | Add `fullDeltaMatrix(snap, overscrollPx = 0)` — uses stored `_vpW, _vpH, _ox, _oy, _conv`; the `−overscrollPx·ratio` term offsets the padded canvas. |
+| `src/rendering/Renderer.js` | Add `const BG_PAD = 120` (== `Camera.OVERSCROLL_PX`). Resize `bgCanvas`/`trailsCanvas` to `(width+2·BG_PAD) × (height+2·BG_PAD)` in `resize()` and `setGameAspect()`. Change bake transforms to `matrixFor(snap, _ox+BG_PAD, _oy+BG_PAD)`. Composite with `fullDeltaMatrix(snap, BG_PAD)`. Widen `clearTrails`/`redrawBackground` clears. Add `bgExtraW`/`bgExtraH` getters; pass them to `generateStarField`. |
+| `src/rendering/Renderer.js` | `generateStarField(gw, gh, count, extraW, extraH)`: sample over `[−extraW, gw+extraW] × [−extraH, gh+extraH]`, clamp the density-noise coord to `[0,1]` at the edges, apply `borderFalloff`, and scale `count` by the area ratio. (Replaces the earlier separate `_drawBarFill` pass, which left a visible seam.) |
+| `src/main.js` | Pass `renderer.bgExtraW, renderer.bgExtraH` at the three `generateStarField` call sites (after `setGameAspect` has configured the viewport). |
 
 No changes to `Camera.js` state/clamping, `CameraControls.js`, `InputHandler.js`,
 `GameLoop.js`, `PhysicsEngine.js`, or any UI/entity files.
@@ -209,7 +227,7 @@ No changes to `Camera.js` state/clamping, `CameraControls.js`, `InputHandler.js`
 
 | Case | Handling |
 |---|---|
-| No bars (`_ox = _oy = 0`, e.g. 16:9 game on 16:9 screen) | Canvases stay `_vpW × _vpH` = `width × height`. Zero extra work. |
+| No bars (`_ox = _oy = 0`, e.g. 16:9 game on 16:9 screen) | Canvases are still padded to `(width+2·BG_PAD) × (height+2·BG_PAD)` so the 120 px camera overscroll past the world edge is covered (this was the original bug — sizing to `width × height` left that fringe black on phones). |
 | Portrait-rotated view | The canvas is CSS-rotated; `width` and `height` are swapped by `Renderer.resize()`. The extended canvas covers the correct pixel area. |
 | Resize mid-game | `resize()` already re-sizes canvases and re-bakes. Covered. |
 | Gas giants (drawn live, not baked) | Gas giants are rendered in `_drawLive` under `cam.matrix(_ox, _oy)`, which places them inside the viewport. Their glow is entirely live, not cached. If a gas giant is near the edge, its overflow won't appear in the bars. **Acceptable for now** — gas giants don't sit near world edges in any scenario. |
