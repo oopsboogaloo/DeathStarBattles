@@ -430,7 +430,9 @@ export class PlanetRenderer {
     // Smaller (non-supergiant) stars get a 50% taller tip reach — the effect is
     // too subtle at small on-screen sizes. Screen-filling supergiants already
     // read well, so they stay at 1×. Classified by on-screen size.
-    const tipScale = r >= 0.6 * Math.min(vpW, vpH) ? 1.0 : 1.5;
+    const visW = bounds.xMax - bounds.xMin;
+    const visH = bounds.yMax - bounds.yMin;
+    const tipScale = r >= 0.6 * Math.min(visW, visH) ? 1.0 : 1.5;
     const tip = k => r * (1 + (k - 1) * tipScale); // scale the tip's height above the surface
 
     //   rInner  valley range            tip range                   seed  fill
