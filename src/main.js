@@ -67,7 +67,7 @@ async function applyOrientationSetting(setting) {
 }
 
 // SVG icons for minimal UI buttons (monotone, currentColor)
-const _MOVE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="display:block;pointer-events:none"><line x1="3" y1="12" x2="17" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><polyline points="11,6 18,12 11,18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const _MOVE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="display:block;pointer-events:none"><line x1="12" y1="21" x2="12" y2="7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><polyline points="6,13 12,6 18,13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
 const _ENDTURN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="display:block;pointer-events:none"><polyline points="4,12 9,17 20,6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
 
 // ─── Canvas + renderer ────────────────────────────────────────────────────────
@@ -563,6 +563,7 @@ async function startGame(cfg) {
     weaponBtn.style.fontSize = '15px';
   }
   weaponBtn.style.padding = _minimalUI ? '9px 12px' : '9px 18px';
+  moveBtn.style.padding   = _minimalUI ? '9px 14px' : '9px 26px';
   applyOrientationSetting(cfg.screenOrientation ?? 'auto');
 
   // Reset Fast FWD button state
@@ -715,6 +716,7 @@ async function startStoryMission(mission) {
   endTurnBtn.textContent   = 'End Turn';
   endTurnBtn.style.padding = '9px 26px';
   weaponBtn.style.padding  = '9px 18px';
+  moveBtn.style.padding    = '9px 26px';
 
   fastFwdBtn.disabled      = false;
   fastFwdBtn.style.opacity = '1';
@@ -793,6 +795,7 @@ async function startTPGame(cfg) {
   aimControls.setMinimal(_minimalUI);
   endTurnBtn.textContent   = _minimalUI ? 'X' : 'End Turn';
   endTurnBtn.style.padding = _minimalUI ? '9px 14px' : '9px 26px';
+  moveBtn.style.padding    = _minimalUI ? '9px 14px' : '9px 26px';
 
   const gw  = renderer.gameWidth;
   const gh  = renderer.gameHeight;
