@@ -11,9 +11,9 @@ export function setPlanetRendererSimplified(v) { _simplified = v; }
 
 export class PlanetRenderer {
   // Pass 1: draw only corona/glow effects (so they sit behind solid planet bodies)
-  static drawCorona(ctx, planet, conv) {
+  static drawCorona(ctx, planet, conv, bounds) {
     if (planet.shading === ShadingStyle.GLOWING) {
-      PlanetRenderer._drawStarCorona(ctx, planet, conv);
+      PlanetRenderer._drawStarCorona(ctx, planet, conv, bounds);
     }
   }
 
@@ -178,7 +178,7 @@ export class PlanetRenderer {
   // ----------------------------------------------------------------
   // Star corona — multi-layer halo + bristles, composited with blur (pass 1)
   // ----------------------------------------------------------------
-  static _drawStarCorona(ctx, planet, conv) {
+  static _drawStarCorona(ctx, planet, conv, bounds) {
     const cx = planet.position.x * conv;
     const cy = planet.position.y * conv;
     const r  = Math.max(3, planet.radius * conv);
@@ -188,16 +188,20 @@ export class PlanetRenderer {
     const cg = Math.floor(pg * 0.38);
     const cb = Math.floor(pb * 0.15);
 
-    // Clip the corona bounding box to the bgCanvas viewport.  For off-screen
-    // supergiants the full corona bounding box can be many times the screen
-    // size; blurring a canvas that large is very expensive.
-    const vpW    = ctx.canvas.width;
-    const vpH    = ctx.canvas.height;
+    // Clip the corona bounding box to the visible local-space region (the padded
+    // bgCanvas, which includes the bar + overscroll border) so the corona bleeds past
+    // the world edge instead of being cut there. Falls back to the raw canvas extent.
+    // For off-screen supergiants the bounding box can be many times the screen size;
+    // blurring a canvas that large is very expensive, hence the clamp.
+    const xMin = bounds ? Math.floor(bounds.xMin) : 0;
+    const yMin = bounds ? Math.floor(bounds.yMin) : 0;
+    const xMax = bounds ? Math.ceil(bounds.xMax)  : ctx.canvas.width;
+    const yMax = bounds ? Math.ceil(bounds.yMax)  : ctx.canvas.height;
     const margin = 4;
-    const bx0 = Math.max(0,   Math.floor(cx - r * 3.2) - margin);
-    const by0 = Math.max(0,   Math.floor(cy - r * 3.2) - margin);
-    const bx1 = Math.min(vpW, Math.ceil(cx  + r * 3.2) + margin);
-    const by1 = Math.min(vpH, Math.ceil(cy  + r * 3.2) + margin);
+    const bx0 = Math.max(xMin, Math.floor(cx - r * 3.2) - margin);
+    const by0 = Math.max(yMin, Math.floor(cy - r * 3.2) - margin);
+    const bx1 = Math.min(xMax, Math.ceil(cx  + r * 3.2) + margin);
+    const by1 = Math.min(yMax, Math.ceil(cy  + r * 3.2) + margin);
     if (bx1 <= bx0 || by1 <= by0) return; // corona entirely off-screen
 
     const clipW = bx1 - bx0;
@@ -333,7 +337,7 @@ export class PlanetRenderer {
   // flicker) — so no per-star state is stored and it survives zoom changes. The
   // angular jitter is hashed (static) too, so teeth keep their identity.
   // ----------------------------------------------------------------
-  static drawStarFireRim(ctx, cx, cy, r, colour, vpW, vpH) {
+  static drawStarFireRim(ctx, cx, cy, r, colour, bounds) {
     const [pr, pg, pb] = colour;
     const TAU   = Math.PI * 2;
     const teeth = Math.max(108, Math.round(r * 0.84)); // ~3× the previous density
@@ -349,7 +353,7 @@ export class PlanetRenderer {
     for (let i = 0; i < teeth; i++) {
       const a = (i + 0.5) * step;
       const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-      const v = x >= -m && x <= vpW + m && y >= -m && y <= vpH + m;
+      const v = x >= bounds.xMin - m && x <= bounds.xMax + m && y >= bounds.yMin - m && y <= bounds.yMax + m;
       vis[i] = v ? 1 : 0;
       if (v) anyVis = true; else allVis = false;
     }

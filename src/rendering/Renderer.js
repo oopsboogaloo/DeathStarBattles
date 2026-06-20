@@ -198,6 +198,22 @@ export class Renderer {
   get bgExtraW()   { return (this._ox + BG_PAD) / this.conv; }
   get bgExtraH()   { return (this._oy + BG_PAD) / this.conv; }
 
+  // Inverse-transform a destination canvas rect [0,cw]×[0,ch] under affine matrix m
+  // back into the local (world*conv) draw space, giving the visible region. Used so
+  // coronas / star effects can extend into the bar+overscroll border rather than being
+  // hard-clipped at the viewport edge. m = [a,0,0,d,e,f]; a=d=scale (z).
+  _boundsForMatrix(m, cw, ch) {
+    return {
+      xMin: -m[4] / m[0],            yMin: -m[5] / m[3],
+      xMax: (cw - m[4]) / m[0],      yMax: (ch - m[5]) / m[3],
+    };
+  }
+
+  // Visible local bounds for live content drawn under cam.matrix(_ox,_oy) on the main canvas.
+  _liveLocalBounds() {
+    return this._boundsForMatrix(this.camera.matrix(this._ox, this._oy), this.width, this.height);
+  }
+
   // ----------------------------------------------------------------
   // Layer 0 — Background (stars + planets, drawn once per game)
   // ----------------------------------------------------------------
@@ -274,14 +290,18 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width + 2 * BG_PAD, this.height + 2 * BG_PAD);
     this._bgCamera = this.camera.snapshot();
     // Bake with (_ox+BG_PAD, _oy+BG_PAD) so the 120 px overscroll border is rendered.
-    ctx.setTransform(...this.camera.matrixFor(this._bgCamera, this._ox + BG_PAD, this._oy + BG_PAD));
+    const bgM = this.camera.matrixFor(this._bgCamera, this._ox + BG_PAD, this._oy + BG_PAD);
+    ctx.setTransform(...bgM);
+    // Local-space bounds covered by the (padded) bgCanvas, so coronas can bleed into the
+    // bar/overscroll border instead of being clipped at the world edge.
+    const coronaBounds = this._boundsForMatrix(bgM, this.bgCanvas.width, this.bgCanvas.height);
     if (this._tunnelBackground) this._drawWormholeTunnel(ctx);
     else if (!this._noStarField) this._drawStarField(ctx);
     // Pass 1: coronas/bristles behind everything
     // Skip asteroids (drawn live — rotating), gas giants (drawn live — transparent), and comets (dynamic)
     for (const planet of this._planets) {
       if (planet.vertices || planet.shading === ShadingStyle.GAS_GIANT || planet.type === PlanetType.COMET || planet.type === PlanetType.MOON) continue;
-      PlanetRenderer.drawCorona(ctx, planet, this.conv);
+      PlanetRenderer.drawCorona(ctx, planet, this.conv, coronaBounds);
     }
     // Pass 1b: atmosphere glow rings (drawn before solid body so planet covers interior)
     if (!this._simplified) for (const planet of this._planets) {
@@ -742,6 +762,7 @@ export class Renderer {
   // ctx is already translated by (_ox, _oy), matching the cached background, so
   // planet positions map straight through this.conv.
   _drawStarFireRims(ctx) {
+    const b = this._liveLocalBounds();
     for (const planet of this._planets) {
       if (planet.shading !== ShadingStyle.GLOWING || planet.type !== PlanetType.STAR) continue;
       const r = Math.max(3, planet.radius * this.conv);
@@ -749,8 +770,8 @@ export class Renderer {
       const cx = planet.position.x * this.conv;
       const cy = planet.position.y * this.conv;
       const reach = r * 1.12 + 4;
-      if (cx + reach < 0 || cx - reach > this._vpW || cy + reach < 0 || cy - reach > this._vpH) continue;
-      PlanetRenderer.drawStarFireRim(ctx, cx, cy, r, planet.colour, this._vpW, this._vpH);
+      if (cx + reach < b.xMin || cx - reach > b.xMax || cy + reach < b.yMin || cy - reach > b.yMax) continue;
+      PlanetRenderer.drawStarFireRim(ctx, cx, cy, r, planet.colour, b);
     }
   }
 
@@ -782,10 +803,11 @@ export class Renderer {
     // White foreshortened ovals boil across each star's visible surface
     // (off-screen patches are skipped).
     if (!this._simplified) {
+      const sb = this._liveLocalBounds();
       for (const [planet, particles] of this._starSurfaceParticles) {
         if (planet.destroyed) continue;
         particles.update(now);
-        particles.draw(ctx, this.conv, this._vpW, this._vpH);
+        particles.draw(ctx, this.conv, sb);
       }
     }
 

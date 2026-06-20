@@ -95,7 +95,7 @@ export class StarSurfaceParticles {
     }
   }
 
-  draw(ctx, conv, vpW, vpH) {
+  draw(ctx, conv, bounds) {
     const cfg    = this._cfg;
     const planet = this._planet;
     const cx     = planet.position.x * conv;
@@ -105,14 +105,15 @@ export class StarSurfaceParticles {
     // Full oval radius, capped in pixels so supergiants don't get huge ovals.
     const fullSize = Math.min(R * cfg.sizeMult, cfg.maxSize);
 
-    // Visible disc region = intersection of the disc's bounding box and the
-    // viewport (widened by the largest possible oval reach). Empty → fully
-    // off-screen, nothing to do.
+    // Visible disc region = intersection of the disc's bounding box and the visible
+    // local-space bounds (the viewport plus the bar/overscroll border, so surface
+    // bubbles boil right up to and past the world edge), widened by the largest
+    // possible oval reach. Empty → fully off-screen, nothing to do.
     const m   = fullSize * (1 + cfg.sizeJitter) * cfg.growTo + cfg.edgeMargin;
-    const bx0 = Math.max(-m,      cx - R);
-    const by0 = Math.max(-m,      cy - R);
-    const bx1 = Math.min(vpW + m, cx + R);
-    const by1 = Math.min(vpH + m, cy + R);
+    const bx0 = Math.max(bounds.xMin - m, cx - R);
+    const by0 = Math.max(bounds.yMin - m, cy - R);
+    const bx1 = Math.min(bounds.xMax + m, cx + R);
+    const by1 = Math.min(bounds.yMax + m, cy + R);
     if (bx1 <= bx0 || by1 <= by0) return;
     const boxW = bx1 - bx0, boxH = by1 - by0;
 
