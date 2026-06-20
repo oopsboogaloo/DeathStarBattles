@@ -513,19 +513,19 @@ export class Renderer {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  // Sparse starfield for the border region outside the game world — covers both the
-  // letterbox/pillarbox bars and the 120 px overscroll zone at the world edge.
-  // Called before _drawStarField so the main nebula sits on top inside the world.
+  // Starfield for the border region outside the game world — covers letterbox/pillarbox
+  // bars and the 120 px overscroll zone at the world edge. Uses the same visual vocabulary
+  // as generateStarField (same palette, giants, alpha) at ~45% density so it reads as
+  // "deep space" rather than an abrupt cut-off. Called before _drawStarField so the main
+  // nebula draws on top inside the world.
   _drawBarFill(ctx) {
     const conv  = this.conv;
     const gw    = this.gameWidth;
     const gh    = this.gameHeight;
-    // World-unit extension on each side = letterbox offset + overscroll padding.
     const extX  = (this._ox + BG_PAD) / conv;
     const extY  = (this._oy + BG_PAD) / conv;
 
     const mainDensity = this._stars.length / (gw * gh);
-    // Four strips around the world rectangle; corners included in left/right columns.
     const regions = [
       { x0: -extX, x1: 0,       y0: -extY, y1: gh+extY },
       { x0: gw,    x1: gw+extX, y0: -extY, y1: gh+extY },
@@ -535,26 +535,45 @@ export class Renderer {
 
     ctx.globalCompositeOperation = 'lighter';
     for (const { x0, x1, y0, y1 } of regions) {
-      const count = Math.round((x1 - x0) * (y1 - y0) * mainDensity * 0.4);
+      const count = Math.round((x1 - x0) * (y1 - y0) * mainDensity * 0.45);
       for (let i = 0; i < count; i++) {
         const gx = x0 + Math.random() * (x1 - x0);
         const gy = y0 + Math.random() * (y1 - y0);
         const px = gx * conv;
         const py = gy * conv;
-        const gr = Math.random() < 0.88 ? 0.3 + Math.random() * 0.9 : 0.8 + Math.random() * 1.5;
-        const a  = 0.10 + Math.random() * 0.22;
-        const t  = Math.random();
+
+        // Same palette as generateStarField
+        const palette = Math.random();
         let r, g, b;
-        if      (t < 0.45) { r = 10+Math.random()*40;  g = 10+Math.random()*30;  b = 150+Math.random()*105; }
-        else if (t < 0.72) { r = 50+Math.random()*90;  g = 5+Math.random()*25;   b = 130+Math.random()*125; }
-        else if (t < 0.88) { r = 90+Math.random()*90;  g = 5+Math.random()*25;   b = 15+Math.random()*45;   }
-        else               { r = 170+Math.random()*60; g = 175+Math.random()*55; b = 210+Math.random()*45;  }
-        const cr = Math.min(255, r+60), cg = Math.min(255, g+60), cb = Math.min(255, b+60);
+        if      (palette < 0.45) { r = 10+Math.random()*40;  g = 10+Math.random()*30;  b = 150+Math.random()*105; }
+        else if (palette < 0.72) { r = 50+Math.random()*90;  g = 5+Math.random()*25;   b = 130+Math.random()*125; }
+        else if (palette < 0.88) { r = 90+Math.random()*90;  g = 5+Math.random()*25;   b = 15+Math.random()*45;   }
+        else                     { r = 170+Math.random()*60; g = 175+Math.random()*55; b = 210+Math.random()*45;  }
+
+        // Giants at ~12% — less than interior but still present for nebula feel
+        const isGiant = Math.random() < 0.12;
+        const gr = isGiant
+          ? (0.4 + Math.random() * 1.0) * 10
+          : Math.random() < 0.85 ? 0.4 + Math.random() * 1.0
+                                 : 1.4 + Math.random() * Math.random() * 2.0;
+        const alpha = isGiant
+          ? (0.18 + Math.random() * 0.32) / 1.5
+          : 0.18 + Math.random() * 0.32;
         const pr = Math.max(0.5, gr * conv);
+
         const grad = ctx.createRadialGradient(px, py, 0, px, py, pr);
-        grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${a})`);
-        grad.addColorStop(0.55, `rgba(${r},${g},${b},${a})`);
-        grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+        if (isGiant) {
+          grad.addColorStop(0,    `rgba(${r},${g},${b},${alpha * 0.5})`);
+          grad.addColorStop(0.25, `rgba(${r},${g},${b},${alpha * 0.3})`);
+          grad.addColorStop(0.6,  `rgba(${r},${g},${b},${alpha * 0.1})`);
+          grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+        } else {
+          const cr = Math.min(255, r+60), cg = Math.min(255, g+60), cb = Math.min(255, b+60);
+          grad.addColorStop(0,    `rgba(${cr},${cg},${cb},${alpha})`);
+          grad.addColorStop(0.55, `rgba(${r},${g},${b},${alpha})`);
+          grad.addColorStop(0.82, `rgba(${Math.floor(r*0.4)},${Math.floor(g*0.4)},${Math.floor(b*0.4)},${alpha*0.4})`);
+          grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+        }
         ctx.beginPath();
         ctx.arc(px, py, pr, 0, Math.PI * 2);
         ctx.fillStyle = grad;
