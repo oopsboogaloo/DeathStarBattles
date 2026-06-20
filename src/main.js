@@ -550,7 +550,7 @@ async function startGame(cfg) {
   renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
   renderer.setBulletPathLength(cfg.bulletPaths ?? 'off');
 
-  _minimalUI = cfg.minimalUI ?? false;
+  _minimalUI = cfg.minimalUI === true || (cfg.minimalUI !== false && _isPhone());
   aimControls.setMinimal(_minimalUI);
   weaponSelector.setMinimal(_minimalUI);
   if (_minimalUI) {
@@ -791,7 +791,7 @@ async function startTPGame(cfg) {
   const AIM_SCALES = { smaller: 0.5, regular: 1, larger: 2, mammoth: 3 };
   renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
   renderer.setBulletPathLength(cfg.bulletPaths ?? 'off');
-  _minimalUI = cfg.minimalUI ?? false;
+  _minimalUI = cfg.minimalUI === true || (cfg.minimalUI !== false && _isPhone());
   aimControls.setMinimal(_minimalUI);
   endTurnBtn.textContent   = _minimalUI ? 'X' : 'End Turn';
   endTurnBtn.style.padding = _minimalUI ? '9px 14px' : '9px 26px';

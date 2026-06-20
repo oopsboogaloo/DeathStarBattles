@@ -90,7 +90,7 @@ export class ConfigPanel {
       overrideSeed:      '',
       aimCircleSize:     'regular',
       bulletPaths:       'off',
-      minimalUI:         false,
+      minimalUI:         'auto',
       tpTargets:         5,
       tpSize:            'MEDIUM',
       tpRounds:          5,
@@ -381,6 +381,24 @@ export class ConfigPanel {
     this._panel = panel;
     overlay.appendChild(panel);
 
+    // Swipe left/right to navigate pages
+    let _swipeX = null, _swipeY = null;
+    panel.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      _swipeX = e.touches[0].clientX;
+      _swipeY = e.touches[0].clientY;
+    }, { passive: true });
+    panel.addEventListener('touchend', e => {
+      if (_swipeX === null || !this._pagedMode) { _swipeX = null; return; }
+      const dx = e.changedTouches[0].clientX - _swipeX;
+      const dy = e.changedTouches[0].clientY - _swipeY;
+      _swipeX = null; _swipeY = null;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      if (dx < 0) this._nextBtn?.click();
+      else         this._prevBtn?.click();
+    }, { passive: true });
+    panel.addEventListener('touchcancel', () => { _swipeX = null; _swipeY = null; });
+
     // Container for Resume + Resign in phone landscape mode (top-right)
     this._topRightBar = el('div', {
       position:       'absolute',
@@ -536,7 +554,8 @@ export class ConfigPanel {
       this._cycle('bulletPaths', ['off', 'eighth', 'quarter', 'half', 'full'],
         v => ({ off: 'Off', eighth: 'Minor  (⅛ screen)', quarter: 'Major  (¼ screen)', half: 'Extreme  (½ screen)', full: 'Cheating  (1 screen)' }[v])));
     const rowMinimalUI   = this._row('MINIMAL UI',
-      this._cycle('minimalUI', [false, true], v => v ? 'On' : 'Off'));
+      this._cycle('minimalUI', ['auto', true, false],
+        v => v === 'auto' ? 'Auto' : v ? 'On' : 'Off'));
     const rowScreenOrient = this._row('SCREEN ORIENTATION',
       this._cycle('screenOrientation', ['auto', 'landscape', 'portrait'],
         v => ({ auto: 'Auto', landscape: 'Landscape', portrait: 'Portrait' }[v])));
