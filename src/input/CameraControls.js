@@ -49,8 +49,13 @@ export class CameraControls {
   _input() { return this._getInput?.(); }
 
   _xy(e) {
-    const r = this.canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const r  = this.canvas.getBoundingClientRect();
+    const rx = e.clientX - r.left;
+    const ry = e.clientY - r.top;
+    // When the canvas is CSS-rotated 90° CW to fill a portrait screen, screen
+    // coords (rx, ry) map to canvas pixels (ry, r.width - rx).
+    if (this.renderer._viewRotated) return { x: ry, y: r.width - rx };
+    return { x: rx, y: ry };
   }
 
   _bind() {

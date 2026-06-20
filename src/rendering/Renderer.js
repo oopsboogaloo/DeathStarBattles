@@ -44,6 +44,7 @@ export class Renderer {
     this._performance = 'full'; // 'full' | 'simplified'
     this._isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    this._viewRotated = false; // true when CSS rotates the canvas 90° CW to fit a portrait screen
 
     // Letterbox / pillarbox viewport — updated by resize() and setGameAspect()
     this._gameAspect = null; // null = no lock yet, fill window
@@ -164,13 +165,17 @@ export class Renderer {
   }
 
   resize(w, h) {
-    this.width  = w;
-    this.height = h;
-    this.mainCanvas.width  = w;
-    this.mainCanvas.height = h;
-    this._calcViewport(w, h);
-    this.bgCanvas.width     = this._vpW;
-    this.bgCanvas.height    = this._vpH;
+    // When the CSS rotates the canvas 90° CW to fit a portrait screen, the canvas
+    // pixel dimensions are swapped so the game renders in its natural landscape space.
+    const cw = this._viewRotated ? h : w;
+    const ch = this._viewRotated ? w : h;
+    this.width  = cw;
+    this.height = ch;
+    this.mainCanvas.width  = cw;
+    this.mainCanvas.height = ch;
+    this._calcViewport(cw, ch);
+    this.bgCanvas.width      = this._vpW;
+    this.bgCanvas.height     = this._vpH;
     this.trailsCanvas.width  = this._vpW;
     this.trailsCanvas.height = this._vpH;
     this._configureCamera();             // re-clamps centre after the resize (EC-2)

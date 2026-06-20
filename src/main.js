@@ -392,8 +392,29 @@ document.addEventListener('fullscreenchange', () => {
 
 // ─── Button visibility sync ───────────────────────────────────────────────────
 
-let _prevMode  = null;
-let _minimalUI = false;
+let _prevMode    = null;
+let _minimalUI   = false;
+let _viewRotated = false; // true when canvas is CSS-rotated 90° to fill portrait screen
+let _wantRotated = false; // desired rotation state (may lag _viewRotated during firing)
+
+function _updateRotationCSS() {
+  if (_viewRotated) {
+    const pivot = Math.round(window.innerWidth / 2);
+    canvas.style.transformOrigin = `${pivot}px ${pivot}px`;
+    canvas.style.transform       = 'rotate(90deg)';
+  } else {
+    canvas.style.transform       = '';
+    canvas.style.transformOrigin = '';
+  }
+}
+
+function _applyViewRotation(rotated) {
+  _viewRotated          = rotated;
+  renderer._viewRotated = rotated;
+  _updateRotationCSS();
+  renderer.resize(window.innerWidth, window.innerHeight);
+  if (loop?.gs?.activeBullets?.length > 0) renderer.redrawTrails(loop.gs.activeBullets);
+}
 
 function updateButtons(gs) {
   if (panel.isVisible) {
@@ -477,6 +498,18 @@ function updateButtons(gs) {
     _onGameOver(gs);
   }
   _prevMode = gs.mode;
+
+  // Hide the fullscreen button while a shot is in flight (avoids AR change mid-shot)
+  if (_isPhone() && document.fullscreenEnabled) {
+    const isFiring = gs.mode === GameMode.FIRING || gs.mode === GameMode.TP_FIRING;
+    fullscreenBtn.style.display = isFiring ? 'none' : 'block';
+  }
+
+  // Apply any rotation change that was deferred because a shot was in flight
+  if (_wantRotated !== _viewRotated) {
+    const isFiring = gs.mode === GameMode.FIRING || gs.mode === GameMode.TP_FIRING;
+    if (!isFiring) _applyViewRotation(_wantRotated);
+  }
 }
 
 // ─── Game-over handler ────────────────────────────────────────────────────────
@@ -1186,13 +1219,29 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('resize', () => {
-  renderer.resize(window.innerWidth, window.innerHeight);
-  // Re-draw any in-flight bullet trails (canvas was cleared by resize)
-  if (loop && loop.gs.activeBullets.length > 0) {
-    renderer.redrawTrails(loop.gs.activeBullets);
+  // AR threshold: <0.75 → want portrait rotation, >1.33 → want no rotation.
+  // The hysteresis band (0.75–1.33) keeps the current state to avoid flicker.
+  const ar = window.innerWidth / window.innerHeight;
+  if (ar < 0.75) _wantRotated = true;
+  else if (ar > 1.33) _wantRotated = false;
+
+  const isFiring = loop?.gs && (
+    loop.gs.mode === GameMode.FIRING || loop.gs.mode === GameMode.TP_FIRING
+  );
+  if (_wantRotated !== _viewRotated && !isFiring) {
+    _applyViewRotation(_wantRotated); // swaps canvas dims + updates CSS + resizes renderer
+  } else {
+    if (_viewRotated) _updateRotationCSS(); // refresh pivot when window size changes while rotated
+    renderer.resize(window.innerWidth, window.innerHeight);
+    if (loop?.gs?.activeBullets?.length > 0) renderer.redrawTrails(loop.gs.activeBullets);
   }
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
+
+// Apply initial view rotation if the page loads in portrait mode on a phone.
+{ const ar = window.innerWidth / window.innerHeight;
+  if (ar < 0.75) { _wantRotated = true; _applyViewRotation(true); }
+}
 
 startDemo();
