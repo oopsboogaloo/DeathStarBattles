@@ -82,6 +82,17 @@ export class Camera {
             oy + this._vpH / 2 - (this._vpH / 2) * ratio + (snap.cy - this.cy) * s];
   }
 
+  // Like deltaMatrix but for full-canvas cached bitmaps (width×height) that have the
+  // letterbox offset _ox/_oy baked into their content. At settled camera this degenerates
+  // to the identity transform — the cheapest possible blit. See spec/extended-background-spec.md §5.2.
+  fullDeltaMatrix(snap) {
+    const ratio = this.z / snap.z;
+    const s     = this._conv * this.z;
+    return [ratio, 0, 0, ratio,
+            this._ox * (1 - ratio) + this._vpW / 2 * (1 - ratio) + (snap.cx - this.cx) * s,
+            this._oy * (1 - ratio) + this._vpH / 2 * (1 - ratio) + (snap.cy - this.cy) * s];
+  }
+
   // canvas px → world*conv (viewport-z1) px, in which stations sit at world*conv.
   screenToLocal(px, py) {
     const m = this.matrix(this._ox, this._oy);
