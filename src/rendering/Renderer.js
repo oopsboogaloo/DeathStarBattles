@@ -1549,6 +1549,11 @@ export class Renderer {
       : 1;
     ctx.save();
     ctx.globalAlpha = alpha;
+    if (this._viewRotated) {
+      ctx.translate(cx, cy);
+      ctx.rotate(-Math.PI / 2);
+      ctx.translate(-cx, -cy);
+    }
 
     // Sphere body with radial lighting (lit upper-left)
     const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
@@ -1610,6 +1615,11 @@ export class Renderer {
       : 1;
     ctx.save();
     ctx.globalAlpha = alpha;
+    if (this._viewRotated) {
+      ctx.translate(cx, cy);
+      ctx.rotate(-Math.PI / 2);
+      ctx.translate(-cx, -cy);
+    }
 
     // Hexagonal body (flat-top orientation)
     ctx.beginPath();
