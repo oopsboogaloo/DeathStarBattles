@@ -7,6 +7,8 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Bugs
 
+- [ ] **Seed 0RTXQ35K: overlapping stars** — Stars overlap each other, which shouldn't be possible. Investigate planet/star placement collision avoidance in the seeded layout generator.
+
 - [x] Collectable special weapons: if a team has only 1 of a special weapon and a station uses it, it remains selectable by the next station — should be greyed out / disabled once the team's supply hits 0.
 
 - [ ] **Collectable grant label disappears abruptly (UNRESOLVED — 2026-06-14)** — The floating weapon-name text spawned when a collectable is claimed/collected (`collectableGrant` VFX, `Renderer._drawCollectableGrant`) appears to vanish abruptly rather than fading out, observed when shooting a collectable mid-game. Several attempts have not fixed it for the reporter:
