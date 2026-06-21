@@ -2765,10 +2765,16 @@ export class Renderer {
       const distPx = Math.max(0, L - bx, bx - R, T - by, by - B);
       const dist   = Math.round(distPx / (conv * z));
 
-      // Draw number at inset position — keep text right-side-up on left half
-      const textAngle = (Math.abs(angle) > Math.PI / 2)
-        ? angle - Math.PI
-        : angle;
+      // Draw number at inset position — keep text right-side-up on the screen's
+      // left half. In portrait-rotated mode the canvas is CSS-rotated 90° CW, so
+      // the readability decision must be made in screen space (angle + π/2) and
+      // then mapped back into canvas space (− π/2) for the actual rotation.
+      const viewRot     = this._viewRotated ? Math.PI / 2 : 0;
+      const screenAngle = Math.atan2(Math.sin(angle + viewRot), Math.cos(angle + viewRot));
+      const screenText  = (Math.abs(screenAngle) > Math.PI / 2)
+        ? screenAngle - Math.PI
+        : screenAngle;
+      const textAngle   = screenText - viewRot;
       ctx.save();
       ctx.translate(nx, ny);
       ctx.rotate(textAngle);

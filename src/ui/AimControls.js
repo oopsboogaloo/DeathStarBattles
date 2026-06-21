@@ -63,13 +63,13 @@ export class AimControls {
     this._angleGroup.style.visibility = noAim ? 'hidden' : 'visible';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
-      this._angleVal.textContent = `∠${station.angle.toFixed(0)}°`;
+      this._angleVal.textContent = `∠${station.angle.toFixed(1)}°`;
       if (isFragShot) {
         const val = (1 + (station.power - 1) / 799 * 4).toFixed(1);
         this._powerVal.textContent = `⏱${val}`;
       } else if (isShotgun) {
         const label = w === 'dualBlaster' ? 'G2' : '∠2';
-        this._powerVal.textContent = `${label} ${(station.angle2 ?? station.angle).toFixed(0)}°`;
+        this._powerVal.textContent = `${label} ${(station.angle2 ?? station.angle).toFixed(1)}°`;
       } else if (isBlaster) {
         this._powerVal.textContent = `±${station.power}°`;
       } else if (isElectroStun) {

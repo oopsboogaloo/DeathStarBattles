@@ -793,13 +793,9 @@ async function startStoryMission(mission) {
   renderer.setAimCircleScale(1);
   renderer.setBulletPathLength(panel.getData().bulletPaths ?? 'off');
 
-  _minimalUISetting = false; // story mode always uses the full controls
-  _minimalUI = false;
-  aimControls.setMinimal(false);
-  endTurnBtn.textContent   = 'End Turn';
-  endTurnBtn.style.padding = '9px 26px';
-  weaponBtn.style.padding  = '9px 18px';
-  moveBtn.style.padding    = '9px 26px';
+  _minimalUISetting = panel.getData().minimalUI;
+  _autoFitChecked   = false;
+  applyMinimalUI(_resolveMinimalUI());
 
   fastFwdBtn.disabled      = false;
   fastFwdBtn.style.opacity = '1';
