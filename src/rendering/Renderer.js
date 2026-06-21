@@ -30,6 +30,30 @@ const ANOMALY_INWARD_CFG = {
   arms: 0, armSpread: 0, armRotSpeed: 0,
 };
 
+// Crack overlays applied to damaged bodies (loaded once, recoloured black).
+const CRACK_SVG_PATHS = ['Images/cracks1.svg', 'Images/cracks2.svg', 'Images/cracks3.svg'];
+
+// Shared cache of raw SVG overlay text, keyed by path. The fetch *promise* is
+// cached so every concurrent caller — and the boot-time preload — shares a single
+// network round-trip per file. Per-planet colour injection + decode still happen
+// per use (colour is randomised per body, so decoded images can't be shared), but
+// the slow part (the fetch) happens once. A failed fetch is evicted so a later use
+// can retry. This replaces the old serial fetch-per-overlay chain that made
+// overlays pop in late / all at once. Module-scoped so it persists across the
+// per-game Renderer instances and the cache survives a new scenario load.
+const _svgTextCache = new Map(); // path → Promise<string|null>
+
+function fetchSvgText(path) {
+  let p = _svgTextCache.get(path);
+  if (!p) {
+    p = fetch(path)
+      .then(r => r.text())
+      .catch(e => { console.warn(`SVG fetch failed: ${path}`, e); _svgTextCache.delete(path); return null; });
+    _svgTextCache.set(path, p);
+  }
+  return p;
+}
+
 export class Renderer {
   constructor(mainCanvas) {
     this.mainCanvas = mainCanvas;
@@ -70,6 +94,8 @@ export class Renderer {
     this._spriteColorCache    = new Map(); // "r,g,b" → {primary, secondary} CSS colours
     this._spriteSheetCache    = new SpriteSheetCache(); // per-team pre-rendered animation frames
     this._loadSmokeSprite();
+    this._overlayBakeScheduled = false; // coalesces incremental overlay re-bakes onto one rAF
+    Renderer.preloadSvgText();          // warm the SVG text cache off the critical path
 
     this._debugOn   = false;
     this._debugEl   = null;
@@ -1325,13 +1351,37 @@ export class Renderer {
     return c;
   }
 
+  // Warm the shared SVG text cache for every overlay + crack file in parallel,
+  // off the critical path. A scenario that loads later then only pays local
+  // colour-injection + decode instead of a serial network chain — the root cause
+  // of overlays appearing seconds late. Safe to call repeatedly (cache dedups).
+  static preloadSvgText() {
+    const paths = new Set(CRACK_SVG_PATHS);
+    for (const layerDefs of Object.values(PLANET_OVERLAYS)) {
+      for (const def of layerDefs) for (const s of def.svgs) paths.add(s);
+    }
+    for (const p of paths) fetchSvgText(p); // fire-and-forget; populates _svgTextCache
+  }
+
+  // Coalesce overlay re-bakes onto a single animation frame: as planets finish
+  // loading concurrently they each request a bake, but only one runs per frame, so
+  // a burst of completions costs one re-render rather than one per planet.
+  _scheduleOverlayBake() {
+    if (this._overlayBakeScheduled) return;
+    this._overlayBakeScheduled = true;
+    requestAnimationFrame(() => {
+      this._overlayBakeScheduled = false;
+      if (this._stars.length) this._renderBackground();
+    });
+  }
+
   async _loadCrackSvgs() {
-    const paths  = ['Images/cracks1.svg', 'Images/cracks2.svg', 'Images/cracks3.svg'];
     const colour = 'rgb(0,0,0)';
-    for (const path of paths) {
+    await Promise.all(CRACK_SVG_PATHS.map(async (path) => {
       try {
-        const resp = await fetch(path);
-        let   text = await resp.text();
+        const raw = await fetchSvgText(path);
+        if (!raw) return;
+        let text = raw;
         text = text.replace(/fill\s*:\s*(?!none|transparent|url)[^;}"]+/gi, `fill:${colour}`);
         text = text.replace(/fill="(?!none|transparent|url)[^"]+"/gi,       `fill="${colour}"`);
         text = text.replace(/stroke\s*:\s*(?!none)[^;}"]+/gi, `stroke:${colour}`);
@@ -1343,17 +1393,22 @@ export class Renderer {
       } catch (e) {
         console.warn(`Failed to load ${path}`, e);
       }
-    }
+    }));
   }
 
   async _loadPlanetOverlays(planets) {
     const rand = (min, max) => min + Math.random() * (max - min);
 
-    for (const planet of planets) {
+    // Build one planet's overlay set, then bake it in (coalesced). Planets are
+    // processed concurrently and pull their SVG text from the shared cache, so the
+    // old serial fetch-then-decode chain collapses to a parallel batch; the
+    // incremental bake makes overlays fade in as they land rather than all popping
+    // at the end of the chain.
+    const buildPlanet = async (planet) => {
       // overlayKey lets a scenario borrow another body's overlay set
       // (e.g. Sol's Earth continents, or Mercury's moon-style craters)
       const layerDefs = PLANET_OVERLAYS[planet.overlayKey ?? planet.type];
-      if (!layerDefs?.length) continue;
+      if (!layerDefs?.length) return;
 
       const entries = [];
       for (const def of layerDefs) {
@@ -1385,8 +1440,9 @@ export class Renderer {
           else if (typeof def.rotation === 'number') rotation = def.rotation * Math.PI / 180;
 
           try {
-            const resp = await fetch(svgPath);
-            let text = await resp.text();
+            const raw = await fetchSvgText(svgPath); // cached + parallel (see fetchSvgText)
+            if (!raw) continue;
+            let text = raw;
             // Inject colour into SVG root so paths with no explicit fill/stroke inherit it
             const strokeRoot = def.strokeVisible ? `stroke="${colour}"` : 'stroke="none"';
             text = text.replace(/(<svg\b)([^>]*)>/i, `$1$2 fill="${colour}" ${strokeRoot}>`);
@@ -1408,10 +1464,16 @@ export class Renderer {
           }
         }
       }
-      if (entries.length) this._svgOverlayCache.set(planet, entries);
-    }
-    // Re-render background so static-body overlays (rocky planets etc.) appear immediately
-    this._renderBackground();
+      // Stash this planet's overlays and bake them in (coalesced). Static bodies
+      // (rocky planets etc.) need the re-bake to appear; gas giants / moons are
+      // drawn live and pick the entries up on the next frame regardless.
+      if (entries.length) {
+        this._svgOverlayCache.set(planet, entries);
+        this._scheduleOverlayBake();
+      }
+    };
+
+    await Promise.all(planets.map(buildPlanet));
   }
 
   _drawSVGOverlay(ctx, planet, entry) {
