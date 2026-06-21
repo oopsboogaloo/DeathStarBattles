@@ -621,6 +621,17 @@ export class Renderer {
     cam.tick(now);                 // advance any reset tween (FR-18/FR-22)
     this._settleCheck(now);
 
+    // Clear the whole canvas first. The bg blit below is opaque and covers the
+    // canvas at a settled camera (and when zooming in), but mid-gesture the
+    // cached layer is composited via fullDeltaMatrix: when zooming out it scales
+    // *down* (ratio < 1) and when panning fast it shifts past the BG_PAD border,
+    // so it no longer reaches the edges. Without this clear those uncovered
+    // margins keep the previous frame's pixels, accumulating into a fractured
+    // ghost trail until the camera settles and the bg re-bakes to full coverage.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, this.width, this.height);
+
     // bgCanvas covers main canvas + BG_PAD border on each side. At settled camera
     // fullDeltaMatrix stamps it at (-BG_PAD, -BG_PAD), filling the entire canvas.
     ctx.setTransform(...cam.fullDeltaMatrix(this._bgCamera, BG_PAD));
