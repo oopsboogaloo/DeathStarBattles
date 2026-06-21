@@ -252,7 +252,7 @@ export class ConfigPanel {
     if (this._copyrightEl) this._copyrightEl.style.display = phone ? 'none' : '';
 
     // Add right padding to title so it doesn't overlap the top-right buttons
-    if (this._title) this._title.style.paddingRight = phone ? '110px' : '0';
+    if (this._title) this._title.style.paddingRight = phone ? '210px' : '0';
 
     // Make panel wider to use horizontal space.
     // Apply 95vw on any phone (portrait or landscape) to stop the right ► arrow
@@ -262,9 +262,9 @@ export class ConfigPanel {
     if (this._panel) this._panel.style.width = isAnyPhone ? '95vw' : '';
 
     if (phone) {
-      // Move Resume + Resign individually into the top-right bar (row stays in panel but hidden)
-      this._topRightBar.appendChild(this._resumeBtn);
+      // Move Resume + Resign individually into the top-right bar (RESIGN left, RESUME right)
       this._topRightBar.appendChild(this._resignBtn);
+      this._topRightBar.appendChild(this._resumeBtn);
       this._resumeBtn.style.margin = '0';
       this._resignBtn.style.margin = '0';
       this._resumeResignRow.style.display = 'none';
@@ -410,9 +410,9 @@ export class ConfigPanel {
       top:            '14px',
       right:          '16px',
       display:        'none',
-      flexDirection:  'column',
-      gap:            '6px',
-      alignItems:     'flex-end',
+      flexDirection:  'row',
+      gap:            '10px',
+      alignItems:     'center',
     });
     panel.appendChild(this._topRightBar);
 
