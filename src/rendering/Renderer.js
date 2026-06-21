@@ -721,6 +721,36 @@ export class Renderer {
     }
   }
 
+  // Crisp planet bodies for the zoom/pan gesture. While the cached background is
+  // a soft scaled blit (mid-gesture / pre-settle) its baked planet bodies go
+  // blurry; redraw the static (non-live) bodies sharply under the live camera
+  // transform so their shape and surface read at any magnification. The cheap
+  // nebula starfield is left on the soft blit — its tiny fuzzy dots scale
+  // invisibly, so re-baking it (the expensive part) is unnecessary.
+  //
+  // Mirrors passes 2–3 of _renderBackground (solid body, then SVG overlay / polar
+  // cap / shading). Coronas and atmosphere glows are skipped — they are soft
+  // halos that scale acceptably and are costly to rebuild. Stars are covered by
+  // _drawStarDiscs; asteroids, gas giants, comets and moons are already drawn
+  // live every frame. Called only when _bgIsStale(), so it is a no-op at the
+  // settled view and never affects the pixel-identical default frame (FR-1).
+  _drawCrispPlanetBodies(ctx) {
+    for (const planet of this._planets) {
+      if (planet.destroyed) continue;
+      if (planet.vertices) continue;                            // asteroids — live
+      if (planet.shading === ShadingStyle.GAS_GIANT) continue;  // gas giants — live
+      if (planet.type === PlanetType.COMET) continue;           // comets — live
+      if (planet.type === PlanetType.MOON) continue;            // moons — live
+      if (planet.shading === ShadingStyle.GLOWING && planet.type === PlanetType.STAR) continue; // stars — discs
+      PlanetRenderer.draw(ctx, planet, this.conv);
+      if (this._simplified) continue;
+      const overlays = this._svgOverlayCache.get(planet);
+      if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      if (planet.polarCap) this._drawPolarCap(ctx, planet);
+      if (overlays) this._drawShadingOverlay(ctx, planet);
+    }
+  }
+
   _updateDebugOverlay(gs) {
     const now = performance.now();
     if (this._fpsPrev !== null) {
@@ -783,6 +813,14 @@ export class Renderer {
   }
 
   _drawLive(ctx, gameState) {
+    // Mid-gesture the cached background is a soft scaled blit. Redraw the static
+    // planet bodies crisply (the cheap starfield stays soft) so they stay sharp
+    // at any zoom. Drawn before the particle systems below so wormhole / white-
+    // hole spirals and star surface bubbles composite on top, matching the baked
+    // layer order. No-op at the settled view (FR-1).
+    const bgStale = this._bgIsStale();
+    if (bgStale) this._drawCrispPlanetBodies(ctx);
+
     // Wormhole particle spirals (skipped in simplified mode)
     const now = Date.now() / 1000;
     if (!this._simplified) {
@@ -804,7 +842,7 @@ export class Renderer {
       // the baked star body goes blurry, leaving the live surface particles floating
       // on near-black. Draw a crisp basic star disc underneath them so the star's
       // shape still reads at any zoom. Skipped once the background re-bakes crisply.
-      if (this._bgIsStale()) this._drawStarDiscs(ctx);
+      if (bgStale) this._drawStarDiscs(ctx);
 
       // Star surface bubbling — white foreshortened ovals boil across each star's
       // visible surface (off-screen patches are skipped).
@@ -814,7 +852,7 @@ export class Renderer {
         particles.draw(ctx, this.conv, b);
       }
     } else {
-      if (this._bgIsStale()) this._drawStarDiscs(ctx);
+      if (bgStale) this._drawStarDiscs(ctx);
     }
 
     // Pulsar expanding pressure rings
