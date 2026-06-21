@@ -1500,6 +1500,8 @@ The live layer draw order within each frame:
 
 Gas giants are the only planet type deliberately excluded from `bgCanvas`. Every other static body is baked there once. The reason is draw order: gas giants must composite over bullets and trails, so they cannot sit in the background layer.
 
+**Per-frame clear + camera compositing.** `drawFrame` clears `mainCanvas` to black (`fillRect`) before step 1. At the default view the `drawImage(bgCanvas)` blit is opaque and covers the canvas, so the clear is a no-op there — but under the zoom/pan camera the cached layers are composited through a delta transform and the blit no longer covers the canvas (zoom-out scales it down, fast pan shifts it past its border), so the clear is what stops prior-frame pixels smearing into a ghost trail. While a gesture is in flight the static planet bodies, star discs and coronal glow are *also* redrawn crisply on the live layer (the starfield and fine star bristles are left soft for cost). All of this is gated on the camera being off-default and is a no-op at the settled/default view. See **camera-design §11.1** and **camera-spec FR-25/FR-26** for the full mid-gesture compositing model.
+
 ---
 
 ### 15.2 Performance Modes
@@ -1745,6 +1747,35 @@ The direct `drawSprite` path remains the renderer used to *build* sheet frames a
 The fix was the strategy above: draw directly, annulus-only, on-screen-arc-only, no offscreen, no filter. Result: per-star cost ≈ the visible rim pixels, two stars ≈ 2× one star with no cliff, 60fps across all star scenarios. Softening (the lost blur) can be reintroduced cheaply later without a per-frame filter (e.g. a thin mid-tone edge stroke), if desired.
 
 **Animation model.** The rim animates by oscillating each vertex radius within its `[lo, hi]` envelope as a pure function of wall-clock time: a stable per-vertex phase/frequency from `hash(index)`, summed over two octaves (slow swell + faster flicker), with the three bands at different phases. No per-star state is stored, it survives zoom changes, and it is replay-safe (a pure function of time, like the sprite system §9). Smaller (non-screen-filling) stars get a 1.5× tip-reach boost so the effect reads at small sizes; supergiants stay at 1×. **Critical**: this must be drawn on the **live** layer — an earlier attempt that left it in the once-built `bgCanvas` looked completely static because the background is only rebuilt on pan/zoom.
+
+---
+
+### 15.12 SVG Planet Overlay Loading
+
+Planets, moons and gas giants are enriched with SVG art (continents, craters, gas bands, crack damage) defined in `planetOverlays.js` (`PLANET_OVERLAYS`) — ~29 files, ~300 KB total. Each overlay is fetched as text, **recoloured per-planet** (the SVG's fills/strokes are rewritten to a colour rolled from the layer def — HSL range, RGB pool, or the planet's own colour), turned into a blob-URL `Image`, decoded, and either baked into `bgCanvas` (static bodies) or drawn live (gas giants, moons).
+
+#### The "pop-in" problem
+
+The original `_loadPlanetOverlays` had three compounding flaws that made overlays appear seconds late, all at once, sometimes only after the first shot:
+
+1. **Fully serial.** The nested loop `await fetch(...)` then `await img.decode()` **one overlay at a time**, so total load time was the *sum* of every fetch + decode in the scene.
+2. **Single terminal bake.** `_renderBackground()` (which composites overlays into `bgCanvas`) ran exactly once, *after* the whole chain finished — so nothing appeared until the slowest, last SVG was done, then everything revealed in one frame.
+3. **No preload, redundant fetches.** SVGs were only fetched once a scenario started, and the same file was re-fetched per use (no in-memory text cache).
+
+This is a latency/scheduling problem, not a bandwidth one (the total payload is tiny), which is what makes it cheap to fix.
+
+#### Design
+
+- **Shared text cache (`fetchSvgText`, module-scoped).** The fetch *promise* is cached per path, so concurrent callers and repeats share one network round-trip. The slow part (network) happens once per file; the per-planet recolour + decode still run per use because the colour differs (decoded images can't be shared). A failed fetch is evicted so a later use can retry. Module-scoped so it survives across the per-game `Renderer` instances.
+- **Boot-time preload (`Renderer.preloadSvgText`).** Called from the constructor — which runs once at app boot, before the first game (`main.js`) — it warms the cache for every overlay + crack file in parallel, off the critical path, during the menu/config idle time. A scenario load then pays only local recolour + decode, no network wait.
+- **Parallel build + coalesced incremental bake.** `_loadPlanetOverlays` builds all planets concurrently (`Promise.all`) from the cache. As each planet's overlays land it requests a re-bake through `_scheduleOverlayBake`, which coalesces a burst of completions onto a single `requestAnimationFrame` — so a batch that resolves together costs one re-render, not one per planet, while a slow straggler still fades in on its own rather than gating the rest. (Gas giants and moons are drawn live, so they pick up their entries on the next frame without needing the bake; the bake is what reveals static rocky-body overlays.)
+- **Crack overlays** (`_loadCrackSvgs`) use the same shared cache and load in parallel.
+
+#### Why not `createImageBitmap`
+
+The decode path stays on `<img>` + `img.decode()` rather than `createImageBitmap(blob)` (the trick used for the gas-giant canvas and sprite sheets, §15.4/§15.10). `createImageBitmap` on **SVG** blobs is unreliable in Safari/WebKit when the SVG lacks an intrinsic pixel size — it can produce a zero-size bitmap — which would regress exactly the iPad target. An `<img>` rasterises SVG reliably from its `viewBox`. The ImageBitmap win applies to the already-rasterised gas-giant/sprite canvases, not to these SVG sources.
+
+> **Note (interaction with the camera).** `_scheduleOverlayBake` triggers `_renderBackground`, which re-rolls the cosmetic rift lightning (`Math.random`, as it already does on resize — see camera-design §4.4). With coalescing this is typically 1–2 bakes per scenario load, so any rift flicker is negligible; seed the lightning per-rift if it ever becomes objectionable.
 
 ---
 
