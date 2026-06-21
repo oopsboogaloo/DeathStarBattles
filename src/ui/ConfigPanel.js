@@ -153,13 +153,14 @@ export class ConfigPanel {
 
   setCanResume(bool) {
     this._canResume = bool;
-    if (this._resumeBtn) this._resumeBtn.style.display = bool ? 'block' : 'none';
     if (this._resignBtn) {
-      this._resignBtn.style.display = bool ? 'block' : 'none';
       this._resignBtn.textContent   = 'RESIGN';
       this._resignConfirm = false;
     }
-    // In phone landscape the top-right bar is the container for these buttons
+    // Row holds both buttons in normal mode; top-right bar holds them in phone landscape
+    if (this._resumeResignRow) {
+      this._resumeResignRow.style.display = (!this._phoneLandscape && bool) ? 'flex' : 'none';
+    }
     if (this._topRightBar) {
       this._topRightBar.style.display = (this._phoneLandscape && bool) ? 'flex' : 'none';
     }
@@ -261,12 +262,12 @@ export class ConfigPanel {
     if (this._panel) this._panel.style.width = isAnyPhone ? '95vw' : '';
 
     if (phone) {
-      // Move Resume + Resign into the top-right bar
+      // Move Resume + Resign individually into the top-right bar (row stays in panel but hidden)
       this._topRightBar.appendChild(this._resumeBtn);
       this._topRightBar.appendChild(this._resignBtn);
-      // Restore margin overrides (these buttons had margin: 0 auto)
       this._resumeBtn.style.margin = '0';
       this._resignBtn.style.margin = '0';
+      this._resumeResignRow.style.display = 'none';
       this._topRightBar.style.display = this._canResume ? 'flex' : 'none';
 
       // Move Start Game into nav bar (right of dots/arrows)
@@ -275,11 +276,13 @@ export class ConfigPanel {
       this._startBtn.style.margin    = '0';
       this._startBtn.style.marginLeft = '8px';
     } else {
-      // Restore Resume + Resign to normal panel flow (before title)
-      this._resumeBtn.style.margin = `0 auto ${S.compact.resumeMarginB}`;
-      this._resignBtn.style.margin = '0 auto 8px';
-      this._panel.insertBefore(this._resumeBtn, this._title);
-      this._panel.insertBefore(this._resignBtn, this._title);
+      // Restore Resume + Resign into the shared row (before title)
+      this._resumeBtn.style.margin = '0';
+      this._resignBtn.style.margin = '0';
+      this._resumeResignRow.appendChild(this._resumeBtn);
+      this._resumeResignRow.appendChild(this._resignBtn);
+      this._panel.insertBefore(this._resumeResignRow, this._title);
+      this._resumeResignRow.style.display = this._canResume ? 'flex' : 'none';
       this._topRightBar.style.display = 'none';
 
       // Restore Start Game to below pagedSection
@@ -296,9 +299,11 @@ export class ConfigPanel {
     this._title.style.fontSize  = t.titleFont;
     this._title.style.margin    = t.titleMargin;
 
-    this._resumeBtn.style.marginBottom = t.resumeMarginB;
-    this._resumeBtn.style.padding      = t.resumePad;
-    this._resumeBtn.style.fontSize     = t.resumeFont;
+    this._resumeResignRow.style.marginBottom = t.resumeMarginB;
+    this._resumeBtn.style.padding            = t.resumePad;
+    this._resumeBtn.style.fontSize           = t.resumeFont;
+    this._resignBtn.style.padding            = `${t.resumePad.split(' ')[0]} 16px`;
+    this._resignBtn.style.fontSize           = t.resumeFont;
 
     for (const row of [...this._page1Rows, ...this._page2Rows, ...this._page3Rows, ...this._page4Rows, ...this._page5Rows, ...this._page6Rows, ...this._page7Rows]) {
       row.style.marginBottom = t.rowMarginB;
@@ -415,8 +420,7 @@ export class ConfigPanel {
 
     // ── Resume button ────────────────────────────────────────────────────────
     this._resumeBtn = el('button', {
-      display:       'none',
-      margin:        `0 auto ${S.norm.resumeMarginB}`,
+      margin:        '0',
       padding:       S.norm.resumePad,
       background:    'rgba(20,80,30,0.75)',
       border:        '1px solid rgba(80,210,100,0.5)',
@@ -431,14 +435,12 @@ export class ConfigPanel {
     this._resumeBtn.addEventListener('mouseenter', () => { this._resumeBtn.style.background = 'rgba(30,110,45,0.9)'; });
     this._resumeBtn.addEventListener('mouseleave', () => { this._resumeBtn.style.background = 'rgba(20,80,30,0.75)'; });
     this._resumeBtn.addEventListener('click', () => { this.hide(); this._onResumeCb?.(); });
-    panel.appendChild(this._resumeBtn);
 
     // ── Resign button ────────────────────────────────────────────────────────
     this._resignConfirm = false;
     this._resignBtn = el('button', {
-      display:       'none',
-      margin:        '0 auto 8px',
-      padding:       '5px 16px',
+      margin:        '0',
+      padding:       `${S.norm.resumePad.split(' ')[0]} 16px`,
       background:    'rgba(80,15,15,0.7)',
       border:        '1px solid rgba(200,60,60,0.45)',
       borderRadius:  '5px',
@@ -468,7 +470,19 @@ export class ConfigPanel {
         this._onResignCb?.();
       }
     });
-    panel.appendChild(this._resignBtn);
+
+    // ── Resume + Resign row (side by side) ───────────────────────────────────
+    this._resumeResignRow = el('div', {
+      display:        'none',
+      flexDirection:  'row',
+      gap:            '12px',
+      justifyContent: 'center',
+      alignItems:     'center',
+      marginBottom:   S.norm.resumeMarginB,
+    });
+    this._resumeResignRow.appendChild(this._resumeBtn);
+    this._resumeResignRow.appendChild(this._resignBtn);
+    panel.appendChild(this._resumeResignRow);
 
     // ── Title ────────────────────────────────────────────────────────────────
     this._title = el('div', {
