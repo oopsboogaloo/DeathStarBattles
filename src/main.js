@@ -393,9 +393,60 @@ document.addEventListener('fullscreenchange', () => {
 // ─── Button visibility sync ───────────────────────────────────────────────────
 
 let _prevMode    = null;
-let _minimalUI   = false;
+let _minimalUI        = false;
+let _minimalUISetting = 'auto'; // config intent: 'auto' | true | false
+let _autoFitChecked   = false;  // true once the Auto fit has been measured at the current width
 let _viewRotated = false; // true when canvas is CSS-rotated 90° to fill portrait screen
 let _wantRotated = false; // desired rotation state (may lag _viewRotated during firing)
+
+// Apply (or remove) the compact minimal-UI styling to the bottom controls.
+function applyMinimalUI(isMinimal) {
+  _minimalUI = isMinimal;
+  aimControls.setMinimal(isMinimal);
+  weaponSelector.setMinimal(isMinimal);
+  if (isMinimal) {
+    endTurnBtn.innerHTML     = _ENDTURN_SVG;
+    endTurnBtn.style.padding = '9px 14px';
+    weaponBtn.style.fontSize = '11px';
+  } else {
+    endTurnBtn.textContent   = 'End Turn';
+    endTurnBtn.style.padding = '9px 26px';
+    weaponBtn.style.fontSize = '15px';
+  }
+  weaponBtn.style.padding = isMinimal ? '9px 12px' : '9px 18px';
+  moveBtn.style.padding   = isMinimal ? '9px 14px' : '9px 26px';
+}
+
+// Base minimal-UI decision from the config setting. In Auto mode we start full
+// on non-phones; _autoEvalMinimalUI() may shrink it if the controls don't fit.
+function _resolveMinimalUI() {
+  if (_minimalUISetting === true)  return true;
+  if (_minimalUISetting === false) return false;
+  return _isPhone(); // 'auto'
+}
+
+// True when the full-size centre button bar clears both side aim groups without
+// overlapping. Only meaningful while the bottom bars are laid out (during aiming).
+function _bottomControlsFit() {
+  const bar = aimControls.element;
+  if (bar.style.display === 'none' || btnBar.style.display === 'none') return true;
+  const left   = bar.children[0].getBoundingClientRect(); // angle group
+  const right  = bar.children[1].getBoundingClientRect(); // power group
+  const center = btnBar.getBoundingClientRect();
+  const GAP = 12;
+  return (center.left - left.right) >= GAP && (right.left - center.right) >= GAP;
+}
+
+// In Auto mode on a non-phone, switch to minimal UI when the full-size controls
+// would overlap at the current window size (Item 2). One-directional within a
+// game; a resize resets to full so the fit is re-evaluated for the new width.
+function _autoEvalMinimalUI() {
+  if (_minimalUISetting !== 'auto' || _isPhone() || _minimalUI || _viewRotated || _autoFitChecked) return;
+  // Defer until the bottom bars are actually laid out so they can be measured.
+  if (aimControls.element.style.display === 'none' || btnBar.style.display === 'none') return;
+  _autoFitChecked = true;
+  if (!_bottomControlsFit()) applyMinimalUI(true);
+}
 
 function _updateRotationCSS() {
   if (_viewRotated) {
@@ -469,6 +520,10 @@ function updateButtons(gs) {
   } else {
     aimControls.hide();
   }
+
+  // Auto minimal UI: now that the bottom bars are laid out for this frame, shrink
+  // them if the full-size controls don't fit the window (Item 2).
+  _autoEvalMinimalUI();
 
   // In portrait-rotated mode, both aim controls and btn bar sit at the bottom.
   // Lift btn bar above the aim controls row so they don't overlap.
@@ -588,20 +643,9 @@ async function startGame(cfg) {
   renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
   renderer.setBulletPathLength(cfg.bulletPaths ?? 'off');
 
-  _minimalUI = cfg.minimalUI === true || (cfg.minimalUI !== false && _isPhone());
-  aimControls.setMinimal(_minimalUI);
-  weaponSelector.setMinimal(_minimalUI);
-  if (_minimalUI) {
-    endTurnBtn.innerHTML   = _ENDTURN_SVG;
-    endTurnBtn.style.padding = '9px 14px';
-    weaponBtn.style.fontSize = '11px';
-  } else {
-    endTurnBtn.textContent   = 'End Turn';
-    endTurnBtn.style.padding = '9px 26px';
-    weaponBtn.style.fontSize = '15px';
-  }
-  weaponBtn.style.padding = _minimalUI ? '9px 12px' : '9px 18px';
-  moveBtn.style.padding   = _minimalUI ? '9px 14px' : '9px 26px';
+  _minimalUISetting = cfg.minimalUI;
+  _autoFitChecked   = false;
+  applyMinimalUI(_resolveMinimalUI());
   applyOrientationSetting(cfg.screenOrientation ?? 'auto');
 
   // Reset Fast FWD button state
@@ -749,6 +793,7 @@ async function startStoryMission(mission) {
   renderer.setAimCircleScale(1);
   renderer.setBulletPathLength(panel.getData().bulletPaths ?? 'off');
 
+  _minimalUISetting = false; // story mode always uses the full controls
   _minimalUI = false;
   aimControls.setMinimal(false);
   endTurnBtn.textContent   = 'End Turn';
@@ -830,6 +875,7 @@ async function startTPGame(cfg) {
   renderer.setAimCircleScale(AIM_SCALES[cfg.aimCircleSize ?? 'regular'] ?? 1);
   renderer.setBulletPathLength(cfg.bulletPaths ?? 'off');
   _minimalUI = cfg.minimalUI === true || (cfg.minimalUI !== false && _isPhone());
+  _minimalUISetting = _minimalUI; // resolved boolean → skip auto-fit in Target Practice
   aimControls.setMinimal(_minimalUI);
   endTurnBtn.textContent   = _minimalUI ? 'X' : 'End Turn';
   endTurnBtn.style.padding = _minimalUI ? '9px 14px' : '9px 26px';
@@ -1229,6 +1275,13 @@ window.addEventListener('resize', () => {
   const ar = window.innerWidth / window.innerHeight;
   if (ar < 0.75) _wantRotated = true;
   else if (ar > 1.33) _wantRotated = false;
+
+  // Auto minimal UI: re-evaluate fit for the new width on the next aiming frame.
+  // Reset to full first so a now-wider window can fit the full controls. Item 2.
+  if (loop && _minimalUISetting === 'auto' && !_isPhone()) {
+    _autoFitChecked = false;
+    if (_minimalUI) applyMinimalUI(false);
+  }
 
   const isFiring = loop?.gs && (
     loop.gs.mode === GameMode.FIRING || loop.gs.mode === GameMode.TP_FIRING

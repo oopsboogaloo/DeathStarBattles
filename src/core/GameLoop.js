@@ -1025,7 +1025,11 @@ export class GameLoop {
       }
     }
 
-    // Every station has acted — fire
+    // Every station has acted — fire. If the view is still gliding back to the
+    // full battlefield after an end-turn reset, hold the shot until it settles
+    // so the player sees the whole board before bullets fly (Item 1). The mode
+    // stays AIMING, so this method re-runs each frame and fires once settled.
+    if (this.renderer?.camera?.isAnimating()) return;
     this._fireAll();
   }
 
@@ -3363,6 +3367,9 @@ export class GameLoop {
       this.gs.waitingForInput = false;
       this.gs.waitingForMove  = false;
       this._turnIdx++;
+      // Glide back to the full view for the next aim; if this fires, the shot is
+      // held in _advanceTPAiming until the reset settles (Item 1).
+      this.renderer?.camera?.resetToDefault({ animated: true });
       this._advanceTPAiming();
       return;
     }
@@ -3370,6 +3377,10 @@ export class GameLoop {
     this.gs.waitingForInput = false;
     this.gs.waitingForMove  = false;
     this._turnIdx++;
+    // Reset zoom/pan to the full battlefield for the next aiming. If this
+    // end-turn fires (all stations have acted), _advanceAiming holds the shot
+    // until the reset tween completes so the whole board is visible (Item 1).
+    this.renderer?.camera?.resetToDefault({ animated: true });
     this._advanceAiming();
   }
 
@@ -3711,6 +3722,8 @@ export class GameLoop {
       }
     }
 
+    // Hold the shot until the end-turn view reset has settled (Item 1).
+    if (this.renderer?.camera?.isAnimating()) return;
     this._tpFireAll();
   }
 

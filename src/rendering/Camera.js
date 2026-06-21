@@ -56,6 +56,10 @@ export class Camera {
            Math.abs(this.cy - this._gameHeight / 2) < 1e-3;
   }
 
+  // True while a reset tween is in flight (used to hold the shot until the view
+  // has glided back to the full battlefield after an end-turn reset).
+  isAnimating() { return this._tween !== null; }
+
   // ── transforms ────────────────────────────────────────────────────────────
 
   // Affine for content drawn in world*conv space at the camera given by `snap`.
