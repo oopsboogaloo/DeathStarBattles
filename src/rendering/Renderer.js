@@ -637,9 +637,16 @@ export class Renderer {
     ctx.setTransform(...cam.fullDeltaMatrix(this._bgCamera, BG_PAD));
     ctx.drawImage(this.bgCanvas, 0, 0);
 
-    // Animated star fire rim (full + experimental modes) sits above the cached
-    // body but below the trails canvas, so bullet/ship trails pass over the
-    // flames. Live content → full camera transform, always crisp.
+    // Crisp star glow + animated fire rim sit above the cached body but below the
+    // trails canvas, so bullet/ship trails pass over the flames. Live content →
+    // full camera transform, always crisp. The glow is only needed while the
+    // cached corona is a soft blit (it fills the black around big stars); it is
+    // skipped once the background re-bakes crisply, so the default frame is
+    // unchanged (FR-1).
+    if (this._bgIsStale()) {
+      ctx.setTransform(...cam.matrix(this._ox, this._oy));
+      this._drawStarGlows(ctx);
+    }
     if (!this._simplified) {
       ctx.setTransform(...cam.matrix(this._ox, this._oy));
       this._drawStarFireRims(ctx);
@@ -718,6 +725,24 @@ export class Renderer {
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
+    }
+  }
+
+  // Crisp coronal glow for stars while the cached background is a soft blit. The
+  // big halo (chromosphere ring + radial glow layers out to 3.2× the body) lives
+  // only in the baked corona, so mid-gesture it goes missing/misaligned and the
+  // crisp star disc's hard edge meets black — most visible on screen-filling
+  // supergiants. Redraw just the cheap glow gradients live (no bristles/blur; see
+  // PlanetRenderer.drawStarGlow) to fill that region. Mirrors the _drawStarDiscs
+  // filter (GLOWING stars); drawn under the disc and the live fire rim.
+  _drawStarGlows(ctx) {
+    for (const planet of this._planets) {
+      if (planet.shading !== ShadingStyle.GLOWING || planet.type !== PlanetType.STAR) continue;
+      if (planet.destroyed) continue;
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const r  = Math.max(3, planet.radius * this.conv);
+      PlanetRenderer.drawStarGlow(ctx, cx, cy, r, planet.colour);
     }
   }
 

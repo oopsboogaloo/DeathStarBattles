@@ -317,6 +317,51 @@ export class PlanetRenderer {
     }
   }
 
+  // Cheap crisp star glow for the zoom/pan gesture: the chromosphere ring plus the
+  // five radial-gradient halo layers from _drawStarCorona, drawn straight onto ctx
+  // with no offscreen canvas, no blur, and no bristles (the expensive parts). The
+  // big soft coronal halo otherwise lives ONLY in the cached background, so while
+  // that background is a scaled/shifted blit it stops covering the area around the
+  // crisp body — leaving the body's hard disc edge cutting into black, glaring on
+  // screen-filling supergiants. This fills that region with the star's real
+  // coloured glow for the cost of ~6 gradient fills (each clipped to the canvas).
+  // The fine bristle texture stays soft in the background and snaps crisp on settle.
+  static drawStarGlow(ctx, cx, cy, r, colour) {
+    const [pr, pg, pb] = colour;
+    const cr = Math.floor(pr * 0.30);
+    const cg = Math.floor(pg * 0.38);
+    const cb = Math.floor(pb * 0.15);
+
+    // Chromosphere ring hugging the surface
+    const ringGrad = ctx.createRadialGradient(cx, cy, r * 0.85, cx, cy, r * 1.45);
+    ringGrad.addColorStop(0,    `rgba(${cr},${cg},${cb},0)`);
+    ringGrad.addColorStop(0.35, `rgba(${cr},${cg},${cb},0.72)`);
+    ringGrad.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.45, 0, Math.PI * 2);
+    ctx.fillStyle = ringGrad;
+    ctx.fill();
+
+    // Wider atmospheric glow — five stacked transparent layers out to 3.2× r
+    const layers = [
+      { scale: 1.0, alpha: 0.35 },
+      { scale: 1.4, alpha: 0.22 },
+      { scale: 1.9, alpha: 0.14 },
+      { scale: 2.5, alpha: 0.08 },
+      { scale: 3.2, alpha: 0.04 },
+    ];
+    for (const { scale, alpha } of layers) {
+      const lr   = r * scale;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, lr);
+      grad.addColorStop(0, `rgba(${cr},${cg},${cb},${alpha})`);
+      grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, lr, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
   // ----------------------------------------------------------------
   // Star fire rim (experimental) — 3 stacked jagged solid bands hugging the
   // star surface. Each band fills from an inner edge at the body radius up to an
