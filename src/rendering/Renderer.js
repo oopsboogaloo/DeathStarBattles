@@ -320,44 +320,6 @@ export class Renderer {
     // Pass 4: space rifts above planets
     for (const rift of this._rifts ?? []) this._drawRift(ctx, rift);
 
-    // Pass 5: gas giants — baked here (not in a separate canvas) so they inherit
-    // the BG_PAD overscroll region and don't clip when the camera pans to the edge.
-    // Order: rings back → atmosphere → body+SVGs (blurred) → rings front.
-    const gasGiants = this._planets.filter(p => p.shading === ShadingStyle.GAS_GIANT);
-    if (gasGiants.length) {
-      const rings = this._performance === 'full' || this._performance === 'experimental';
-      if (rings) {
-        for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'back');
-      }
-      if (!this._simplified) {
-        for (const planet of gasGiants) this._drawAtmosphere(ctx, planet);
-      }
-      const blurred = !this._simplified && this._performance !== 'experimental';
-      if (blurred) ctx.filter = 'blur(3px)';
-      for (const planet of gasGiants) {
-        const cx = planet.position.x * this.conv;
-        const cy = planet.position.y * this.conv;
-        const r  = Math.max(2, planet.radius * this.conv);
-        const [ar, ag, ab] = planet.colour;
-        const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
-        grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
-        grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
-        grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.fill();
-        if (!this._simplified) {
-          const overlays = this._svgOverlayCache.get(planet);
-          if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
-        }
-      }
-      if (blurred) ctx.filter = 'none';
-      if (rings) {
-        for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'front');
-      }
-    }
-
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -851,6 +813,11 @@ export class Renderer {
       }
     }
 
+    // Gas giants — drawn live so bullet trails (composited before _drawLive) are
+    // dimmed by the 50%-opacity body, preserving the "through the planet" depth cue.
+    // Live drawing under the camera transform follows pan naturally, so no clipping.
+    this._drawGasGiantsLive(ctx);
+
     // Comets — drawn live every frame (they move and are not in the static bg layer)
     for (const planet of gameState.planets) {
       if (planet.type === PlanetType.COMET && !planet.destroyed) this._drawComet(ctx, planet);
@@ -1139,6 +1106,42 @@ export class Renderer {
     this._tintCanvas = document.createElement('canvas');
     this._tintCanvas.width = this._tintCanvas.height = 256;
     this._tintCtx   = this._tintCanvas.getContext('2d');
+  }
+
+  _drawGasGiantsLive(ctx) {
+    const gasGiants = this._planets.filter(p => p.shading === ShadingStyle.GAS_GIANT);
+    if (!gasGiants.length) return;
+    const rings = this._performance === 'full' || this._performance === 'experimental';
+    if (rings) {
+      for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'back');
+    }
+    if (!this._simplified) {
+      for (const planet of gasGiants) this._drawAtmosphere(ctx, planet);
+    }
+    const blurred = !this._simplified && this._performance !== 'experimental';
+    if (blurred) ctx.filter = 'blur(3px)';
+    for (const planet of gasGiants) {
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const r  = Math.max(2, planet.radius * this.conv);
+      const [ar, ag, ab] = planet.colour;
+      const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
+      grad.addColorStop(0,   `rgba(${Math.min(255,ar+55)},${Math.min(255,ag+50)},${Math.min(255,ab+40)},0.50)`);
+      grad.addColorStop(0.6, `rgba(${ar},${ag},${ab},0.50)`);
+      grad.addColorStop(1,   `rgba(${Math.floor(ar*.4)},${Math.floor(ag*.4)},${Math.floor(ab*.4)},0.50)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      if (!this._simplified) {
+        const overlays = this._svgOverlayCache.get(planet);
+        if (overlays) for (const entry of overlays) this._drawSVGOverlay(ctx, planet, entry);
+      }
+    }
+    if (blurred) ctx.filter = 'none';
+    if (rings) {
+      for (const planet of gasGiants) this._drawGasGiantRings(ctx, planet, 'front');
+    }
   }
 
   // ----------------------------------------------------------------
