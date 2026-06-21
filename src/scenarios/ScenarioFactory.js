@@ -1054,7 +1054,25 @@ export class ScenarioFactory {
             planets.push(makeCrystalAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
           else {
             const col = [Math.floor(rng.next()*30)+215, Math.floor(rng.next()*30)+205, Math.floor(rng.next()*190)+15];
-            planets.push(makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING));
+            const star = makePlanet(rng, 1.2,0,-0.1, 70,70,30, gw,gh, 0.015, PlanetType.STAR, col, ShadingStyle.GLOWING);
+            // Stars roam ±10% off-screen, so _validate skips star-star pairs whose
+            // centres are both off-screen and the overlap goes unchecked. Enforce the
+            // same solid-body gap _validate uses by re-rolling position on collision.
+            // The first roll is left untouched, so non-colliding seeds stay reproducible.
+            const minGap  = 10;
+            const clrOf   = pos => planets.reduce((m, p) =>
+              Math.min(m, pos.distanceTo(p.position) - (p.impactRadius ?? p.radius) - star.radius), Infinity);
+            if (clrOf(star.position) < minGap) {
+              let best = star.position, bestClr = clrOf(star.position);
+              for (let a = 0; a < 48; a++) {
+                const cand = new Vec2(rv(rng,1.2,0,-0.1,gw), rv(rng,1.2,0,-0.1,gh));
+                const clr  = clrOf(cand);
+                if (clr >= minGap) { best = cand; break; }
+                if (clr > bestClr) { bestClr = clr; best = cand; }
+              }
+              star.position = best;
+            }
+            planets.push(star);
           }
         }
         break;

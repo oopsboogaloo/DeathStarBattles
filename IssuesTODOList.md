@@ -7,7 +7,7 @@ Resolved items have been moved to ResolvedTODOList.md.
 
 ## Bugs
 
-- [ ] **Seed 0RTXQ35K: overlapping stars** — Stars overlap each other, which shouldn't be possible. Investigate planet/star placement collision avoidance in the seeded layout generator.
+- [x] **Seed 0RTXQ35K: overlapping stars** — Stars overlapped in the Mixture scenario (case 13). Root cause: stars roam ±10% off-screen and `_validate` skips pairs whose centres are both off-screen, so star-star body overlaps went unchecked. Fixed by enforcing the `_validate` solid-body gap locally in case 13 (re-roll star position on collision; first roll untouched for seed reproducibility).
 
 - [x] Collectable special weapons: if a team has only 1 of a special weapon and a station uses it, it remains selectable by the next station — should be greyed out / disabled once the team's supply hits 0.
 
