@@ -1056,6 +1056,7 @@ export class GameLoop {
     this.gs.skimParticles       = [];
     this.gs.burstQueue          = [];
     this.gs.pendingLasers         = [];
+    this.gs.pendingSwaps          = [];
     this.gs.pendingTeleports      = [];
     this.gs.pendingReinforcements = [];
     this.gs.firingStep            = 0;
@@ -1487,6 +1488,9 @@ export class GameLoop {
       } else if (w === WeaponId.SHOCK_BEAM && station.team.spendStock(WeaponId.SHOCK_BEAM)) {
         this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), shockBeam: true });
         SoundManager.play('laser');
+      } else if (w === WeaponId.QUANTUM_BEAM && station.team.spendStock(WeaponId.QUANTUM_BEAM)) {
+        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), quantumBeam: true });
+        SoundManager.play('teleport', { volume: 0.6, pitch: 0.2 });
       } else if (w === WeaponId.BIRTHDAY_PRESENT && station.team.spendStock(WeaponId.BIRTHDAY_PRESENT)) {
         // Slow shot following the same arc as a cannon shot: speed ×1/3, gravity ×1/9
         const b = this._makeBullet(station, station.angle, station.power);
@@ -1677,6 +1681,11 @@ export class GameLoop {
           } else if (pl.shockBeam) {
             const path = this._simulateLaserPath(pl.station, pl.angle, { condition: 'electrified', amount: 2 });
             this.gs.vfxList.push({ type: 'shockBeam', path, colour: pl.station.team.colour, t: 0, duration: 1.2 });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          } else if (pl.quantumBeam) {
+            const { path, target } = this._simulateQuantumBeamPath(pl.station, pl.angle);
+            this.gs.vfxList.push({ type: 'quantumBeam', path, colour: pl.station.team.colour, t: 0, duration: 1.5 });
+            if (target) this.gs.pendingSwaps.push({ firer: pl.station, target });
             if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
           } else {
             const path = this._simulateLaserPath(pl.station, pl.angle);
@@ -2263,6 +2272,18 @@ export class GameLoop {
       this.gs.repulsorFields = [];
       this.gs.rocketBlasts   = [];
       this.gs.pendingTeleports = [];
+      // Quantum Beam position swaps — both stations must still be alive
+      for (const sw of this.gs.pendingSwaps ?? []) {
+        if (sw.firer.status !== 'active' || sw.target.status !== 'active') continue;
+        const tmp = sw.firer.position;
+        sw.firer.position  = sw.target.position;
+        sw.target.position = tmp;
+        for (const st of [sw.firer, sw.target]) {
+          const [qr, qg, qb] = st.team.colour;
+          this.gs.vfxList.push({ type: 'teleportFlash', x: st.position.x, y: st.position.y, r: qr, g: qg, b: qb, t: 0, duration: 0.5 });
+        }
+      }
+      this.gs.pendingSwaps = [];
       this._processHyperspace();
       this._checkWin();
       this._resultsTimer = 240; // ~4 s at 60 fps
@@ -2586,6 +2607,102 @@ export class GameLoop {
       if (blocked) break;
     }
     return path;
+  }
+
+  // Bodies the Quantum Beam reflects off (vs passes through).
+  _isReflectiveBody(planet) {
+    switch (planet.type) {
+      case PlanetType.ROCKY: case PlanetType.STAR: case PlanetType.JOVIAN:
+      case PlanetType.WHITE_DWARF: case PlanetType.PULSAR: case PlanetType.MOON:
+      case PlanetType.GIANT_ASTEROID:
+        return true;
+      default:
+        return false; // asteroids, crystals, gas giants, wormholes, holes — pass through
+    }
+  }
+
+  // Quantum Beam path: straight beam that reflects off solid bodies and shields,
+  // passes through asteroids/gas-giants/wormholes, and stops at the first station
+  // hit (recording a position-swap). Returns { path, target }.
+  _simulateQuantumBeamPath(station, angleDeg) {
+    const SPEED = 8, MAX_STEPS = 300, MAX_BOUNCES = 10;
+    const rad = (((angleDeg % 360) + 360) % 360 * Math.PI) / 180;
+    let px = station.position.x + (station.radius + 1) * Math.sin(rad);
+    let py = station.position.y + (station.radius + 1) * Math.cos(rad);
+    let vx = SPEED * Math.sin(rad), vy = SPEED * Math.cos(rad);
+    const path = [new Vec2(px, py)];
+    const { gw, gh } = this.physics;
+    let bounces = 0, target = null;
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      const px0 = px, py0 = py;
+      px += vx; py += vy;
+      path.push(new Vec2(px, py));
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      // Shield reflection
+      let reflected = false;
+      for (const shield of this.gs.shields) {
+        if (!shield.alive) continue;
+        const dx = px - shield.station.position.x, dy = py - shield.station.position.y;
+        if (dx * dx + dy * dy < shield.radius ** 2) {
+          const d = Math.sqrt(dx * dx + dy * dy) || 1, nx = dx / d, ny = dy / d, dot = vx * nx + vy * ny;
+          vx -= 2 * dot * nx; vy -= 2 * dot * ny;
+          px = shield.station.position.x + nx * (shield.radius + 0.5);
+          py = shield.station.position.y + ny * (shield.radius + 0.5);
+          path.push(new Vec2(px, py)); reflected = true; bounces++; break;
+        }
+      }
+      if (reflected) { if (bounces >= MAX_BOUNCES) break; continue; }
+
+      // Station hit — swept segment vs circle so fast steps don't skip ships
+      for (const s of this.gs.allStations) {
+        if (s.status !== 'active' || s === station) continue;
+        const sdx = px0 - s.position.x, sdy = py0 - s.position.y;
+        const segDx = px - px0, segDy = py - py0;
+        const a = segDx * segDx + segDy * segDy;
+        const b = 2 * (sdx * segDx + sdy * segDy);
+        const c = sdx * sdx + sdy * sdy - s.radius * s.radius;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a), t2 = (-b + sq) / (2 * a);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) { target = s; break; }
+      }
+      if (target) break;
+
+      // Collectable collect (pass through)
+      for (const c of this.gs.collectables) {
+        if (!c.alive) continue;
+        const cdx = px - c.position.x, cdy = py - c.position.y;
+        if (cdx * cdx + cdy * cdy < c.radius * c.radius) {
+          c.alive = false;
+          const grant = this._pickCollectableGrant();
+          station.team.addStock(grant.id, grant.charges);
+          this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
+          const [cr, cg, cb] = station.team.colour;
+          this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
+        }
+      }
+
+      // Planet — reflect off solid bodies, pass through the rest
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const R = planet.impactRadius;
+        const dx = px - planet.position.x, dy = py - planet.position.y;
+        if (dx * dx + dy * dy < R * R) {
+          if (this._isReflectiveBody(planet)) {
+            const d = Math.sqrt(dx * dx + dy * dy) || 1, nx = dx / d, ny = dy / d, dot = vx * nx + vy * ny;
+            vx -= 2 * dot * nx; vy -= 2 * dot * ny;
+            px = planet.position.x + nx * (R + 0.5); py = planet.position.y + ny * (R + 0.5);
+            path.push(new Vec2(px, py)); bounces++;
+          }
+          break;
+        }
+      }
+      if (bounces >= MAX_BOUNCES) break;
+    }
+    return { path, target };
   }
 
   // Apply a freeze/shock condition from a beam hit; armour absorbs one layer.

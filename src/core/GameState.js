@@ -47,6 +47,7 @@ export class GameState {
     this.shields          = [];         // {station, radius, alive}[] — active Force Shields
     this.burstQueue       = [];         // burst-fire entries: {station,weapon,shotsRemaining,intervalSteps,nextFireStep,angle,power}
     this.pendingLasers    = [];         // {station, angle, delaySteps}[] — lasers waiting to fire
+    this.pendingSwaps     = [];         // {firer, target}[] — Quantum Beam position swaps at turn end
     this.firingStep       = 0;          // physics step counter within the current firing phase
     this.waitingForInput  = false;      // true when a human station is aiming
     this.waitingForMove   = false;      // true when human clicked Move, awaiting target click

@@ -3542,8 +3542,47 @@ export class Renderer {
         case 'mindControlBeam':        this._drawMindControlBeam(ctx, vfx);         break;
         case 'teamArmour':             this._drawTeamArmour(ctx, vfx);              break;
         case 'shockBeam':              this._drawShockBeam(ctx, vfx);               break;
+        case 'quantumBeam':            this._drawQuantumBeam(ctx, vfx);             break;
       }
     }
+  }
+
+  // Quantum Beam — team-colour glow with a fast pale-cyan rippling core, like a
+  // high-frequency control beam (new-weapons-spec §6).
+  _drawQuantumBeam(ctx, vfx) {
+    if (!vfx.path?.length) return;
+    const conv  = this.conv;
+    const alpha = Math.sin(vfx.t * Math.PI);
+    const [cr, cg, cb] = vfx.colour;
+
+    // Wide team-colour glow
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(vfx.path[0].x * conv, vfx.path[0].y * conv);
+    for (let i = 1; i < vfx.path.length; i++) ctx.lineTo(vfx.path[i].x * conv, vfx.path[i].y * conv);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(alpha * 0.4).toFixed(3)})`;
+    ctx.lineWidth   = 5;
+    ctx.stroke();
+
+    // Rippling pale-cyan core: lateral sine offset along the beam length
+    ctx.beginPath();
+    let acc = 0;
+    for (let i = 0; i < vfx.path.length; i++) {
+      const p = vfx.path[i];
+      let nx = 0, ny = 0;
+      if (i < vfx.path.length - 1) {
+        const dx = vfx.path[i + 1].x - p.x, dy = vfx.path[i + 1].y - p.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        nx = -dy / len; ny = dx / len; acc += len;
+      }
+      const off = Math.sin(acc * 0.8 + vfx.t * 20) * 2;
+      const x = (p.x + nx * off) * conv, y = (p.y + ny * off) * conv;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(136,255,255,${alpha.toFixed(3)})`;
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Shock Beam — jagged lightning bolt from muzzle to termination, team-colour
