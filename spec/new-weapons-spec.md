@@ -1,6 +1,6 @@
 # New Weapons — Specification
 
-> Covers ten new collectable weapons: Ice Rocket, Ice Blast, Triple Bounce Cannon, Surprise, Ice Bomb, Quantum Beam, Bounce Autocannon, Birthday Present, Freeze Ray, and Rocket Booster. Each section documents tier, charges, firing behaviour, rendering, special mechanics, and edge cases. All freeze semantics follow the existing `frozen` stack model (0–3, capped) from [frozen-condition-spec.md](frozen-condition-spec.md).
+> Covers ten new collectable weapons: Ice Rocket, Ice Blast, Triple Bounce Cannon, Surprise, Ice Bomb, Quantum Beam, Bounce Autocannon, Birthday Present, Freeze Ray, and Thrust Booster. Also specifies condition notifications for freeze and electrified states (§18). Each section documents tier, charges, firing behaviour, rendering, special mechanics, and edge cases. All freeze semantics follow the existing `frozen` stack model (0–3, capped) from [frozen-condition-spec.md](frozen-condition-spec.md).
 
 ---
 
@@ -209,7 +209,7 @@ Rendered identically to `CollectableGrantVFX` (rising, fading text) but in a lar
 |---|---|
 | Surprise draws SURPRISE again | Fires as Surprise again — draws a second random weapon recursively, but only one reveal VFX plays (the final resolved weapon) |
 | Surprise draws a weapon requiring setup (e.g. TEAM_SHIELD, ARMOUR) | Applied immediately as if the station selected that weapon |
-| Surprise draws ROCKET_BOOSTER when movement is off | Re-draws once; if drawn again, treat as CANNON |
+| Surprise draws THRUST_BOOSTER when movement is off | Re-draws once; if drawn again, treat as CANNON |
 | AI uses Surprise | AI fires normally with its chosen angle/power; the drawn weapon resolves as above |
 
 ---
@@ -499,21 +499,21 @@ This is the same two-layer rendering as the Laser but in cold icy cyan rather th
 
 ---
 
-## 10. Rocket Booster
+## 10. Thrust Booster
 
 **Tier:** 1  
 **Charges per collectable:** 2  
-**WeaponId:** `ROCKET_BOOSTER`  
+**WeaponId:** `THRUST_BOOSTER`  
 **Availability:** Only added to the collectable weapon pool when Movement Speed is set to anything other than `Off`.
 
 ### 10.1 Behaviour
 
-When a station fires with `ROCKET_BOOSTER`:
+When a station fires with `THRUST_BOOSTER`:
 
 1. **Fire:** A standard Cannon shot is spawned at the station's current angle and power — identical to `WeaponId.CANNON` in every respect (same bullet, same physics, no modifications).
 2. **Speed boost:** The station's movement this turn is doubled. Concretely, the movement vector that would be applied at turn end is scaled by 2.0.
 
-One `ROCKET_BOOSTER` charge is consumed on use.
+One `THRUST_BOOSTER` charge is consumed on use.
 
 The movement doubling applies only to the current turn's movement. It does not carry over. If the station cannot move (e.g. frozen), the cannon shot still fires but the movement boost has no effect.
 
@@ -521,20 +521,20 @@ Movement is already resolved at turn end alongside hyperspace; the doubled movem
 
 ### 10.2 HUD
 
-During the aiming phase, when `ROCKET_BOOSTER` is the selected weapon, the standard aim display is shown (angle + power) — the player is setting the cannon shot's angle and power. A secondary label `SPEED ×2` is shown in the weapon button area to remind the player that movement will be doubled.
+During the aiming phase, when `THRUST_BOOSTER` is the selected weapon, the standard aim display is shown (angle + power) — the player is setting the cannon shot's angle and power. A secondary label `SPEED ×2` is shown in the weapon button area to remind the player that movement will be doubled.
 
 ### 10.3 Rendering
 
-The cannon shot fired by Rocket Booster is visually indistinguishable from a normal cannon shot. No special trail or muzzle VFX. The Rocket Booster charges appear in the weapon selector like any other weapon.
+The cannon shot fired by Thrust Booster is visually indistinguishable from a normal cannon shot. No special trail or muzzle VFX. The Thrust Booster charges appear in the weapon selector like any other weapon.
 
 ### 10.4 Edge Cases
 
 | Case | Behaviour |
 |---|---|
 | Movement is Off | Weapon does not appear in the weapon pool; existing stock (from a session where movement was on) is greyed out and unusable |
-| Frozen station has Rocket Booster selected | Station is frozen — does not fire, does not move (boost has no effect); charge is **not** consumed |
-| Station hyperspaces on same turn | Hyperspace takes precedence; Rocket Booster is not the selected weapon if HYPERSPACE is selected |
-| Player selects Rocket Booster then switches to another weapon | Standard weapon selection rules; Rocket Booster stock not consumed if not used |
+| Frozen station has Thrust Booster selected | Station is frozen — does not fire, does not move (boost has no effect); charge is **not** consumed |
+| Station hyperspaces on same turn | Hyperspace takes precedence; Thrust Booster is not the selected weapon if HYPERSPACE is selected |
+| Player selects Thrust Booster then switches to another weapon | Standard weapon selection rules; Thrust Booster stock not consumed if not used |
 
 ---
 
@@ -826,7 +826,7 @@ QUANTUM_BEAM:          'quantumBeam',
 BOUNCE_AUTOCANNON:     'bounceAutocannon',
 BIRTHDAY_PRESENT:      'birthdayPresent',
 FREEZE_RAY:            'freezeRay',
-ROCKET_BOOSTER:        'rocketBooster',
+THRUST_BOOSTER:        'thrustBooster',
 TEAM_ARMOUR:           'teamArmour',
 SHOCK_ROCKET:          'shockRocket',
 SHOCK_BEAM:            'shockBeam',
@@ -839,7 +839,7 @@ New entries for `WEAPON_GRANTS` table:
 | WeaponId | Tier | Charges | Label |
 |---|---|---|---|
 | `ICE_ROCKET` | 1 | 2 | `ICE ROCKET` |
-| `ROCKET_BOOSTER` | 1 | 2 | `ROCKET BOOSTER` |
+| `THRUST_BOOSTER` | 1 | 2 | `THRUST BOOSTER` |
 | `ICE_BLAST` | 2 | 1 | `ICE BLAST` |
 | `TRIPLE_BOUNCE_CANNON` | 2 | 1 | `TRIPLE BOUNCE CANNON` |
 | `SHOCK_ROCKET` | 2 | 2 | `SHOCK ROCKET` |
@@ -854,7 +854,84 @@ New entries for `WEAPON_GRANTS` table:
 | `SUIT_UP` | 3 | 1 | `SUIT UP` |
 | `AAARRRGGHH` | 3 | 1 | `AAARRRGGHH` |
 
-`ROCKET_BOOSTER` is excluded from the `WEAPON_GRANTS` random draw table when Movement Speed is `Off`. It may still appear in `weaponStock` (carried over from a session where movement was on) but is greyed out in the selector.
+`THRUST_BOOSTER` is excluded from the `WEAPON_GRANTS` random draw table when Movement Speed is `Off`. It may still appear in `weaponStock` (carried over from a session where movement was on) but is greyed out in the selector.
+
+---
+
+## 18. Condition Notifications
+
+When a condition (freeze or electrified) is applied to a station, a floating text label rises from the station and fades out, using exactly the same presentation as `CollectableGrantVFX` — the weapon-collected text that appears when a collectable gem is picked up. The label is drawn in the **affected station's team colour**.
+
+### 18.1 Labels
+
+#### Freeze conditions
+
+| `frozen` value after application | Label |
+|---|---|
+| 1 | `FROZEN` |
+| 2 | `DOUBLE FROZEN` |
+| 3 | `TRIPLE FROZEN` |
+
+The label reflects the station's new `frozen` value at the moment the condition is applied, not the increment. If a station at `frozen = 1` is double-frozen (increment +2, capped at 3), the label reads `TRIPLE FROZEN`.
+
+#### Electrified conditions
+
+| `electrified` value after application | Label |
+|---|---|
+| 1 | `ELECTRIFIED` |
+| 2 | `DOUBLE ELECTRIFIED` |
+| 3 | `TRIPLE ELECTRIFIED` |
+
+Same rule: label reflects the resulting stack value, not the increment.
+
+### 18.2 VFX Type
+
+A new VFX entry type `'conditionNotify'` is added to `vfxList`:
+
+```js
+class ConditionNotifyVFX {
+  type = 'conditionNotify'
+  position   // Vec2 — station position at the moment of application
+  text       // string — label as above
+  colour     // CSS colour — affected station's team colour
+  duration = 2.0
+  t = 0
+}
+```
+
+Rendering is identical to `CollectableGrantVFX`: the text rises upward (`t × 20` game units offset) and fades using the eased curve `alpha = clamp(t / 0.12) * 0.5 * (1 + cos(t × π))`. Font size matches the grant label (~14px screen, bold monospace).
+
+`conditionNotify` entries are advanced by `_advanceCollectableVFX` (the same always-running advancer used by `collectableGrant`) so they continue fading through the aiming phase without freezing on screen.
+
+### 18.3 Trigger Points
+
+A `ConditionNotifyVFX` is pushed to `gameState.vfxList` at every point in `GameLoop` where a condition is applied to a station:
+
+| Trigger | Condition |
+|---|---|
+| Comet hits unarmoured station | Freeze (`frozen += 1`) |
+| Ice Rocket blast reaches station | Freeze (`frozen += 2`) |
+| Ice Blast ring contacts station | Freeze (`frozen += 1`) |
+| Ice Bomb blast inner zone | Freeze (`frozen += 3`) |
+| Ice Bomb blast middle zone | Freeze (`frozen += 2`) |
+| Ice Bomb blast outer zone | Freeze (`frozen += 1`) |
+| Freeze Ray hits station | Freeze (`frozen += 3`) |
+| Shock Rocket zone reaches station | Electrified (`electrified += 2`) |
+| Shock Beam hits station | Electrified (`electrified += 2`) |
+| Existing ELECTRO_STUN weapon | Electrified (`electrified += 1`) |
+
+If a single event would apply a condition but armour absorbs it, **no** `ConditionNotifyVFX` is created (the condition was not applied).
+
+### 18.4 Stacking and Multiple Hits
+
+If the same station is hit by multiple condition sources in the same fire phase (e.g. two Ice Blast rings pass through it), each successful application spawns its own `ConditionNotifyVFX`. Multiple labels from the same station stack vertically in the order they are pushed (each starts at the station position, so they ride up independently). The cap still applies to the `frozen`/`electrified` value; the label always reflects the actual resulting value.
+
+### 18.5 Affected Files (addition)
+
+| File | Change |
+|---|---|
+| `src/core/GameLoop.js` | Push `ConditionNotifyVFX` at every condition-application site listed in §18.3 |
+| `src/rendering/Renderer.js` | Render `conditionNotify` type — reuse `CollectableGrantVFX` draw path with the station team colour |
 
 ---
 
@@ -863,11 +940,11 @@ New entries for `WEAPON_GRANTS` table:
 | File | Change |
 |---|---|
 | `src/entities/Collectable.js` | Add 15 new `WeaponId` entries; add to `WEAPON_GRANTS` table with tier and charges |
-| `src/core/GameLoop.js` | Firing logic for all new weapons; `IceBombBlast`, `IceRing`, `ShockZone` step/expansion; Quantum Beam swap at turn end; Rocket Booster movement doubling; Surprise random draw; Suit Up composite activation; Aaarrrgghh dual burst queue |
+| `src/core/GameLoop.js` | Firing logic for all new weapons; `IceBombBlast`, `IceRing`, `ShockZone` step/expansion; Quantum Beam swap at turn end; Thrust Booster movement doubling; Surprise random draw; Suit Up composite activation; Aaarrrgghh dual burst queue; `ConditionNotifyVFX` at all condition-application sites (§18.3) |
 | `src/entities/Bullet.js` | New bullet flags: `iceBomb`, `iceBombTimer`, `birthdayPresent`, `gravityScale` |
 | `src/entities/IceRing.js` | **NEW** — `IceRing` entity class |
 | `src/entities/Rocket.js` | Reused unchanged; Ice Rocket and Shock Rocket use `isIceRocket` / `isShockRocket` flags |
 | `src/physics/PhysicsEngine.js` | Apply `bullet.gravityScale` in gravity step; `IceRing` step logic; Quantum Beam and Shock Beam path simulation |
-| `src/rendering/Renderer.js` | Ice Rocket trail; Ice Ring circles; Ice Bomb glow + blast zones; Quantum Beam sine-wave path + swap flash; Birthday Present striped bullet + grant labels; Freeze Ray icy path; Shock Zone expanding lightning fill; Shock Beam jagged lightning path; Team Armour ring VFX; Suit Up double-ring VFX; Aaarrrgghh muzzle text VFX |
-| `src/ui/WeaponSelector.js` | Labels for all 15 new weapons; SURPRISE sub-weapon hidden; ROCKET_BOOSTER greyed when movement off |
+| `src/rendering/Renderer.js` | Ice Rocket trail; Ice Ring circles; Ice Bomb glow + blast zones; Quantum Beam sine-wave path + swap flash; Birthday Present striped bullet + grant labels; Freeze Ray icy path; Shock Zone expanding lightning fill; Shock Beam jagged lightning path; Team Armour ring VFX; Suit Up double-ring VFX; Aaarrrgghh muzzle text VFX; `conditionNotify` VFX (reuses grant-label draw path) |
+| `src/ui/WeaponSelector.js` | Labels for all 15 new weapons; SURPRISE sub-weapon hidden; THRUST_BOOSTER greyed when movement off |
 | `src/ai/AIController.js` | Add all new weapons to AI priority/probability tables |
