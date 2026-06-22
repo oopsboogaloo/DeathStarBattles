@@ -1010,6 +1010,9 @@ export class Renderer {
     // Rocket blast zones (drawn behind rockets and shields)
     if (gameState.rocketBlasts?.length) this._drawRocketBlasts(ctx, gameState.rocketBlasts);
 
+    // Ice Blast expanding rings
+    if (gameState.iceRings?.length) this._drawIceRings(ctx, gameState.iceRings);
+
     // Repulsor fields (drawn behind shields)
     if (gameState.repulsorFields?.length) this._drawRepulsorFields(ctx, gameState.repulsorFields);
 
@@ -3142,6 +3145,31 @@ export class Renderer {
   // ----------------------------------------------------------------
   // Rocket blast zones — solid expanding circle, visual = collision boundary
   // ----------------------------------------------------------------
+
+  // Ice Blast — expanding pale-blue ice rings with a faint icy glow.
+  _drawIceRings(ctx, rings) {
+    const conv = this.conv;
+    for (const ring of rings) {
+      const cx = ring.position.x * conv;
+      const cy = ring.position.y * conv;
+      const r  = Math.max(1, ring.radius * conv);
+      const fade = Math.max(0, 1 - ring.lifetime / 3000);
+
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, `rgba(180,230,255,${(0.15 * fade).toFixed(3)})`);
+      grad.addColorStop(1, 'rgba(180,230,255,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(170,222,255,${(0.8 * fade).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, conv * 0.4);
+      ctx.stroke();
+    }
+  }
 
   _drawRocketBlasts(ctx, blasts) {
     const conv = this.conv;

@@ -12,6 +12,7 @@ import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED,
          ROCKET_BLAST_RADIUS, ROCKET_HITBOX_RADIUS } from '../entities/Rocket.js';
+import { IceRing, ICE_RING_MAX_RADIUS, ICE_RING_LIFETIME } from '../entities/IceRing.js';
 import { Station, StationSize }            from '../entities/Station.js';
 import { Team }                            from '../entities/Team.js';
 import { AIController }                    from '../ai/AIController.js';
@@ -1044,6 +1045,7 @@ export class GameLoop {
   _fireAll() {
     this.gs.activeBullets   = [];
     this.gs.rockets         = [];
+    this.gs.iceRings        = [];
     this.gs.shields         = [];
     this.gs.repulsorFields  = [];
     this.gs.rocketBlasts    = [];
@@ -1454,6 +1456,12 @@ export class GameLoop {
           intervalSteps: 200, nextFireStep: 0, angle: station.angle, power: station.power,
         });
         SoundManager.play('minigun');
+      } else if (w === WeaponId.ICE_BLAST && station.team.spendStock(WeaponId.ICE_BLAST)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.ICE_BLAST, shotsRemaining: 8, totalShots: 8,
+          intervalSteps: 300, nextFireStep: 0, angle: station.angle, power: station.power,
+        });
+        SoundManager.play('laser', { pitch: -0.3 });
       } else if (w === WeaponId.FREEZE_RAY && station.team.spendStock(WeaponId.FREEZE_RAY)) {
         this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), freezeRay: true });
         SoundManager.play('laser');
@@ -1568,6 +1576,17 @@ export class GameLoop {
           const b = this._makeBullet(burst.station, burst.angle + spread, burst.power);
           b.fragBouncy = true; b.bouncePlanetOnly = true; b.thickTrail = true;
           this.gs.activeBullets.push(b);
+        } else if (burst.weapon === WeaponId.ICE_BLAST) {
+          const MAX_V = (800 / 1000 + 0.2) * 0.8;
+          const rad   = (((burst.angle % 360) + 360) % 360 * Math.PI) / 180;
+          const pos   = new Vec2(
+            burst.station.position.x + (burst.station.radius + 1) * Math.sin(rad),
+            burst.station.position.y + (burst.station.radius + 1) * Math.cos(rad),
+          );
+          const vel   = new Vec2(MAX_V * 0.08 * Math.sin(rad), MAX_V * 0.08 * Math.cos(rad));
+          const ring  = new IceRing({ owner: burst.station, position: pos, velocity: vel });
+          ring.radius = burst.station.radius;
+          this.gs.iceRings.push(ring);
         } else if (burst.weapon === WeaponId.QUANTUM_AUTO_CANNON) {
           const spread = (this.rng.next() * 2 - 1) * 1;
           const b = this._makeBullet(burst.station, burst.angle + spread, burst.power);
@@ -1655,6 +1674,53 @@ export class GameLoop {
         this.gs.vfxList.push({ type: 'teleportFlash', x: pt.station.position.x, y: pt.station.position.y, r: tr, g: tg, b: tb, t: 0, duration: 0.5 });
         SoundManager.play('teleport');
         this.gs.pendingTeleports.splice(pti, 1);
+      }
+
+      // ── Ice rings (Ice Blast) ──────────────────────────────────────────────────
+      if (this.gs.iceRings.length) {
+        const { gw, gh } = this.physics;
+        for (const ring of this.gs.iceRings) {
+          if (ring.status !== 'active') continue;
+          ring.lifetime++;
+          // Gravity (full G)
+          for (const planet of this.gs.planets) {
+            if (planet.destroyed) continue;
+            const dx = planet.position.x - ring.position.x, dy = planet.position.y - ring.position.y;
+            const rSq = dx * dx + dy * dy;
+            if (rSq < 0.01) continue;
+            const sign  = dx < 0 ? -1 : 1;
+            const theta = Math.atan(dy / dx);
+            const accel = sign * G * planet.mass / rSq;
+            ring.velocity = new Vec2(ring.velocity.x + Math.cos(theta) * accel * TIMESTEP,
+                                     ring.velocity.y + Math.sin(theta) * accel * TIMESTEP);
+          }
+          ring.position = new Vec2(ring.position.x + ring.velocity.x * TIMESTEP,
+                                   ring.position.y + ring.velocity.y * TIMESTEP);
+          ring.radius = Math.min(ICE_RING_MAX_RADIUS, ring.radius + ICE_RING_MAX_RADIUS / ICE_RING_LIFETIME);
+          // Freeze stations it passes through (single freeze; ring continues)
+          for (const s of allStations) {
+            if (s.status !== 'active' || ring.hitSet.has(s) || s === ring.owner) continue;
+            const dx = s.position.x - ring.position.x, dy = s.position.y - ring.position.y;
+            const rr = ring.radius + s.radius;
+            if (dx * dx + dy * dy < rr * rr) {
+              ring.hitSet.add(s);
+              this._applyBeamCondition(s, 'frozen', 1);
+            }
+          }
+          // Solid planets stop the ring (asteroids / crystals / gas giants pass through)
+          for (const planet of this.gs.planets) {
+            if (planet.destroyed) continue;
+            if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL ||
+                planet.type === PlanetType.GAS_GIANT) continue;
+            const R = planet.impactRadius;
+            const dx = planet.position.x - ring.position.x, dy = planet.position.y - ring.position.y;
+            if (dx * dx + dy * dy < R * R) { ring.status = 'dead'; break; }
+          }
+          if (ring.lifetime >= ICE_RING_LIFETIME) ring.status = 'dead';
+          if (ring.position.x < -gw || ring.position.x > 2 * gw ||
+              ring.position.y < -gw || ring.position.y > gh + gw) ring.status = 'dead';
+        }
+        this.gs.iceRings = this.gs.iceRings.filter(r => r.status === 'active');
       }
 
       // ── Rocket physics ────────────────────────────────────────────────────────
@@ -2152,13 +2218,14 @@ export class GameLoop {
     // All resolved → RESULTS (wait for moving stations, burst queue, pending lasers, teleports, and rockets)
     const bulletsGone    = this.gs.activeBullets.length === 0;
     const rocketsGone    = this.gs.rockets.length === 0;
+    const ringsGone      = this.gs.iceRings.length === 0;
     const blastsGone     = this.gs.rocketBlasts.length === 0;
     const burstsGone     = this.gs.burstQueue.length === 0;
     const lasersGone     = this.gs.pendingLasers.length === 0;
     const teleportsGone  = (this.gs.pendingTeleports?.length ?? 0) === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && rocketsGone && blastsGone && burstsGone && lasersGone && teleportsGone && !stationsMoving) {
+    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && teleportsGone && !stationsMoving) {
       for (const reinf of this.gs.pendingReinforcements ?? []) {
         this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y, reinf.size);
       }

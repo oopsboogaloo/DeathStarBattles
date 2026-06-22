@@ -36,6 +36,7 @@ export class GameState {
     this.collectables     = [];         // Collectable[] — collectables on the map
     this.vfxList          = [];         // VFX objects (collectable shatter, collectable grant, muzzle)
     this.rockets          = [];         // Rocket[]
+    this.iceRings         = [];         // IceRing[] — Ice Blast expanding ice rings
     this.rocketBlasts     = [];         // {x,y,maxRadius,currentRadius,owner,hitSet}[]
     this.rocketSmoke      = [];         // {x,y,maxR,t,r,g,b}[] — smoke puff particles
     this.cometSmoke       = [];         // {x,y,maxR,t}[] — white comet tail puffs — active rockets in flight
