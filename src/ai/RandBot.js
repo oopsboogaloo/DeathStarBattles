@@ -28,6 +28,9 @@ export class RandBot extends AIController {
     const priority = [
       WeaponId.LASER, WeaponId.ROCKET, WeaponId.MINIGUN, WeaponId.TRIPLE_CANNON,
       WeaponId.BLUNDERBUSS, WeaponId.BLASTER, WeaponId.FORCE_SHIELD,
+      WeaponId.FREEZE_RAY, WeaponId.SHOCK_BEAM, WeaponId.QUANTUM_BEAM, WeaponId.ICE_ROCKET,
+      WeaponId.SHOCK_ROCKET, WeaponId.ICE_BOMB, WeaponId.AAARRRGGHH, WeaponId.BOUNCE_AUTOCANNON,
+      WeaponId.TRIPLE_BOUNCE_CANNON, WeaponId.ICE_BLAST, WeaponId.SUIT_UP, WeaponId.SURPRISE,
     ];
     for (const w of priority) {
       if ((station.team?.getStock(w) ?? 0) > 0) return w;
