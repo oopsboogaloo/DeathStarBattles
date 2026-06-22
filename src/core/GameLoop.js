@@ -460,6 +460,7 @@ export class GameLoop {
       const rem      = (station._moveDistRemaining ?? 0) - stepDist;
       station._moveDistRemaining = Math.max(0, rem);
       const fraction = rem >= 0 ? 1 : 1 + rem / stepDist; // partial last step
+      if (station.stats) station.stats.distanceMoved += stepDist * Math.max(0, Math.min(1, fraction)); // Runner award (§21)
 
       let x = station.position.x + vx * TIMESTEP * fraction;
       let y = station.position.y + vy * TIMESTEP * fraction;
@@ -571,6 +572,7 @@ export class GameLoop {
         c.alive = false;
         const grant = this._pickCollectableGrant();
         station.team.addStock(grant.id, grant.charges);
+        this._creditCollectableStat(station, grant);
         if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
         this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
         const [cr, cg, cb] = station.team.colour;
@@ -1848,6 +1850,7 @@ export class GameLoop {
           c.alive = false;
           const grant = this._pickCollectableGrant();
           rocket.owner.team.addStock(grant.id, grant.charges);
+          this._creditCollectableStat(rocket.owner, grant);
           if (this.gs.storyState && rocket.owner.team.isHuman) this.gs.storyState.collectCount++;
           this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
           const [cr, cg, cb] = rocket.owner.team.colour;
@@ -2069,6 +2072,7 @@ export class GameLoop {
           hitCollectable.alive = false;
           const grant = this._pickCollectableGrant();
           bullet.owner.team.addStock(grant.id, grant.charges);
+          this._creditCollectableStat(bullet.owner, grant);
           if (this.gs.storyState && bullet.owner.team.isHuman) this.gs.storyState.collectCount++;
           SoundManager.play('glassSmash');
           this.gs.vfxList.push(this._makeCollectableShatterVFX(hitCollectable));
@@ -2173,6 +2177,7 @@ export class GameLoop {
           c.alive = false;
           const grant = this._pickCollectableGrant();
           blast.owner.team.addStock(grant.id, grant.charges);
+          this._creditCollectableStat(blast.owner, grant);
           if (this.gs.storyState && blast.owner.team.isHuman) this.gs.storyState.collectCount++;
           this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
           const [cr, cg, cb] = blast.owner.team.colour;
@@ -2579,6 +2584,7 @@ export class GameLoop {
           c.alive = false;
           const grant = this._pickCollectableGrant();
           station.team.addStock(grant.id, grant.charges);
+        this._creditCollectableStat(station, grant);
           if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
           this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
           const [cr, cg, cb] = station.team.colour;
@@ -2681,6 +2687,7 @@ export class GameLoop {
           c.alive = false;
           const grant = this._pickCollectableGrant();
           station.team.addStock(grant.id, grant.charges);
+        this._creditCollectableStat(station, grant);
           this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
           const [cr, cg, cb] = station.team.colour;
           this.gs.vfxList.push({ type: 'collectableGrant', x: c.position.x, y: c.position.y, text: grant.label, colour: `rgb(${cr},${cg},${cb})`, t: 0, duration: 2.0 });
@@ -2813,6 +2820,7 @@ export class GameLoop {
           c.alive = false;
           const grant = this._pickCollectableGrant();
           station.team.addStock(grant.id, grant.charges);
+        this._creditCollectableStat(station, grant);
           if (this.gs.storyState && station.team.isHuman) this.gs.storyState.collectCount++;
           this.gs.vfxList.push(this._makeCollectableShatterVFX(c));
           const [cr, cg, cb] = station.team.colour;
@@ -3270,6 +3278,19 @@ export class GameLoop {
       this._deliverBirthdayPresent(bullet, target);
     }
 
+    // Record the strike (lethal or absorbed) for awards (§21): hits on enemies,
+    // selfHits on friendlies with a min-distance tiebreak.
+    const _shooter = bullet.owner;
+    if (_shooter?.stats && _shooter.position) {
+      const _d = _shooter.position.distanceTo(target.position);
+      if (_shooter.team === target.team) {
+        _shooter.stats.selfHits++;
+        _shooter.stats.selfHitMinDist = Math.min(_shooter.stats.selfHitMinDist ?? Infinity, _d);
+      } else {
+        _shooter.stats.hits++;
+      }
+    }
+
     // Armour absorption — consume one layer instead of destroying the station.
     // Gravity Cannon and Super Laser punch through armour and destroy outright.
     if ((target.armourLayers ?? 0) > 0 && !bullet.gravityCannon && !bullet.superLaser) {
@@ -3324,6 +3345,16 @@ export class GameLoop {
       if (bullet.teleportCount > 0)               shooter.stats.wormholeKills++;
       if (bullet.trickShotDone)                   shooter.stats.trickShotKills++;
 
+      // Awards rework (§21): single best-shot extrema + best trickshot
+      shooter.stats.longestKillDist = Math.max(shooter.stats.longestKillDist ?? 0, dist);
+      shooter.stats.closestKillDist = Math.min(shooter.stats.closestKillDist ?? Infinity, dist);
+      const _ev = (bullet.teleportCount ?? 0) + (bullet.skimCount ?? 0) + (bullet.bounceCount ?? 0);
+      if (_ev >= 1 && (_ev > (shooter.stats.bestTrickshotEvents ?? 0) ||
+          (_ev === shooter.stats.bestTrickshotEvents && dist > (shooter.stats.bestTrickshotDist ?? 0)))) {
+        shooter.stats.bestTrickshotEvents = _ev;
+        shooter.stats.bestTrickshotDist   = dist;
+      }
+
       shooter.stats.kills++;
       shooter.team.stats.kills++;
       shooter.team.stats.score++;
@@ -3347,6 +3378,7 @@ export class GameLoop {
       station.position.x + nx * (station.radius + 1),
       station.position.y + ny * (station.radius + 1),
     );
+    bullet.bounceCount = (bullet.bounceCount ?? 0) + 1; // Trick Shot award (§21)
   }
 
   _detonateFragShot(bullet) {
@@ -3584,6 +3616,13 @@ export class GameLoop {
     this.gs.vfxList.push({ type: 'birthdayGrant', x: target.position.x,
       y: target.position.y - target.radius, labels, colour: `rgb(${r},${g},${b})`, t: 0, duration: 3.0 });
     SoundManager.play('nova', { volume: 0.5 });
+  }
+
+  // Credit a collected collectable to the collecting station for the Greedy award (§21).
+  _creditCollectableStat(station, grant) {
+    if (!station?.stats) return;
+    station.stats.collectablesGrabbed++;
+    station.stats.collectableTierSum += (grant?.tier ?? 1);
   }
 
   // Random tier 2/3 grant object (for Birthday Present windfalls).

@@ -337,6 +337,7 @@ export class PhysicsEngine {
           bullet._hitMoon  = planet;
           bullet._hitMoonX = bullet.position.x;
           bullet._hitMoonY = bullet.position.y;
+          if (bullet.owner?.stats) bullet.owner.stats.rockHits++; // Rock Breaker award (§21)
         }
         return;
       }
@@ -445,6 +446,7 @@ export class PhysicsEngine {
 
       case PlanetType.ASTEROID:
         planet.destroyed = true;
+        if (bullet.owner?.stats) bullet.owner.stats.rockHits++; // Rock Breaker award (§21)
         if (bullet.fragBouncy) {
           this._fragBounce(bullet, dx, dy, planet.impactRadius);
         } else {
@@ -454,6 +456,7 @@ export class PhysicsEngine {
 
       case PlanetType.CRYSTAL:
         planet.destroyed = true;
+        if (bullet.owner?.stats) bullet.owner.stats.rockHits++; // Rock Breaker award (§21)
         if (bullet.fragBouncy) {
           this._fragBounce(bullet, dx, dy, planet.impactRadius);
         }
@@ -473,6 +476,7 @@ export class PhysicsEngine {
         bullet._hitMoon  = planet;
         bullet._hitMoonX = bullet.position.x;
         bullet._hitMoonY = bullet.position.y;
+        if (bullet.owner?.stats) bullet.owner.stats.rockHits++; // Rock Breaker award (§21)
         if (bullet.fragBouncy) {
           this._fragBounce(bullet, dx, dy, planet.impactRadius);
         } else {
@@ -546,6 +550,7 @@ export class PhysicsEngine {
       bullet.position.x + dx + nx * (surfaceRadius + INIT_DIST),
       bullet.position.y + dy + ny * (surfaceRadius + INIT_DIST),
     );
+    bullet.bounceCount = (bullet.bounceCount ?? 0) + 1; // for Trick Shot award (§21)
   }
 
   // ─── Reflective rift bounce (mirror) ─────────────────────────────────────

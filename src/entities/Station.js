@@ -41,6 +41,18 @@ export class StationStats {
     this.hyperspaceCount = 0;
     this.totalPower     = 0;
     this.skimShots      = 0;
+    // Awards rework (new-weapons-spec §21) — window-scoped per-game stats
+    this.hits           = 0;       // strikes on enemy stations (lethal or armour-absorbed)
+    this.selfHits       = 0;       // strikes on own-team stations (incl. absorbed + suicides)
+    this.selfHitMinDist = Infinity;// closest self-hit distance (Own Goals tiebreak)
+    this.longestKillDist = 0;      // single longest-distance kill this game
+    this.closestKillDist = Infinity;// single closest-distance kill this game
+    this.bestTrickshotEvents = 0;  // most wormhole+skim+bounce events on one kill
+    this.bestTrickshotDist   = 0;  // that kill's distance (Trick Shot tiebreak)
+    this.collectablesGrabbed = 0;  // collectables collected
+    this.collectableTierSum  = 0;  // summed tier of collected weapons (Greedy tiebreak)
+    this.rockHits       = 0;       // asteroid / crystal / moon hits
+    this.distanceMoved  = 0;       // total movement distance this game
   }
 }
 
