@@ -809,7 +809,7 @@ export class ConfigPanel {
       display: 'flex', justifyContent: 'center', flexWrap: 'wrap',
       gap: S.norm.infoGap, rowGap: '6px', marginTop: S.norm.infoMarginT,
     });
-    for (const [label, key] of [['About', 'about'], ['Instructions', 'instructions'], ['Education', 'education'], ['Scores', 'scores'], ['? Options Help', 'options']]) {
+    for (const [label, key] of [['About', 'about'], ['Instructions', 'instructions'], ['Education', 'education'], ['Scores', 'scores'], ['Privacy', 'privacy'], ['? Options Help', 'options']]) {
       const btn = el('button', {
         background:    'transparent',
         border:        'none',

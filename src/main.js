@@ -26,7 +26,8 @@ import { StoryModeScreen }      from './ui/StoryModeScreen.js';
 import { buildStoryMission, resetStoryStationId } from './story/StorySetup.js';
 import { StoryPersistence }     from './story/StoryPersistence.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from './entities/Collectable.js';
-import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal } from './ui/InfoModals.js';
+import { AboutModal, InstructionsModal, EducationModal, ScoreModal, OptionsHelpModal, PrivacyModal } from './ui/InfoModals.js';
+import { StorageNotice } from './ui/StorageNotice.js';
 import { SoundManager, SOUND_VOL_GAIN } from './audio/SoundManager.js';
 import { TargetPracticeSetup }        from './core/TargetPracticeSetup.js';
 import { TargetPracticeGame }          from './core/TargetPracticeGame.js';
@@ -111,11 +112,19 @@ const instructionsModal = new InstructionsModal();
 const educationModal    = new EducationModal();
 const scoreModal        = new ScoreModal();
 const optionsHelpModal  = new OptionsHelpModal();
+const privacyModal      = new PrivacyModal();
 document.body.appendChild(aboutModal.element);
 document.body.appendChild(instructionsModal.element);
 document.body.appendChild(educationModal.element);
 document.body.appendChild(scoreModal.element);
 document.body.appendChild(optionsHelpModal.element);
+document.body.appendChild(privacyModal.element);
+
+// One-time, non-blocking storage/privacy notice (GDPR/ePrivacy transparency).
+const storageNotice = new StorageNotice();
+storageNotice.setOnDetails(() => privacyModal.show());
+document.body.appendChild(storageNotice.element);
+storageNotice.maybeShow();
 
 panel.onResume(() => {
   if (_menuPausedLoop && loop?.isPaused) { loop.togglePause(); }
@@ -142,6 +151,7 @@ panel.onInfo(which => {
   if (which === 'instructions') instructionsModal.show();
   if (which === 'education')    educationModal.show();
   if (which === 'scores')       scoreModal.show(lastGameState);
+  if (which === 'privacy')      privacyModal.show();
   if (which === 'options')      optionsHelpModal.show();
 });
 
