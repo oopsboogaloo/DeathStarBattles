@@ -991,6 +991,31 @@ No other logic changes. The `'unlimited'` value removes the cap entirely — col
 
 ---
 
+## 20. Tournament Prize Defaults
+
+The `'minor'` tier already exists as an option for HANDICAP PRIZE and AWARD PRIZES (both are cycle controls with values `none → minor → mid → mammoth`). Their defaults in `ConfigPanel` are currently both `'none'`. This section changes those defaults so tournament games reward the bottom-placed team and award-ceremony winners out of the box.
+
+### 20.1 Default Changes
+
+| Config key | Old default | New default |
+|---|---|---|
+| `handicapPrize` | `'none'` | `'minor'` |
+| `awardPrizes` | `'none'` | `'minor'` |
+
+`winnerPrize` remains `'minor'` (already the existing default — no change).
+
+### 20.2 Effect
+
+With `handicapPrize: 'minor'`, the last-placed team in the tournament standings receives one random tier-1 weapon after each game. With `awardPrizes: 'minor'`, each award-ceremony winner (every 5 games) receives one random tier-1 weapon. Both use the existing `_pickWeapon('minor')` path in `TournamentState` — no logic change, only the starting value in `ConfigPanel`.
+
+### 20.3 Affected Files
+
+| File | Change |
+|---|---|
+| `src/ui/ConfigPanel.js` | Line `handicapPrize: 'none'` → `'minor'`; line `awardPrizes: 'none'` → `'minor'` |
+
+---
+
 ## 17. Affected Files
 
 | File | Change |
@@ -1004,5 +1029,5 @@ No other logic changes. The `'unlimited'` value removes the cap entirely — col
 | `src/rendering/Renderer.js` | Ice Rocket trail; Ice Ring circles; Ice Bomb glow + blast zones; Quantum Beam sine-wave path + swap flash; Birthday Present striped bullet + grant labels; Freeze Ray icy path; Shock Zone expanding lightning fill; Shock Beam jagged lightning path; Team Armour ring VFX; Suit Up double-ring VFX; Aaarrrgghh muzzle text VFX; `conditionNotify` VFX (reuses grant-label draw path) |
 | `src/ui/WeaponSelector.js` | Labels for all 15 new weapons; SURPRISE sub-weapon hidden; THRUST_BOOSTER greyed when movement off |
 | `src/ai/AIController.js` | Add all new weapons to AI priority/probability tables |
-| `src/ui/ConfigPanel.js` | Add MAX SPAWN row to page 4 collectables section (§19.2) |
+| `src/ui/ConfigPanel.js` | Add MAX SPAWN row to page 4 collectables section (§19.2); change `handicapPrize` and `awardPrizes` defaults to `'minor'` (§20) |
 | `src/core/GameLoop.js` *(also)* | Replace hardcoded spawn cap `>= 3` with `config.maxCollectableSpawn` (§19.3) |
