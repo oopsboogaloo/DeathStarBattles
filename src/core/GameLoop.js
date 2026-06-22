@@ -3272,10 +3272,11 @@ export class GameLoop {
     if (target.status !== 'active') return;
 
     // Birthday Present — deliver a windfall of weapons to the struck team on
-    // contact, then resolve damage normally (it can still kill).
+    // contact, then return without dealing damage (it's a gift).
     if (bullet.birthdayPresent && !bullet._presentDelivered) {
       bullet._presentDelivered = true;
       this._deliverBirthdayPresent(bullet, target);
+      return;
     }
 
     // Record the strike (lethal or absorbed) for awards (§21): hits on enemies,
