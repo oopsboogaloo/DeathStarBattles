@@ -3529,6 +3529,7 @@ export class Renderer {
         case 'collectableShatter':     this._drawCollectableShatter(ctx, vfx);      break;
         case 'collectableGrant':       this._drawCollectableGrant(ctx, vfx);        break;
         case 'conditionNotify':        this._drawCollectableGrant(ctx, vfx);        break;
+        case 'birthdayGrant':          this._drawBirthdayGrant(ctx, vfx);           break;
         case 'tripleCannonMuzzle':     this._drawTripleCannonMuzzle(ctx, vfx);      break;
         case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
         case 'glitter':                this._drawGlitter(ctx, vfx);                 break;
@@ -3631,6 +3632,28 @@ export class Renderer {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  // Birthday Present — a stacked column of rising weapon labels.
+  _drawBirthdayGrant(ctx, vfx) {
+    if (!vfx.labels?.length) return;
+    const cx   = vfx.x * this.conv;
+    const cy   = vfx.y * this.conv;
+    const t    = vfx.t;
+    const rise = t * 20 * this.conv;
+    const fadeIn = Math.min(1, t / 0.12);
+    const baseAlpha = Math.max(0, fadeIn * 0.5 * (1 + Math.cos(t * Math.PI)));
+
+    ctx.save();
+    ctx.font = `bold ${this._minimal ? 12 : 14}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = vfx.colour;
+    vfx.labels.forEach((lbl, i) => {
+      const stagger = Math.min(1, Math.max(0, (t - i * 0.06) / 0.12));
+      ctx.globalAlpha = baseAlpha * stagger;
+      ctx.fillText(lbl, cx, cy - rise - i * 16);
+    });
+    ctx.restore();
   }
 
   _drawCollectableGrant(ctx, vfx) {

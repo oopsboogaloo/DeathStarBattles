@@ -1063,9 +1063,28 @@ export class GameLoop {
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
       if ((station.frozen ?? 0) > 0) continue; // frozen stations do not fire
-      const w = station.selectedWeapon;
+      let w = station.selectedWeapon;
 
       station.lastTrails = null; // clear previous ghost trails before this turn's action
+
+      // Surprise — resolve into a random tier 2/3 weapon before dispatch. A temp
+      // charge is granted so the drawn weapon's branch can spend it (net zero).
+      if (w === WeaponId.SURPRISE) {
+        if (station.team.spendStock(WeaponId.SURPRISE)) {
+          const drawn = this._pickSurpriseWeapon();
+          station.team.addStock(drawn, 1);
+          station.selectedWeapon = drawn;
+          w = drawn;
+          const [sr, sg, sb] = station.team.colour;
+          const lbl = WEAPON_GRANTS.find(g => g.id === drawn)?.label ?? 'SURPRISE';
+          this.gs.vfxList.push({ type: 'collectableGrant', x: station.position.x,
+            y: station.position.y - station.radius * 2, text: lbl,
+            colour: `rgb(${sr},${sg},${sb})`, t: 0, duration: 2.5 });
+        } else {
+          w = WeaponId.CANNON;
+          station.selectedWeapon = WeaponId.CANNON;
+        }
+      }
 
       if (w === WeaponId.HYPERSPACE) continue; // teleports after firing phase
       if (w === WeaponId.FORCE_SHIELD && station.team.spendStock(WeaponId.FORCE_SHIELD)) {
@@ -1468,6 +1487,16 @@ export class GameLoop {
       } else if (w === WeaponId.SHOCK_BEAM && station.team.spendStock(WeaponId.SHOCK_BEAM)) {
         this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), shockBeam: true });
         SoundManager.play('laser');
+      } else if (w === WeaponId.BIRTHDAY_PRESENT && station.team.spendStock(WeaponId.BIRTHDAY_PRESENT)) {
+        // Slow shot following the same arc as a cannon shot: speed ×1/3, gravity ×1/9
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.velocity          = new Vec2(b.velocity.x / 3, b.velocity.y / 3);
+        b.gravityMultiplier = 1 / 9;
+        b.birthdayPresent   = true;
+        b.sizeMultiplier    = 2;
+        b.thickTrail        = true;
+        this.gs.activeBullets.push(b);
+        SoundManager.play('cannon', { pitch: -0.3 });
       } else if (w === WeaponId.THRUST_BOOSTER && station.team.spendStock(WeaponId.THRUST_BOOSTER)) {
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
         // Double this turn's movement distance budget (boost is wasted if not moving)
@@ -3115,6 +3144,13 @@ export class GameLoop {
     bullet.status = BulletStatus.EXPLODING;
     if (target.status !== 'active') return;
 
+    // Birthday Present — deliver a windfall of weapons to the struck team on
+    // contact, then resolve damage normally (it can still kill).
+    if (bullet.birthdayPresent && !bullet._presentDelivered) {
+      bullet._presentDelivered = true;
+      this._deliverBirthdayPresent(bullet, target);
+    }
+
     // Armour absorption — consume one layer instead of destroying the station.
     // Gravity Cannon and Super Laser punch through armour and destroy outright.
     if ((target.armourLayers ?? 0) > 0 && !bullet.gravityCannon && !bullet.superLaser) {
@@ -3414,6 +3450,39 @@ export class GameLoop {
     const movementOn = this.gs.movementSpeed && this.gs.movementSpeed !== 'off';
     const pool = WEAPON_GRANTS.filter(g => g.tier === tier && (!g.needsMovement || movementOn));
     return pool[Math.floor(this.rng.next() * pool.length)];
+  }
+
+  // Birthday Present — grant 3–5 random tier 2/3 weapons to the struck team.
+  _deliverBirthdayPresent(bullet, target) {
+    const count  = 3 + Math.floor(this.rng.next() * 3); // 3–5
+    const labels = [];
+    for (let i = 0; i < count; i++) {
+      const grant = this._pickTier23Grant();
+      target.team.addStock(grant.id, grant.charges);
+      labels.push(grant.label);
+    }
+    const [r, g, b] = target.team.colour;
+    this.gs.vfxList.push({ type: 'birthdayGrant', x: target.position.x,
+      y: target.position.y - target.radius, labels, colour: `rgb(${r},${g},${b})`, t: 0, duration: 3.0 });
+    SoundManager.play('nova', { volume: 0.5 });
+  }
+
+  // Random tier 2/3 grant object (for Birthday Present windfalls).
+  _pickTier23Grant() {
+    const movementOn = this.gs.movementSpeed && this.gs.movementSpeed !== 'off';
+    const pool = WEAPON_GRANTS.filter(g =>
+      (g.tier === 2 || g.tier === 3) && g.id !== WeaponId.SURPRISE &&
+      g.id !== WeaponId.BIRTHDAY_PRESENT && (!g.needsMovement || movementOn));
+    return pool[Math.floor(this.rng.next() * pool.length)];
+  }
+
+  // Pick a random tier 2 or 3 weapon for Surprise (excludes Surprise itself and
+  // movement-only weapons when movement is off). Returns a WeaponId.
+  _pickSurpriseWeapon() {
+    const movementOn = this.gs.movementSpeed && this.gs.movementSpeed !== 'off';
+    const pool = WEAPON_GRANTS.filter(g =>
+      (g.tier === 2 || g.tier === 3) && g.id !== WeaponId.SURPRISE && (!g.needsMovement || movementOn));
+    return pool[Math.floor(this.rng.next() * pool.length)].id;
   }
 
   humanDismissDialog() {
