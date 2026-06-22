@@ -271,6 +271,7 @@ export class GameLoop {
           } else {
             station.frozen      = Math.min(3, (station.frozen ?? 0) + 1);
             station.frozenFlash = 1.0;
+            this._notifyCondition(station, 'frozen');
           }
           break;
         }
@@ -1374,6 +1375,7 @@ export class GameLoop {
           } else {
             target.electrified      = Math.min(3, (target.electrified ?? 0) + 1);
             target.electrifiedFlash = 1.0;
+            this._notifyCondition(target, 'electrified');
           }
         }
         const [er, eg, eb] = station.team.colour;
