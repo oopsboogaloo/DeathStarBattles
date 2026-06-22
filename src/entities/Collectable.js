@@ -105,7 +105,7 @@ export const WEAPON_GRANTS = [
   // Tier 3
   { id: WeaponId.SURPRISE,              charges: 3, label: 'SURPRISE',            tier: 3 },
   { id: WeaponId.ICE_BOMB,              charges: 1, label: 'ICE BOMB',            tier: 3 },
-  { id: WeaponId.QUANTUM_BEAM,          charges: 3, label: 'QUANTUM BEAM',        tier: 3 },
+  { id: WeaponId.QUANTUM_BEAM,          charges: 3, label: 'QUANTUM BEAM',        tier: 2 },
   { id: WeaponId.BOUNCE_AUTOCANNON,     charges: 1, label: 'BOUNCE AUTOCANNON',   tier: 3 },
   { id: WeaponId.BIRTHDAY_PRESENT,      charges: 1, label: 'BIRTHDAY PRESENT',    tier: 3 },
   { id: WeaponId.FREEZE_RAY,            charges: 2, label: 'FREEZE RAY',          tier: 3 },
