@@ -81,6 +81,7 @@ export class ConfigPanel {
       teamClustering:    'off',
       wildcardFrequency: 'rare',
       collectables:      'normal',
+      maxCollectableSpawn: 3,
       richAsteroids:     'normal',
       pureRate:          'default',
       collectableSize:   'medium',
@@ -101,9 +102,9 @@ export class ConfigPanel {
       screenOrientation: 'auto',
       turnLimit:         'off',
       winnerPrize:       'minor',
-      handicapPrize:     'none',
+      handicapPrize:     'minor',
       tournamentGames:   'keepGoing',
-      awardPrizes:       'none',
+      awardPrizes:       'minor',
       claimCollectables: true,
     };
     this._onStartCb       = null;
@@ -600,6 +601,10 @@ export class ConfigPanel {
       this._cycle('collectables',
         ['off', 'rare', 'normal', 'common', 'continuous'],
         (v, i) => (['Off', 'Rare', 'Normal', 'Common', 'Continuous'][i])));
+    const rowMaxSpawn    = this._row('MAX SPAWN',
+      this._cycle('maxCollectableSpawn',
+        [1, 2, 3, 4, 5, 6, 10, 'unlimited'],
+        v => v === 'unlimited' ? 'Unlimited' : String(v)));
     // 'overwhelming' (100%) is dev-only; appended/removed by _updateDevRows().
     this._richAstValues = ['off', 'rare', 'normal', 'common', 'abundant'];
     const rowRichAst     = this._row('RICH ASTEROIDS',
@@ -639,7 +644,7 @@ export class ConfigPanel {
     const rowTPAI      = this._row('INCLUDE AI',
       this._cycle('tpIncludeAI', [false, true], v => v ? 'On' : 'Off'));
 
-    this._collectSubRows = [rowRichAst, rowColSize, rowPureRate];
+    this._collectSubRows = [rowMaxSpawn, rowRichAst, rowColSize, rowPureRate];
     this._seedSubRows    = [rowScenario];
     this._devRows        = [rowForceExtreme, rowPureRate];
     rowForceExtreme.style.display = 'none';
@@ -661,7 +666,7 @@ export class ConfigPanel {
     this._page1Rows = [rowPlayers, rowHuman, rowStations, rowCpuLevel, rowMode, rowScenario];
     this._page2Rows = [rowCurrentSeed, rowOverrideSeed, rowStationSize, rowWildcard, rowMovement, rowClustering];
     this._page3Rows = [rowPerformance, rowGameSpeed, rowAimCircle, rowBulletPaths, rowMinimalUI, rowScreenOrient];
-    this._page4Rows = [rowCollect, rowRichAst, rowColSize, rowPureRate, rowStartWep, rowStartArmour, rowForceExtreme];
+    this._page4Rows = [rowCollect, rowMaxSpawn, rowRichAst, rowColSize, rowPureRate, rowStartWep, rowStartArmour, rowForceExtreme];
     this._page5Rows = [rowTPTargets, rowTPSize, rowTPRounds, rowTPAI];
     this._page6Rows = [rowNumGames, rowTurnLimit, rowWinnerPrize, rowHandicapPrize, rowAwardPrizes, rowClaimCol];
     this._page7Rows = [rowSoundEnabled, rowMasterVol, rowAmbientVol];

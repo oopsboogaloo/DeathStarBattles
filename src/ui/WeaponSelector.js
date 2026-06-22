@@ -39,6 +39,21 @@ const LABELS = {
   [WeaponId.SUPER_LASER]:            'SUPER LASER',
   [WeaponId.REINFORCEMENT_SIGNAL]:   'REINF. SIGNAL',
   [WeaponId.MIND_CONTROL_BEAM]:      'MIND CONTROL',
+  [WeaponId.ICE_ROCKET]:             'ICE ROCKET',
+  [WeaponId.ICE_BLAST]:              'ICE BLAST',
+  [WeaponId.TRIPLE_BOUNCE_CANNON]:   'TRIPLE BOUNCE',
+  [WeaponId.SURPRISE]:               'SURPRISE',
+  [WeaponId.ICE_BOMB]:               'ICE BOMB',
+  [WeaponId.QUANTUM_BEAM]:           'QUANTUM BEAM',
+  [WeaponId.BOUNCE_AUTOCANNON]:      'BOUNCE AUTOCANNON',
+  [WeaponId.BIRTHDAY_PRESENT]:       'BIRTHDAY PRESENT',
+  [WeaponId.FREEZE_RAY]:             'FREEZE RAY',
+  [WeaponId.THRUST_BOOSTER]:         'THRUST BOOSTER',
+  [WeaponId.TEAM_ARMOUR]:            'TEAM ARMOUR',
+  [WeaponId.SHOCK_ROCKET]:           'SHOCK ROCKET',
+  [WeaponId.SHOCK_BEAM]:             'SHOCK BEAM',
+  [WeaponId.SUIT_UP]:                'SUIT UP',
+  [WeaponId.AAARRRGGHH]:             'AAARRRGGHH',
 };
 
 // Weapons that use stock (shown with [n] count)
@@ -55,6 +70,11 @@ const LIMITED = new Set([
   WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
   WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
   WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
+  WeaponId.ICE_ROCKET, WeaponId.ICE_BLAST, WeaponId.TRIPLE_BOUNCE_CANNON,
+  WeaponId.SURPRISE, WeaponId.ICE_BOMB, WeaponId.QUANTUM_BEAM,
+  WeaponId.BOUNCE_AUTOCANNON, WeaponId.BIRTHDAY_PRESENT, WeaponId.FREEZE_RAY,
+  WeaponId.THRUST_BOOSTER, WeaponId.TEAM_ARMOUR, WeaponId.SHOCK_ROCKET,
+  WeaponId.SHOCK_BEAM, WeaponId.SUIT_UP, WeaponId.AAARRRGGHH,
 ]);
 
 // Max items in each column before adding another column
@@ -196,6 +216,22 @@ export class WeaponSelector {
       WeaponId.SUPER_LASER,
       WeaponId.REINFORCEMENT_SIGNAL,
       WeaponId.MIND_CONTROL_BEAM,
+      WeaponId.ICE_ROCKET,
+      WeaponId.ICE_BLAST,
+      WeaponId.TRIPLE_BOUNCE_CANNON,
+      WeaponId.SURPRISE,
+      WeaponId.ICE_BOMB,
+      WeaponId.QUANTUM_BEAM,
+      WeaponId.BOUNCE_AUTOCANNON,
+      WeaponId.BIRTHDAY_PRESENT,
+      WeaponId.FREEZE_RAY,
+      // Thrust Booster only useful when movement is enabled
+      ...(gs?.movementSpeed && gs.movementSpeed !== 'off' ? [WeaponId.THRUST_BOOSTER] : []),
+      WeaponId.TEAM_ARMOUR,
+      WeaponId.SHOCK_ROCKET,
+      WeaponId.SHOCK_BEAM,
+      WeaponId.SUIT_UP,
+      WeaponId.AAARRRGGHH,
     ];
 
     // Build visible rows

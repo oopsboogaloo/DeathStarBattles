@@ -3133,7 +3133,8 @@ export class GameLoop {
     // Tier weights: 1=80%, 2=16%, 3=4%
     const r = this.rng.next();
     const tier = r < 0.80 ? 1 : r < 0.96 ? 2 : 3;
-    const pool = WEAPON_GRANTS.filter(g => g.tier === tier);
+    const movementOn = this.gs.movementSpeed && this.gs.movementSpeed !== 'off';
+    const pool = WEAPON_GRANTS.filter(g => g.tier === tier && (!g.needsMovement || movementOn));
     return pool[Math.floor(this.rng.next() * pool.length)];
   }
 
@@ -3501,7 +3502,8 @@ export class GameLoop {
   _trySpawnCollectable() {
     const collectables = this.gs.config?.collectables ?? 'off';
     if (collectables === 'off') return;
-    if (this.gs.collectables.length >= 3) return;
+    const cap = this.gs.config?.maxCollectableSpawn ?? 3;
+    if (cap !== 'unlimited' && this.gs.collectables.length >= cap) return;
     // No collectables in Hyperspace scenario (id 21)
     if (this.gs.config?.scenarioId === 26) return;
 

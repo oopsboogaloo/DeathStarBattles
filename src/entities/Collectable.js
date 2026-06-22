@@ -37,6 +37,22 @@ export const WeaponId = Object.freeze({
   SUPER_LASER:              'superLaser',
   REINFORCEMENT_SIGNAL:     'reinforcementSignal',
   MIND_CONTROL_BEAM:        'mindControlBeam',
+  // ── New weapons (new-weapons-spec.md) ──────────────────────────────────────
+  ICE_ROCKET:               'iceRocket',
+  ICE_BLAST:                'iceBlast',
+  TRIPLE_BOUNCE_CANNON:     'tripleBounceCannon',
+  SURPRISE:                 'surprise',
+  ICE_BOMB:                 'iceBomb',
+  QUANTUM_BEAM:             'quantumBeam',
+  BOUNCE_AUTOCANNON:        'bounceAutocannon',
+  BIRTHDAY_PRESENT:         'birthdayPresent',
+  FREEZE_RAY:               'freezeRay',
+  THRUST_BOOSTER:           'thrustBooster',
+  TEAM_ARMOUR:              'teamArmour',
+  SHOCK_ROCKET:             'shockRocket',
+  SHOCK_BEAM:               'shockBeam',
+  SUIT_UP:                  'suitUp',
+  AAARRRGGHH:               'aaarrrgghh',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -77,6 +93,25 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.REINFORCEMENT_SIGNAL,  charges: 1, label: 'REINF. SIGNAL',    tier: 3 },
   { id: WeaponId.MIND_CONTROL_BEAM,     charges: 1, label: 'MIND CONTROL',     tier: 3 },
   { id: WeaponId.HEDGEHOG,              charges: 1, label: 'HEDGEHOG',         tier: 3 },
+  // ── New weapons (new-weapons-spec.md) ──────────────────────────────────────
+  // Tier 1
+  { id: WeaponId.ICE_ROCKET,            charges: 2, label: 'ICE ROCKET',      tier: 1 },
+  { id: WeaponId.THRUST_BOOSTER,        charges: 2, label: 'THRUST BOOSTER',  tier: 1, needsMovement: true },
+  // Tier 2
+  { id: WeaponId.ICE_BLAST,             charges: 1, label: 'ICE BLAST',           tier: 2 },
+  { id: WeaponId.TRIPLE_BOUNCE_CANNON,  charges: 1, label: 'TRIPLE BOUNCE',       tier: 2 },
+  { id: WeaponId.SHOCK_ROCKET,          charges: 2, label: 'SHOCK ROCKET',        tier: 2 },
+  { id: WeaponId.SHOCK_BEAM,            charges: 1, label: 'SHOCK BEAM',          tier: 2 },
+  // Tier 3
+  { id: WeaponId.SURPRISE,              charges: 3, label: 'SURPRISE',            tier: 3 },
+  { id: WeaponId.ICE_BOMB,              charges: 1, label: 'ICE BOMB',            tier: 3 },
+  { id: WeaponId.QUANTUM_BEAM,          charges: 3, label: 'QUANTUM BEAM',        tier: 3 },
+  { id: WeaponId.BOUNCE_AUTOCANNON,     charges: 1, label: 'BOUNCE AUTOCANNON',   tier: 3 },
+  { id: WeaponId.BIRTHDAY_PRESENT,      charges: 1, label: 'BIRTHDAY PRESENT',    tier: 3 },
+  { id: WeaponId.FREEZE_RAY,            charges: 2, label: 'FREEZE RAY',          tier: 3 },
+  { id: WeaponId.TEAM_ARMOUR,           charges: 1, label: 'TEAM ARMOUR',         tier: 3 },
+  { id: WeaponId.SUIT_UP,               charges: 1, label: 'SUIT UP',             tier: 3 },
+  { id: WeaponId.AAARRRGGHH,            charges: 1, label: 'AAARRRGGHH',          tier: 3 },
 ];
 
 // Game-unit radius for collision and rendering.
