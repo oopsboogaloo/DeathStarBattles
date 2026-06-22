@@ -1018,6 +1018,12 @@ const _ALL_SPECIAL = [
   WeaponId.QUANTUM_AUTO_CANNON, WeaponId.GRAVITY_CANNON,
   WeaponId.ELECTRO_STUN, WeaponId.TELEPORT, WeaponId.SUPER_LASER,
   WeaponId.REINFORCEMENT_SIGNAL, WeaponId.MIND_CONTROL_BEAM,
+  // New weapons
+  WeaponId.ICE_ROCKET, WeaponId.THRUST_BOOSTER,
+  WeaponId.ICE_BLAST, WeaponId.TRIPLE_BOUNCE_CANNON, WeaponId.SHOCK_ROCKET, WeaponId.SHOCK_BEAM,
+  WeaponId.SURPRISE, WeaponId.ICE_BOMB, WeaponId.QUANTUM_BEAM, WeaponId.BOUNCE_AUTOCANNON,
+  WeaponId.BIRTHDAY_PRESENT, WeaponId.FREEZE_RAY, WeaponId.TEAM_ARMOUR, WeaponId.SUIT_UP,
+  WeaponId.AAARRRGGHH,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

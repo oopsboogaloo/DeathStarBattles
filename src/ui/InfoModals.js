@@ -653,28 +653,9 @@ export class AboutModal {
 
 // ── PrivacyModal ──────────────────────────────────────────────────────────────
 
-const PRIVACY_BODY = `Death Star Battles stores a small amount of data in your web browser's local storage so your single-player Story Mode progress is remembered between visits.
+const PRIVACY_BODY = `This game saves your Story Mode progress (mission unlocks and best scores) in your browser's local storage. No cookies, no personal data, no tracking — nothing leaves your device.
 
-WHAT IS STORED
-  • Story Mode progress only — which missions you have unlocked, your best score
-    per mission, and a "campaign complete" flag.
-  • Held under a single local-storage entry named "dsb_story", plus a flag that
-    records you have seen this notice.
-
-WHAT IS NOT STORED OR DONE
-  • No cookies are used.
-  • No personal data — no name, email, IP address, or tracking identifiers.
-  • No analytics, advertising, or third-party scripts.
-  • Nothing is ever sent to a server — the data never leaves your device.
-
-YOUR CONTROL
-  This storage is purely functional and stays on this device, in this browser.
-  To remove it, clear this site's data in your browser settings, or play in a
-  private / incognito window, where nothing is retained after you close it.
-
-Because the game uses no cookies and no tracking, and stores only what is needed
-to deliver the single-player progress you asked it to keep, no consent banner is
-required — but we want you to know exactly what happens to your data.`;
+To remove it, clear this site's data in your browser settings, or play in a private / incognito window.`;
 
 export class PrivacyModal {
   constructor() {
