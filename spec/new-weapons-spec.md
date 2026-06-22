@@ -245,13 +245,13 @@ When `iceBombTimer` reaches 0, an `IceBombBlast` is created at the bullet's curr
 ICE_BOMB_BLAST_RADIUS = 120   // game units
 ```
 
-The blast expands progressively (same rate as rocket blast: `maxRadius / 22` per rAF frame). As the expanding circle reaches each station:
+The blast expands progressively (same rate as rocket blast: `maxRadius / 22` per rAF frame). The freeze **severity is fixed by the station's distance from the blast centre as a fraction of `maxRadius`** (not of the current expanding radius). Let `d = distance(blast_centre, station_centre)`:
 
-- Station centre within `currentRadius × (1/3)` → **triple freeze** (`frozen = min(3, frozen + 3)`)
-- Station centre within `currentRadius × (2/3)` → **double freeze** (`frozen = min(3, frozen + 2)`)
-- Station centre within `currentRadius` → **single freeze** (`frozen = min(3, frozen + 1)`)
+- `d < maxRadius × (1/3)` → **triple freeze** (`frozen = min(3, frozen + 3)`)
+- `maxRadius × (1/3) ≤ d < maxRadius × (2/3)` → **double freeze** (`frozen = min(3, frozen + 2)`)
+- `maxRadius × (2/3) ≤ d < maxRadius` → **single freeze** (`frozen = min(3, frozen + 1)`)
 
-The zone threshold is evaluated at the moment the expanding circle first reaches the station (i.e. when `currentRadius >= distance(blast_centre, station_centre) - station.radius`). Stations are added to `hitSet` on contact to prevent double-processing.
+The freeze is **applied at the moment the visible expanding circle first reaches the station** (when `currentRadius >= d - station.radius`), so the effect lands in sync with the animation — but the severity above is computed from `d` against the fixed `maxRadius` fractions, so a station near the centre gets triple-frozen even though `currentRadius` is small when it is first reached. Stations are added to `hitSet` on contact to prevent double-processing.
 
 Armour/shield interactions are identical to Ice Rocket: armour consumed instead of freeze.
 
@@ -263,14 +263,14 @@ The Ice Bomb projectile itself explodes on planet contact (same as a cannon shot
 
 **Blast circle:**
 - White (`#FFFFFF`) stroke at 80% opacity, fading to 0% as it reaches `ICE_BOMB_BLAST_RADIUS`
-- Inner zone rings: at `currentRadius × (1/3)` and `currentRadius × (2/3)`, draw dashed pale blue circles at 40% opacity — these shrink as the outer circle expands, giving a visible zone indicator while the blast is expanding
+- Inner zone rings: fixed circles at `maxRadius × (1/3)` and `maxRadius × (2/3)` from the blast centre, drawn as dashed pale blue circles at 40% opacity once the expanding circle has passed them — a static indicator of the triple/double freeze bands
 
 ### 5.3 Edge Cases
 
 | Case | Behaviour |
 |---|---|
 | No stations in any zone | Blast produces no effect; expanding circle VFX plays normally |
-| Station on zone boundary (e.g. exactly at 1/3 radius) | Apply the higher freeze (inner zone wins) |
+| Station on zone boundary (e.g. exactly at `maxRadius/3`) | The `<` / `≤` bounds above place a boundary station in the **outer** band; to favour the player's victims, treat exact boundaries as the higher (inner) freeze |
 | Multiple stations in overlapping zones | Each resolved independently at the moment the circle first reaches them |
 | Ice Bomb shot down by bullet before fuse elapses | Detonates at current position — full blast applies |
 
