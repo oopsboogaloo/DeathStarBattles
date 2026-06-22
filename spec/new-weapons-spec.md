@@ -538,7 +538,281 @@ The cannon shot fired by Rocket Booster is visually indistinguishable from a nor
 
 ---
 
-## 11. WeaponId Additions
+## 11. Team Armour
+
+**Tier:** 3  
+**Charges per collectable:** 1  
+**WeaponId:** `TEAM_ARMOUR`
+
+### 11.1 Behaviour
+
+When a station fires with Team Armour, no projectile is spawned. At the start of the fire phase, every `ACTIVE` station on the firing station's team (including the firing station itself) receives two additional armour layers:
+
+```js
+for (const s of station.team.stations) {
+  if (s.status === 'active') s.armourLayers += 2;
+}
+```
+
+This mirrors the existing `ARMOUR` weapon (which adds 2 layers to the firing station only) but applies team-wide.
+
+### 11.2 HUD
+
+During the aiming phase, when Team Armour is selected, the weapon button reads `TEAM ARMOUR [N]`. Angle and power controls remain visible but are irrelevant (no projectile). A status label `ARMOUR FOR ALL` is shown in the station's team colour, matching the styling of `SHIELDED...`.
+
+### 11.3 VFX
+
+A brief `TeamArmourVFX` fires simultaneously at every station on the team that receives armour:
+
+```js
+class TeamArmourVFX {
+  type = 'teamArmour'
+  position     // Vec2 (station position)
+  colour       // team colour
+  duration = 0.8
+  t = 0
+}
+```
+
+Rendered as an expanding ring (radius 0 → `station.radius × 2.5`) in team colour at fading opacity, identical in style to the existing armour flash overlay but larger. All instances play concurrently.
+
+### 11.4 Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Firing station is the only active station on the team | Only that station receives armour; still valid use |
+| A teammate is frozen | Frozen stations are still `ACTIVE`; they receive the armour |
+| A teammate already has armour | Layers stack additively; no cap enforced |
+
+---
+
+## 12. Shock Rocket
+
+**Tier:** 2  
+**Charges per collectable:** 2  
+**WeaponId:** `SHOCK_ROCKET`
+
+### 12.1 Shock Terminology Reference
+
+| Term | Effect |
+|---|---|
+| Single shock | `station.electrified = min(3, station.electrified + 1)` |
+| Double shock | `station.electrified = min(3, station.electrified + 2)` |
+
+Electrified stations fire on their turn but with fully randomised angle and power (existing behaviour). Armour blocks shock the same way it blocks freeze: one layer consumed, no shock applied.
+
+### 12.2 Behaviour
+
+The Shock Rocket uses the same physics, fuel model, and flight behaviour as the standard Rocket (design.md §14.3). On detonation, instead of an expanding kill-blast, it creates a `ShockZone`:
+
+```js
+{ x, y,
+  maxRadius: SHOCK_ROCKET_RADIUS,
+  currentRadius: 1,
+  owner,
+  hitSet: Set()
+}
+
+SHOCK_ROCKET_RADIUS = 3 × ROCKET_BLAST_RADIUS   // = 138 game units
+```
+
+The zone expands at the same rate as a rocket blast (`maxRadius / 22` per rAF frame). As the expanding circle reaches each station:
+- Station is **double shocked** (`electrified = min(3, electrified + 2)`)
+- Station is **not destroyed**
+- Armoured stations consume one layer instead of receiving the shock
+- Station is added to `hitSet`
+
+All other rocket behaviours are identical: shoot-down hitbox, wormhole traversal, Force Shield detonation, off-screen indicator.
+
+### 12.3 Smoke Trail
+
+Same as the standard Rocket smoke trail (grey diffuse puffs) — no change to trail appearance.
+
+### 12.4 Shock Zone Rendering
+
+The expanding `ShockZone` circle is rendered on Layer 2:
+
+1. **Outer ring:** White (`#FFFFFF`) stroke, `lineWidth = 3px`, alpha fading from 0.9 to 0 as `currentRadius` reaches `maxRadius`
+2. **Interior lightning:** While the zone is expanding, draw `N` arcing lightning bolts radiating from the centre outward to `currentRadius`. Each bolt is a jagged polyline (5–8 random mid-point deflections) drawn in white at 80% opacity with a wider team-colour glow stroke underneath at 40% opacity.
+   - `N = 12` bolts
+   - Each bolt re-randomises its jag pattern every 2 rAF frames (flickering)
+   - Bolt length = `currentRadius` (they fill the expanding area)
+   - Bolt angles evenly spaced + small random offset per frame
+
+The lightning fills the interior of the zone, giving the impression of an electric storm expanding outward.
+
+### 12.5 Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Station already triple electrified | Cap enforced; station still added to `hitSet` |
+| Armoured station in zone | One armour layer consumed; no shock |
+| Shock Rocket shot down | Detonates at current position; full shock zone applies |
+
+---
+
+## 13. Shock Beam
+
+**Tier:** 2  
+**Charges per collectable:** 1  
+**WeaponId:** `SHOCK_BEAM`
+
+### 13.1 Behaviour
+
+The Shock Beam uses the same delayed-fire, path-simulation model as the Laser (design.md §14.2):
+
+```js
+{ station, angle, delaySteps: 400 + Math.floor(rng.next() * 400),
+  weaponType: 'shockBeam' }
+```
+
+**Path simulation** differences from Laser:
+
+| Property | Laser | Shock Beam |
+|---|---|---|
+| Effect on stations hit | Destroys | Double shocks; does **not** destroy |
+| Passes through multiple stations | Yes | Yes — shocks all stations along path |
+| Effect on asteroids/crystals | Destroys | Passes through (no destruction) |
+| Solid planets | Terminates | Terminates |
+| Force Shields | Reflects | Reflects |
+| Armour | n/a | One layer consumed instead of shock |
+
+The beam continues past electrified/shocked stations (it does not stop on hit).
+
+### 13.2 Rendering
+
+The Shock Beam path is stored as a `ShockBeamVFX`:
+
+```js
+{
+  type: 'shockBeam',
+  path: Vec2[],
+  colour: teamColour,
+  t: 0, duration: 1.2,
+}
+```
+
+Draw procedure each frame:
+
+The path is rendered as **joined lightning segments** rather than a smooth line. For each consecutive pair of path sample points:
+1. Subdivide the segment into 3–5 sub-segments
+2. At each interior junction, apply a random lateral offset of ±(2–6)px screen — this creates a jagged bolt appearance
+3. The sub-segment offsets are re-randomised every 3 rAF frames (flickering effect)
+4. Draw the jagged polyline twice:
+   - Wide pass: team colour, `lineWidth = 5px`, alpha `sin(t × π) × 0.5` — glowing halo
+   - Narrow pass: white (`#FFFFFF`), `lineWidth = 1.5px`, alpha `sin(t × π)` — bright core
+
+The result is a beam that looks like a continuous bolt of lightning from muzzle to termination point, with a team-coloured glow and a white hot centre.
+
+### 13.3 Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Shock Beam hits a frozen station | Applies double shock on top of existing frozen (conditions coexist; frozen takes precedence for turn resolution) |
+| Beam reflects off Force Shield into own station | Shock applies to own station |
+
+---
+
+## 14. Suit Up
+
+**Tier:** 3  
+**Charges per collectable:** 1  
+**WeaponId:** `SUIT_UP`
+
+### 14.1 Behaviour
+
+Suit Up is a composite weapon that executes three simultaneous effects at the start of the fire phase:
+
+**Effect 1 — Triple Armour:**
+The firing station receives three additional armour layers:
+```js
+station.armourLayers += 3;
+```
+
+**Effect 2 — Force Shield:**
+A Force Shield is activated for the firing station for this turn, identical to selecting `WeaponId.FORCE_SHIELD` directly (design.md §14.6). The shield expires at turn end.
+
+**Effect 3 — Minigun:**
+A minigun burst is fired from the firing station at its chosen angle and power, identical to `WeaponId.MINIGUN` (13 shots × 200-step intervals, ±2° random spread per shot, 1.5× maxCannonSpeed).
+
+All three effects are applied atomically at fire-phase start. The Force Shield is active from the first simulation step, so it deflects incoming bullets during the same turn the Suit Up is used.
+
+### 14.2 HUD
+
+During the aiming phase, angle and power are shown normally (they govern the minigun direction). The weapon button reads `SUIT UP [N]`. A sub-label `ARMOUR + SHIELD + MINIGUN` is shown beneath the weapon button in the team colour.
+
+### 14.3 VFX
+
+A `SuitUpVFX` triggers at the firing station at fire-phase start:
+
+```js
+class SuitUpVFX {
+  type = 'suitUp'
+  position     // Vec2
+  colour       // team colour
+  duration = 0.5
+  t = 0
+}
+```
+
+Rendered as a rapid double-ring expansion from the station (two concentric rings, slightly staggered in timing) in team colour, to signal the defensive boost before the minigun bullets begin flying.
+
+### 14.4 Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Station already has a Force Shield active (from a previous Suit Up or Force Shield weapon) | A second shield is added — two shield entries on `gameState.shields` for this station; both deflect independently |
+| Station is frozen | Force Shield still activates (defence applies even to frozen stations); minigun does not fire (frozen station cannot fire); armour is still added |
+| Minigun bullets hit the station's own shield | Bullets are deflected by the shield in the normal way |
+
+---
+
+## 15. Aaarrrgghh
+
+**Tier:** 3  
+**Charges per collectable:** 1  
+**WeaponId:** `AAARRRGGHH`
+
+### 15.1 Behaviour
+
+Aaarrrgghh fires both an Auto Cannon burst and a Rocket Pod burst simultaneously, using the same angle and power. Both burst queues are added to `gameState.burstQueue` at the start of the fire phase:
+
+**Auto Cannon component** (identical to `WeaponId.AUTO_CANNON`):
+```js
+{ station, weapon: 'autoCannon', totalShots: 5, shotsRemaining: 5,
+  intervalSteps: 500, nextFireStep: 0,
+  angleOffsets: [-10, -5, 0, +5, +10] }
+```
+
+**Rocket Pod component** (identical to `WeaponId.ROCKET_POD`):
+```js
+{ station, weapon: 'rocketPod', totalRockets: 8, rocketsRemaining: 8,
+  intervalSteps: 600, nextFireStep: 0 }
+```
+
+Both queues tick independently each `_firingTick()`. The cannon bullets and rockets are in flight simultaneously and interact with the world independently. All kills from either component are credited to the firing station.
+
+One `AAARRRGGHH` charge is consumed on firing. No Auto Cannon or Rocket Pod charges are consumed.
+
+### 15.2 Rendering
+
+Auto Cannon bullets render as normal Auto Cannon bullets (standard trail, team colour). Rockets render as standard Rocket Pod rockets (standard smoke trail). No special visual distinguishes this weapon from its components firing at the same time.
+
+### 15.3 Muzzle VFX
+
+A `AaaarrrgghhhMuzzleVFX` fires at the station at fire-phase start — a brief text label `AAARRRGGHH!` in team colour, large font, very short duration (0.4s), which rises and fades like a `CollectableGrantVFX`. This gives the weapon the comedic energy it deserves.
+
+### 15.4 Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Station is frozen | Neither component fires; charge is not consumed |
+| A Rocket Pod rocket is shot down mid-flight | Detonates normally; unrelated to the Auto Cannon bullets |
+| Auto Cannon bullet hits a rocket from the same burst | Rocket detonates at its current position (same as any bullet hitting a rocket) |
+
+---
+
+## 16. WeaponId Additions
 
 New entries for `Collectable.js` `WeaponId` enum:
 
@@ -553,6 +827,11 @@ BOUNCE_AUTOCANNON:     'bounceAutocannon',
 BIRTHDAY_PRESENT:      'birthdayPresent',
 FREEZE_RAY:            'freezeRay',
 ROCKET_BOOSTER:        'rocketBooster',
+TEAM_ARMOUR:           'teamArmour',
+SHOCK_ROCKET:          'shockRocket',
+SHOCK_BEAM:            'shockBeam',
+SUIT_UP:               'suitUp',
+AAARRRGGHH:            'aaarrrgghh',
 ```
 
 New entries for `WEAPON_GRANTS` table:
@@ -563,27 +842,32 @@ New entries for `WEAPON_GRANTS` table:
 | `ROCKET_BOOSTER` | 1 | 2 | `ROCKET BOOSTER` |
 | `ICE_BLAST` | 2 | 1 | `ICE BLAST` |
 | `TRIPLE_BOUNCE_CANNON` | 2 | 1 | `TRIPLE BOUNCE CANNON` |
+| `SHOCK_ROCKET` | 2 | 2 | `SHOCK ROCKET` |
+| `SHOCK_BEAM` | 2 | 1 | `SHOCK BEAM` |
 | `SURPRISE` | 3 | 3 | `SURPRISE` |
 | `ICE_BOMB` | 3 | 1 | `ICE BOMB` |
 | `QUANTUM_BEAM` | 3 | 3 | `QUANTUM BEAM` |
 | `BOUNCE_AUTOCANNON` | 3 | 1 | `BOUNCE AUTOCANNON` |
 | `BIRTHDAY_PRESENT` | 3 | 1 | `BIRTHDAY PRESENT` |
 | `FREEZE_RAY` | 3 | 2 | `FREEZE RAY` |
+| `TEAM_ARMOUR` | 3 | 1 | `TEAM ARMOUR` |
+| `SUIT_UP` | 3 | 1 | `SUIT UP` |
+| `AAARRRGGHH` | 3 | 1 | `AAARRRGGHH` |
 
 `ROCKET_BOOSTER` is excluded from the `WEAPON_GRANTS` random draw table when Movement Speed is `Off`. It may still appear in `weaponStock` (carried over from a session where movement was on) but is greyed out in the selector.
 
 ---
 
-## 12. Affected Files
+## 17. Affected Files
 
 | File | Change |
 |---|---|
-| `src/entities/Collectable.js` | Add 10 new `WeaponId` entries; add to `WEAPON_GRANTS` table with tier and charges |
-| `src/core/GameLoop.js` | Firing logic for each new weapon; `IceBombBlast` and `IceRing` step/expansion; Quantum Beam swap execution at turn end; Rocket Booster movement doubling; Surprise random draw |
+| `src/entities/Collectable.js` | Add 15 new `WeaponId` entries; add to `WEAPON_GRANTS` table with tier and charges |
+| `src/core/GameLoop.js` | Firing logic for all new weapons; `IceBombBlast`, `IceRing`, `ShockZone` step/expansion; Quantum Beam swap at turn end; Rocket Booster movement doubling; Surprise random draw; Suit Up composite activation; Aaarrrgghh dual burst queue |
 | `src/entities/Bullet.js` | New bullet flags: `iceBomb`, `iceBombTimer`, `birthdayPresent`, `gravityScale` |
 | `src/entities/IceRing.js` | **NEW** — `IceRing` entity class |
-| `src/entities/Rocket.js` | No change; Ice Rocket reuses Rocket class with a new `isIceRocket` flag |
-| `src/physics/PhysicsEngine.js` | Apply `bullet.gravityScale` in gravity step; add `IceRing` step logic; Quantum Beam path simulation with reflection and wormhole traversal |
-| `src/rendering/Renderer.js` | Render Ice Rocket trail (white circles with team colour); Ice Ring circles; Ice Bomb projectile glow + blast zones; Quantum Beam sine-wave path + swap flash; Bounce Autocannon (no change, reuses existing trail); Birthday Present rotating striped bullet + stacked grant labels; Freeze Ray icy cyan path; new VFX types: `SurpriseRevealVFX`, `QuantumSwapVFX`, `BirthdayGrantVFX` |
-| `src/ui/WeaponSelector.js` | Labels for all 10 new weapons; SURPRISE shows only `SURPRISE [N]`, no sub-weapon hint; ROCKET_BOOSTER greyed out when movement off |
-| `src/ai/AIController.js` | Add new weapons to AI priority/probability tables |
+| `src/entities/Rocket.js` | Reused unchanged; Ice Rocket and Shock Rocket use `isIceRocket` / `isShockRocket` flags |
+| `src/physics/PhysicsEngine.js` | Apply `bullet.gravityScale` in gravity step; `IceRing` step logic; Quantum Beam and Shock Beam path simulation |
+| `src/rendering/Renderer.js` | Ice Rocket trail; Ice Ring circles; Ice Bomb glow + blast zones; Quantum Beam sine-wave path + swap flash; Birthday Present striped bullet + grant labels; Freeze Ray icy path; Shock Zone expanding lightning fill; Shock Beam jagged lightning path; Team Armour ring VFX; Suit Up double-ring VFX; Aaarrrgghh muzzle text VFX |
+| `src/ui/WeaponSelector.js` | Labels for all 15 new weapons; SURPRISE sub-weapon hidden; ROCKET_BOOSTER greyed when movement off |
+| `src/ai/AIController.js` | Add all new weapons to AI priority/probability tables |
