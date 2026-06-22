@@ -1373,6 +1373,69 @@ export class GameLoop {
         this.gs.pendingLasers.push({ station, angle: station.angle,
           delaySteps: MIND_CONTROL_DELAY_STEPS, mindControlBeam: true });
         SoundManager.play('laserBeam');
+      } else if (w === WeaponId.TRIPLE_BOUNCE_CANNON && station.team.spendStock(WeaponId.TRIPLE_BOUNCE_CANNON)) {
+        this.gs.vfxList.push({
+          type: 'tripleCannonMuzzle', x: station.position.x, y: station.position.y,
+          angle: station.angle, colour: station.team.colour, t: 0, duration: 0.25,
+        });
+        for (const dAngle of [-5, 0, 5]) {
+          const b = this._makeBullet(station, station.angle + dAngle, station.power);
+          b.fragBouncy = true; b.bouncePlanetOnly = true; b.thickTrail = true;
+          this.gs.activeBullets.push(b);
+        }
+        SoundManager.play('cannon', { volume: 0.8 });
+      } else if (w === WeaponId.BOUNCE_AUTOCANNON && station.team.spendStock(WeaponId.BOUNCE_AUTOCANNON)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.BOUNCE_AUTOCANNON, shotsRemaining: 5, totalShots: 5,
+          intervalSteps: 500, nextFireStep: 0,
+          angle: station.angle, power: station.power,
+        });
+        SoundManager.play('minigun');
+      } else if (w === WeaponId.AAARRRGGHH && station.team.spendStock(WeaponId.AAARRRGGHH)) {
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.AUTO_CANNON, shotsRemaining: 5, totalShots: 5,
+          intervalSteps: 500, nextFireStep: 0, angle: station.angle, power: station.power,
+        });
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.ROCKET_POD, shotsRemaining: 8, totalShots: 8,
+          intervalSteps: 600, nextFireStep: 0, angle: station.angle, power: station.power,
+        });
+        const [aar, aag, aab] = station.team.colour;
+        this.gs.vfxList.push({ type: 'collectableGrant', x: station.position.x, y: station.position.y - station.radius * 2,
+          text: 'AAARRRGGHH!', colour: `rgb(${aar},${aag},${aab})`, t: 0, duration: 1.0 });
+        SoundManager.play('rocketPod');
+      } else if (w === WeaponId.TEAM_ARMOUR && station.team.spendStock(WeaponId.TEAM_ARMOUR)) {
+        for (const s of this.gs.allStations) {
+          if (s.status === 'active' && s.team === station.team) {
+            s.armourLayers += 2;
+            s.armourFlash = 1.0;
+            const [tar, tag, tab] = s.team.colour;
+            this.gs.vfxList.push({ type: 'teamArmour', x: s.position.x, y: s.position.y,
+              radius: s.radius, r: tar, g: tag, b: tab, t: 0, duration: 0.8 });
+          }
+        }
+        SoundManager.play('pop2');
+        station.stats.turns++;
+        continue;
+      } else if (w === WeaponId.SUIT_UP && station.team.spendStock(WeaponId.SUIT_UP)) {
+        station.armourLayers += 3;
+        station.armourFlash = 1.0;
+        this.gs.shields.push({ station, radius: station.radius * 1.6, alive: true });
+        const [sur, sug, sub] = station.team.colour;
+        this.gs.vfxList.push({ type: 'teamArmour', x: station.position.x, y: station.position.y,
+          radius: station.radius, r: sur, g: sug, b: sub, t: 0, duration: 0.8 });
+        this.gs.burstQueue.push({
+          station, weapon: WeaponId.MINIGUN, shotsRemaining: 13,
+          intervalSteps: 200, nextFireStep: 0, angle: station.angle, power: station.power,
+        });
+        SoundManager.play('minigun');
+      } else if (w === WeaponId.THRUST_BOOSTER && station.team.spendStock(WeaponId.THRUST_BOOSTER)) {
+        this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
+        // Double this turn's movement distance budget (boost is wasted if not moving)
+        if (station.velocity) {
+          station._moveDistRemaining = (station._moveDistRemaining || this._getMaxMoveDist(station)) * 2;
+        }
+        SoundManager.play('cannon');
       } else if (this.gs.storyState?.mission.settings.cannonEnabled !== false) {
         // Cannon (or fallback) — skipped when cannonEnabled: false
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
@@ -1469,6 +1532,11 @@ export class GameLoop {
         } else if (burst.weapon === WeaponId.AUTO_CANNON) {
           const spread = (this.rng.next() * 2 - 1) * 1;
           this.gs.activeBullets.push(this._makeBullet(burst.station, burst.angle + spread, burst.power));
+        } else if (burst.weapon === WeaponId.BOUNCE_AUTOCANNON) {
+          const spread = (this.rng.next() * 2 - 1) * 1;
+          const b = this._makeBullet(burst.station, burst.angle + spread, burst.power);
+          b.fragBouncy = true; b.bouncePlanetOnly = true; b.thickTrail = true;
+          this.gs.activeBullets.push(b);
         } else if (burst.weapon === WeaponId.QUANTUM_AUTO_CANNON) {
           const spread = (this.rng.next() * 2 - 1) * 1;
           const b = this._makeBullet(burst.station, burst.angle + spread, burst.power);

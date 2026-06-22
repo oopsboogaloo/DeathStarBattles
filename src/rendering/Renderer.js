@@ -3489,8 +3489,26 @@ export class Renderer {
         case 'superLaserBeam':         this._drawSuperLaserBeam(ctx, vfx);          break;
         case 'mindControlCharge':      this._drawMindControlCharge(ctx, vfx);       break;
         case 'mindControlBeam':        this._drawMindControlBeam(ctx, vfx);         break;
+        case 'teamArmour':             this._drawTeamArmour(ctx, vfx);              break;
       }
     }
+  }
+
+  // Expanding ring used by Team Armour / Suit Up to signal a defensive boost.
+  _drawTeamArmour(ctx, vfx) {
+    const conv = this.conv;
+    const cx   = vfx.x * conv;
+    const cy   = vfx.y * conv;
+    const baseR = (vfx.radius ?? 8) * conv;
+    const r    = baseR * (1 + vfx.t * 1.5);
+    const alpha = Math.max(0, 1 - vfx.t);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${vfx.r},${vfx.g},${vfx.b},${alpha * 0.8})`;
+    ctx.lineWidth   = Math.max(1, conv * 0.6);
+    ctx.stroke();
+    ctx.restore();
   }
 
   _drawCollectableShatter(ctx, vfx) {
