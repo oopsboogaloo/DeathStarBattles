@@ -4,8 +4,8 @@
 // Expanding ring of ice fired by Ice Blast — a slow, gravity-affected projectile
 // that single-freezes any ship it passes through (new-weapons-spec §2).
 
-export const ICE_RING_MAX_RADIUS = 18;    // game units — radius at end of life
-export const ICE_RING_LIFETIME   = 3000;  // physics steps before it dissipates
+export const ICE_RING_MAX_RADIUS = 36;    // game units — radius at end of life
+export const ICE_RING_LIFETIME   = 6000;  // physics steps before it dissipates
 
 export class IceRing {
   constructor({ owner, position, velocity }) {
