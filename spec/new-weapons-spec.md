@@ -935,6 +935,62 @@ If the same station is hit by multiple condition sources in the same fire phase 
 
 ---
 
+## 19. Configurable Collectable Spawn Cap
+
+Currently the maximum number of collectable gems that can exist on the map simultaneously is hardcoded at 3 (`GameLoop._trySpawnCollectable`: `if (this.gs.collectables.length >= 3) return`). This section makes that cap configurable.
+
+### 19.1 Config Value
+
+A new field `maxCollectableSpawn` is added to `GameConfig`, stored alongside the existing `collectables` frequency field:
+
+```js
+maxCollectableSpawn: 3   // default — preserves existing behaviour
+```
+
+Stored as a number or the string `'unlimited'`.
+
+### 19.2 Config Panel Row
+
+A new cycle-button row **MAX SPAWN** is added to Page 4 (Collectables) in `ConfigPanel`, immediately below the existing COLLECTABLES frequency row:
+
+```
+COLLECTABLES     [ Normal          ◄►]
+MAX SPAWN        [ 3               ◄►]
+```
+
+**Options in order:** `1`, `2`, `3`, `4`, `5`, `6`, `10`, `Unlimited`
+
+Stored values: `1`, `2`, `3`, `4`, `5`, `6`, `10`, `'unlimited'`  
+Display labels: `'1'`, `'2'`, `'3'`, `'4'`, `'5'`, `'6'`, `'10'`, `'Unlimited'`
+
+Default: `3`.
+
+The MAX SPAWN row is greyed out (same `opacity: 0.35`, `pointer-events: none` treatment as the other collectable sub-rows) when COLLECTABLES is set to `Off`. It is added to `this._collectSubRows` so it activates and deactivates in sync with the rest of the collectable options.
+
+### 19.3 Spawn Logic Change
+
+`GameLoop._trySpawnCollectable()` replaces the hardcoded cap:
+
+```js
+// Before:
+if (this.gs.collectables.length >= 3) return;
+
+// After:
+const cap = this.gs.config.maxCollectableSpawn;
+if (cap !== 'unlimited' && this.gs.collectables.length >= cap) return;
+```
+
+No other logic changes. The `'unlimited'` value removes the cap entirely — collectables spawn on every trigger roll as long as a valid position can be found (the 200-attempt placement retry loop remains).
+
+### 19.4 Affected Files
+
+| File | Change |
+|---|---|
+| `src/ui/ConfigPanel.js` | Add MAX SPAWN cycle-button row to page 4; default `maxCollectableSpawn: 3`; add to `_collectSubRows` |
+| `src/core/GameLoop.js` | Replace hardcoded `>= 3` cap with `config.maxCollectableSpawn` check |
+
+---
+
 ## 17. Affected Files
 
 | File | Change |
@@ -948,3 +1004,5 @@ If the same station is hit by multiple condition sources in the same fire phase 
 | `src/rendering/Renderer.js` | Ice Rocket trail; Ice Ring circles; Ice Bomb glow + blast zones; Quantum Beam sine-wave path + swap flash; Birthday Present striped bullet + grant labels; Freeze Ray icy path; Shock Zone expanding lightning fill; Shock Beam jagged lightning path; Team Armour ring VFX; Suit Up double-ring VFX; Aaarrrgghh muzzle text VFX; `conditionNotify` VFX (reuses grant-label draw path) |
 | `src/ui/WeaponSelector.js` | Labels for all 15 new weapons; SURPRISE sub-weapon hidden; THRUST_BOOSTER greyed when movement off |
 | `src/ai/AIController.js` | Add all new weapons to AI priority/probability tables |
+| `src/ui/ConfigPanel.js` | Add MAX SPAWN row to page 4 collectables section (§19.2) |
+| `src/core/GameLoop.js` *(also)* | Replace hardcoded spawn cap `>= 3` with `config.maxCollectableSpawn` (§19.3) |
