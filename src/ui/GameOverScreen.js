@@ -4,21 +4,26 @@
 // Combined end-of-game stats + tournament standings + awards screen.
 // In tournament mode, an awards sub-section is shown every 5 games.
 
+// Awards rework (new-weapons-spec §21) — KILL + MISC categories. `stat` is the
+// field on the window-aggregated winner record shown verbatim on the screen.
 const AWARD_DEFS = {
-  bloodlust:  { icon: '★', label: 'BLOODLUST',   stat: 'kills',           unit: 'kills' },
-  strategy:   { icon: '▲', label: 'STRATEGY',    stat: 'strategyKills',   unit: 'str'   },
-  oppression: { icon: '◆', label: 'OPPRESSION',  stat: 'oppressionKills', unit: 'opp'   },
-  tactics:    { icon: '◉', label: 'TACTICS',     stat: 'tacticsKills',    unit: 'tac'   },
-  bully:      { icon: '●', label: 'BULLY',       stat: 'bullyKills',      unit: 'bull'  },
-  vengeance:  { icon: '⚡', label: 'VENGEANCE',   stat: 'vengeanceKills',  unit: 'veng'  },
-  longshot:     { icon: '→', label: 'LONGSHOT',      stat: 'longshotKills',   unit: 'lng'   },
-  closeshot:    { icon: '✦', label: 'POINT BLANK',   stat: 'closeshotKills',  unit: 'cls'   },
-  wormhole:     { icon: '◎', label: 'WORMHOLE',      stat: 'wormholeKills',   unit: 'wrm'   },
-  trickshot:    { icon: '↻', label: 'TRICK SHOT',    stat: 'trickShotKills',  unit: 'trk'   },
-  nearmiss:     { icon: '≈', label: 'NEAR MISS',     stat: 'nearMisses',      unit: 'miss'  },
-  hyperactive:  { icon: '⇅', label: 'HYPERACTIVE',   stat: 'hyperspaceCount', unit: 'jmps'  },
-  selfdestruct: { icon: '☠', label: 'SELF DESTRUCT', stat: 'suicides',        unit: 'self'  },
-  friendly:     { icon: '⊗', label: 'NOT FRIENDLY',  stat: 'ownGoals',        unit: 'ff'    },
+  // KILL category
+  bloodlust:  { icon: '★', label: 'BLOODLUST',   stat: 'kills',            unit: 'kills' },
+  strategy:   { icon: '▲', label: 'STRATEGY',    stat: 'strategyKills',    unit: 'str'   },
+  oppression: { icon: '◆', label: 'OPPRESSION',  stat: 'oppressionKills',  unit: 'opp'   },
+  tactics:    { icon: '◉', label: 'TACTICS',     stat: 'tacticsKills',     unit: 'tac'   },
+  bully:      { icon: '●', label: 'BULLY',       stat: 'bullyKills',       unit: 'bull'  },
+  vengeance:  { icon: '⚡', label: 'VENGEANCE',   stat: 'vengeanceKills',   unit: 'veng'  },
+  longshot:   { icon: '→', label: 'LONGSHOT',    stat: 'longestKillDistDisp', unit: 'dist' },
+  pointblank: { icon: '✦', label: 'POINT BLANK', stat: 'pointBlankDist',   unit: 'dist'  },
+  trickshot:  { icon: '↻', label: 'TRICK SHOT',  stat: 'bestTrickshotEvents', unit: 'x'  },
+  // MISC category
+  owngoals:    { icon: '⊗', label: 'OWN GOALS',   stat: 'selfHits',           unit: 'ff'   },
+  greedy:      { icon: '◈', label: 'GREEDY',      stat: 'collectablesGrabbed', unit: 'gems' },
+  worstshot:   { icon: '✗', label: 'WORST SHOT',  stat: 'accuracyPct',        unit: '%'    },
+  rockbreaker: { icon: '⛏', label: 'ROCK BREAKER', stat: 'rockHits',          unit: 'rock' },
+  runner:      { icon: '»', label: 'RUNNER',      stat: 'distanceMovedDisp',  unit: 'dist' },
+  spacedout:   { icon: '⇅', label: 'SPACED OUT',  stat: 'hyperspaceCount',    unit: 'jmps' },
 };
 
 export class GameOverScreen {
