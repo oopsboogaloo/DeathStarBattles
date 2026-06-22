@@ -1201,9 +1201,11 @@ export class GameLoop {
         SoundManager.play('cannon');
       } else if (w === WeaponId.ICE_BOMB && station.team.spendStock(WeaponId.ICE_BOMB)) {
         const b = this._makeBullet(station, station.angle, station.power);
-        b.iceBomb      = true;
-        b.iceBombTimer = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
-        b.thickTrail   = true;
+        b.iceBomb          = true;
+        b.iceBombTimer     = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
+        b.fragBouncy       = true;
+        b.bouncePlanetOnly = true;
+        b.thickTrail       = true;
         this.gs.activeBullets.push(b);
         SoundManager.play('cannon');
       } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
