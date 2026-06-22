@@ -3150,7 +3150,8 @@ export class Renderer {
       const cy = blast.y * conv;
       const r  = blast.currentRadius * conv;
       const t  = blast.currentRadius / blast.maxRadius; // 0 → 1
-      const [cr, cg, cb] = blast.owner.team.colour;
+      // White explosion for ice blasts; team colour for normal/shock blasts
+      const [cr, cg, cb] = blast.whiteBlast ? [255, 255, 255] : blast.owner.team.colour;
 
       // Solid fill — stays opaque while lethal, fades only in last 20%
       const fillAlpha = t < 0.8 ? 0.55 : 0.55 * (1 - (t - 0.8) / 0.2);
@@ -3159,12 +3160,32 @@ export class Renderer {
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${fillAlpha.toFixed(3)})`;
       ctx.fill();
 
-      // Bright hard edge showing the exact kill boundary
+      // Bright hard edge showing the exact boundary
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.strokeStyle = `rgba(255,255,255,${(0.9 - t * 0.6).toFixed(3)})`;
       ctx.lineWidth   = Math.max(2, conv * 0.7);
       ctx.stroke();
+
+      // Arcing lightning fill for shock blasts (Shock Rocket)
+      if (blast.lightningBlast) {
+        const bolts = 12;
+        ctx.strokeStyle = `rgba(255,255,255,${(0.8 * (1 - t)).toFixed(3)})`;
+        ctx.lineWidth   = Math.max(1, conv * 0.3);
+        for (let i = 0; i < bolts; i++) {
+          const ang = (i / bolts) * Math.PI * 2 + Math.random() * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          const segs = 5;
+          for (let s = 1; s <= segs; s++) {
+            const rr = (r * s) / segs;
+            const jit = (Math.random() - 0.5) * conv * 4;
+            ctx.lineTo(cx + Math.cos(ang) * rr - Math.sin(ang) * jit,
+                       cy + Math.sin(ang) * rr + Math.cos(ang) * jit);
+          }
+          ctx.stroke();
+        }
+      }
     }
   }
 
@@ -3479,6 +3500,7 @@ export class Renderer {
       switch (vfx.type) {
         case 'collectableShatter':     this._drawCollectableShatter(ctx, vfx);      break;
         case 'collectableGrant':       this._drawCollectableGrant(ctx, vfx);        break;
+        case 'conditionNotify':        this._drawCollectableGrant(ctx, vfx);        break;
         case 'tripleCannonMuzzle':     this._drawTripleCannonMuzzle(ctx, vfx);      break;
         case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
         case 'glitter':                this._drawGlitter(ctx, vfx);                 break;

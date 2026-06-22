@@ -1107,6 +1107,21 @@ export class GameLoop {
         rocket.fuel  = fuel;
         this.gs.rockets.push(rocket);
         SoundManager.play('rocket');
+      } else if ((w === WeaponId.ICE_ROCKET || w === WeaponId.SHOCK_ROCKET) && station.team.spendStock(w)) {
+        const fuel  = ROCKET_MIN_FUEL + (station.power - 1) / 799 * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+        const rad   = (station.angle * Math.PI) / 180;
+        const pos   = new Vec2(
+          station.position.x + (station.radius + 1) * Math.sin(rad),
+          station.position.y + (station.radius + 1) * Math.cos(rad),
+        );
+        const vel    = new Vec2(ROCKET_LAUNCH_SPEED * Math.sin(rad), ROCKET_LAUNCH_SPEED * Math.cos(rad));
+        const rocket = new Rocket({ owner: station, position: pos, velocity: vel });
+        rocket.fuel       = fuel;
+        rocket.blastRadius = ROCKET_BLAST_RADIUS * 3;
+        if (w === WeaponId.ICE_ROCKET) { rocket.freezeAmount = 2; rocket.whiteBlast = true; rocket.iceTrail = true; }
+        else                           { rocket.shockAmount  = 2; rocket.lightningBlast = true; }
+        this.gs.rockets.push(rocket);
+        SoundManager.play('rocket');
       } else if (w === WeaponId.ROCKET_POD && station.team.spendStock(WeaponId.ROCKET_POD)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.ROCKET_POD, shotsRemaining: 8, totalShots: 8,
@@ -1986,11 +2001,16 @@ export class GameLoop {
 
       const r2    = blast.currentRadius * blast.currentRadius;
       const proxy = { owner: blast.owner, status: 'active', teleportCount: 0, trickShotDone: false };
+      const isCondition = blast.freezeAmount || blast.shockAmount || blast.freezeZones;
 
       for (const s of allStations) {
         if (s.status !== 'active' || blast.hitSet.has(s)) continue;
         const dx = s.position.x - blast.x, dy = s.position.y - blast.y;
-        if (dx * dx + dy * dy < r2) { blast.hitSet.add(s); this._resolveStationHit(proxy, s); }
+        if (dx * dx + dy * dy < r2) {
+          blast.hitSet.add(s);
+          if (isCondition) this._applyConditionBlast(blast, s);
+          else             this._resolveStationHit(proxy, s);
+        }
       }
       if (!blast.noKillBullets) {
         for (const b of this.gs.activeBullets) {
@@ -2837,7 +2857,55 @@ export class GameLoop {
       currentRadius: 1,
       owner:         rocket.owner,
       hitSet:        new Set(),
+      // Condition-rocket flags (Ice Rocket / Shock Rocket); absent = normal kill blast
+      freezeAmount:  rocket.freezeAmount,
+      shockAmount:   rocket.shockAmount,
+      whiteBlast:    rocket.whiteBlast,
+      lightningBlast: rocket.lightningBlast,
+      noKillBullets: rocket.freezeAmount || rocket.shockAmount ? true : undefined,
     });
+  }
+
+  // Push a floating condition-notification label (FROZEN / DOUBLE FROZEN /
+  // ELECTRIFIED …) on the affected station, in its team colour. (new-weapons-spec §18)
+  _notifyCondition(station, kind) {
+    const v = kind === 'frozen' ? (station.frozen ?? 0) : (station.electrified ?? 0);
+    if (v <= 0) return;
+    const names = kind === 'frozen'
+      ? { 1: 'FROZEN', 2: 'DOUBLE FROZEN', 3: 'TRIPLE FROZEN' }
+      : { 1: 'ELECTRIFIED', 2: 'DOUBLE ELECTRIFIED', 3: 'TRIPLE ELECTRIFIED' };
+    const [r, g, b] = station.team.colour;
+    this.gs.vfxList.push({
+      type: 'conditionNotify', x: station.position.x, y: station.position.y - station.radius,
+      text: names[v] ?? names[3], colour: `rgb(${r},${g},${b})`, t: 0, duration: 2.0,
+    });
+  }
+
+  // Apply a freeze/shock condition (instead of a kill) to a station reached by a
+  // condition blast. Armour absorbs one layer and blocks the condition entirely.
+  _applyConditionBlast(blast, station) {
+    if ((station.armourLayers ?? 0) > 0) {
+      station.armourLayers--;
+      station.armourFlash = 1.0;
+      return;
+    }
+    if (blast.freezeZones) {
+      const dx = station.position.x - blast.x, dy = station.position.y - blast.y;
+      const d    = Math.sqrt(dx * dx + dy * dy);
+      const frac = d / blast.maxRadius;
+      const amt  = frac < 1 / 3 ? 3 : frac < 2 / 3 ? 2 : 1;
+      station.frozen = Math.min(3, (station.frozen ?? 0) + amt);
+      station.frozenFlash = 1.0;
+      this._notifyCondition(station, 'frozen');
+    } else if (blast.freezeAmount) {
+      station.frozen = Math.min(3, (station.frozen ?? 0) + blast.freezeAmount);
+      station.frozenFlash = 1.0;
+      this._notifyCondition(station, 'frozen');
+    } else if (blast.shockAmount) {
+      station.electrified = Math.min(3, (station.electrified ?? 0) + blast.shockAmount);
+      station.electrifiedFlash = 1.0;
+      this._notifyCondition(station, 'electrified');
+    }
   }
 
   // Spawn a bright blue sparkle explosion for a destroyed crystal.
@@ -3678,7 +3746,7 @@ export class GameLoop {
     // _advanceCollectableVFX so their fade stays smooth at any game speed;
     // skip them here to avoid advancing multiple times per physics sub-step.
     for (const vfx of this.gs.vfxList) {
-      if (vfx.type === 'collectableGrant' || vfx.type === 'collectableShatter') continue;
+      if (vfx.type === 'collectableGrant' || vfx.type === 'collectableShatter' || vfx.type === 'conditionNotify') continue;
       vfx.t += DT / vfx.duration;
     }
     this.gs.vfxList = this.gs.vfxList.filter(v => v.t < 1);
@@ -3691,7 +3759,7 @@ export class GameLoop {
   _advanceCollectableVFX() {
     const DT = 1 / 60;
     for (const vfx of this.gs.vfxList) {
-      if (vfx.type === 'collectableGrant' || vfx.type === 'collectableShatter') {
+      if (vfx.type === 'collectableGrant' || vfx.type === 'collectableShatter' || vfx.type === 'conditionNotify') {
         vfx.t += DT / vfx.duration;
       }
     }
