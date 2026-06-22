@@ -1023,7 +1023,7 @@ const _ALL_SPECIAL = [
   WeaponId.ICE_BLAST, WeaponId.TRIPLE_BOUNCE_CANNON, WeaponId.SHOCK_ROCKET, WeaponId.SHOCK_BEAM,
   WeaponId.SURPRISE, WeaponId.ICE_BOMB, WeaponId.QUANTUM_BEAM, WeaponId.BOUNCE_AUTOCANNON,
   WeaponId.BIRTHDAY_PRESENT, WeaponId.FREEZE_RAY, WeaponId.TEAM_ARMOUR, WeaponId.SUIT_UP,
-  WeaponId.AAARRRGGHH,
+  WeaponId.AAARRRGGHH, WeaponId.THEFT_BEAM,
 ];
 
 function _applyStartingWeapons(teams, cfg, rng) {

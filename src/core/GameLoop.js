@@ -1494,6 +1494,9 @@ export class GameLoop {
       } else if (w === WeaponId.SHOCK_BEAM && station.team.spendStock(WeaponId.SHOCK_BEAM)) {
         this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), shockBeam: true });
         SoundManager.play('laser');
+      } else if (w === WeaponId.THEFT_BEAM && station.team.spendStock(WeaponId.THEFT_BEAM)) {
+        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), theftBeam: true });
+        SoundManager.play('laser');
       } else if (w === WeaponId.QUANTUM_BEAM && station.team.spendStock(WeaponId.QUANTUM_BEAM)) {
         this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), quantumBeam: true });
         SoundManager.play('teleport', { volume: 0.6, pitch: 0.2 });
@@ -1687,6 +1690,10 @@ export class GameLoop {
           } else if (pl.shockBeam) {
             const path = this._simulateLaserPath(pl.station, pl.angle, { condition: 'electrified', amount: 2 });
             this.gs.vfxList.push({ type: 'shockBeam', path, colour: pl.station.team.colour, t: 0, duration: 1.2 });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          } else if (pl.theftBeam) {
+            const path = this._simulateLaserPath(pl.station, pl.angle, { theftBeam: true, theftOwner: pl.station });
+            this.gs.vfxList.push({ type: 'theftBeam', path, colour: pl.station.team.colour, t: 0, duration: 1.5 });
             if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
           } else if (pl.quantumBeam) {
             const { path, target } = this._simulateQuantumBeamPath(pl.station, pl.angle);
@@ -2572,6 +2579,8 @@ export class GameLoop {
         if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) {
           if (opts.condition) {
             if (!hitStations.has(s)) { hitStations.add(s); this._applyBeamCondition(s, opts.condition, opts.amount ?? 1); }
+          } else if (opts.theftBeam) {
+            if (!hitStations.has(s)) { hitStations.add(s); this._applyTheftBeam(opts.theftOwner, s); }
           } else {
             this._resolveStationHit(proxy, s);
           }
@@ -2603,8 +2612,8 @@ export class GameLoop {
         const dy = planet.position.y - py;
         if (dx * dx + dy * dy < R * R) {
           if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
-            // Condition beams (Freeze Ray / Shock Beam) pass through without destroying
-            if (!opts.condition) {
+            // Condition beams and Theft Beam pass through without destroying
+            if (!opts.condition && !opts.theftBeam) {
               planet.destroyed = true;
               this._spawnAsteroidExplosion(planet);
             }
@@ -2731,6 +2740,41 @@ export class GameLoop {
       station.electrifiedFlash = 1.0;
     }
     this._notifyCondition(station, kind);
+  }
+
+  // Theft Beam hit — steal all stock of 2 random weapons from the target's team
+  // and transfer them to the firer's team. Shows grant labels in firer's colour.
+  _applyTheftBeam(firer, target) {
+    if ((target.armourLayers ?? 0) > 0) {
+      target.armourLayers--;
+      target.armourFlash = 1.0;
+      return;
+    }
+    const targetTeam = target.team;
+    const firerTeam  = firer.team;
+    if (targetTeam === firerTeam) return;
+    const pool = WEAPON_GRANTS.filter(g => targetTeam.getStock(g.id) > 0);
+    const stolen = [];
+    for (let i = 0; i < 2 && pool.length > 0; i++) {
+      const idx = Math.floor(this.rng.next() * pool.length);
+      stolen.push(pool.splice(idx, 1)[0]);
+    }
+    if (stolen.length === 0) return;
+    const [fr, fg, fb] = firerTeam.colour;
+    for (let i = 0; i < stolen.length; i++) {
+      const grant = stolen[i];
+      const count = targetTeam.getStock(grant.id);
+      targetTeam.weaponStock.set(grant.id, 0);
+      firerTeam.addStock(grant.id, count);
+      this.gs.vfxList.push({
+        type: 'collectableGrant',
+        x: target.position.x,
+        y: target.position.y - target.radius * (2 + i * 2.5),
+        text: grant.label,
+        colour: `rgb(${fr},${fg},${fb})`,
+        t: 0, duration: 2.0,
+      });
+    }
   }
 
   // Simulate super laser path: straight line, no gravity.

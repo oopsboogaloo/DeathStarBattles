@@ -54,6 +54,7 @@ const LABELS = {
   [WeaponId.SHOCK_BEAM]:             'SHOCK BEAM',
   [WeaponId.SUIT_UP]:                'SUIT UP',
   [WeaponId.AAARRRGGHH]:             'AAARRRGGHH',
+  [WeaponId.THEFT_BEAM]:             'THEFT BEAM',
 };
 
 // Weapons that use stock (shown with [n] count)
@@ -75,6 +76,7 @@ const LIMITED = new Set([
   WeaponId.BOUNCE_AUTOCANNON, WeaponId.BIRTHDAY_PRESENT, WeaponId.FREEZE_RAY,
   WeaponId.THRUST_BOOSTER, WeaponId.TEAM_ARMOUR, WeaponId.SHOCK_ROCKET,
   WeaponId.SHOCK_BEAM, WeaponId.SUIT_UP, WeaponId.AAARRRGGHH,
+  WeaponId.THEFT_BEAM,
 ]);
 
 // Max items in each column before adding another column
@@ -232,6 +234,7 @@ export class WeaponSelector {
       WeaponId.SHOCK_BEAM,
       WeaponId.SUIT_UP,
       WeaponId.AAARRRGGHH,
+      WeaponId.THEFT_BEAM,
     ];
 
     // Build visible rows

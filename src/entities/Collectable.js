@@ -53,6 +53,7 @@ export const WeaponId = Object.freeze({
   SHOCK_BEAM:               'shockBeam',
   SUIT_UP:                  'suitUp',
   AAARRRGGHH:               'aaarrrgghh',
+  THEFT_BEAM:               'theftBeam',
 });
 
 // Weapon grant table — one entry per special weapon, used when a collectable is collected.
@@ -102,6 +103,7 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.TRIPLE_BOUNCE_CANNON,  charges: 1, label: 'TRIPLE BOUNCE',       tier: 2 },
   { id: WeaponId.SHOCK_ROCKET,          charges: 2, label: 'SHOCK ROCKET',        tier: 2 },
   { id: WeaponId.SHOCK_BEAM,            charges: 1, label: 'SHOCK BEAM',          tier: 2 },
+  { id: WeaponId.THEFT_BEAM,            charges: 1, label: 'THEFT BEAM',          tier: 2 },
   // Tier 3
   { id: WeaponId.SURPRISE,              charges: 3, label: 'SURPRISE',            tier: 3 },
   { id: WeaponId.ICE_BOMB,              charges: 1, label: 'ICE BOMB',            tier: 3 },

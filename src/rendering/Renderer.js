@@ -2392,7 +2392,8 @@ export class Renderer {
         break;
       case 'quantumBeam':
       case 'freezeRay':
-      case 'shockBeam': {
+      case 'shockBeam':
+      case 'theftBeam': {
         const path = this._computeLaserPreviewPath(station, station.angle, planets, maxLen);
         if (path.length >= 2) {
           const [tr, tg, tb] = station.team.colour;
@@ -3618,6 +3619,7 @@ export class Renderer {
         case 'teamArmour':             this._drawTeamArmour(ctx, vfx);              break;
         case 'shockBeam':              this._drawShockBeam(ctx, vfx);               break;
         case 'quantumBeam':            this._drawQuantumBeam(ctx, vfx);             break;
+        case 'theftBeam':              this._drawTheftBeam(ctx, vfx);               break;
       }
     }
   }
@@ -3702,6 +3704,64 @@ export class Renderer {
     ctx.save();
     stroke(`rgba(${cr},${cg},${cb},${(alpha * 0.5).toFixed(3)})`, 5); // glow
     stroke(`rgba(255,255,255,${alpha.toFixed(3)})`, 1.5);            // core
+    ctx.restore();
+  }
+
+  // Theft Beam — double sine wave in team colour that visually pulls toward the emitter.
+  _drawTheftBeam(ctx, vfx) {
+    if (!vfx.path?.length) return;
+    const conv  = this.conv;
+    const alpha = Math.sin(vfx.t * Math.PI);
+    const [cr, cg, cb] = vfx.colour;
+    const AMPLITUDE = 4;    // game units of lateral swing
+    const FREQ      = 0.32; // radians per game unit
+    const PULL_SPEED = 10;  // wave phase shift speed (toward emitter)
+
+    const pts = vfx.path;
+    const arcs = [0];
+    for (let i = 1; i < pts.length; i++) {
+      const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y;
+      arcs.push(arcs[i - 1] + Math.sqrt(dx * dx + dy * dy));
+    }
+    const totalLen = arcs[arcs.length - 1];
+    if (totalLen < 1) return;
+
+    // Phase advances with time to animate the wave flowing back toward emitter
+    const phase = vfx.t * vfx.duration * PULL_SPEED;
+    const SAMPLES = 80;
+    const wave1 = [], wave2 = [];
+
+    for (let s = 0; s <= SAMPLES; s++) {
+      const targetArc = (s / SAMPLES) * totalLen;
+      let seg = 1;
+      while (seg < arcs.length - 1 && arcs[seg] < targetArc) seg++;
+      const f = (arcs[seg] - arcs[seg - 1]) > 0
+        ? (targetArc - arcs[seg - 1]) / (arcs[seg] - arcs[seg - 1]) : 0;
+      const ax = pts[seg - 1].x + (pts[seg].x - pts[seg - 1].x) * f;
+      const ay = pts[seg - 1].y + (pts[seg].y - pts[seg - 1].y) * f;
+      const tdx = pts[seg].x - pts[seg - 1].x, tdy = pts[seg].y - pts[seg - 1].y;
+      const tlen = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+      const nx = -tdy / tlen, ny = tdx / tlen; // perpendicular
+      const off = AMPLITUDE * Math.sin(targetArc * FREQ + phase);
+      wave1.push({ x: ax + nx * off,  y: ay + ny * off  });
+      wave2.push({ x: ax - nx * off,  y: ay - ny * off  }); // π offset = opposite sign
+    }
+
+    const drawWave = (wave, a, width) => {
+      if (wave.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(wave[0].x * conv, wave[0].y * conv);
+      for (let i = 1; i < wave.length; i++) ctx.lineTo(wave[i].x * conv, wave[i].y * conv);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},${a.toFixed(3)})`;
+      ctx.lineWidth   = width;
+      ctx.stroke();
+    };
+
+    ctx.save();
+    drawWave(wave1, alpha * 0.35, 4);  // glow
+    drawWave(wave2, alpha * 0.35, 4);
+    drawWave(wave1, alpha * 0.9,  1.5); // core
+    drawWave(wave2, alpha * 0.9,  1.5);
     ctx.restore();
   }
 
