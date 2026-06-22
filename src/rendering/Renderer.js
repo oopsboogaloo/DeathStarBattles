@@ -3512,8 +3512,54 @@ export class Renderer {
         case 'mindControlCharge':      this._drawMindControlCharge(ctx, vfx);       break;
         case 'mindControlBeam':        this._drawMindControlBeam(ctx, vfx);         break;
         case 'teamArmour':             this._drawTeamArmour(ctx, vfx);              break;
+        case 'shockBeam':              this._drawShockBeam(ctx, vfx);               break;
       }
     }
+  }
+
+  // Shock Beam — jagged lightning bolt from muzzle to termination, team-colour
+  // glow with a white-hot core (new-weapons-spec §13).
+  _drawShockBeam(ctx, vfx) {
+    if (!vfx.path?.length) return;
+    const conv  = this.conv;
+    const alpha = Math.sin(vfx.t * Math.PI);
+    const [cr, cg, cb] = vfx.colour;
+
+    // Build a jagged polyline: subdivide each path segment and jitter laterally.
+    // Re-randomised every ~3 frames so it flickers like real lightning.
+    const seed = Math.floor(vfx.t * 60 / 3);
+    let rng = seed * 2654435761 % 2147483647;
+    const rand = () => { rng = (rng * 1103515245 + 12345) & 0x7fffffff; return rng / 0x7fffffff; };
+
+    const jagged = [];
+    for (let i = 0; i < vfx.path.length - 1; i++) {
+      const a = vfx.path[i], b = vfx.path[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len, ny = dx / len; // unit perpendicular
+      const subs = 3;
+      for (let s = 0; s < subs; s++) {
+        const f = s / subs;
+        const off = s === 0 ? 0 : (rand() * 2 - 1) * 4; // game units
+        jagged.push({ x: a.x + dx * f + nx * off, y: a.y + dy * f + ny * off });
+      }
+    }
+    jagged.push(vfx.path[vfx.path.length - 1]);
+    if (jagged.length < 2) return;
+
+    const stroke = (style, width) => {
+      ctx.beginPath();
+      ctx.moveTo(jagged[0].x * conv, jagged[0].y * conv);
+      for (let i = 1; i < jagged.length; i++) ctx.lineTo(jagged[i].x * conv, jagged[i].y * conv);
+      ctx.strokeStyle = style;
+      ctx.lineWidth   = width;
+      ctx.stroke();
+    };
+
+    ctx.save();
+    stroke(`rgba(${cr},${cg},${cb},${(alpha * 0.5).toFixed(3)})`, 5); // glow
+    stroke(`rgba(255,255,255,${alpha.toFixed(3)})`, 1.5);            // core
+    ctx.restore();
   }
 
   // Expanding ring used by Team Armour / Suit Up to signal a defensive boost.

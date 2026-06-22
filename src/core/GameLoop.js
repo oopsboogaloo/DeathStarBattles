@@ -57,6 +57,9 @@ const MIND_CONTROL_DELAY_STEPS  = 1200; // physics steps of charge-up before bea
 const REINF_SIGNAL_GRAVITY_MULT = 0.2;
 const REINF_SIGNAL_SPEED_MULT   = 0.5;
 
+// Ice Bomb — very large freeze-zone explosion (new-weapons-spec §5)
+const ICE_BOMB_BLAST_RADIUS = 120;
+
 export class GameLoop {
   get _isExperimental() { return this._performance === 'experimental' || this._performance === 'full'; }
 
@@ -1171,6 +1174,13 @@ export class GameLoop {
         b.scatterTimer = 2700;
         this.gs.activeBullets.push(b);
         SoundManager.play('cannon');
+      } else if (w === WeaponId.ICE_BOMB && station.team.spendStock(WeaponId.ICE_BOMB)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.iceBomb      = true;
+        b.iceBombTimer = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
+        b.thickTrail   = true;
+        this.gs.activeBullets.push(b);
+        SoundManager.play('cannon');
       } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.SPIRAL, shotsRemaining: 13, totalShots: 13,
@@ -1444,6 +1454,12 @@ export class GameLoop {
           intervalSteps: 200, nextFireStep: 0, angle: station.angle, power: station.power,
         });
         SoundManager.play('minigun');
+      } else if (w === WeaponId.FREEZE_RAY && station.team.spendStock(WeaponId.FREEZE_RAY)) {
+        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), freezeRay: true });
+        SoundManager.play('laser');
+      } else if (w === WeaponId.SHOCK_BEAM && station.team.spendStock(WeaponId.SHOCK_BEAM)) {
+        this.gs.pendingLasers.push({ station, angle: station.angle, delaySteps: 400 + Math.floor(this.rng.next() * 400), shockBeam: true });
+        SoundManager.play('laser');
       } else if (w === WeaponId.THRUST_BOOSTER && station.team.spendStock(WeaponId.THRUST_BOOSTER)) {
         this.gs.activeBullets.push(this._makeBullet(station, station.angle, station.power));
         // Double this turn's movement distance budget (boost is wasted if not moving)
@@ -1605,6 +1621,14 @@ export class GameLoop {
             this.renderer?.rebuildBackground();
             const [slr, slg, slb] = pl.station.team.colour;
             this.gs.vfxList.push({ type: 'superLaserBeam', path, r: slr, g: slg, b: slb, t: 0, duration: pl.vfxDuration ?? SUPER_LASER_BEAM_DURATION });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          } else if (pl.freezeRay) {
+            const path = this._simulateLaserPath(pl.station, pl.angle, { condition: 'frozen', amount: 3 });
+            this.gs.vfxList.push({ type: 'laserPath', path, colour: [136, 221, 255], t: 0, duration: 1.5 });
+            if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
+          } else if (pl.shockBeam) {
+            const path = this._simulateLaserPath(pl.station, pl.angle, { condition: 'electrified', amount: 2 });
+            this.gs.vfxList.push({ type: 'shockBeam', path, colour: pl.station.team.colour, t: 0, duration: 1.2 });
             if (pl.station.lastTrails) pl.station.lastTrails.push([...path]);
           } else {
             const path = this._simulateLaserPath(pl.station, pl.angle);
@@ -1906,6 +1930,16 @@ export class GameLoop {
         if (bullet.scatterTimer !== null && bullet.status === BulletStatus.ACTIVE) {
           bullet.scatterTimer--;
           if (bullet.scatterTimer <= 0) this._scatterCannon(bullet);
+        }
+
+        // Ice Bomb: detonate on fuse expiry or on impact
+        if (bullet.iceBomb && !bullet._iceBombed) {
+          if (bullet.status === BulletStatus.ACTIVE && bullet.iceBombTimer !== null) {
+            bullet.iceBombTimer--;
+            if (bullet.iceBombTimer <= 0) this._detonateIceBomb(bullet);
+          } else if (bullet.status === BulletStatus.EXPLODING) {
+            this._detonateIceBomb(bullet);
+          }
         }
 
         // Stuck detection for bouncing bullets — explode if barely moved over 2 seconds
@@ -2331,7 +2365,9 @@ export class GameLoop {
   }
 
   // Simulate laser path from station at angle. Pierces stations/asteroids, reflects off shields.
-  _simulateLaserPath(station, angleDeg) {
+  // opts.condition ('frozen' | 'electrified') makes the beam apply that condition (Freeze Ray /
+  // Shock Beam) instead of killing, and pass through asteroids without destroying them.
+  _simulateLaserPath(station, angleDeg, opts = {}) {
     const LASER_SPEED    = 160;
     const LASER_GRAVITY  = 1.0;
     const MAX_STEPS      = 200;
@@ -2342,6 +2378,7 @@ export class GameLoop {
     let vy = LASER_SPEED * Math.cos(rad);
     const path    = [new Vec2(px, py)];
     const proxy   = { owner: station, status: 'active', teleportCount: 0, trickShotDone: false };
+    const hitStations = new Set(); // condition beams apply once per station
     const { gw, gh } = this.physics;
 
     for (let step = 0; step < MAX_STEPS; step++) {
@@ -2407,7 +2444,11 @@ export class GameLoop {
         const t1 = (-b - sq) / (2 * a);
         const t2 = (-b + sq) / (2 * a);
         if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) {
-          this._resolveStationHit(proxy, s);
+          if (opts.condition) {
+            if (!hitStations.has(s)) { hitStations.add(s); this._applyBeamCondition(s, opts.condition, opts.amount ?? 1); }
+          } else {
+            this._resolveStationHit(proxy, s);
+          }
         }
       }
 
@@ -2435,8 +2476,11 @@ export class GameLoop {
         const dy = planet.position.y - py;
         if (dx * dx + dy * dy < R * R) {
           if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
-            planet.destroyed = true;
-            this._spawnAsteroidExplosion(planet);
+            // Condition beams (Freeze Ray / Shock Beam) pass through without destroying
+            if (!opts.condition) {
+              planet.destroyed = true;
+              this._spawnAsteroidExplosion(planet);
+            }
           } else if (planet.type !== PlanetType.GAS_GIANT) {
             blocked = true;
           }
@@ -2446,6 +2490,23 @@ export class GameLoop {
       if (blocked) break;
     }
     return path;
+  }
+
+  // Apply a freeze/shock condition from a beam hit; armour absorbs one layer.
+  _applyBeamCondition(station, kind, amount) {
+    if ((station.armourLayers ?? 0) > 0) {
+      station.armourLayers--;
+      station.armourFlash = 1.0;
+      return;
+    }
+    if (kind === 'frozen') {
+      station.frozen = Math.min(3, (station.frozen ?? 0) + amount);
+      station.frozenFlash = 1.0;
+    } else {
+      station.electrified = Math.min(3, (station.electrified ?? 0) + amount);
+      station.electrifiedFlash = 1.0;
+    }
+    this._notifyCondition(station, kind);
   }
 
   // Simulate super laser path: straight line, no gravity.
@@ -2863,6 +2924,20 @@ export class GameLoop {
       whiteBlast:    rocket.whiteBlast,
       lightningBlast: rocket.lightningBlast,
       noKillBullets: rocket.freezeAmount || rocket.shockAmount ? true : undefined,
+    });
+  }
+
+  // Ice Bomb detonation — large white freeze-zone blast (3/2/1 by distance band).
+  _detonateIceBomb(bullet) {
+    if (bullet._iceBombed) return;
+    bullet._iceBombed = true;
+    bullet.status = BulletStatus.EXPLODING;
+    SoundManager.playRandom(['explosionLarge', 'explosionLarge2']);
+    this.gs.rocketBlasts.push({
+      x: bullet.position.x, y: bullet.position.y,
+      maxRadius: ICE_BOMB_BLAST_RADIUS, currentRadius: 1,
+      owner: bullet.owner, hitSet: new Set(),
+      freezeZones: true, whiteBlast: true, noKillBullets: true,
     });
   }
 

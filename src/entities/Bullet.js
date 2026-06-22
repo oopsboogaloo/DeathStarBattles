@@ -36,5 +36,10 @@ export class Bullet {
     this.quantumTorpedo    = false;      // teleports through solid non-hazard bodies
     this._qtTeleportPlanet = null;       // set by PhysicsEngine to signal a pending QT teleport
     this.gravityCannon     = false;      // exerts gravitational attraction on all nearby bullets
+    this.iceBomb           = false;      // detonates into a freeze-zone blast (fuse or impact)
+    this.iceBombTimer      = null;       // physics steps until ice-bomb fuse detonation
+    this.birthdayPresent   = false;      // grants weapons to the struck team on hit
+    this.gravityScale      = 1;          // extra per-bullet gravity scale (Birthday Present: 1/9)
+    this.bounceCount       = 0;          // number of surface bounces (for trickshot award)
   }
 }
