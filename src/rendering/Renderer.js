@@ -2368,6 +2368,81 @@ export class Renderer {
       case 'forceShield':
         shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
+      // ── New weapons ────────────────────────────────────────────────────────
+      case 'iceRocket':
+      case 'shockRocket': {
+        const path = this._computeRocketPreviewPath(station, station.angle, station.power, planets, maxLen);
+        if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 1.5);
+        return;
+      }
+      case 'iceBlast':
+        shots = [{ dAngle: 0, speed: MAX_V * 0.08, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'tripleBounceCannon':
+        shots = [
+          { dAngle: -5, speed: null, alpha: 0.35, lw: 1   },
+          { dAngle:  0, speed: null, alpha: 0.7,  lw: 1.5 },
+          { dAngle:  5, speed: null, alpha: 0.35, lw: 1   },
+        ];
+        break;
+      case 'surprise':
+        return; // weapon revealed at fire time — no preview
+      case 'iceBomb':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'quantumBeam':
+      case 'freezeRay':
+      case 'shockBeam': {
+        const path = this._computeLaserPreviewPath(station, station.angle, planets, maxLen);
+        if (path.length >= 2) {
+          const [tr, tg, tb] = station.team.colour;
+          this._drawFadingPath(ctx, path, 0.7, 1.5, `${tr},${tg},${tb}`);
+        }
+        return;
+      }
+      case 'bounceAutocannon':
+        shots = [-1, 0, 1].map(dAngle => ({
+          dAngle, speed: null,
+          alpha: dAngle === 0 ? 0.7 : 0.35, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'birthdayPresent': {
+        const speed = ((station.power / 1000 + MIN_POWER) * MAX_POWER) / 3;
+        const path  = this._computeBulletPreviewPath(station, station.angle, station.power, planets, maxLen, speed, 1 / 9);
+        if (path.length >= 2) this._drawFadingPath(ctx, path, 0.7, 1.5);
+        return;
+      }
+      case 'thrustBooster':
+        shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
+        break;
+      case 'suitUp':
+        shots = [-4, 0, 4].map(dAngle => ({
+          dAngle, speed: MAX_V * 1.5,
+          alpha: dAngle === 0 ? 0.7 : 0.25, lw: dAngle === 0 ? 1.5 : 1,
+        }));
+        break;
+      case 'teamArmour':
+        return; // no projectile
+      case 'aaarrrgghh': {
+        // Auto-cannon burst: 3 representative arcs
+        for (const dAngle of [-1, 0, 1]) {
+          const path = this._computeBulletPreviewPath(station, station.angle + dAngle, station.power, planets, maxLen);
+          if (path.length >= 2) this._drawFadingPath(ctx, path, dAngle === 0 ? 0.7 : 0.35, dAngle === 0 ? 1.5 : 1);
+        }
+        // Rocket pod: left and right wing rockets
+        const rad    = (((station.angle % 360) + 360) % 360 * Math.PI) / 180;
+        const offset = station.radius * 2;
+        const perpX  = -Math.cos(rad), perpY = Math.sin(rad);
+        const mkProxy = sign => ({
+          position: { x: station.position.x + sign * perpX * offset, y: station.position.y + sign * perpY * offset },
+          radius: 0, team: station.team, size: station.size,
+        });
+        const pathL = this._computeRocketPreviewPath(mkProxy(+1), station.angle, station.power, planets, maxLen);
+        const pathR = this._computeRocketPreviewPath(mkProxy(-1), station.angle, station.power, planets, maxLen);
+        if (pathL.length >= 2) this._drawFadingPath(ctx, pathL, 0.55, 1.5);
+        if (pathR.length >= 2) this._drawFadingPath(ctx, pathR, 0.35, 1.5);
+        return;
+      }
       default:
         return; // hyperspace — no path preview
     }
