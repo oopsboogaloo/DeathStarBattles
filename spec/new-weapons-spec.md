@@ -1016,6 +1016,165 @@ With `handicapPrize: 'minor'`, the last-placed team in the tournament standings 
 
 ---
 
+## 21. Awards System Rework
+
+### 21.1 Problem
+
+The current awards system (`TournamentState.awards()`) over-awards the leading team. Two root causes:
+
+1. **All stats are lifetime-cumulative.** A team that builds an early lead accumulates the most kills, strategy kills, oppression kills, etc. for the rest of the tournament — so it wins most awards every ceremony.
+2. **Every award is a count scored by `winner[stat] / totalKills`.** The absolute kill leader tops nearly every count-based metric simultaneously, so a single dominant team sweeps Bloodlust, Strategy, Oppression, Tactics, and Bully at once.
+
+This rework addresses both: **all award stats are computed over the last 5 games only** (a rolling window that lets a recently-strong or recently-unlucky team feature), and awards are split into two categories with a per-ceremony selection that spreads winners.
+
+### 21.2 Rolling 5-Game Window
+
+`TournamentState` stops relying on lifetime cumulative sums for award computation. Instead it stores a **per-game history** of each team's single-game stats:
+
+```js
+// TournamentState
+this._gameHistory = [];   // array, one entry per completed game
+                          // entry: Map<teamIndex, PerGameStats>
+```
+
+`recordGame()` continues to maintain the existing lifetime `_data` map (used for standings/score), **and additionally** pushes one `PerGameStats` snapshot per team to `_gameHistory`. A `PerGameStats` object captures only that game's values (station.stats are already per-game, since stations are recreated each game).
+
+A helper aggregates the window:
+
+```js
+// Sum/extremum of the last N games (default 5). Teams absent from a game contribute nothing.
+_windowStats(n = 5) {
+  const recent = this._gameHistory.slice(-n);
+  // returns Map<teamIndex, AggregatedStats>
+}
+```
+
+For **count** stats (kills, strategyKills, collectablesGrabbed, distanceMoved, hyperspaceCount, rockHits, selfHits, shots, hits …) the aggregate is the **sum** across the window. For **single-best-shot** stats (longest kill distance, closest kill distance, best trickshot) the aggregate is the **extremum** across the window (max or min of each game's per-game best).
+
+All award eligibility and ranking below operate on `_windowStats(5)`, never on lifetime `_data`.
+
+### 21.3 Categories & Ceremony Selection
+
+Awards are divided into two categories:
+
+- **KILL category** — derived from kills (9 awards, §21.4)
+- **MISC category** — everything else (6 awards, §21.5)
+
+Each award ceremony (every 5 games) presents **3 awards** instead of 4:
+
+- **2 from the KILL category**
+- **1 from the MISC category**
+
+**Selection rules per ceremony:**
+
+1. Within each category, compute every eligible award's winner (team) and ranking value over the 5-game window.
+2. Apply the existing recency de-weighting so an award shown in the last one or two ceremonies is less likely to repeat (carried over from current behaviour, applied per-category).
+3. Pick the top 2 eligible KILL awards and top 1 eligible MISC award.
+4. **Distinct-winner preference:** prefer a selection in which the 3 chosen awards are won by 3 different teams. When the top pick of a category would be won by a team that already holds a chosen award this ceremony, skip to the next eligible award in that category if one exists whose winner is a different team and whose ranking value is within reason. If no distinct alternative exists, allow the duplicate (better to show a real award than none).
+5. If a category has fewer than its quota of eligible awards (e.g. early in a tournament, no MISC award has met its minimum), show whatever is eligible; total awards shown may be fewer than 3.
+
+This is the core fix: window-scoping prevents a stale leader from dominating, category split guarantees variety, and the distinct-winner preference stops one team sweeping the ceremony.
+
+### 21.4 KILL Category Awards
+
+Nine awards. Six are existing count awards retained unchanged (but now window-scoped). Two are reworked. One is new.
+
+| Award | Display | Metric (over last 5 games) | Eligibility | Tiebreak |
+|---|---|---|---|---|
+| `bloodlust` | BLOODLUST | Most total kills (sum) | ≥1 kill | random |
+| `strategy` | STRATEGY | Most `strategyKills` (sum) | ≥1 | random |
+| `oppression` | OPPRESSION | Most `oppressionKills` (sum) | ≥1 | random |
+| `tactics` | TACTICS | Most `tacticsKills` (sum) | ≥1 | random |
+| `bully` | BULLY | Most `bullyKills` (sum) | ≥1 | random |
+| `vengeance` | VENGEANCE | Most `vengeanceKills` (sum) | ≥1 | random |
+| `longshot` | LONGSHOT *(reworked)* | **Single longest-distance kill** in the window (the actual max kill distance, not a count) | ≥1 kill | random |
+| `pointblank` | POINT BLANK *(reworked)* | **Single closest-distance kill** in the window (the actual min kill distance) | ≥1 kill | random |
+| `trickshot` | TRICK SHOT *(new — "best trickshot kill")* | The kill with the **most combined special events** = wormhole teleports + skims + bounces, across all kills in the window | best kill must have **≥1** special event | **greater distance wins** (longer trickshot is better) |
+
+**Reworks rationale:** Longshot and Point Blank become "best single shot" awards rather than counts. A losing team that lands one spectacular long-range or point-blank kill can win the award even with few total kills — giving weaker teams a real shot at recognition.
+
+**Disposition of removed kill awards:** the old standalone `wormhole` (kills via wormhole, count) and the old count-based `trickshot` (360° loop kills) awards are **folded into** the new `trickshot` (best trickshot kill). The `nearmiss` award is **removed** (near misses are no longer surfaced as an award; the `nearMisses` stat may remain tracked for the end-of-game stats panel).
+
+### 21.5 MISC Category Awards
+
+Six awards. All are window-scoped to the last 5 games.
+
+| Award | Display | Metric (over last 5 games) | Eligibility | Tiebreak |
+|---|---|---|---|---|
+| `owngoals` | OWN GOALS | Most self-inflicted hits on own team — counts every bullet that strikes a friendly station (own or teammate), **including hits absorbed by armour** and lethal suicides/own-goals (sum) | ≥1 self hit | **lower distance wins** (closest self-hit is "worst"); use the team's minimum self-hit distance |
+| `greedy` | GREEDY | Most collectables grabbed (sum) | ≥1 collected | higher **total weapon-tier sum** collected wins; if still tied, **random** |
+| `worstshot` | WORST SHOT | **Lowest accuracy** = total hits ÷ total shots | fired **≥5 shots** in the window (avoids 0/1-shot noise) | higher shot count wins (more shots at low accuracy is "worse"); else random |
+| `rockbreaker` | ROCK BREAKER | Most asteroid / crystal-asteroid / moon hits (sum) | ≥1 hit | **random** |
+| `runner` | RUNNER | Most total distance moved (sum of per-turn movement magnitude) | distance > 0 | random |
+| `spacedout` | SPACED OUT | Most hyperspace jumps (sum of `hyperspaceCount`) | ≥1 jump | random |
+
+Notes:
+- **Own Goals** subsumes the current `friendly` ("NOT FRIENDLY", ownGoals) and `selfdestruct` (suicides) awards into one. A self-hit counts even when non-lethal (armour absorbed it) — this requires new tracking (§21.6).
+- **Worst Shot** needs a hit counter (`hits`) distinct from kills, since an armour-absorbed strike is a hit but not a kill (§21.6).
+- **Runner** and **Rock Breaker** require new tracking (§21.6).
+
+### 21.6 New Stat Tracking
+
+The following must be recorded during play (per station, summed to per-game `PerGameStats` at `recordGame`). Field names are on `StationStats` unless noted.
+
+| Field | Where set | Meaning |
+|---|---|---|
+| `hits` | `GameLoop._recordKill` and the armour-absorb branch (`GameLoop.js:2842`) | +1 whenever this station's bullet strikes any **enemy** station, lethal or armour-absorbed |
+| `selfHits` | armour-absorb branch + `_recordKill` friendly branch | +1 whenever this station's bullet strikes a **friendly** station (own or teammate), lethal or absorbed; includes suicides |
+| `selfHitMinDist` | same sites | running minimum shooter→target distance of self-hits (for Own Goals tiebreak) |
+| `longestKillDist` | `_recordKill` (`dist` already computed at `GameLoop.js:2887`) | running max kill distance this game |
+| `closestKillDist` | `_recordKill` | running min kill distance this game |
+| `bestTrickshotEvents` | `_recordKill` | for the kill with the most `teleportCount + skimCount + bounceCount`, the event count |
+| `bestTrickshotDist` | `_recordKill` | that kill's distance (Trick Shot tiebreak) |
+| `collectablesGrabbed` | every `addStock`-from-collectable site (bullet `GameLoop.js:1848`, rocket `:1637`, rocket-blast `:1947`, laser `:2333`, super-laser `:2451`, etc.) | +1 per collectable collected by the team |
+| `collectableTierSum` | same sites | += collected weapon's `tier` (1/2/3) for Greedy tiebreak |
+| `rockHits` | bullet/weapon planet-destruction sites for ASTEROID / CRYSTAL / MOON / GIANT_ASTEROID (`:534–538`, `:1661–1668`, `:1936`, `:2349`, `:2422–2430`, `:2560`) | +1 per asteroid/crystal/moon hit credited to the owner |
+| `distanceMoved` | movement resolution where `station.velocity` is consumed (`GameLoop.js:438`, `:462`, `:982`, `:1016`) | += magnitude of the movement applied this turn |
+| `bounceCount` *(on `Bullet`)* | `PhysicsEngine._fragBounce` and `GameLoop._fragBounceOffStation` | +1 per bounce; read by `_recordKill` for the trickshot metric |
+
+`teleportCount`, `skimCount`, and `hyperspaceCount` already exist. `nearMisses` and the existing kill-type counters are unchanged.
+
+### 21.7 Display Definitions
+
+`AWARD_DEFS` in `GameOverScreen.js` is updated to the new set. Removed: `wormhole`, `nearmiss`, `selfdestruct`, `hyperactive`, `friendly` (folded/dropped). Reworked/added entries:
+
+```js
+longshot:    { icon: '→', label: 'LONGSHOT',    unit: 'dist' },  // shows the kill distance
+pointblank:  { icon: '✦', label: 'POINT BLANK', unit: 'dist' },
+trickshot:   { icon: '↻', label: 'TRICK SHOT',  unit: 'x'    },  // shows event count
+owngoals:    { icon: '⊗', label: 'OWN GOALS',   unit: 'ff'   },
+greedy:      { icon: '◈', label: 'GREEDY',      unit: 'gems' },
+worstshot:   { icon: '✗', label: 'WORST SHOT',  unit: '%'    },
+rockbreaker: { icon: '⛏', label: 'ROCK BREAKER', unit: 'rock' },
+runner:      { icon: '»', label: 'RUNNER',      unit: 'dist' },
+spacedout:   { icon: '⇅', label: 'SPACED OUT',  unit: 'jmps' },
+```
+
+The KILL-category retained awards (`bloodlust`, `strategy`, `oppression`, `tactics`, `bully`, `vengeance`) keep their existing icons and labels.
+
+### 21.8 Edge Cases
+
+| Case | Behaviour |
+|---|---|
+| Fewer than 5 games played | Window is simply all games so far; awards still computed |
+| No team eligible for any MISC award | Ceremony shows only the 2 KILL awards |
+| A team won every game but the window favours a recent underdog's single great shot | Underdog can still take LONGSHOT / POINT BLANK / TRICK SHOT — intended |
+| All three top awards resolve to the same team | Distinct-winner preference reassigns where a comparable alternative exists; otherwise duplicates are allowed |
+| Tie with `random` tiebreak | Use the session RNG so the result is reproducible from the seed |
+
+### 21.9 Affected Files
+
+| File | Change |
+|---|---|
+| `src/core/TournamentState.js` | `_gameHistory` per-game snapshots; `_windowStats(5)` aggregator; rewrite `awards()` to category-split (2 KILL + 1 MISC), window-scoped, with distinct-winner preference; new award definitions and eligibility/tiebreak logic |
+| `src/entities/Station.js` | `StationStats`: add `hits`, `selfHits`, `selfHitMinDist`, `longestKillDist`, `closestKillDist`, `bestTrickshotEvents`, `bestTrickshotDist`, `collectablesGrabbed`, `collectableTierSum`, `rockHits`, `distanceMoved` |
+| `src/entities/Bullet.js` | Add `bounceCount` |
+| `src/core/GameLoop.js` | Increment new stats at the kill, armour-absorb, collectable-grant, asteroid/moon-hit, bounce, and movement-resolution sites listed in §21.6 |
+| `src/physics/PhysicsEngine.js` | Increment `bullet.bounceCount` in `_fragBounce` |
+| `src/ui/GameOverScreen.js` | Update `AWARD_DEFS` to the new KILL/MISC set (§21.7); render 3 awards per ceremony in two labelled categories |
+
+---
+
 ## 17. Affected Files
 
 | File | Change |
