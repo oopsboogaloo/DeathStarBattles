@@ -7,7 +7,7 @@ import { SoundManager }               from '../audio/SoundManager.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PhysicsEngine, PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
          SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION, PULSE_MAX_R } from '../physics/PhysicsEngine.js';
-import { Planet, PlanetType, ShadingStyle, isUnstable } from '../entities/Planet.js';
+import { Planet, PlanetType, ShadingStyle, isUnstable, UNSTABLE_GLOW } from '../entities/Planet.js';
 import { Ejecta, EjectaKind }              from '../entities/Ejecta.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
