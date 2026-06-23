@@ -4371,17 +4371,24 @@ export class Renderer {
     }
   }
 
-  // Cosmetic mini-eruption debris — small glowing sparks that fade as they fly.
+  // Cosmetic mini-eruption debris — glowing sparks (bright hot core) that fade as
+  // they fly. Brightened toward white so the "rumble" reads against the planet.
   _drawEruptionDebris(ctx, debris) {
     const conv = this.conv;
     for (const d of debris) {
       const alpha = 1 - d.t;
       if (alpha <= 0) continue;
       const x = d.x * conv, y = d.y * conv;
-      const r = Math.max(0.6, d.size * conv);
+      const r = Math.max(0.8, d.size * conv);
+      // soft outer glow in the type colour
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${d.r},${d.g},${d.b},${(alpha * 0.9).toFixed(3)})`;
+      ctx.fillStyle = `rgba(${Math.min(255, d.r + 40)},${Math.min(255, d.g + 40)},${Math.min(255, d.b + 40)},${alpha.toFixed(3)})`;
+      ctx.fill();
+      // bright hot core
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${Math.min(255, d.r + 130)},${Math.min(255, d.g + 130)},${Math.min(255, d.b + 130)},${alpha.toFixed(3)})`;
       ctx.fill();
     }
   }

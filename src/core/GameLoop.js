@@ -37,12 +37,12 @@ const EJECTA_GROW_STEPS       = 90;   // steps to grow from 0 → full (fast the
 const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~0.18s)
 // Drawn-out eruption choreography (pyro/cryo): a build-up of escalating cosmetic
 // mini-bursts with the lethal ejecta released in 1 → 2–3 → 1–2 waves.
-const ERUPTION_DURATION_STEPS = 4200; // full sequence length (~1.7s at normal speed)
-const ERUPTION_MINI_MIN_GAP   = 45;   // min steps between mini-bursts
-const ERUPTION_MINI_MAX_GAP   = 170;  // max steps between mini-bursts (random → overlapping)
-const ERUPTION_DEBRIS_LIFE    = 150;  // cosmetic debris lifetime (steps)
+const ERUPTION_DURATION_STEPS = 6500; // full sequence length (~2.6s) — waves well spaced
+const ERUPTION_MINI_MIN_GAP   = 26;   // min steps between mini-bursts (denser rumble)
+const ERUPTION_MINI_MAX_GAP   = 100;  // max steps between mini-bursts (random → overlapping)
+const ERUPTION_DEBRIS_LIFE    = 210;  // cosmetic debris lifetime (steps) — linger a bit
 const ERUPTION_DEBRIS_GRAV    = 0.5;  // debris feel 50% gravity (more than the blobs)
-const MAX_ERUPTION_DEBRIS     = 140;  // global cosmetic-debris cap
+const MAX_ERUPTION_DEBRIS     = 260;  // global cosmetic-debris cap
 const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (slow blobs need airtime to travel)
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
@@ -2865,9 +2865,9 @@ export class GameLoop {
       this.gs.eruptions.push({
         ...params, chain: false, age: 0, duration, nextMiniAt: 0,
         waves: [
-          { at: Math.floor(duration * 0.28), count: 1,                                  fired: false, big: false },
-          { at: Math.floor(duration * 0.55), count: 2 + Math.floor(this.rng.next() * 2), fired: false, big: true  }, // 2–3
-          { at: Math.floor(duration * 0.80), count: 1 + Math.floor(this.rng.next() * 2), fired: false, big: false }, // 1–2
+          { at: Math.floor(duration * 0.30), count: 1,                                  fired: false, big: false },
+          { at: Math.floor(duration * 0.60), count: 2 + Math.floor(this.rng.next() * 2), fired: false, big: true  }, // 2–3
+          { at: Math.floor(duration * 0.88), count: 1 + Math.floor(this.rng.next() * 2), fired: false, big: false }, // 1–2
         ],
       });
     } else {
@@ -2886,7 +2886,7 @@ export class GameLoop {
       // Mini-bursts — escalate then taper across the sequence (sine envelope)
       if (seq.age >= seq.nextMiniAt && seq.age < seq.duration) {
         const env      = Math.sin((seq.age / seq.duration) * Math.PI); // 0 → 1 → 0
-        const strength = 1 + Math.floor(env * 5 * (0.4 + this.rng.next() * 0.6));
+        const strength = 2 + Math.floor(env * 8 * (0.5 + this.rng.next() * 0.6));
         this._spawnEruptionDebris(seq, strength, 0.6 + env * 0.8);
         seq.nextMiniAt = seq.age + ERUPTION_MINI_MIN_GAP +
           Math.floor(this.rng.next() * (ERUPTION_MINI_MAX_GAP - ERUPTION_MINI_MIN_GAP));
@@ -2897,7 +2897,7 @@ export class GameLoop {
         w.fired = true;
         this.gs.vfxList.push({ type: 'eruptionFlash', x: seq.ox, y: seq.oy, r: seq.gr, g: seq.gg, b: seq.gb,
           t: 0, duration: w.big ? 0.55 : 0.4 });
-        this._spawnEruptionDebris(seq, w.big ? 8 : 4, w.big ? 1.6 : 1.1);
+        this._spawnEruptionDebris(seq, w.big ? 14 : 8, w.big ? 1.6 : 1.1);
         this._spawnEjectaWave(seq, w.count);
       }
     }
@@ -2937,7 +2937,7 @@ export class GameLoop {
         x: seq.ox, y: seq.oy,
         vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
         t: 0, dt: 1 / (ERUPTION_DEBRIS_LIFE * (0.6 + this.rng.next() * 0.8)),
-        size: 0.5 + this.rng.next() * 1.3,
+        size: 1.0 + this.rng.next() * 2.2,
         r: seq.gr, g: seq.gg, b: seq.gb,
       });
     }
