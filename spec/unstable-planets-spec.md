@@ -101,7 +101,11 @@ This is the entire point of the feature. **Most of the time the planet does noth
 - On trigger:
   1. The incoming projectile resolves its impact **exactly as it would against a rocky planet** — it explodes and is consumed. (The eruption is *in addition to*, not instead of, the normal impact.)
   2. An eruption is spawned at the **point of contact** (§4.2). For Pyro / Cryo / Electro this is an ejecta spray (§4.3–§4.5); for **Beam** it is a single laser emission (§4.6).
-- **Eruptions do NOT chain-trigger.** Neither an erupted ejecta particle (pyro/cryo/electro) nor a Beam laser triggers a secondary eruption on another unstable planet — they resolve against it like any projectile but spawn nothing. This prevents runaway chain reactions.
+- **Chain reactions are allowed — with one hard rule.** An eruption payload (an ejecta particle, or a Beam laser) **can** trigger a fresh eruption on **another** unstable planet it strikes. It can **never** trigger an eruption on the **planet it was erupted from** — otherwise that planet's own particles would re-light it forever. Each payload therefore carries a `sourcePlanet` reference; on impact with an unstable planet:
+  - **same planet as `sourcePlanet`** → consumed, no eruption (prevents the infinite self-loop);
+  - **a different unstable planet** → that planet erupts (subject to its own cooldown), and the payload is consumed exactly as a primary projectile would be.
+- **Owner propagates through the chain.** A chained eruption inherits the `owner` of the payload that set it off, so every kill or condition anywhere down the chain is still credited to the **original** player whose shot started it (§5.2). The newly spawned payloads carry the same `owner` and a fresh `sourcePlanet` (the planet they just erupted from).
+- **Why it can't run away forever:** each target planet's `ERUPTION_COOLDOWN` rate-limits re-triggering, ejecta have finite lifetime and are consumed on impact, and the global `MAX_EJECTA` cap bounds the live particle count. A cross-map chain is intentional "harm and chaos" but is energy-bounded and dies out.
 - **Cooldown:** after erupting, a planet enters a short cooldown (`ERUPTION_COOLDOWN`, tunable ≈ 300 ms). Further primary impacts during the cooldown still explode the projectile but do **not** spawn a second eruption. This stops a single multi-bullet weapon (Triple Cannon, scatter shots) from stacking a dozen simultaneous eruptions in one frame, while still allowing the planet to be re-used on a later turn.
 
 ### 4.2 Point of contact & surface normal
@@ -122,7 +126,8 @@ On eruption, spawn **5–7 ejecta particles** (random count per eruption). Each 
   ```
   Speed is **below escape velocity** by design, so gravity-affected ejecta arc up and fall back rather than flying off forever — reinforcing the "eruption" read.
 - **Initiation delay:** each particle is staggered by a small random delay (`0 … ERUPTION_STAGGER`, tunable ≈ 180 ms) before it launches. The particles do not all leave at once — they spit out raggedly, which sells the violent-eruption impression.
-- **Owner / instigator:** `ejecta.owner = triggeringProjectile.owner`. This is who gets credit for any kill or condition the ejecta inflicts (§5). This is the mechanism by which "well-placed shots cause harm to others."
+- **Owner / instigator:** `ejecta.owner = triggeringProjectile.owner` (or, for a chained eruption, the `owner` of the payload that set it off — see §4.1). This is who gets credit for any kill or condition the ejecta inflicts (§5), no matter how many planets down the chain it happens. This is the mechanism by which "well-placed shots cause harm to others."
+- **Source planet:** `ejecta.sourcePlanet` = the planet erupting it. Used to enforce the no-self-retrigger rule (§4.1): this ejecta can erupt other unstable planets but never its own source.
 
 The exact count, per-particle angle, per-particle speed, and per-particle delay are **all independently randomised within their ranges** so no two eruptions look identical.
 
@@ -133,7 +138,7 @@ The exact count, per-particle angle, per-particle speed, and per-particle delay 
 | **Motion** | Ballistic point particle | **Lightning bolt** — travels in a straight line from the surface |
 | **Gravity** | **Affected** by all planets' gravity (same inverse-square step as fireballs, applied per rAF frame — design.md §"Fireballs") | **Ignores gravity entirely** — flies dead straight along its launch direction |
 | **Range / lifetime** | Lives until it hits a station, leaves world bounds by > 150 units, or exceeds `EJECTA_MAX_LIFETIME`; then removed | Short range — reaches out to `ELECTRO_REACH` (tunable, e.g. 3× planet radius like the Electrostar arc) then dissipates |
-| **Planet collision** | Consumed on contact with any planet (incl. its parent). **Pyro** ejecta **shatter asteroids** they strike — fragmenting them exactly as a bullet impact would (the fragmentation/Crystal/Rich-asteroid rules in requirements §6 still apply, credited to `ejecta.owner`). Against all other planet types pyro is absorbed silently. **Cryo** is always absorbed silently. Ejecta never trigger a secondary eruption on an unstable planet. | Consumed on contact with any planet |
+| **Planet collision** | Consumed on contact with any planet. **Pyro** ejecta **shatter asteroids** they strike — fragmenting them exactly as a bullet impact would (the fragmentation/Crystal/Rich-asteroid rules in requirements §6 still apply, credited to `ejecta.owner`). Against ordinary solid planet types pyro is absorbed silently; cryo is always absorbed silently. **Striking an unstable planet** that is **not** the ejecta's `sourcePlanet` triggers a fresh eruption there (§4.1); striking its own `sourcePlanet` is silently absorbed. | Consumed on contact with any planet (same unstable-planet chain rule applies) |
 
 - **Pyro asteroid fragmentation:** when a pyro ejecta hits an asteroid, run the standard asteroid-destruction path (spawn child fragments; honour Crystal pass-through and Rich/Pure collectable drops) and consume the ejecta. The resulting child fragments are normal asteroids — they do **not** become unstable, and the secondary debris cannot itself re-trigger anything. This is the only case where an ejecta affects terrain; cryo/electro have no terrain effect.
 - **Global ejecta cap:** active ejecta are capped globally (`MAX_EJECTA`, ≈ 30, mirroring the 20-fireball cap) to keep particle counts bounded during chaotic multi-eruption turns. If the cap is reached, additional ejecta from a new eruption are dropped.
@@ -157,9 +162,10 @@ The Beam planet does **not** spawn ejecta. On trigger it fires a single piercing
 - **Simulation:** run the standard laser path simulation — initial speed `200 × maxCannonSpeed`, gravity factor `1.0` (so the beam visibly bends near heavy bodies), terminating on boundary or `MAX_LASER_STEPS`. Along the path it:
   - **destroys every station** it crosses (simulation continues past each — it is piercing),
   - **shatters asteroids/crystals** it crosses (continues past),
-  - **reflects** off Force Shields, and
-  - is **absorbed** (terminates) by non-destructible planets — including other unstable planets, which are *not* re-triggered.
-- **Attribution:** every kill credits `beam.owner = triggeringProjectile.owner`, exactly as the Laser weapon credits `laser.owner`.
+  - **reflects** off Force Shields,
+  - is **absorbed** (terminates) by ordinary non-destructible planets, and
+  - on crossing **another unstable planet** (not its own `sourcePlanet`), **triggers a fresh eruption** there and terminates (absorbed). It never re-triggers its own source planet (geometrically it fires outward, but the rule is enforced regardless).
+- **Attribution:** every kill credits `beam.owner` — the original instigator, propagated if the beam was itself set off by a chained eruption (§4.1), exactly as the Laser weapon credits `laser.owner`.
 - **Rendering:** the committed path is added as a `LaserVFX` (wide team-coloured glow + narrow white core, fading over ~1.5 s) — but tinted **yellow** to match the planet, so it reads as the planet's beam rather than a player's shot.
 - **No firing delay queue:** unlike the player Laser (which uses `pendingLaser`/`delaySteps` for staggered firing), the Beam planet fires its beam **immediately** on impact. The standard `ERUPTION_COOLDOWN` (§4.1) still applies, so a multi-bullet weapon can't spew multiple beams in one frame.
 
@@ -188,7 +194,7 @@ All payloads respect the existing defensive layers, resolved in this order — c
 
 ### 5.2 Attribution
 
-- A **Pyro** or **Beam** kill is credited to `ejecta.owner` / `beam.owner` (the player whose shot triggered the eruption), with the appropriate kill-type stat (treated as a normal kill for scoring; the instigator is the killer). Self-harm is possible: if your own eruption hits one of your stations, it counts as a normal own-goal exactly as a self-inflicted bullet would.
+- **A kill by any eruption payload counts as a kill for the owner of the projectile that initiated the eruption.** A **Pyro** or **Beam** kill is credited to `ejecta.owner` / `beam.owner` — the player whose shot triggered the eruption — with the appropriate kill-type stat (treated as a normal kill for scoring; the instigator is the killer). Through a chain reaction (§4.1) the `owner` propagates, so even a kill several planets removed is still credited to that original player. Self-harm is possible: if your own eruption hits one of your stations, it counts as a normal own-goal exactly as a self-inflicted bullet would.
 - A **Cryo/Electro** condition is applied to the target station in the **target's** team colour for the `ConditionNotifyVFX` label (per new-weapons-spec.md §18), but the *instigator* for any scoring purposes is `ejecta.owner`.
 
 ### 5.3 Frozen vs Electrified precedence
@@ -248,7 +254,7 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 | File | Change |
 |---|---|
 | `src/entities/Planet.js` | Add `PYRO` / `CRYO` / `ELECTRO` / `BEAM` to `PlanetType`; add `isUnstable()`; eruption cooldown field |
-| `src/entities/Ejecta.js` | **New** entity: position, velocity, `kind` (pyro/cryo/electro), `owner`, launch delay, lifetime |
+| `src/entities/Ejecta.js` | **New** entity: position, velocity, `kind` (pyro/cryo/electro), `owner`, `sourcePlanet`, launch delay, lifetime |
 | `src/core/GameState.js` | Track `ejecta: Ejecta[]`; pending-eruption queue for staggered launches |
 | `src/physics/PhysicsEngine.js` | Detect primary-projectile impact on unstable planet → spawn eruption; integrate ejecta (gravity for pyro/cryo, straight for electro); ejecta↔station collision + shield/armour resolution + attribution; ejecta↔planet consumption; **Beam** — run the laser path simulation along the surface normal and emit a `LaserVFX` (reuse design.md §14.2 machinery) |
 | `src/rendering/PlanetRenderer.js` | Cracked-surface + under-crack glow draw for the four subtypes (incl. yellow Beam) |
@@ -287,7 +293,8 @@ All values are tuned empirically so the eruption is "strong enough to be visibly
 | Subtypes | Four: Pyro (red), Cryo (white), Electro (blue-cyan), Beam (yellow) |
 | Beam payload | Single piercing laser beam fired perpendicular to the surface; reuses the Laser-weapon simulation/VFX (tinted yellow); destroys every station along the path |
 | Passive behaviour | Behave as a normal rocky planet (gravity + obstacle) until struck |
-| Trigger | Only primary projectiles (bullets/rockets); ejecta do not chain-trigger |
+| Trigger | Primary projectiles (bullets/rockets) trigger eruptions. Eruption payloads chain-trigger **other** unstable planets but **never** their own source planet (no infinite self-loop); chains are bounded by cooldown + ejecta lifetime + global cap |
+| Chain attribution | `owner` propagates down the chain — every kill/condition credits the original initiating player |
 | Planet persistence | Persists and can re-erupt on later impacts (with cooldown) — not destroyed |
 | Ejecta count | 5–7, randomised per eruption |
 | Ejecta direction | Surface normal ±25°, randomised per particle |
