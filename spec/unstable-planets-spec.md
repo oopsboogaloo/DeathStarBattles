@@ -139,6 +139,8 @@ The exact count, per-particle angle, per-particle speed, and per-particle delay 
 - **Cryo:** white/pale-blue icy shards with a frosty vapour trail. Contact flash is cold white.
 - **Electro:** **branching lightning bolts** radiating from the contact point — short, jagged, redrawn each frame with randomised branch points for a crackling look (the same rendering approach planned for the Electrostar arcs, §12.11 of tasks.md), in blue-cyan/white.
 
+Each eruption fires a **sound hook** at the contact point, one per subtype (eruption roar / ice shatter / electric zap). This spec only requires the hook call sites; the actual audio assets and mixing are owned by the sound spec (tasks.md §15.1).
+
 ---
 
 ## 5. Effect on Stations
@@ -226,7 +228,9 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 | `src/physics/PhysicsEngine.js` | Detect primary-projectile impact on unstable planet → spawn eruption; integrate ejecta (gravity for pyro/cryo, straight for electro); ejecta↔station collision + shield/armour resolution + attribution; ejecta↔planet consumption |
 | `src/rendering/PlanetRenderer.js` | Cracked-surface + under-crack glow draw for the three subtypes |
 | `src/rendering/Renderer.js` | Idle particle emission (red/white eruptions, electric crackle); eruption flash; pyro/cryo ejecta trails + smoke; electro lightning rendering |
-| `src/scenarios/scenarioData.js` | Add Unstable Planet (39) + Unstable System (40) scenarios; bump `SCENARIO_COUNT`; add to extreme-eligible list; add unstable planet (random type) to wildcard pool |
+| `src/scenarios/scenarioData.js` | Add Unstable Planet (39) + Unstable System (40) scenarios; bump `SCENARIO_COUNT`; add to extreme-eligible list; add both to `TARGET_PRACTICE_SCENARIOS`; add unstable planet (random type) to wildcard pool |
+| `src/audio/SoundManager.js` | Eruption SFX hooks (roar / shatter / zap) — call sites only; assets per sound spec |
+| `src/story/StoryMissions.js` | Make unstable planets / scenarios available to Story missions |
 | `src/scenarios/ScenarioFactory.js` | Generate the two new scenarios (incl. extreme variants and inter-unstable separation) / wildcard injection |
 | `src/ai/SuperBot.js`, `src/ai/MegaBot.js` | (Phase 2) opportunistic eruption targeting |
 | `spec/requirements.md` | Add Unstable Planet (39) + Unstable System (40) to the scenario table and the extreme-variant list (§6.4) |
@@ -272,11 +276,12 @@ All values are tuned empirically so the eruption is "strong enough to be visibly
 | Pyro lethality | Direct hit only — no splash radius |
 | Ejecta vs terrain | Pyro ejecta **fragment asteroids** they strike (as a bullet would); cryo/electro have no terrain effect |
 | Lucky Dip rarity | Both scenarios rare — any-band only (index > 88); manual selection always available |
+| Sound | Per-subtype SFX (eruption roar / ice shatter / electric zap) — trigger **hooks added here**, asset selection owned by the sound spec |
+| Mode eligibility | Eligible in **both** Target Practice and Story mode (add 39 + 40 to `TARGET_PRACTICE_SCENARIOS`; available to Story missions) |
 | Spawning | Wildcard pool (random-type unstable planet) + two scenarios — **Unstable Planet** (39) and **Unstable System** (40), each with a 10% extreme variant; present from game start |
 
 ---
 
 ## 11. Open Questions
 
-1. **Sound** — eruption SFX per subtype (roar / shatter / zap). Defer to the sound spec; add hooks but leave assets TBD.
-2. **Practice/Story integration** — whether unstable planets appear in Target Practice or Story missions, or are confined to standard battles initially.
+*None outstanding — all resolved (see §10).* Sound asset selection itself is owned by the sound spec; this spec only requires the trigger hooks to exist.

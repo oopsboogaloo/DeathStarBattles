@@ -310,3 +310,5 @@ Three new stellar-body subtypes that lie dormant as ordinary obstacles until str
   - Both scenarios are **rare** — any-band only in `weightedRandomId` (index > 88), never common/uncommon; always available via manual selection.
 - [ ] **16.10** (Phase 2) SuperBot/MegaBot opportunistic eruption targeting — favour shots that erupt an unstable planet near an enemy; avoid erupting next to own stations.
 - [ ] **16.11** Document the eruption force/escape-velocity formula and the `PlanetType` additions in `design.md`.
+- [ ] **16.12** Mode eligibility — add scenarios 39 + 40 to `TARGET_PRACTICE_SCENARIOS` and make unstable planets/scenarios available to Story missions.
+- [ ] **16.13** Eruption sound hooks (roar / ice shatter / electric zap) at the contact point — call sites only; audio assets owned by the sound spec (§15.1).
