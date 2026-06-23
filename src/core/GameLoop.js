@@ -31,12 +31,12 @@ const EJECTA_COUNT_MAX        = 7;
 const EJECTA_SPREAD_DEG       = 25;   // max angular offset from the surface normal
 const EJECTA_MIN_FRAC         = 0.65; // pyro/cryo speed as a fraction of escape velocity
 const EJECTA_MAX_FRAC         = 0.95; // (below 1 → arcs back under gravity)
-const EJECTA_VELOCITY_FACTOR  = 0.30; // launch slower → slow, dramatic blobs
+const EJECTA_VELOCITY_FACTOR  = 0.60; // launch slower → slow, dramatic blobs
 const EJECTA_GRAVITY_FACTOR   = 0.09; // pyro/cryo feel ~9% of gravity → slow blobs keep their reach
 const EJECTA_MAX_RADIUS       = 6.0;  // grown blob size (≈ a Large station radius)
 const EJECTA_GROW_STEPS       = 90;   // steps to grow from 0 → full (fast then slows)
 const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~0.18s)
-const EJECTA_MAX_LIFETIME     = 12000; // steps before a ballistic blob fades (slow blobs need airtime to travel)
+const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (slow blobs need airtime to travel)
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
 const MAX_EJECTA              = 30;   // global active-ejecta cap
