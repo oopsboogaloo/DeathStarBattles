@@ -171,19 +171,36 @@ Unchanged from frozen-condition-spec.md §7.1 — frozen supersedes electrified 
 
 ## 6. Scenarios & Spawning
 
-Following the pattern established for the Electrostar and Magnetar (tasks.md §12.2–12.3):
+Two new named scenarios are added, following the numbering convention in `src/scenarios/scenarioData.js` (current `SCENARIO_COUNT = 38`, so these become **39** and **40** and `SCENARIO_COUNT` is bumped accordingly). Each has a 10% **extreme** variant per the requirements §6.4 mechanism. Both are registered in the scenario table in `requirements.md` and in `scenarioData.js`, and added to the extreme-eligible list.
 
-### 6.1 Wildcard pool
+### 6.1 Scenario 39 — Unstable Planet
 
-Add Pyro, Cryo, and Electro planets to the **wildcard planet pool** (the random bonus stellar-object injection, requirements §6.1). When wildcards are enabled, an unstable planet may be injected into an otherwise ordinary scenario — a nasty surprise.
+A single dominant unstable planet plus a field of small bodies:
 
-### 6.2 Dedicated scenario
+- **One large unstable planet**, type chosen at random (Pyro / Cryo / Electro, equal weight).
+  - **70%** of games: placed approximately at the **centre** of the map (small random jitter so it isn't pixel-exact).
+  - **30%** of games: placed at a **random position** anywhere on the map (normal placement rules — at least partly on screen, no overlap).
+- **5–9 moons or asteroids** (random count) scattered randomly across the map as filler. These are ordinary small bodies — not unstable.
 
-Add an **"Unstable System"** scenario: a standard asteroid/rocky field seeded with **1–3 unstable planets** of mixed subtypes. Register it in the scenario table in `requirements.md` and in `src/scenarios/scenarioData.js`.
+**Extreme variant (10%):** add a **second large unstable planet** (type rolled independently). The two unstable planets must not be placed too close together — enforce a **minimum centre-to-centre separation** so they sit in distinct regions of the map and their eruptions are independent threats. (Suggested floor ≈ the larger of `0.4 × world width` or `sum of the two radii × 3`; tune for readability. If a valid separated position can't be found within the retry budget, fall back to a single unstable planet rather than placing them touching.)
 
-### 6.3 Spawn placement
+### 6.2 Scenario 40 — Unstable System
 
-- Unstable planets are placed by the normal planet-placement routine (no overlap with stations or other planets), so there is no special spawn logic beyond adding the types to the generator.
+A crowded field of many smaller unstable planets:
+
+- **3–12 smaller unstable planets** (random count), each an independently rolled type (Pyro / Cryo / Electro). Sizes in the small-to-medium range (no single dominant body).
+- **2–6 moons** (random count) scattered as filler.
+- This is deliberately chaotic — a battlefield where almost any errant shot sets *something* off.
+
+**Extreme variant (10%):** **double the number of unstable planets** — i.e. **6–24** smaller unstable planets (still 2–6 moons). Subject to the normal placement constraints (no overlap, minimum free play area per requirements §6.2); discs that won't fit after the retry budget are dropped, trimming the body count on crowded fields — same approach as the Giant Wormhole Network scenario.
+
+### 6.3 Wildcard pool
+
+Add an **unstable planet** to the **wildcard planet pool** (the random bonus stellar-object injection, requirements §6.1). When a wildcard object is rolled, it may be an unstable planet of a **randomly chosen type** (Pyro / Cryo / Electro). A single unstable planet dropped into an otherwise ordinary scenario is a nasty surprise.
+
+### 6.4 Spawn placement
+
+- Unstable planets are placed by the normal planet-placement routine (no overlap with stations or other planets, minimum free play area honoured), so there is no special spawn logic beyond adding the types to the generator — except the inter-unstable separation rule in the Unstable Planet extreme variant (§6.1).
 - They are present from the **start** of the scenario (unlike collectables, which spawn at turn-end). They are terrain, not pickups.
 
 ---
@@ -206,10 +223,10 @@ Add an **"Unstable System"** scenario: a standard asteroid/rocky field seeded wi
 | `src/physics/PhysicsEngine.js` | Detect primary-projectile impact on unstable planet → spawn eruption; integrate ejecta (gravity for pyro/cryo, straight for electro); ejecta↔station collision + shield/armour resolution + attribution; ejecta↔planet consumption |
 | `src/rendering/PlanetRenderer.js` | Cracked-surface + under-crack glow draw for the three subtypes |
 | `src/rendering/Renderer.js` | Idle particle emission (red/white eruptions, electric crackle); eruption flash; pyro/cryo ejecta trails + smoke; electro lightning rendering |
-| `src/scenarios/scenarioData.js` | Add Unstable System scenario; add subtypes to wildcard pool |
-| `src/scenarios/ScenarioFactory.js` | Generate unstable planets in the new scenario / via wildcard injection |
+| `src/scenarios/scenarioData.js` | Add Unstable Planet (39) + Unstable System (40) scenarios; bump `SCENARIO_COUNT`; add to extreme-eligible list; add unstable planet (random type) to wildcard pool |
+| `src/scenarios/ScenarioFactory.js` | Generate the two new scenarios (incl. extreme variants and inter-unstable separation) / wildcard injection |
 | `src/ai/SuperBot.js`, `src/ai/MegaBot.js` | (Phase 2) opportunistic eruption targeting |
-| `spec/requirements.md` | Add Unstable System to the scenario table |
+| `spec/requirements.md` | Add Unstable Planet (39) + Unstable System (40) to the scenario table and the extreme-variant list (§6.4) |
 | `spec/design.md` | Document the eruption force formula and the `PlanetType` additions |
 
 ---
@@ -248,7 +265,7 @@ All values are tuned empirically so the eruption is "strong enough to be visibly
 | Effects | Pyro destroys; Cryo freezes (`frozen += 1`); Electro shocks (`electrified += 1`) |
 | Defensive order | Shield blocks → armour absorbs one layer → else effect applies |
 | Attribution | Credited to the owner of the triggering projectile |
-| Spawning | Wildcard pool + dedicated "Unstable System" scenario; present from game start |
+| Spawning | Wildcard pool (random-type unstable planet) + two scenarios — **Unstable Planet** (39) and **Unstable System** (40), each with a 10% extreme variant; present from game start |
 
 ---
 

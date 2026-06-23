@@ -304,6 +304,8 @@ Three new stellar-body subtypes that lie dormant as ordinary obstacles until str
 - [ ] **16.6** Ejecta flight — Pyro/Cryo ballistic and gravity-affected (fireball-style per-frame integration); Electro travels straight, ignores gravity, short range. Global ejecta cap; consumed on planet collision / out of bounds / lifetime.
 - [ ] **16.7** Station effects with shield→armour→effect resolution and instigator attribution: Pyro destroys; Cryo `frozen += 1`; Electro `electrified += 1`. `ConditionNotifyVFX` labels for Cryo/Electro.
 - [ ] **16.8** Eruption VFX — Pyro fiery burst + smoke trails; Cryo icy shards + vapour; Electro branching lightning bolts (Electrostar-style arc rendering).
-- [ ] **16.9** Scenario integration — add subtypes to the wildcard pool and an "Unstable System" scenario (1–3 mixed unstable planets in an asteroid field); register in `requirements.md` and `scenarioData.js`.
+- [ ] **16.9** Scenario integration — add an unstable planet (random type) to the wildcard pool, and two new scenarios registered in `requirements.md` and `scenarioData.js` (bump `SCENARIO_COUNT`, add to extreme-eligible list):
+  - **39 Unstable Planet** — one large unstable planet (random type), 70% near map centre / 30% anywhere, + 5–9 scattered moons/asteroids. Extreme (10%): a second unstable planet, kept well separated.
+  - **40 Unstable System** — 3–12 smaller unstable planets (random types) + 2–6 moons. Extreme (10%): double the unstable-planet count (6–24).
 - [ ] **16.10** (Phase 2) SuperBot/MegaBot opportunistic eruption targeting — favour shots that erupt an unstable planet near an enemy; avoid erupting next to own stations.
 - [ ] **16.11** Document the eruption force/escape-velocity formula and the `PlanetType` additions in `design.md`.
