@@ -279,7 +279,7 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 | `EJECTA_SPREAD` | Max angular offset from surface normal | ≈ ±25° |
 | `EJECTA_MIN_FRAC / MAX_FRAC` | Ejecta speed as fraction of escape velocity | 0.65 / 0.95 |
 | `EJECTA_VELOCITY_FACTOR` | Slow-down on launch speed (pyro/cryo) → dramatic blobs | 0.60 |
-| `EJECTA_GRAVITY_FACTOR` | Fraction of gravity felt by pyro/cryo ejecta (floaty arcs; ~v²/g range means low gravity restores reach) | 0.09 |
+| `EJECTA_GRAVITY_FACTOR` | Fraction of gravity felt by pyro/cryo ejecta (floaty arcs; ~v²/g range means low gravity restores reach) | 0.18 |
 | `EJECTA_MAX_LIFETIME` | Steps a ballistic blob lives — slow blobs need airtime to travel their range | 24000 |
 | `EJECTA_MAX_RADIUS` | Grown blob size — ejecta swell fast then ease to ≈ a Large station | 6.0 |
 | `EJECTA_GROW_STEPS` | Steps to reach full blob size (ease-out) | 90 |
