@@ -160,6 +160,7 @@ Full start-to-finish playable game with UI.
 | 13 | Gravitational time dilation (black holes / white dwarfs) |
 | 14 | Space Mammoth SVG sprite system |
 | 15 | Sound FX, barriers, mines, turrets, buildings, civilised worlds, junkyard scenario, story mode |
+| 16 | Unstable planets (Pyro / Cryo / Electro) |
 
 ---
 
@@ -288,3 +289,21 @@ New content and systems to be specified in detail before implementation begins.
 ### 15.5 Narrative
 
 - [ ] **15.8** Story mode additions — campaign/story mode content. Structure (missions, cutscenes, progression), scripting system, and integration with existing game flow TBD.
+
+---
+
+## Phase 16 — Unstable Planets
+
+Three new stellar-body subtypes that lie dormant as ordinary obstacles until struck by a projectile, then violently erupt at the point of contact and hurl hazardous ejecta into the battlefield. Full design in `unstable-planets-spec.md`.
+
+- [ ] **16.1** Add `PYRO` / `CRYO` / `ELECTRO` to `PlanetType` and an `isUnstable()` predicate. Passively behave as a `ROCKY` planet (gravity + obstacle + projectile-destroying impact).
+- [ ] **16.2** Cracked-surface rendering with pulsing under-crack glow — red (Pyro), white (Cryo), blue-cyan (Electro). Crack pattern generated once per instance from seed.
+- [ ] **16.3** Idle particle emission — mini red eruptions (Pyro), white eruptions (Cryo), crackling surface electricity (Electro). Cosmetic only, low rate, capped.
+- [ ] **16.4** New `Ejecta` entity (`kind`, `owner`, velocity, launch delay, lifetime) and `gameState.ejecta` tracking + pending-eruption queue.
+- [ ] **16.5** Eruption trigger — primary projectile (bullet/rocket) impact spawns an eruption at the contact point: 5–7 ejecta, direction = surface normal ±25°, speed = random fraction (below escape velocity), per-particle launch stagger. Cooldown prevents multi-bullet stacking. Ejecta do not chain-trigger eruptions.
+- [ ] **16.6** Ejecta flight — Pyro/Cryo ballistic and gravity-affected (fireball-style per-frame integration); Electro travels straight, ignores gravity, short range. Global ejecta cap; consumed on planet collision / out of bounds / lifetime.
+- [ ] **16.7** Station effects with shield→armour→effect resolution and instigator attribution: Pyro destroys; Cryo `frozen += 1`; Electro `electrified += 1`. `ConditionNotifyVFX` labels for Cryo/Electro.
+- [ ] **16.8** Eruption VFX — Pyro fiery burst + smoke trails; Cryo icy shards + vapour; Electro branching lightning bolts (Electrostar-style arc rendering).
+- [ ] **16.9** Scenario integration — add subtypes to the wildcard pool and an "Unstable System" scenario (1–3 mixed unstable planets in an asteroid field); register in `requirements.md` and `scenarioData.js`.
+- [ ] **16.10** (Phase 2) SuperBot/MegaBot opportunistic eruption targeting — favour shots that erupt an unstable planet near an enemy; avoid erupting next to own stations.
+- [ ] **16.11** Document the eruption force/escape-velocity formula and the `PlanetType` additions in `design.md`.
