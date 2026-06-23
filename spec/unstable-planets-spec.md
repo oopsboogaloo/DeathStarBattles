@@ -146,8 +146,9 @@ The exact count, per-particle angle, per-particle speed, and per-particle delay 
 
 ### 4.5 Visual character of the eruption
 
-- **Pyro:** a fierce burst of red/orange ejecta with smoke trails (reuse the fireball/`fireballSmoke` smoke-puff pattern). The eruption flash at the contact point is bright red-white.
-- **Cryo:** white/pale-blue icy shards with a frosty vapour trail. Contact flash is cold white.
+- **Pyro:** slow, swelling red/orange **blobs** — each grows fast then eases to roughly a Large station's size — trailing short-lived red smoke puffs (the same puff system comets use). The eruption flash at the contact point is bright red-white.
+- **Cryo:** the same swelling-blob behaviour in pale blue-white, trailing frosty smoke puffs. Contact flash is cold white.
+- Pyro/Cryo ejecta launch at only ~30% of the usual speed and feel ~20% of gravity, so they move slowly and arc dramatically; the grown blob radius counts for collisions (a blob that engulfs a station hits it), but the **source** planet only re-absorbs a blob when its *centre* falls back inside, so a growing blob isn't eaten by its own surface.
 - **Electro:** **branching lightning bolts** radiating from the contact point — short, jagged, redrawn each frame with randomised branch points for a crackling look (the same rendering approach planned for the Electrostar arcs, §12.11 of tasks.md), in blue-cyan/white.
 - **Beam:** a bright **yellow laser beam** (§4.6) — rendered via the existing `LaserVFX`, tinted yellow rather than a team colour.
 
@@ -276,7 +277,11 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 | `ERUPTION_COOLDOWN` | Min time between eruptions on one planet | ≈ 300 ms |
 | `EJECTA_COUNT_MIN / MAX` | Particles per eruption | 5 / 7 |
 | `EJECTA_SPREAD` | Max angular offset from surface normal | ≈ ±25° |
-| `EJECTA_MIN_FRAC / MAX_FRAC` | Ejecta speed as fraction of escape velocity | 0.55 / 0.90 |
+| `EJECTA_MIN_FRAC / MAX_FRAC` | Ejecta speed as fraction of escape velocity | 0.65 / 0.95 |
+| `EJECTA_VELOCITY_FACTOR` | Extra slow-down on launch speed (pyro/cryo) → slow dramatic blobs | 0.30 |
+| `EJECTA_GRAVITY_FACTOR` | Fraction of gravity felt by pyro/cryo ejecta (floaty arcs) | 0.20 |
+| `EJECTA_MAX_RADIUS` | Grown blob size — ejecta swell fast then ease to ≈ a Large station | 6.0 |
+| `EJECTA_GROW_STEPS` | Steps to reach full blob size (ease-out) | 90 |
 | `ERUPTION_STAGGER` | Max random launch delay per particle | ≈ 180 ms |
 | `EJECTA_MAX_LIFETIME` | Ballistic ejecta max airtime before fade | tune |
 | `ELECTRO_REACH` | Lightning bolt range | ≈ 3× planet radius |

@@ -12,7 +12,7 @@ export const EjectaKind = Object.freeze({
 });
 
 export class Ejecta {
-  constructor({ position, velocity, kind, owner, sourcePlanet, launchDelay = 0, maxLifetime = 220 }) {
+  constructor({ position, velocity, kind, owner, sourcePlanet, launchDelay = 0, maxLifetime = 220, maxRadius = 0 }) {
     this.position     = position;      // Vec2
     this.velocity     = velocity;      // Vec2 (game units per TIMESTEP)
     this.kind         = kind;          // EjectaKind
@@ -21,7 +21,10 @@ export class Ejecta {
     this.launchDelay  = launchDelay;   // physics steps to wait before launching (eruption stagger)
     this.lifetime     = 0;
     this.maxLifetime  = maxLifetime;
+    this.maxRadius    = maxRadius;     // grows toward this (pyro/cryo blobs); 0 for electro bolts
+    this.radius       = 0;            // current blob radius (game units)
+    this.smokeTimer   = 0;            // steps since last smoke puff
     this.dead         = false;
-    this.trail        = [];            // Vec2[] — short trail for rendering
+    this.trail        = [];            // Vec2[] — short trail for rendering (electro)
   }
 }

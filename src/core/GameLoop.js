@@ -31,8 +31,12 @@ const EJECTA_COUNT_MAX        = 7;
 const EJECTA_SPREAD_DEG       = 25;   // max angular offset from the surface normal
 const EJECTA_MIN_FRAC         = 0.65; // pyro/cryo speed as a fraction of escape velocity
 const EJECTA_MAX_FRAC         = 0.95; // (below 1 → arcs back under gravity)
+const EJECTA_VELOCITY_FACTOR  = 0.30; // launch slower → slow, dramatic blobs
+const EJECTA_GRAVITY_FACTOR   = 0.20; // pyro/cryo feel only 20% of gravity (floaty arcs)
+const EJECTA_MAX_RADIUS       = 6.0;  // grown blob size (≈ a Large station radius)
+const EJECTA_GROW_STEPS       = 90;   // steps to grow from 0 → full (fast then slows)
 const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~0.18s)
-const EJECTA_MAX_LIFETIME     = 2000; // steps before a ballistic ejecta fades
+const EJECTA_MAX_LIFETIME     = 1100; // steps before a ballistic blob fades
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
 const MAX_EJECTA              = 30;   // global active-ejecta cap
@@ -2154,6 +2158,9 @@ export class GameLoop {
       if (this.gs.ejecta.length) this._stepEjecta(allStations);
     }
 
+    // Pyro/Cryo ejecta emit comet-style smoke puffs (once per frame, like comets)
+    if (this.gs.ejecta.length) this._emitEjectaSmoke();
+
     // Fragment any asteroids hit this frame (mutates gs.planets in-place)
     this._processAsteroidFragments();
 
@@ -2816,7 +2823,7 @@ export class GameLoop {
       const a      = baseAngle + spread;
       const speed  = isElectro
         ? ELECTRO_SPEED
-        : vEsc * (EJECTA_MIN_FRAC + this.rng.next() * (EJECTA_MAX_FRAC - EJECTA_MIN_FRAC));
+        : vEsc * (EJECTA_MIN_FRAC + this.rng.next() * (EJECTA_MAX_FRAC - EJECTA_MIN_FRAC)) * EJECTA_VELOCITY_FACTOR;
       const jit    = (this.rng.next() - 0.5) * 1.5; // tiny origin jitter along the surface
       this.gs.ejecta.push(new Ejecta({
         position:     new Vec2(ox - ny * jit, oy + nx * jit),
@@ -2824,6 +2831,7 @@ export class GameLoop {
         kind, owner, sourcePlanet: planet,
         launchDelay:  Math.floor(this.rng.next() * ERUPTION_STAGGER_STEPS),
         maxLifetime:  isElectro ? electroLife : EJECTA_MAX_LIFETIME,
+        maxRadius:    isElectro ? 0 : EJECTA_MAX_RADIUS * (0.85 + this.rng.next() * 0.3),
       }));
     }
   }
@@ -2846,7 +2854,7 @@ export class GameLoop {
           if (rSq < 0.01) continue;
           const sign  = dx < 0 ? -1 : 1;
           const theta = Math.atan(dy / dx);
-          const accel = sign * G * planet.mass / rSq;
+          const accel = sign * G * planet.mass / rSq * EJECTA_GRAVITY_FACTOR;
           vx += Math.cos(theta) * accel * TIMESTEP;
           vy += Math.sin(theta) * accel * TIMESTEP;
         }
@@ -2855,37 +2863,55 @@ export class GameLoop {
 
       e.position = new Vec2(e.position.x + e.velocity.x * TIMESTEP, e.position.y + e.velocity.y * TIMESTEP);
       e.lifetime++;
-      if (e.lifetime % 2 === 0) { e.trail.push(new Vec2(e.position.x, e.position.y)); if (e.trail.length > 12) e.trail.shift(); }
+
+      // Blob growth — fast then easing to full size (ease-out cubic), then holds
+      if (e.maxRadius > 0) {
+        const p = Math.min(1, e.lifetime / EJECTA_GROW_STEPS);
+        e.radius = e.maxRadius * (1 - Math.pow(1 - p, 3));
+      } else if (e.lifetime % 2 === 0) {
+        // Electro bolt — keep a short trail for the lightning look
+        e.trail.push(new Vec2(e.position.x, e.position.y));
+        if (e.trail.length > 12) e.trail.shift();
+      }
 
       if (e.lifetime >= e.maxLifetime) { e.dead = true; continue; }
       const px = e.position.x, py = e.position.y;
       if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) { e.dead = true; continue; }
+      const er = e.radius;
 
-      // Shield block
+      // Shield block (the blob edge counts)
       let blocked = false;
       for (const shield of this.gs.shields) {
         if (!shield.alive) continue;
         const dx = px - shield.station.position.x, dy = py - shield.station.position.y;
-        if (dx * dx + dy * dy < shield.radius * shield.radius) { blocked = true; break; }
+        const rr = shield.radius + er;
+        if (dx * dx + dy * dy < rr * rr) { blocked = true; break; }
       }
       if (blocked) { e.dead = true; continue; }
 
-      // Station collision — apply effect to the first station reached
+      // Station collision — apply effect to the first station the blob touches
       let hitStation = null;
       for (const s of allStations) {
         if (s.status !== 'active') continue;
         const dx = px - s.position.x, dy = py - s.position.y;
-        if (dx * dx + dy * dy < s.radius * s.radius) { hitStation = s; break; }
+        const rr = s.radius + er;
+        if (dx * dx + dy * dy < rr * rr) { hitStation = s; break; }
       }
       if (hitStation) { this._applyEjectaToStation(e, hitStation); e.dead = true; continue; }
 
       // Planet collision
       for (const planet of this.gs.planets) {
         if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
-        const R = planet.impactRadius;
         const dx = planet.position.x - px, dy = planet.position.y - py;
-        if (dx * dx + dy * dy >= R * R) continue;
-        if (planet === e.sourcePlanet) { e.dead = true; break; }       // never re-trigger own source
+        const d2 = dx * dx + dy * dy;
+        if (planet === e.sourcePlanet) {
+          // Source planet absorbs only when the blob CENTRE falls back inside it,
+          // so a growing blob isn't eaten by its own surface as it leaves.
+          if (d2 < planet.radius * planet.radius) { e.dead = true; break; }
+          continue;
+        }
+        const reach = planet.impactRadius + er;
+        if (d2 >= reach * reach) continue;
         if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, e.owner); e.dead = true; break; }
         if (e.kind === EjectaKind.PYRO &&
             (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL)) {
@@ -2896,6 +2922,22 @@ export class GameLoop {
       }
     }
     this.gs.ejecta = this.gs.ejecta.filter(e => !e.dead);
+  }
+
+  // Emit short-lived comet-style smoke puffs from live pyro/cryo blobs — once per
+  // frame so the count stays bounded and game-speed independent.
+  _emitEjectaSmoke() {
+    for (const e of this.gs.ejecta) {
+      if (e.dead || e.launchDelay > 0) continue;
+      if (e.kind !== EjectaKind.PYRO && e.kind !== EjectaKind.CRYO) continue;
+      const [sr, sg, sb] = e.kind === EjectaKind.PYRO ? [255, 140, 50] : [205, 235, 255];
+      this.gs.cometSmoke.push({
+        x: e.position.x + (this.rng.next() - 0.5) * e.radius,
+        y: e.position.y + (this.rng.next() - 0.5) * e.radius,
+        maxR: 1.2 + this.rng.next() * 2.0, dt: 1 / 24, fast: true, t: 0,
+        r: sr, g: sg, b: sb,
+      });
+    }
   }
 
   // Apply an ejecta's effect to a station: pyro kills, cryo freezes, electro shocks.
@@ -4625,6 +4667,8 @@ export class GameLoop {
 
       if (this.gs.ejecta.length) this._stepEjecta(this.gs.allStations);
     }
+
+    if (this.gs.ejecta.length) this._emitEjectaSmoke();
 
     this._processAsteroidFragments();
     this._processGreySplits();

@@ -3013,7 +3013,7 @@ export class Renderer {
       if (!this._isVisible(cx, cy, radius)) continue;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(220,235,255,${alpha.toFixed(3)})`;
+      ctx.fillStyle = `rgba(${s.r ?? 220},${s.g ?? 235},${s.b ?? 255},${alpha.toFixed(3)})`;
       ctx.fill();
     }
   }
@@ -4332,7 +4332,7 @@ export class Renderer {
     }
   }
 
-  // Eruption ejecta — pyro fiery dots, cryo icy shards, electro lightning bolts.
+  // Eruption ejecta — pyro/cryo growing glowing blobs, electro lightning bolts.
   _drawEjecta(ctx, ejecta) {
     const conv = this.conv;
     for (const e of ejecta) {
@@ -4340,25 +4340,32 @@ export class Renderer {
       const [gr, gg, gb] = UNSTABLE_GLOW[e.kind] ?? [255, 180, 60];
       const x = e.position.x * conv, y = e.position.y * conv;
 
-      // Trail
-      if (e.trail.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(e.trail[0].x * conv, e.trail[0].y * conv);
-        for (let i = 1; i < e.trail.length; i++) ctx.lineTo(e.trail[i].x * conv, e.trail[i].y * conv);
-        if (e.kind === 'electro') {
+      if (e.kind === 'electro') {
+        // Lightning bolt — jagged trail + bright white head
+        if (e.trail.length > 1) {
+          ctx.beginPath();
+          ctx.moveTo(e.trail[0].x * conv, e.trail[0].y * conv);
+          for (let i = 1; i < e.trail.length; i++) ctx.lineTo(e.trail[i].x * conv, e.trail[i].y * conv);
           ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.85)`;
           ctx.lineWidth   = Math.max(1, conv * 0.5);
-        } else {
-          ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.35)`;
-          ctx.lineWidth   = Math.max(1, conv * 0.7);
+          ctx.stroke();
         }
-        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(1, conv * 0.5), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgb(255,255,255)';
+        ctx.fill();
+        continue;
       }
 
-      // Head
+      // Pyro/Cryo blob — radial gradient: white-hot core → colour → soft edge
+      const R = Math.max(1.5, e.radius * conv);
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, R);
+      grad.addColorStop(0,    `rgba(255,255,255,0.95)`);
+      grad.addColorStop(0.35, `rgba(${gr},${gg},${gb},0.9)`);
+      grad.addColorStop(1,    `rgba(${gr},${gg},${gb},0)`);
       ctx.beginPath();
-      ctx.arc(x, y, Math.max(1, conv * (e.kind === 'electro' ? 0.5 : 0.9)), 0, Math.PI * 2);
-      ctx.fillStyle = e.kind === 'electro' ? `rgb(255,255,255)` : `rgb(${gr},${gg},${gb})`;
+      ctx.arc(x, y, R, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
       ctx.fill();
     }
   }
