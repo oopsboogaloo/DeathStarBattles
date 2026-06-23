@@ -2,7 +2,7 @@
 // contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
 
 import { PlanetRenderer, setPlanetRendererSimplified } from './PlanetRenderer.js';
-import { ShadingStyle, PlanetType } from '../entities/Planet.js';
+import { ShadingStyle, PlanetType, isUnstable, UNSTABLE_GLOW } from '../entities/Planet.js';
 import { WormholeParticles } from './WormholeParticles.js';
 import { GiantWormholeParticles } from './GiantWormholeParticles.js';
 import { WhiteHoleParticles } from './WhiteHoleParticles.js';
@@ -922,6 +922,11 @@ export class Renderer {
     for (const planet of gameState.planets) {
       if (planet.type === PlanetType.COMET && !planet.destroyed) this._drawComet(ctx, planet);
     }
+
+    // Unstable planets — live glow/cracks/idle particles over the baked body
+    this._drawUnstablePlanets(ctx, gameState.planets);
+    // Eruption ejecta in flight
+    if (gameState.ejecta?.length) this._drawEjecta(ctx, gameState.ejecta);
 
     // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
     for (const planet of this._planets) {
@@ -3608,6 +3613,7 @@ export class Renderer {
         case 'birthdayGrant':          this._drawBirthdayGrant(ctx, vfx);           break;
         case 'tripleCannonMuzzle':     this._drawTripleCannonMuzzle(ctx, vfx);      break;
         case 'laserPath':              this._drawLaserPath(ctx, vfx);               break;
+        case 'eruptionFlash':          this._drawEruptionFlash(ctx, vfx);           break;
         case 'glitter':                this._drawGlitter(ctx, vfx);                 break;
         case 'qtFlash':                this._drawQtFlash(ctx, vfx);                 break;
         case 'electroStun':            this._drawElectroStun(ctx, vfx);             break;
@@ -4244,6 +4250,133 @@ export class Renderer {
     ctx.stroke();
 
     ctx.restore();
+  }
+
+  // ----------------------------------------------------------------
+  // Unstable planets (spec/unstable-planets-spec.md §3) — drawn live over the
+  // baked rocky body: pulsing under-crack glow, a static crack network, and a
+  // low-rate idle particle emission. Ejecta + eruption flash are separate.
+  // ----------------------------------------------------------------
+
+  // Deterministic [0,1) hash from an integer seed (no per-planet state stored).
+  static _uHash(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+
+  _drawUnstablePlanets(ctx, planets) {
+    const conv = this.conv;
+    const now  = performance.now() / 1000;
+    for (const planet of planets) {
+      if (planet.destroyed || !isUnstable(planet.type)) continue;
+      const cx = planet.position.x * conv;
+      const cy = planet.position.y * conv;
+      const r  = Math.max(3, planet.radius * conv);
+      const [gr, gg, gb] = UNSTABLE_GLOW[planet.type] ?? [255, 200, 80];
+      const seed = planet.crackSeed || 1;
+
+      // Pulsing under-crack glow — a soft radial fill peaking at the surface
+      const pulse = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(now * 2.0 + (seed % 100)));
+      const glow  = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+      glow.addColorStop(0,   `rgba(${gr},${gg},${gb},${(pulse * 0.55).toFixed(3)})`);
+      glow.addColorStop(0.7, `rgba(${gr},${gg},${gb},${(pulse * 0.30).toFixed(3)})`);
+      glow.addColorStop(1,   `rgba(${gr},${gg},${gb},0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
+
+      // Crack network — radial fractures from near-centre to the rim, static per planet
+      const nCracks = 5;
+      ctx.lineWidth   = Math.max(1, conv * 0.5);
+      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${(0.5 + pulse * 0.4).toFixed(3)})`;
+      ctx.beginPath();
+      for (let i = 0; i < nCracks; i++) {
+        const a0  = Renderer._uHash(seed + i * 13.1) * Math.PI * 2;
+        const seg = 3;
+        let rr = r * 0.15;
+        let ax = cx + Math.cos(a0) * rr, ay = cy + Math.sin(a0) * rr;
+        ctx.moveTo(ax, ay);
+        let ang = a0;
+        for (let s = 1; s <= seg; s++) {
+          ang += (Renderer._uHash(seed + i * 13.1 + s * 7.7) - 0.5) * 0.9;
+          rr   = r * (0.15 + (s / seg) * 0.85);
+          ax = cx + Math.cos(ang) * rr;
+          ay = cy + Math.sin(ang) * rr;
+          ctx.lineTo(ax, ay);
+        }
+      }
+      ctx.stroke();
+
+      // Idle particle emission — a few short-lived sparks per planet per frame
+      if (!this._simplified) {
+        if (planet.type === 'electro') {
+          // Crackling arcs skittering across the surface between crack nodes
+          ctx.lineWidth   = Math.max(0.5, conv * 0.35);
+          ctx.strokeStyle = `rgba(${gr},${gg},${gb},${(0.4 + Math.random() * 0.4).toFixed(2)})`;
+          ctx.beginPath();
+          for (let i = 0; i < 2; i++) {
+            const a1 = Math.random() * Math.PI * 2, a2 = a1 + (Math.random() - 0.5) * 1.6;
+            ctx.moveTo(cx + Math.cos(a1) * r * 0.9, cy + Math.sin(a1) * r * 0.9);
+            ctx.lineTo(cx + Math.cos(a2) * r * 0.9, cy + Math.sin(a2) * r * 0.9);
+          }
+          ctx.stroke();
+        } else if (Math.random() < 0.5) {
+          // Pyro/Cryo/Beam: small puff/glint popping off the surface
+          const a  = Math.random() * Math.PI * 2;
+          const pr = r * (0.95 + Math.random() * 0.25);
+          const ex = cx + Math.cos(a) * pr, ey = cy + Math.sin(a) * pr;
+          ctx.beginPath();
+          ctx.arc(ex, ey, Math.max(0.8, conv * (0.4 + Math.random() * 0.5)), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${gr},${gg},${gb},${(0.5 + Math.random() * 0.4).toFixed(2)})`;
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // Eruption ejecta — pyro fiery dots, cryo icy shards, electro lightning bolts.
+  _drawEjecta(ctx, ejecta) {
+    const conv = this.conv;
+    for (const e of ejecta) {
+      if (e.dead || e.launchDelay > 0) continue;
+      const [gr, gg, gb] = UNSTABLE_GLOW[e.kind] ?? [255, 180, 60];
+      const x = e.position.x * conv, y = e.position.y * conv;
+
+      // Trail
+      if (e.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(e.trail[0].x * conv, e.trail[0].y * conv);
+        for (let i = 1; i < e.trail.length; i++) ctx.lineTo(e.trail[i].x * conv, e.trail[i].y * conv);
+        if (e.kind === 'electro') {
+          ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.85)`;
+          ctx.lineWidth   = Math.max(1, conv * 0.5);
+        } else {
+          ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.35)`;
+          ctx.lineWidth   = Math.max(1, conv * 0.7);
+        }
+        ctx.stroke();
+      }
+
+      // Head
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(1, conv * (e.kind === 'electro' ? 0.5 : 0.9)), 0, Math.PI * 2);
+      ctx.fillStyle = e.kind === 'electro' ? `rgb(255,255,255)` : `rgb(${gr},${gg},${gb})`;
+      ctx.fill();
+    }
+  }
+
+  // Eruption flash at the contact point — a brief bright burst.
+  _drawEruptionFlash(ctx, vfx) {
+    const conv  = this.conv;
+    const x = vfx.x * conv, y = vfx.y * conv;
+    const alpha = Math.sin(Math.min(1, vfx.t) * Math.PI);
+    const R = conv * (3 + vfx.t * 9);
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, R);
+    grad.addColorStop(0,   `rgba(255,255,255,${(alpha * 0.9).toFixed(3)})`);
+    grad.addColorStop(0.4, `rgba(${vfx.r},${vfx.g},${vfx.b},${(alpha * 0.7).toFixed(3)})`);
+    grad.addColorStop(1,   `rgba(${vfx.r},${vfx.g},${vfx.b},0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, R, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
   }
 
   // ----------------------------------------------------------------

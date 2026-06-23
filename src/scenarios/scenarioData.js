@@ -1,7 +1,7 @@
 // Copyright © 2026 Chloe Bolland
 // contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
 
-export const SCENARIO_COUNT = 38;
+export const SCENARIO_COUNT = 40;
 
 // Deterministic FNV-1a 32-bit hash of a UTF-16 string (platform-independent)
 export function hashString(str) {
@@ -54,11 +54,13 @@ export const SCENARIO_NAMES = [
   'Giant Self Wormhole', // 36
   'Giant Wormhole Network', // 37
   'Sol',                // 38
+  'Unstable Planet',    // 39
+  'Unstable System',    // 40
 ];
 
 // Scenarios valid for Target Practice mode
 // Planetary(1), Asteroids(2), Crystal Asteroids(3), Star System(4), Jovian(6), Wormhole(19)
-export const TARGET_PRACTICE_SCENARIOS = [1, 2, 3, 4, 6, 19];
+export const TARGET_PRACTICE_SCENARIOS = [1, 2, 3, 4, 6, 19, 39, 40];
 
 // Weighted random scenario selection:
 // <25 → common (1-6), <88 → uncommon (1-19 plus 29-32), else → any (1-32)

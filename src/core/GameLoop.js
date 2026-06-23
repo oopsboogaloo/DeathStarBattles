@@ -7,7 +7,8 @@ import { SoundManager }               from '../audio/SoundManager.js';
 import { Bullet, BulletStatus }        from '../entities/Bullet.js';
 import { PhysicsEngine, PRINT_EVERY, SHOW_EVERY, TIMESTEP, BULLET_LIFE, G,
          SKIM_PARTICLE_DURATION, FRAG_BOUNCE_RETENTION, PULSE_MAX_R } from '../physics/PhysicsEngine.js';
-import { Planet, PlanetType, ShadingStyle } from '../entities/Planet.js';
+import { Planet, PlanetType, ShadingStyle, isUnstable } from '../entities/Planet.js';
+import { Ejecta, EjectaKind }              from '../entities/Ejecta.js';
 import { Collectable, WeaponId, WEAPON_GRANTS } from '../entities/Collectable.js';
 import { Rocket, RocketStatus, ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED,
@@ -20,6 +21,21 @@ import { AIController }                    from '../ai/AIController.js';
 // Physics steps per rAF frame for each speed setting.
 // Normal reduced by 30% from original; Very Slow = ¼×, Very Fast = 4×.
 export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryFast: 168 };
+
+// ── Unstable-planet eruption tuning (spec/unstable-planets-spec.md §9) ────────
+// Ejecta are stepped once per physics sub-step (like bullets), so lifetimes are
+// in steps, not frames — bullets live tens of thousands of steps to cross the map.
+const ERUPTION_COOLDOWN_STEPS = 400;  // ~0.3s — blocks a multi-bullet weapon stacking eruptions
+const EJECTA_COUNT_MIN        = 5;
+const EJECTA_COUNT_MAX        = 7;
+const EJECTA_SPREAD_DEG       = 25;   // max angular offset from the surface normal
+const EJECTA_MIN_FRAC         = 0.65; // pyro/cryo speed as a fraction of escape velocity
+const EJECTA_MAX_FRAC         = 0.95; // (below 1 → arcs back under gravity)
+const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~0.18s)
+const EJECTA_MAX_LIFETIME     = 2000; // steps before a ballistic ejecta fades
+const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
+const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
+const MAX_EJECTA              = 30;   // global active-ejecta cap
 
 // Mammoth Cannon tuning constants
 const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
@@ -1062,7 +1078,10 @@ export class GameLoop {
     this.gs.pendingSwaps          = [];
     this.gs.pendingTeleports      = [];
     this.gs.pendingReinforcements = [];
+    this.gs.ejecta                = [];
     this.gs.firingStep            = 0;
+    // firingStep resets each phase, so clear any stale eruption cooldowns too
+    for (const p of this.gs.planets) if (isUnstable(p.type)) p._eruptReadyStep = 0;
 
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
@@ -2000,6 +2019,12 @@ export class GameLoop {
           bullet._hitMoon = null;
         }
 
+        // Unstable planet hit — trigger an eruption at the contact point
+        if (bullet._eruptPlanet) {
+          this._triggerEruption(bullet._eruptPlanet, bullet._eruptX, bullet._eruptY, bullet.owner);
+          bullet._eruptPlanet = null;
+        }
+
         // Quantum Torpedo: teleport through solid body
         if (bullet._qtTeleportPlanet) {
           this._handleQuantumTeleport(bullet);
@@ -2124,6 +2149,9 @@ export class GameLoop {
 
       // Move comets one physics step
       this._stepComets();
+
+      // Step unstable-planet eruption ejecta one physics step
+      if (this.gs.ejecta.length) this._stepEjecta(allStations);
     }
 
     // Fragment any asteroids hit this frame (mutates gs.planets in-place)
@@ -2276,10 +2304,11 @@ export class GameLoop {
     const blastsGone     = this.gs.rocketBlasts.length === 0;
     const burstsGone     = this.gs.burstQueue.length === 0;
     const lasersGone     = this.gs.pendingLasers.length === 0;
+    const ejectaGone     = this.gs.ejecta.length === 0;
     const teleportsGone  = (this.gs.pendingTeleports?.length ?? 0) === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && teleportsGone && !stationsMoving) {
+    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && ejectaGone && teleportsGone && !stationsMoving) {
       for (const reinf of this.gs.pendingReinforcements ?? []) {
         this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y, reinf.size);
       }
@@ -2740,6 +2769,227 @@ export class GameLoop {
       station.electrifiedFlash = 1.0;
     }
     this._notifyCondition(station, kind);
+  }
+
+  // ─── Unstable planet eruptions (spec/unstable-planets-spec.md §4) ──────────
+
+  // Trigger an eruption at contact point (x,y) on an unstable planet. `owner` is
+  // the station whose projectile struck it — credited for any kill/condition,
+  // propagated through chains. Honours the per-planet re-eruption cooldown.
+  _triggerEruption(planet, x, y, owner) {
+    if (!planet || planet.destroyed || !isUnstable(planet.type)) return;
+    if (this.gs.firingStep < (planet._eruptReadyStep ?? 0)) return;
+    planet._eruptReadyStep = this.gs.firingStep + ERUPTION_COOLDOWN_STEPS;
+
+    // Outward surface normal at the contact point
+    let nx = x - planet.position.x;
+    let ny = y - planet.position.y;
+    const nLen = Math.hypot(nx, ny) || 1;
+    nx /= nLen; ny /= nLen;
+    const ox = planet.position.x + nx * (planet.radius + 0.5);
+    const oy = planet.position.y + ny * (planet.radius + 0.5);
+    const baseAngle = Math.atan2(ny, nx);
+
+    const [gr, gg, gb] = UNSTABLE_GLOW[planet.type] ?? [255, 200, 80];
+    this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: 0.5 });
+
+    // Beam: fire a single piercing laser perpendicular to the surface (no ejecta)
+    if (planet.type === PlanetType.BEAM) {
+      SoundManager.play('laserBeam');
+      const path = this._simulateUnstableBeamPath(ox, oy, baseAngle, owner, planet);
+      this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
+      return;
+    }
+
+    SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+
+    // Ejecta spray: 5–7 particles, ~perpendicular to the surface, staggered launch.
+    // Pyro/Cryo launch below escape velocity (arc back); Electro is fast & straight.
+    const kind      = planet.type; // EjectaKind values match PlanetType strings
+    const isElectro = kind === EjectaKind.ELECTRO;
+    const vEsc      = Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius));
+    const electroLife = Math.ceil((ELECTRO_REACH_MULT * planet.radius) / (ELECTRO_SPEED * TIMESTEP));
+    const n = EJECTA_COUNT_MIN + Math.floor(this.rng.next() * (EJECTA_COUNT_MAX - EJECTA_COUNT_MIN + 1));
+    for (let i = 0; i < n; i++) {
+      if (this.gs.ejecta.length >= MAX_EJECTA) break;
+      const spread = (this.rng.next() * 2 - 1) * EJECTA_SPREAD_DEG * Math.PI / 180;
+      const a      = baseAngle + spread;
+      const speed  = isElectro
+        ? ELECTRO_SPEED
+        : vEsc * (EJECTA_MIN_FRAC + this.rng.next() * (EJECTA_MAX_FRAC - EJECTA_MIN_FRAC));
+      const jit    = (this.rng.next() - 0.5) * 1.5; // tiny origin jitter along the surface
+      this.gs.ejecta.push(new Ejecta({
+        position:     new Vec2(ox - ny * jit, oy + nx * jit),
+        velocity:     new Vec2(Math.cos(a) * speed, Math.sin(a) * speed),
+        kind, owner, sourcePlanet: planet,
+        launchDelay:  Math.floor(this.rng.next() * ERUPTION_STAGGER_STEPS),
+        maxLifetime:  isElectro ? electroLife : EJECTA_MAX_LIFETIME,
+      }));
+    }
+  }
+
+  // Step all ejecta one physics step: gravity (pyro/cryo), straight (electro),
+  // then resolve shield / station / planet collisions and chain reactions.
+  _stepEjecta(allStations) {
+    const { gw, gh } = this.physics;
+    for (const e of this.gs.ejecta) {
+      if (e.dead) continue;
+      if (e.launchDelay > 0) { e.launchDelay--; continue; }
+
+      if (e.kind !== EjectaKind.ELECTRO) {
+        let vx = e.velocity.x, vy = e.velocity.y;
+        for (const planet of this.gs.planets) {
+          if (planet.destroyed) continue;
+          const dx = planet.position.x - e.position.x;
+          const dy = planet.position.y - e.position.y;
+          const rSq = dx * dx + dy * dy;
+          if (rSq < 0.01) continue;
+          const sign  = dx < 0 ? -1 : 1;
+          const theta = Math.atan(dy / dx);
+          const accel = sign * G * planet.mass / rSq;
+          vx += Math.cos(theta) * accel * TIMESTEP;
+          vy += Math.sin(theta) * accel * TIMESTEP;
+        }
+        e.velocity = new Vec2(vx, vy);
+      }
+
+      e.position = new Vec2(e.position.x + e.velocity.x * TIMESTEP, e.position.y + e.velocity.y * TIMESTEP);
+      e.lifetime++;
+      if (e.lifetime % 2 === 0) { e.trail.push(new Vec2(e.position.x, e.position.y)); if (e.trail.length > 12) e.trail.shift(); }
+
+      if (e.lifetime >= e.maxLifetime) { e.dead = true; continue; }
+      const px = e.position.x, py = e.position.y;
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) { e.dead = true; continue; }
+
+      // Shield block
+      let blocked = false;
+      for (const shield of this.gs.shields) {
+        if (!shield.alive) continue;
+        const dx = px - shield.station.position.x, dy = py - shield.station.position.y;
+        if (dx * dx + dy * dy < shield.radius * shield.radius) { blocked = true; break; }
+      }
+      if (blocked) { e.dead = true; continue; }
+
+      // Station collision — apply effect to the first station reached
+      let hitStation = null;
+      for (const s of allStations) {
+        if (s.status !== 'active') continue;
+        const dx = px - s.position.x, dy = py - s.position.y;
+        if (dx * dx + dy * dy < s.radius * s.radius) { hitStation = s; break; }
+      }
+      if (hitStation) { this._applyEjectaToStation(e, hitStation); e.dead = true; continue; }
+
+      // Planet collision
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
+        const R = planet.impactRadius;
+        const dx = planet.position.x - px, dy = planet.position.y - py;
+        if (dx * dx + dy * dy >= R * R) continue;
+        if (planet === e.sourcePlanet) { e.dead = true; break; }       // never re-trigger own source
+        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, e.owner); e.dead = true; break; }
+        if (e.kind === EjectaKind.PYRO &&
+            (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL)) {
+          planet.destroyed = true;                                     // pyro fragments asteroids
+          if (e.owner?.stats) e.owner.stats.rockHits++;
+        }
+        e.dead = true; break;                                          // absorbed by any other planet
+      }
+    }
+    this.gs.ejecta = this.gs.ejecta.filter(e => !e.dead);
+  }
+
+  // Apply an ejecta's effect to a station: pyro kills, cryo freezes, electro shocks.
+  _applyEjectaToStation(e, station) {
+    if (e.kind === EjectaKind.PYRO) {
+      const proxy = { owner: e.owner, status: 'active', teleportCount: 0, trickShotDone: false };
+      this._resolveStationHit(proxy, station);
+    } else if (e.kind === EjectaKind.CRYO) {
+      this._applyBeamCondition(station, 'frozen', 1);
+    } else {
+      this._applyBeamCondition(station, 'electrified', 1);
+    }
+  }
+
+  // Simulate a Beam planet's laser from origin (ox,oy) along angleRad. Pierces and
+  // destroys stations, shatters asteroids, reflects off shields/blue rifts, chains
+  // to other unstable planets, and is absorbed by solid bodies. Returns the path.
+  _simulateUnstableBeamPath(ox, oy, angleRad, owner, sourcePlanet) {
+    const LASER_SPEED = 160, LASER_GRAVITY = 1.0, MAX_STEPS = 200;
+    let px = ox, py = oy;
+    let vx = LASER_SPEED * Math.cos(angleRad);
+    let vy = LASER_SPEED * Math.sin(angleRad);
+    const path  = [new Vec2(px, py)];
+    const proxy = { owner, status: 'active', teleportCount: 0, trickShotDone: false };
+    const { gw, gh } = this.physics;
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const dx = planet.position.x - px, dy = planet.position.y - py;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign  = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        const accel = sign * LASER_GRAVITY * G * planet.mass / rSq;
+        vx += Math.cos(theta) * accel * TIMESTEP;
+        vy += Math.sin(theta) * accel * TIMESTEP;
+      }
+      const px0 = px, py0 = py;
+      px += vx * TIMESTEP; py += vy * TIMESTEP;
+      path.push(new Vec2(px, py));
+      if (px < -gw || px > 2 * gw || py < -gw || py > gh + gw) break;
+
+      if (this._hasReflectiveRift) {
+        const rb = PhysicsEngine._reflectOffRifts(px0, py0, px, py, vx, vy, this.gs.rifts);
+        if (rb) { px = rb.x; py = rb.y; vx = rb.vx; vy = rb.vy; path.push(new Vec2(px, py)); continue; }
+      }
+
+      let reflected = false;
+      for (const shield of this.gs.shields) {
+        if (!shield.alive) continue;
+        const dx = px - shield.station.position.x, dy = py - shield.station.position.y;
+        if (dx * dx + dy * dy < shield.radius ** 2) {
+          const d = Math.sqrt(dx * dx + dy * dy) || 1, nx = dx / d, ny = dy / d, dot = vx * nx + vy * ny;
+          vx -= 2 * dot * nx; vy -= 2 * dot * ny;
+          px = shield.station.position.x + nx * (shield.radius + 0.5);
+          py = shield.station.position.y + ny * (shield.radius + 0.5);
+          path.push(new Vec2(px, py)); reflected = true; break;
+        }
+      }
+      if (reflected) continue;
+
+      for (const s of this.gs.allStations) {
+        if (s.status !== 'active') continue;
+        const sdx = px0 - s.position.x, sdy = py0 - s.position.y;
+        const segDx = px - px0, segDy = py - py0;
+        const a = segDx * segDx + segDy * segDy;
+        const b = 2 * (sdx * segDx + sdy * segDy);
+        const c = sdx * sdx + sdy * sdy - s.radius * s.radius;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a), t2 = (-b + sq) / (2 * a);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1)) this._resolveStationHit(proxy, s);
+      }
+
+      let blocked = false;
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
+        const R = planet.impactRadius;
+        const dx = planet.position.x - px, dy = planet.position.y - py;
+        if (dx * dx + dy * dy >= R * R) continue;
+        if (planet === sourcePlanet) continue; // fires outward — never re-trigger its own source
+        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, owner); blocked = true; break; }
+        if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
+          planet.destroyed = true; this._spawnAsteroidExplosion(planet);
+        } else {
+          blocked = true;
+        }
+        break;
+      }
+      if (blocked) break;
+    }
+    return path;
   }
 
   // Theft Beam hit — steal all stock of 2 random weapons from the target's team
@@ -4358,6 +4608,11 @@ export class GameLoop {
           bullet._hitMoon = null;
         }
 
+        if (bullet._eruptPlanet) {
+          this._triggerEruption(bullet._eruptPlanet, bullet._eruptX, bullet._eruptY, bullet.owner);
+          bullet._eruptPlanet = null;
+        }
+
         if (bullet._skimEvent) {
           if (this._performance !== 'simplified') this._spawnSkimParticles(bullet._skimEvent);
           bullet._skimEvent = null;
@@ -4367,6 +4622,8 @@ export class GameLoop {
           if (bullet.owner.lastTrails) bullet.owner.lastTrails.push([...bullet.trail]);
         }
       }
+
+      if (this.gs.ejecta.length) this._stepEjecta(this.gs.allStations);
     }
 
     this._processAsteroidFragments();

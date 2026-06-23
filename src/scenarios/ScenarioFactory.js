@@ -2,7 +2,7 @@
 // contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
 
 import { Vec2 }                                                      from '../core/Vec2.js';
-import { Planet, PlanetType, ShadingStyle, GAS_GIANT_COLOUR_PAIRS } from '../entities/Planet.js';
+import { Planet, PlanetType, ShadingStyle, GAS_GIANT_COLOUR_PAIRS, UNSTABLE_TYPES } from '../entities/Planet.js';
 import { weightedRandomId }                                from './scenarioData.js';
 import { SpaceRift, RIFT_SEGMENT_LENGTH }                  from '../entities/SpaceRift.js';
 
@@ -229,6 +229,45 @@ function makeMoon(rng, A, B, C, gw, gh) {
     hitCount:   0,
     crackLines: [],
   });
+}
+
+// Dark rocky crust tones for unstable planets. The bright under-crack glow and
+// idle particles are drawn live by the renderer; the baked body is a dark crust.
+const UNSTABLE_BASE_COL = {
+  pyro:    [ 60,  28,  24],
+  cryo:    [ 44,  52,  64],
+  electro: [ 34,  40,  64],
+  beam:    [ 62,  54,  28],
+};
+
+// Build one unstable planet. type/radius/position optional; defaults to a random
+// subtype, a small radius, and a random in-field position.
+function makeUnstablePlanet(rng, gw, gh, { type = null, radius = null, position = null } = {}) {
+  const t   = type ?? UNSTABLE_TYPES[rng.nextInt(UNSTABLE_TYPES.length)];
+  const r   = radius ?? (12 + rng.next() * 8);
+  const pos = position ?? new Vec2(rv(rng, 0.7, 0.15, 0.075, gw), rv(rng, 0.7, 0.15, 0.075, gh));
+  return new Planet({
+    position:  pos,
+    radius:    r,
+    density:   0.03,            // same as a ROCKY planet — gives a real escape velocity
+    type:      t,
+    colour:    [...UNSTABLE_BASE_COL[t]],
+    shading:   ShadingStyle.ROCKY,
+    crackSeed: Math.floor(rng.next() * 1e6),
+  });
+}
+
+// Place an unstable planet at a non-overlapping random position (retrying), so
+// crowded fields validate without relying solely on full-scenario regeneration.
+function placeUnstableInField(planets, rng, gw, gh, opts, attempts = 60) {
+  const minGap = 10;
+  for (let a = 0; a < attempts; a++) {
+    const p = makeUnstablePlanet(rng, gw, gh, opts);
+    const overlaps = planets.some(q =>
+      p.position.distanceTo(q.position) < (p.impactRadius + q.impactRadius + minGap));
+    if (!overlaps) { planets.push(p); return p; }
+  }
+  return null;
 }
 
 function makePulsar(rng, A, B, C, gw, gh) {
@@ -1938,6 +1977,58 @@ export class ScenarioFactory {
         break;
       }
 
+      // ── 39: Unstable Planet ───────────────────────────────────────────────
+      case 39: {
+        const type = UNSTABLE_TYPES[rng.nextInt(UNSTABLE_TYPES.length)];
+        const bigR = 24 + rng.next() * 14; // large dominant body
+        let pos;
+        if (rng.next() < 0.70) {
+          // ~centre of the map, with a small random jitter
+          pos = new Vec2(gw * 0.5 + (rng.next() - 0.5) * gw * 0.12,
+                         gh * 0.5 + (rng.next() - 0.5) * gh * 0.12);
+        } else {
+          pos = new Vec2(rv(rng, 0.6, 0.2, 0.1, gw), rv(rng, 0.6, 0.2, 0.1, gh));
+        }
+        planets.push(makeUnstablePlanet(rng, gw, gh, { type, radius: bigR, position: pos }));
+
+        // 5–9 scattered moons or asteroids (ordinary filler — not unstable)
+        const nFiller = 5 + rng.nextInt(5);
+        for (let i = 0; i < nFiller; i++) {
+          if (rng.next() < 0.5) planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+          else                  planets.push(makeAsteroid(rng, 0.8, 0.1, 0.05, 12, 5, 3, gw, gh, 0.05, richProb));
+        }
+
+        // Extreme (10%): a second unstable planet, kept well separated
+        const extreme39 = forceExtreme || rng.next() < 0.10;
+        if (extreme39) {
+          isExtreme = true;
+          const minSep = Math.max(gw * 0.4, bigR * 6);
+          for (let a = 0; a < 100; a++) {
+            const p2 = new Vec2(rv(rng, 0.6, 0.2, 0.1, gw), rv(rng, 0.6, 0.2, 0.1, gh));
+            if (p2.distanceTo(pos) >= minSep) {
+              planets.push(makeUnstablePlanet(rng, gw, gh, { radius: 22 + rng.next() * 12, position: p2 }));
+              break;
+            }
+          }
+        }
+        break;
+      }
+
+      // ── 40: Unstable System ───────────────────────────────────────────────
+      case 40: {
+        let nUnstable = 3 + rng.nextInt(10); // 3–12
+        const extreme40 = forceExtreme || rng.next() < 0.10;
+        if (extreme40) { isExtreme = true; nUnstable *= 2; } // 6–24
+        for (let i = 0; i < nUnstable; i++)
+          placeUnstableInField(planets, rng, gw, gh, { radius: 9 + rng.next() * 8 });
+        const nMoons = 2 + rng.nextInt(5); // 2–6
+        for (let i = 0; i < nMoons; i++) {
+          if (rng.next() < 0.5) planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
+          else                  planets.push(makeAsteroid(rng, 0.8, 0.1, 0.05, 12, 5, 3, gw, gh, 0.05, richProb));
+        }
+        break;
+      }
+
       default:
         // Fallback to Planetary
         for (let i = 0; i < nPlanets; i++)
@@ -2171,12 +2262,15 @@ export class ScenarioFactory {
         pulsarPeriod: 0.1 + rng.next() * 0.9,
         pulsarPhase:  rng.next() * 0.9,
       })];
-    } else if (rb < 0.95) {
+    } else if (rb < 0.93) {
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: 3, density: 50,
         type: PlanetType.BLACK_HOLE, colour: BLACK_COL, shading: ShadingStyle.NONE,
       })];
+    } else if (rb < 0.965) {
+      // Unstable planet — random subtype (Pyro / Cryo / Electro / Beam)
+      candidates = [makeUnstablePlanet(rng, gw, gh, { radius: 14 + rng.next() * 8 })];
     } else {
       // Wildcard comet with a random initial velocity
       const vAngle = rng.next() * Math.PI * 2;

@@ -484,6 +484,22 @@ export class PhysicsEngine {
         }
         break;
 
+      case PlanetType.PYRO:
+      case PlanetType.CRYO:
+      case PlanetType.ELECTRO:
+      case PlanetType.BEAM:
+        // Unstable planet: behaves like a rocky body (bullet explodes / frag-bounces)
+        // and additionally flags an eruption at the point of contact for GameLoop.
+        bullet._eruptPlanet = planet;
+        bullet._eruptX = bullet.position.x;
+        bullet._eruptY = bullet.position.y;
+        if (bullet.fragBouncy) {
+          this._fragBounce(bullet, dx, dy, planet.impactRadius);
+        } else {
+          bullet.status = BulletStatus.EXPLODING;
+        }
+        break;
+
       default: {
         // Skim detection applies to stars only (FR-1); all other solid bodies destroy the bullet
         if (planet.type === PlanetType.STAR) {

@@ -21,6 +21,28 @@ export const PlanetType = Object.freeze({
   COMET:            'comet',           // dynamic body with reduced self-gravity
   MOON:             'moon',            // multi-hit body: 3 hits to destroy; shows cracks
   GIANT_ASTEROID:   'giantAsteroid',  // enormous multi-hit asteroid: 9 hits, 25-40 children
+  // ── Unstable planets — dormant obstacles that erupt when struck (see
+  //    spec/unstable-planets-spec.md). They behave gravitationally and
+  //    collision-wise exactly like a ROCKY planet until a projectile hits them.
+  PYRO:             'pyro',            // erupts gravity-affected fire ejecta — destroys
+  CRYO:             'cryo',            // erupts gravity-affected ice ejecta — freezes
+  ELECTRO:          'electro',         // erupts straight lightning — shocks
+  BEAM:             'beam',            // fires a perpendicular laser beam on impact
+});
+
+// The four unstable-planet subtypes.
+export const UNSTABLE_TYPES = Object.freeze([
+  PlanetType.PYRO, PlanetType.CRYO, PlanetType.ELECTRO, PlanetType.BEAM,
+]);
+const _UNSTABLE_SET = new Set(UNSTABLE_TYPES);
+export function isUnstable(type) { return _UNSTABLE_SET.has(type); }
+
+// Under-crack glow colour per subtype (also the ejecta / beam tint).
+export const UNSTABLE_GLOW = Object.freeze({
+  pyro:    [255,  70,  30],   // molten red
+  cryo:    [225, 240, 255],   // frost white
+  electro: [ 70, 200, 255],   // charged blue-cyan
+  beam:    [255, 210,  60],   // focused yellow
 });
 
 export const ShadingStyle = Object.freeze({
@@ -66,6 +88,7 @@ export class Planet {
     craterData    = null,   // [{dx,dy,r}] — crater positions relative to moon centre (MOON only)
     hitCount      = 0,      // damage level 0-2; 3rd hit destroys the moon
     crackLines    = null,   // [[Vec2[]]...] — one crack-set per hit (MOON only)
+    crackSeed     = 0,      // deterministic seed for unstable-planet crack pattern
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -92,6 +115,8 @@ export class Planet {
     this.craterData    = craterData;
     this.hitCount      = hitCount;
     this.crackLines    = crackLines ?? [];
+    this.crackSeed     = crackSeed;
+    this._eruptReadyStep = 0;  // firingStep before which this planet may not re-erupt
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

@@ -34,6 +34,7 @@ export class GameState {
     this.activeBullets    = [];
     this.activeExplosions = [];         // asteroid/debris explosions: [{x,y,t,radius,colour,particles}]
     this.collectables     = [];         // Collectable[] — collectables on the map
+    this.ejecta           = [];         // Ejecta[] — unstable-planet eruption particles in flight
     this.vfxList          = [];         // VFX objects (collectable shatter, collectable grant, muzzle)
     this.rockets          = [];         // Rocket[]
     this.iceRings         = [];         // IceRing[] — Ice Blast expanding ice rings
