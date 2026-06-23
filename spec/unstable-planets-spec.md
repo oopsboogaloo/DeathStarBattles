@@ -2,7 +2,7 @@
 
 > Adds a new family of stellar objects — **unstable planets** — that sit inert as ordinary obstacles until struck by a projectile, at which point they violently erupt at the point of contact and unleash a hazard into the battlefield. They turn the terrain itself into a weapon: a well-placed shot into an unstable planet can rain destruction, freeze, shock, or a laser blast onto nearby stations. Four flavours exist — **Pyro**, **Cryo**, **Electro**, and **Beam** — distinguished by colour, idle effect, and the payload they release on impact.
 
-> **Status: Not started.** This is a design spec; no implementation exists yet.
+> **Status: Implemented.** This is the original design spec; for the as-built system — the four particle systems, the drawn-out eruption choreography, the generation/cascade model, and all tunable constants — see **`unstable-planets-implementation.md`**. Some details below (e.g. exact ejecta speeds/sizes) were tuned during implementation; the implementation doc is authoritative for current values.
 
 ---
 
