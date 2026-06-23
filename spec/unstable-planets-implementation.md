@@ -103,11 +103,33 @@ There are **eight** distinct visual/▶gameplay systems. Cosmetic ones never tou
 gameplay; lethal ones resolve collisions.
 
 ### 4.1 Idle surface particles (cosmetic)
-*Where:* `Renderer._drawUnstablePlanets` (live, every frame).
-A dormant unstable planet draws, over its baked rocky body: a **pulsing under-crack
-glow**, a **static crack network** (seeded from `crackSeed`), and a low-rate **idle
-emission** — pyro/cryo/beam pop small surface glints, electro skitters short arcs across
-the cracks. Purely decorative, so "something unusual" reads at a glance.
+*Where:* `Renderer._drawUnstablePlanets` (live, every frame, under the camera transform),
+called from `_drawLive` for every non-destroyed unstable planet. Skipped in
+**simplified** performance mode.
+
+A dormant unstable planet draws three things over its baked rocky body:
+
+- **Pulsing under-crack glow** — a radial gradient (centre → rim → transparent) whose
+  alpha breathes via `sin(wallclock·2 + seed)`. Smooth and continuous.
+- **Crack network** — 5 jagged radial fractures generated **deterministically** from
+  `planet.crackSeed` (the `Renderer._uHash` value-hash), so the cracks are fixed per
+  planet and never shimmer; only their brightness rides the glow pulse.
+- **Idle emission** — the continuously-emitted "SFX" sparks. **These are not a pooled
+  particle system**: there is no entity, velocity, or lifetime — each spark is drawn
+  fresh every frame with `Math.random()` and exists for exactly that one frame, so the
+  flicker *is* the effect (same approach as the animated star fire rim). Because it is
+  driven by the render loop, the rate is **frame-rate based (~60/s)** and independent of
+  game speed. Two looks, by type:
+  - **Electro** — strokes **2 short arc segments** per frame between random points just
+    inside the rim (`r·0.9`), each with a ±0.8 rad angular jump, alpha 0.4–0.8 → crackling
+    electricity across the surface.
+  - **Pyro / Cryo / Beam** — a **50% chance per frame** to draw **one** small filled glint
+    at/just outside the rim (`r·0.95–1.20` from centre), size ~`conv·0.4–0.9`, alpha
+    0.5–0.9, in the type glow colour → sparks popping off the surface (~30/s on average).
+
+All purely decorative — no collisions, no gameplay — so "something unusual" reads at a
+glance. (Contrast the eruption *rumble* debris in §4.3, which **are** stateful, physics-
+driven particles in `gs.eruptionDebris`.)
 
 ### 4.2 Eruption sequence — the "rumble" choreography
 *Where:* `GameLoop._triggerEruption` (creates it) and `_stepEruptions` (advances it).
