@@ -40,9 +40,9 @@ const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~
 const ERUPTION_DURATION_STEPS = 9000; // gen-0 sequence length (~3.6s) — long, slow rumble
 const ERUPTION_MINI_MIN_GAP   = 26;   // min steps between mini-bursts (denser rumble)
 const ERUPTION_MINI_MAX_GAP   = 100;  // max steps between mini-bursts (random → overlapping)
-const ERUPTION_DEBRIS_LIFE    = 280;  // cosmetic debris lifetime (steps) — linger longer
+const ERUPTION_DEBRIS_LIFE    = 840;  // cosmetic debris lifetime (steps) — long-lingering rumble
 const ERUPTION_DEBRIS_GRAV    = 0.5;  // debris feel 50% gravity (more than the blobs)
-const MAX_ERUPTION_DEBRIS     = 300;  // global cosmetic-debris cap
+const MAX_ERUPTION_DEBRIS     = 600;  // global cosmetic-debris cap (raised for the longer life)
 const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (slow blobs need airtime to travel)
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
