@@ -36,6 +36,14 @@ const EJECTA_GRAVITY_FACTOR   = 0.18; // pyro/cryo feel ~18% of gravity → blob
 const EJECTA_MAX_RADIUS       = 6.0;  // grown blob size (≈ a Large station radius)
 const EJECTA_GROW_STEPS       = 90;   // steps to grow from 0 → full (fast then slows)
 const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~0.18s)
+// Drawn-out eruption choreography (pyro/cryo): a build-up of escalating cosmetic
+// mini-bursts with the lethal ejecta released in 1 → 2–3 → 1–2 waves.
+const ERUPTION_DURATION_STEPS = 4200; // full sequence length (~1.7s at normal speed)
+const ERUPTION_MINI_MIN_GAP   = 45;   // min steps between mini-bursts
+const ERUPTION_MINI_MAX_GAP   = 170;  // max steps between mini-bursts (random → overlapping)
+const ERUPTION_DEBRIS_LIFE    = 150;  // cosmetic debris lifetime (steps)
+const ERUPTION_DEBRIS_GRAV    = 0.5;  // debris feel 50% gravity (more than the blobs)
+const MAX_ERUPTION_DEBRIS     = 140;  // global cosmetic-debris cap
 const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (slow blobs need airtime to travel)
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
@@ -1083,6 +1091,8 @@ export class GameLoop {
     this.gs.pendingTeleports      = [];
     this.gs.pendingReinforcements = [];
     this.gs.ejecta                = [];
+    this.gs.eruptions             = [];
+    this.gs.eruptionDebris        = [];
     this.gs.firingStep            = 0;
     // firingStep resets each phase, so clear any stale eruption cooldowns too
     for (const p of this.gs.planets) if (isUnstable(p.type)) p._eruptReadyStep = 0;
@@ -2154,8 +2164,10 @@ export class GameLoop {
       // Move comets one physics step
       this._stepComets();
 
-      // Step unstable-planet eruption ejecta one physics step
-      if (this.gs.ejecta.length) this._stepEjecta(allStations);
+      // Advance unstable-planet eruption sequences, ejecta, and cosmetic debris
+      if (this.gs.eruptions.length)      this._stepEruptions();
+      if (this.gs.ejecta.length)         this._stepEjecta(allStations);
+      if (this.gs.eruptionDebris.length) this._stepEruptionDebris();
     }
 
     // Pyro/Cryo ejecta emit comet-style smoke puffs (once per frame, like comets)
@@ -2311,11 +2323,17 @@ export class GameLoop {
     const blastsGone     = this.gs.rocketBlasts.length === 0;
     const burstsGone     = this.gs.burstQueue.length === 0;
     const lasersGone     = this.gs.pendingLasers.length === 0;
-    const ejectaGone     = this.gs.ejecta.length === 0;
+    // Wait only for a PRIMARY (bullet-triggered) eruption sequence to finish — not
+    // for the ejecta it throws, nor for chain eruptions those ejecta set off.
+    const primaryErupting = this.gs.eruptions.some(s => !s.chain);
     const teleportsGone  = (this.gs.pendingTeleports?.length ?? 0) === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && ejectaGone && teleportsGone && !stationsMoving) {
+    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && !primaryErupting && teleportsGone && !stationsMoving) {
+      // Mid-flight ejecta, chain eruptions, and debris just stop — clear them
+      this.gs.ejecta = [];
+      this.gs.eruptions = [];
+      this.gs.eruptionDebris = [];
       for (const reinf of this.gs.pendingReinforcements ?? []) {
         this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y, reinf.size);
       }
@@ -2783,7 +2801,9 @@ export class GameLoop {
   // Trigger an eruption at contact point (x,y) on an unstable planet. `owner` is
   // the station whose projectile struck it — credited for any kill/condition,
   // propagated through chains. Honours the per-planet re-eruption cooldown.
-  _triggerEruption(planet, x, y, owner) {
+  // `chain` = triggered by another eruption's payload (the firing phase does not
+  // wait for chain eruptions, only for a primary one to finish — see the gate).
+  _triggerEruption(planet, x, y, owner, chain = false) {
     if (!planet || planet.destroyed || !isUnstable(planet.type)) return;
     if (this.gs.firingStep < (planet._eruptReadyStep ?? 0)) return;
     planet._eruptReadyStep = this.gs.firingStep + ERUPTION_COOLDOWN_STEPS;
@@ -2796,44 +2816,140 @@ export class GameLoop {
     const ox = planet.position.x + nx * (planet.radius + 0.5);
     const oy = planet.position.y + ny * (planet.radius + 0.5);
     const baseAngle = Math.atan2(ny, nx);
-
     const [gr, gg, gb] = UNSTABLE_GLOW[planet.type] ?? [255, 200, 80];
-    this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: 0.5 });
 
-    // Beam: fire a single piercing laser perpendicular to the surface (no ejecta)
+    // Beam: fire a single piercing laser perpendicular to the surface (instant)
     if (planet.type === PlanetType.BEAM) {
+      this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: 0.5 });
       SoundManager.play('laserBeam');
       const path = this._simulateUnstableBeamPath(ox, oy, baseAngle, owner, planet);
       this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
       return;
     }
 
-    SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+    // Electro: instant lightning spray (5–7 fast straight bolts)
+    if (planet.type === PlanetType.ELECTRO) {
+      this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: 0.5 });
+      SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+      const vEsc = Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius));
+      const electroLife = Math.ceil((ELECTRO_REACH_MULT * planet.radius) / (ELECTRO_SPEED * TIMESTEP));
+      const n = EJECTA_COUNT_MIN + Math.floor(this.rng.next() * (EJECTA_COUNT_MAX - EJECTA_COUNT_MIN + 1));
+      for (let i = 0; i < n; i++) {
+        if (this.gs.ejecta.length >= MAX_EJECTA) break;
+        const a = baseAngle + (this.rng.next() * 2 - 1) * EJECTA_SPREAD_DEG * Math.PI / 180;
+        this.gs.ejecta.push(new Ejecta({
+          position: new Vec2(ox, oy),
+          velocity: new Vec2(Math.cos(a) * ELECTRO_SPEED, Math.sin(a) * ELECTRO_SPEED),
+          kind: EjectaKind.ELECTRO, owner, sourcePlanet: planet,
+          launchDelay: Math.floor(this.rng.next() * ERUPTION_STAGGER_STEPS),
+          maxLifetime: electroLife, maxRadius: 0,
+        }));
+      }
+      return;
+    }
 
-    // Ejecta spray: 5–7 particles, ~perpendicular to the surface, staggered launch.
-    // Pyro/Cryo launch below escape velocity (arc back); Electro is fast & straight.
-    const kind      = planet.type; // EjectaKind values match PlanetType strings
-    const isElectro = kind === EjectaKind.ELECTRO;
-    const vEsc      = Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius));
-    const electroLife = Math.ceil((ELECTRO_REACH_MULT * planet.radius) / (ELECTRO_SPEED * TIMESTEP));
-    const n = EJECTA_COUNT_MIN + Math.floor(this.rng.next() * (EJECTA_COUNT_MAX - EJECTA_COUNT_MIN + 1));
-    for (let i = 0; i < n; i++) {
+    // Pyro / Cryo: a drawn-out eruption SEQUENCE — escalating cosmetic mini-bursts
+    // with the lethal ejecta released in 1 → 2–3 → 1–2 waves over ~1.7s.
+    SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+    const duration = Math.floor(ERUPTION_DURATION_STEPS * (0.8 + this.rng.next() * 0.4));
+    this.gs.eruptions.push({
+      kind: planet.type, owner, sourcePlanet: planet, chain,
+      ox, oy, nx, ny, baseAngle,
+      vEsc: Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius)),
+      gr, gg, gb,
+      age: 0, duration, nextMiniAt: 0,
+      waves: [
+        { at: Math.floor(duration * 0.28), count: 1,                                          fired: false, big: false },
+        { at: Math.floor(duration * 0.55), count: 2 + Math.floor(this.rng.next() * 2),         fired: false, big: true  }, // 2–3
+        { at: Math.floor(duration * 0.80), count: 1 + Math.floor(this.rng.next() * 2),         fired: false, big: false }, // 1–2
+      ],
+    });
+  }
+
+  // Advance every active eruption sequence one step: emit escalating mini-bursts
+  // at random overlapping intervals and fire the lethal ejecta waves on schedule.
+  _stepEruptions() {
+    for (const seq of this.gs.eruptions) {
+      seq.age++;
+      // Mini-bursts — escalate then taper across the sequence (sine envelope)
+      if (seq.age >= seq.nextMiniAt && seq.age < seq.duration) {
+        const env      = Math.sin((seq.age / seq.duration) * Math.PI); // 0 → 1 → 0
+        const strength = 1 + Math.floor(env * 5 * (0.4 + this.rng.next() * 0.6));
+        this._spawnEruptionDebris(seq, strength, 0.6 + env * 0.8);
+        seq.nextMiniAt = seq.age + ERUPTION_MINI_MIN_GAP +
+          Math.floor(this.rng.next() * (ERUPTION_MINI_MAX_GAP - ERUPTION_MINI_MIN_GAP));
+      }
+      // Ejecta waves — each accompanied by its own flash + debris burst
+      for (const w of seq.waves) {
+        if (w.fired || seq.age < w.at) continue;
+        w.fired = true;
+        this.gs.vfxList.push({ type: 'eruptionFlash', x: seq.ox, y: seq.oy, r: seq.gr, g: seq.gg, b: seq.gb,
+          t: 0, duration: w.big ? 0.55 : 0.4 });
+        this._spawnEruptionDebris(seq, w.big ? 8 : 4, w.big ? 1.6 : 1.1);
+        this._spawnEjectaWave(seq, w.count);
+      }
+    }
+    // A sequence is done once it has run its full duration and fired every wave
+    this.gs.eruptions = this.gs.eruptions.filter(s => s.age < s.duration || s.waves.some(w => !w.fired));
+  }
+
+  // Spawn `count` lethal pyro/cryo blobs from an eruption sequence.
+  _spawnEjectaWave(seq, count) {
+    for (let i = 0; i < count; i++) {
       if (this.gs.ejecta.length >= MAX_EJECTA) break;
       const spread = (this.rng.next() * 2 - 1) * EJECTA_SPREAD_DEG * Math.PI / 180;
-      const a      = baseAngle + spread;
-      const speed  = isElectro
-        ? ELECTRO_SPEED
-        : vEsc * (EJECTA_MIN_FRAC + this.rng.next() * (EJECTA_MAX_FRAC - EJECTA_MIN_FRAC)) * EJECTA_VELOCITY_FACTOR;
-      const jit    = (this.rng.next() - 0.5) * 1.5; // tiny origin jitter along the surface
+      const a      = seq.baseAngle + spread;
+      const speed  = seq.vEsc * (EJECTA_MIN_FRAC + this.rng.next() * (EJECTA_MAX_FRAC - EJECTA_MIN_FRAC)) * EJECTA_VELOCITY_FACTOR;
+      const jit    = (this.rng.next() - 0.5) * 1.5;
       this.gs.ejecta.push(new Ejecta({
-        position:     new Vec2(ox - ny * jit, oy + nx * jit),
-        velocity:     new Vec2(Math.cos(a) * speed, Math.sin(a) * speed),
-        kind, owner, sourcePlanet: planet,
-        launchDelay:  Math.floor(this.rng.next() * ERUPTION_STAGGER_STEPS),
-        maxLifetime:  isElectro ? electroLife : EJECTA_MAX_LIFETIME,
-        maxRadius:    isElectro ? 0 : EJECTA_MAX_RADIUS * (0.85 + this.rng.next() * 0.3),
+        position:    new Vec2(seq.ox - seq.ny * jit, seq.oy + seq.nx * jit),
+        velocity:    new Vec2(Math.cos(a) * speed, Math.sin(a) * speed),
+        kind: seq.kind, owner: seq.owner, sourcePlanet: seq.sourcePlanet,
+        launchDelay: 0,
+        maxLifetime: EJECTA_MAX_LIFETIME,
+        maxRadius:   EJECTA_MAX_RADIUS * (0.85 + this.rng.next() * 0.3),
       }));
     }
+  }
+
+  // Spawn `n` small cosmetic debris particles (no gameplay effect) for a mini-burst.
+  // `vScale` widens the velocity spread for the stronger bursts.
+  _spawnEruptionDebris(seq, n, vScale = 1) {
+    const base = seq.vEsc * 0.4 * vScale;
+    for (let i = 0; i < n; i++) {
+      if (this.gs.eruptionDebris.length >= MAX_ERUPTION_DEBRIS) break;
+      const a     = seq.baseAngle + (this.rng.next() * 2 - 1) * (EJECTA_SPREAD_DEG + 15) * Math.PI / 180;
+      const speed = base * (0.4 + this.rng.next() * 0.9);
+      this.gs.eruptionDebris.push({
+        x: seq.ox, y: seq.oy,
+        vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+        t: 0, dt: 1 / (ERUPTION_DEBRIS_LIFE * (0.6 + this.rng.next() * 0.8)),
+        size: 0.5 + this.rng.next() * 1.3,
+        r: seq.gr, g: seq.gg, b: seq.gb,
+      });
+    }
+  }
+
+  // Step cosmetic eruption debris: stronger gravity, then fade out.
+  _stepEruptionDebris() {
+    const { gw, gh } = this.physics;
+    for (const d of this.gs.eruptionDebris) {
+      for (const planet of this.gs.planets) {
+        if (planet.destroyed) continue;
+        const dx = planet.position.x - d.x, dy = planet.position.y - d.y;
+        const rSq = dx * dx + dy * dy;
+        if (rSq < 0.01) continue;
+        const sign = dx < 0 ? -1 : 1;
+        const theta = Math.atan(dy / dx);
+        const accel = sign * G * planet.mass / rSq * ERUPTION_DEBRIS_GRAV;
+        d.vx += Math.cos(theta) * accel * TIMESTEP;
+        d.vy += Math.sin(theta) * accel * TIMESTEP;
+      }
+      d.x += d.vx * TIMESTEP; d.y += d.vy * TIMESTEP;
+      d.t += d.dt;
+      if (d.x < -gw || d.x > 2 * gw || d.y < -gw || d.y > gh + gw) d.t = 1;
+    }
+    this.gs.eruptionDebris = this.gs.eruptionDebris.filter(d => d.t < 1);
   }
 
   // Step all ejecta one physics step: gravity (pyro/cryo), straight (electro),
@@ -2912,7 +3028,7 @@ export class GameLoop {
         }
         const reach = planet.impactRadius + er;
         if (d2 >= reach * reach) continue;
-        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, e.owner); e.dead = true; break; }
+        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, e.owner, true); e.dead = true; break; }
         if (e.kind === EjectaKind.PYRO &&
             (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL)) {
           planet.destroyed = true;                                     // pyro fragments asteroids
@@ -3021,7 +3137,7 @@ export class GameLoop {
         const dx = planet.position.x - px, dy = planet.position.y - py;
         if (dx * dx + dy * dy >= R * R) continue;
         if (planet === sourcePlanet) continue; // fires outward — never re-trigger its own source
-        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, owner); blocked = true; break; }
+        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, owner, true); blocked = true; break; }
         if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
           planet.destroyed = true; this._spawnAsteroidExplosion(planet);
         } else {
@@ -4665,7 +4781,9 @@ export class GameLoop {
         }
       }
 
-      if (this.gs.ejecta.length) this._stepEjecta(this.gs.allStations);
+      if (this.gs.eruptions.length)      this._stepEruptions();
+      if (this.gs.ejecta.length)         this._stepEjecta(this.gs.allStations);
+      if (this.gs.eruptionDebris.length) this._stepEruptionDebris();
     }
 
     if (this.gs.ejecta.length) this._emitEjectaSmoke();

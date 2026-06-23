@@ -925,7 +925,8 @@ export class Renderer {
 
     // Unstable planets — live glow/cracks/idle particles over the baked body
     this._drawUnstablePlanets(ctx, gameState.planets);
-    // Eruption ejecta in flight
+    // Cosmetic eruption debris (mini-burst sprays), then the lethal ejecta blobs
+    if (gameState.eruptionDebris?.length) this._drawEruptionDebris(ctx, gameState.eruptionDebris);
     if (gameState.ejecta?.length) this._drawEjecta(ctx, gameState.ejecta);
 
     // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
@@ -4366,6 +4367,21 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, y, R, 0, Math.PI * 2);
       ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  // Cosmetic mini-eruption debris — small glowing sparks that fade as they fly.
+  _drawEruptionDebris(ctx, debris) {
+    const conv = this.conv;
+    for (const d of debris) {
+      const alpha = 1 - d.t;
+      if (alpha <= 0) continue;
+      const x = d.x * conv, y = d.y * conv;
+      const r = Math.max(0.6, d.size * conv);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${d.r},${d.g},${d.b},${(alpha * 0.9).toFixed(3)})`;
       ctx.fill();
     }
   }
