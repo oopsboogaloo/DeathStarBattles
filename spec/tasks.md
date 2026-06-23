@@ -301,11 +301,12 @@ Three new stellar-body subtypes that lie dormant as ordinary obstacles until str
 - [ ] **16.3** Idle particle emission — mini red eruptions (Pyro), white eruptions (Cryo), crackling surface electricity (Electro). Cosmetic only, low rate, capped.
 - [ ] **16.4** New `Ejecta` entity (`kind`, `owner`, velocity, launch delay, lifetime) and `gameState.ejecta` tracking + pending-eruption queue.
 - [ ] **16.5** Eruption trigger — primary projectile (bullet/rocket) impact spawns an eruption at the contact point: 5–7 ejecta, direction = surface normal ±25°, speed = random fraction (below escape velocity), per-particle launch stagger. Cooldown prevents multi-bullet stacking. Ejecta do not chain-trigger eruptions.
-- [ ] **16.6** Ejecta flight — Pyro/Cryo ballistic and gravity-affected (fireball-style per-frame integration); Electro travels straight, ignores gravity, short range. Global ejecta cap; consumed on planet collision / out of bounds / lifetime.
+- [ ] **16.6** Ejecta flight — Pyro/Cryo ballistic and gravity-affected (fireball-style per-frame integration); Electro travels straight, ignores gravity, short range. Global ejecta cap; consumed on planet collision / out of bounds / lifetime. Pyro ejecta **fragment asteroids** they strike (standard bullet-style shatter, credited to the instigator); cryo/electro have no terrain effect.
 - [ ] **16.7** Station effects with shield→armour→effect resolution and instigator attribution: Pyro destroys; Cryo `frozen += 1`; Electro `electrified += 1`. `ConditionNotifyVFX` labels for Cryo/Electro.
 - [ ] **16.8** Eruption VFX — Pyro fiery burst + smoke trails; Cryo icy shards + vapour; Electro branching lightning bolts (Electrostar-style arc rendering).
 - [ ] **16.9** Scenario integration — add an unstable planet (random type) to the wildcard pool, and two new scenarios registered in `requirements.md` and `scenarioData.js` (bump `SCENARIO_COUNT`, add to extreme-eligible list):
   - **39 Unstable Planet** — one large unstable planet (random type), 70% near map centre / 30% anywhere, + 5–9 scattered moons/asteroids. Extreme (10%): a second unstable planet, kept well separated.
   - **40 Unstable System** — 3–12 smaller unstable planets (random types) + 2–6 moons. Extreme (10%): double the unstable-planet count (6–24).
+  - Both scenarios are **rare** — any-band only in `weightedRandomId` (index > 88), never common/uncommon; always available via manual selection.
 - [ ] **16.10** (Phase 2) SuperBot/MegaBot opportunistic eruption targeting — favour shots that erupt an unstable planet near an enemy; avoid erupting next to own stations.
 - [ ] **16.11** Document the eruption force/escape-velocity formula and the `PlanetType` additions in `design.md`.

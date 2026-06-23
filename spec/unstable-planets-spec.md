@@ -127,8 +127,9 @@ The exact count, per-particle angle, per-particle speed, and per-particle delay 
 | **Motion** | Ballistic point particle | **Lightning bolt** — travels in a straight line from the surface |
 | **Gravity** | **Affected** by all planets' gravity (same inverse-square step as fireballs, applied per rAF frame — design.md §"Fireballs") | **Ignores gravity entirely** — flies dead straight along its launch direction |
 | **Range / lifetime** | Lives until it hits a station, leaves world bounds by > 150 units, or exceeds `EJECTA_MAX_LIFETIME`; then removed | Short range — reaches out to `ELECTRO_REACH` (tunable, e.g. 3× planet radius like the Electrostar arc) then dissipates |
-| **Planet collision** | Consumed on contact with any planet (incl. its parent), no effect, no secondary eruption | Consumed on contact with any planet |
+| **Planet collision** | Consumed on contact with any planet (incl. its parent). **Pyro** ejecta **shatter asteroids** they strike — fragmenting them exactly as a bullet impact would (the fragmentation/Crystal/Rich-asteroid rules in requirements §6 still apply, credited to `ejecta.owner`). Against all other planet types pyro is absorbed silently. **Cryo** is always absorbed silently. Ejecta never trigger a secondary eruption on an unstable planet. | Consumed on contact with any planet |
 
+- **Pyro asteroid fragmentation:** when a pyro ejecta hits an asteroid, run the standard asteroid-destruction path (spawn child fragments; honour Crystal pass-through and Rich/Pure collectable drops) and consume the ejecta. The resulting child fragments are normal asteroids — they do **not** become unstable, and the secondary debris cannot itself re-trigger anything. This is the only case where an ejecta affects terrain; cryo/electro have no terrain effect.
 - **Global ejecta cap:** active ejecta are capped globally (`MAX_EJECTA`, ≈ 30, mirroring the 20-fireball cap) to keep particle counts bounded during chaotic multi-eruption turns. If the cap is reached, additional ejecta from a new eruption are dropped.
 - Ejecta are tracked in a `gameState.ejecta` array and integrated by `PhysicsEngine` after the main bullet step, in their own pass (so they keep moving and resolving even between turns, like other in-flight effects).
 
@@ -172,6 +173,8 @@ Unchanged from frozen-condition-spec.md §7.1 — frozen supersedes electrified 
 ## 6. Scenarios & Spawning
 
 Two new named scenarios are added, following the numbering convention in `src/scenarios/scenarioData.js` (current `SCENARIO_COUNT = 38`, so these become **39** and **40** and `SCENARIO_COUNT` is bumped accordingly). Each has a 10% **extreme** variant per the requirements §6.4 mechanism. Both are registered in the scenario table in `requirements.md` and in `scenarioData.js`, and added to the extreme-eligible list.
+
+**Lucky Dip rarity:** both scenarios are **rare** — reachable only in the rarest (any) band of `weightedRandomId`. They are placed in the `> 88` index range (i.e. above 32), so they are never selected by the common (`< 25`) or uncommon (`< 88`) bands. Bumping `SCENARIO_COUNT` to 40 already achieves this for the `else → any` branch; no change to the common/uncommon ranges. They remain fully available via manual scenario selection.
 
 ### 6.1 Scenario 39 — Unstable Planet
 
@@ -265,13 +268,15 @@ All values are tuned empirically so the eruption is "strong enough to be visibly
 | Effects | Pyro destroys; Cryo freezes (`frozen += 1`); Electro shocks (`electrified += 1`) |
 | Defensive order | Shield blocks → armour absorbs one layer → else effect applies |
 | Attribution | Credited to the owner of the triggering projectile |
+| Re-eruption pacing | Short millisecond cooldown (`ERUPTION_COOLDOWN` ≈ 300 ms) — not once-per-turn |
+| Pyro lethality | Direct hit only — no splash radius |
+| Ejecta vs terrain | Pyro ejecta **fragment asteroids** they strike (as a bullet would); cryo/electro have no terrain effect |
+| Lucky Dip rarity | Both scenarios rare — any-band only (index > 88); manual selection always available |
 | Spawning | Wildcard pool (random-type unstable planet) + two scenarios — **Unstable Planet** (39) and **Unstable System** (40), each with a 10% extreme variant; present from game start |
 
 ---
 
 ## 11. Open Questions
 
-1. **Re-eruption window** — is a per-turn cooldown better than a millisecond timer, so each unstable planet can erupt at most once per turn? (Cleaner for turn-based pacing; revisit during balance.)
-2. **Sound** — eruption SFX per subtype (roar / shatter / zap). Defer to the sound spec; add hooks but leave assets TBD.
-3. **Pyro splash** — should a pyro ejecta that lands *near* (not on) a station deal a small area effect, or strictly require a direct hit? Start with direct-hit-only; revisit if eruptions feel too weak.
-4. **Practice/Story integration** — whether unstable planets appear in Target Practice or Story missions, or are confined to standard battles initially.
+1. **Sound** — eruption SFX per subtype (roar / shatter / zap). Defer to the sound spec; add hooks but leave assets TBD.
+2. **Practice/Story integration** — whether unstable planets appear in Target Practice or Story missions, or are confined to standard battles initially.
