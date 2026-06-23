@@ -4316,29 +4316,57 @@ export class Renderer {
     }
   }
 
-  // Continuous "this planet is unstable" tell: every ~second-ish a little burst of
-  // 3–4 particles erupts from a random point on the surface, rises and falls under a
-  // simple emulation of the planet's own gravity, and disappears when it lands.
-  // Bursts are scheduled at random intervals so they sometimes overlap. Cosmetic
-  // only — pooled state lives on the planet (`_idleParts`, `_idleNextT`).
+  // Continuous "this planet is unstable" tell. Each idle eruption is itself a little
+  // escalating SEQUENCE — waves of 1–2 → 2–4 → 5–7 → 2–3 particles, ~0.2–0.5s apart —
+  // erupting from one surface point, arcing under a simple emulation of the planet's
+  // own gravity, and vanishing on landing. The eruptions are scheduled with a bimodal
+  // random gap, so they cluster (several in quick succession / overlapping) and then
+  // pause for a longer beat. Cosmetic only; pooled state lives on the planet.
   _drawIdleEruptions(ctx, planet, conv, now, dt, gr, gg, gb) {
     const cx = planet.position.x, cy = planet.position.y; // game units
     const r  = planet.radius;
+    const v0 = 1.5 * r; // launch speed → ~1s flight, apex ≈ 0.38r
     let parts = planet._idleParts;
-    if (!parts) { parts = planet._idleParts = []; planet._idleNextT = now + Math.random() * 0.6; }
+    if (!parts) {
+      parts = planet._idleParts = [];
+      planet._idleSeqs = [];
+      planet._idleNextT = now + Math.random() * 0.6;
+    }
 
-    // Spawn a new mini-eruption from one surface point (random interval → overlaps)
-    if (now >= planet._idleNextT) {
-      const ang = Math.random() * Math.PI * 2;
-      const ox  = cx + Math.cos(ang) * r, oy = cy + Math.sin(ang) * r;
-      const v0  = 1.5 * r;                          // launch speed → ~1s flight, apex ≈ 0.38r
-      const n   = 3 + (Math.random() < 0.5 ? 1 : 0); // 3 or 4
-      for (let i = 0; i < n; i++) {
+    const spawnWave = (ang, count) => {
+      if (parts.length > 80) return; // soft per-planet cap
+      const ox = cx + Math.cos(ang) * r, oy = cy + Math.sin(ang) * r;
+      for (let i = 0; i < count; i++) {
         const a  = ang + (Math.random() * 2 - 1) * 0.5; // ~±28° off the surface normal
         const sp = v0 * (0.8 + Math.random() * 0.4);
         parts.push({ x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, size: 0.7 + Math.random() * 0.9 });
       }
-      planet._idleNextT = now + 0.4 + Math.random() * 0.9; // 0.4–1.3s
+    };
+
+    // Schedule a new eruption sequence — bimodal gap: usually a quick succession
+    // (cluster/overlap), occasionally a long pause.
+    if (now >= planet._idleNextT) {
+      const ang = Math.random() * Math.PI * 2;
+      const counts = [
+        1 + Math.floor(Math.random() * 2), // 1–2
+        2 + Math.floor(Math.random() * 3), // 2–4
+        5 + Math.floor(Math.random() * 3), // 5–7
+        2 + Math.floor(Math.random() * 2), // 2–3
+      ];
+      let t = 0; const at = [];
+      for (let k = 0; k < counts.length; k++) { at.push(t); t += 0.18 + Math.random() * 0.32; }
+      planet._idleSeqs.push({ ang, counts, at, start: now, idx: 0 });
+      planet._idleNextT = now + (Math.random() < 0.55 ? 0.1 + Math.random() * 0.5 : 1.6 + Math.random() * 3.4);
+    }
+
+    // Advance active sequences — fire each wave when its time comes
+    for (let s = planet._idleSeqs.length - 1; s >= 0; s--) {
+      const seq = planet._idleSeqs[s];
+      while (seq.idx < seq.counts.length && now >= seq.start + seq.at[seq.idx]) {
+        spawnWave(seq.ang, seq.counts[seq.idx]);
+        seq.idx++;
+      }
+      if (seq.idx >= seq.counts.length) planet._idleSeqs.splice(s, 1);
     }
 
     // Step + draw; uniform gravity toward the planet centre; remove on contact

@@ -115,17 +115,19 @@ A dormant unstable planet draws three things over its baked rocky body:
   `planet.crackSeed` (the `Renderer._uHash` value-hash), so the cracks are fixed per
   planet and never shimmer; only their brightness rides the glow pulse.
 - **Idle mini-eruptions** — the continuous "this planet is unstable" tell. A **pooled,
-  stateful** particle system (per-planet `planet._idleParts`, stepped/drawn in
-  `Renderer._drawIdleEruptions`): roughly every ~second a little burst of **3–4 particles**
-  erupts from one random surface point, launched ~perpendicular to the surface (±28°),
-  **arcs under a simple emulation of the planet's own gravity** (uniform pull toward the
-  centre, only that planet — not a full N-body sim), and **vanishes when it lands** back on
-  the surface. Launch speed is `1.5·r` and gravity `3·r` (game units, calibrated together
-  for a **~1s rise-and-fall**, apex ≈ 0.36·r — both scale with the planet so big bodies hop
-  proportionally). Bursts are scheduled at **random 0.4–1.3s intervals**, so since each
-  burst lives ~1s they **sometimes overlap**. Stepped by real frame-delta (clamped ≤ 50ms)
-  so it's frame-rate-independent; skipped in **simplified** mode. Particles draw as a
-  type-coloured dot with a bright core. Cosmetic only.
+  stateful** particle system (per-planet `_idleParts` + active `_idleSeqs`, stepped/drawn
+  in `Renderer._drawIdleEruptions`). Each idle eruption is itself a little **escalating
+  sequence** mirroring the real ones: waves of **1–2 → 2–4 → 5–7 → 2–3** particles fired
+  ~0.18–0.5s apart from one random surface point. Every particle launches ~perpendicular to
+  the surface (±28°), **arcs under a simple emulation of the planet's own gravity** (uniform
+  pull toward the centre, only that planet — not a full N-body sim), and **vanishes when it
+  lands**. Launch speed `1.5·r` and gravity `3·r` (game units) are calibrated for a **~1s
+  rise-and-fall**, apex ≈ 0.36·r — both scale with the planet. The eruptions are scheduled
+  with a **bimodal random gap**: ~55% of the time a short 0.1–0.6s gap (so they cluster /
+  fire in quick succession and overlap), otherwise a long 1.6–5s pause — giving irregular,
+  bursty timing rather than a metronome. Soft cap of 80 live particles per planet. Stepped
+  by real frame-delta (clamped ≤ 50ms, frame-rate-independent); skipped in **simplified**
+  mode. Particles draw as a type-coloured dot with a bright core. Cosmetic only.
 
 All purely decorative — no collisions, no gameplay — so "something unusual" reads at a
 glance. (Contrast the eruption *rumble* debris in §4.3, which **are** stateful, physics-
