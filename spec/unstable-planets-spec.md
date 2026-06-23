@@ -286,7 +286,7 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 | `EJECTA_MAX_LIFETIME` | Steps a ballistic blob lives — slow blobs need airtime to travel their range | 24000 |
 | `ERUPTION_DURATION_STEPS` | Length of the gen-0 pyro/cryo rumble sequence (~3.6s; chains scale down) | 9000 |
 | `ERUPTION_MINI_MIN/MAX_GAP` | Random interval between escalating cosmetic mini-bursts | 26 / 100 |
-| `ERUPTION_DEBRIS_LIFE` / `_GRAV` | Cosmetic debris lifetime (steps) / gravity felt (more than the blobs) | 840 / 0.5 |
+| `ERUPTION_DEBRIS_LIFE` / `_GRAV` | Cosmetic debris lifetime (steps) / gravity felt | 840 / 0.167 |
 | `EJECTA_MAX_RADIUS` | Grown blob size — ejecta swell fast then ease to ≈ a Large station | 6.0 |
 | `EJECTA_GROW_STEPS` | Steps to reach full blob size (ease-out) | 90 |
 | `ERUPTION_STAGGER` | Max random launch delay per particle | ≈ 180 ms |
