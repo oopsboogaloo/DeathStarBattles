@@ -107,8 +107,9 @@ This is the entire point of the feature. **Most of the time the planet does noth
 - **Owner propagates through the chain.** A chained eruption inherits the `owner` of the payload that set it off, so every kill or condition anywhere down the chain is still credited to the **original** player whose shot started it (§5.2). The newly spawned payloads carry the same `owner` and a fresh `sourcePlanet` (the planet they just erupted from).
 - **Generations cap the cascade (instead of a cooldown).** Every eruption and payload carries a **generation**:
   - **Gen 0** — bullet/rocket-triggered: the **full** eruption (drawn-out pyro/cryo sequence, 5–7 electro bolts, full beam).
-  - **Gen 1** — triggered by a gen-0 payload: a **small** eruption — an instant burst of **2–3** ejecta/bolts (or a single beam).
-  - **Gen 2+** — triggered by a gen-1 payload: **visual only** — a flash and cosmetic debris, **no payload**. The cascade terminates here because gen-2 produces nothing further.
+  - **Gen 1** — triggered by a gen-0 payload: a **smaller, shorter** eruption — pyro/cryo run a scaled-down rumble sequence releasing **2–3** ejecta; electro fires 2–3 bolts; beam fires once.
+  - **Gen 2+** — triggered by a gen-1 payload: **visual only** — pyro/cryo run a brief rumble with **no** ejecta; electro/beam are just a flash + debris. No payload, so the cascade terminates here.
+  - Pyro/cryo eruptions run the same escalating mini-burst "rumble" at every generation (scaled by generation), so chained eruptions look like the primary, only smaller.
 - **No cooldown — every impact triggers.** There is intentionally no per-planet re-eruption cooldown, so a multi-hit weapon (Triple Cannon, scatter) **triple-triggers** — each bullet that lands sets off its own full gen-0 eruption. Run-away is prevented by the generation cap above (depth ≤ 2), the global `MAX_EJECTA` cap, and finite ejecta lifetime — not by rate-limiting.
 
 ### 4.2 Point of contact & surface normal
@@ -283,9 +284,9 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 | `EJECTA_VELOCITY_FACTOR` | Slow-down on launch speed (pyro/cryo) → dramatic blobs | 0.60 |
 | `EJECTA_GRAVITY_FACTOR` | Fraction of gravity felt by pyro/cryo ejecta (floaty arcs; ~v²/g range means low gravity restores reach) | 0.18 |
 | `EJECTA_MAX_LIFETIME` | Steps a ballistic blob lives — slow blobs need airtime to travel their range | 24000 |
-| `ERUPTION_DURATION_STEPS` | Length of the drawn-out pyro/cryo eruption sequence (~2.6s) | 6500 |
+| `ERUPTION_DURATION_STEPS` | Length of the gen-0 pyro/cryo rumble sequence (~3.6s; chains scale down) | 9000 |
 | `ERUPTION_MINI_MIN/MAX_GAP` | Random interval between escalating cosmetic mini-bursts | 26 / 100 |
-| `ERUPTION_DEBRIS_LIFE` / `_GRAV` | Cosmetic debris lifetime (steps) / gravity felt (more than the blobs) | 210 / 0.5 |
+| `ERUPTION_DEBRIS_LIFE` / `_GRAV` | Cosmetic debris lifetime (steps) / gravity felt (more than the blobs) | 280 / 0.5 |
 | `EJECTA_MAX_RADIUS` | Grown blob size — ejecta swell fast then ease to ≈ a Large station | 6.0 |
 | `EJECTA_GROW_STEPS` | Steps to reach full blob size (ease-out) | 90 |
 | `ERUPTION_STAGGER` | Max random launch delay per particle | ≈ 180 ms |

@@ -37,12 +37,12 @@ const EJECTA_GROW_STEPS       = 90;   // steps to grow from 0 → full (fast the
 const ERUPTION_STAGGER_STEPS  = 300;  // max random per-particle launch delay (~0.18s)
 // Drawn-out eruption choreography (pyro/cryo): a build-up of escalating cosmetic
 // mini-bursts with the lethal ejecta released in 1 → 2–3 → 1–2 waves.
-const ERUPTION_DURATION_STEPS = 6500; // full sequence length (~2.6s) — waves well spaced
+const ERUPTION_DURATION_STEPS = 9000; // gen-0 sequence length (~3.6s) — long, slow rumble
 const ERUPTION_MINI_MIN_GAP   = 26;   // min steps between mini-bursts (denser rumble)
 const ERUPTION_MINI_MAX_GAP   = 100;  // max steps between mini-bursts (random → overlapping)
-const ERUPTION_DEBRIS_LIFE    = 210;  // cosmetic debris lifetime (steps) — linger a bit
+const ERUPTION_DEBRIS_LIFE    = 280;  // cosmetic debris lifetime (steps) — linger longer
 const ERUPTION_DEBRIS_GRAV    = 0.5;  // debris feel 50% gravity (more than the blobs)
-const MAX_ERUPTION_DEBRIS     = 260;  // global cosmetic-debris cap
+const MAX_ERUPTION_DEBRIS     = 300;  // global cosmetic-debris cap
 const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (slow blobs need airtime to travel)
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
@@ -2819,25 +2819,21 @@ export class GameLoop {
     const params = { kind: planet.type, owner, sourcePlanet: planet, ox, oy, nx, ny, baseAngle, vEsc, gr, gg, gb, generation };
     const flash = (dur) => this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: dur });
 
-    // Generation 2+ : visual only — flash + debris, no payload. The cascade stops here.
-    if (generation >= 2) {
-      flash(0.3);
-      this._spawnEruptionDebris(params, 4, 1.0);
-      return;
-    }
-
-    // Beam: fire a piercing laser perpendicular to the surface (its hits chain at generation+1)
+    // Beam: fire a piercing laser perpendicular to the surface (its hits chain at
+    // generation+1). Gen 2+ is visual only — a flash + debris, no laser.
     if (planet.type === PlanetType.BEAM) {
       flash(generation === 0 ? 0.5 : 0.35);
+      if (generation >= 2) { this._spawnEruptionDebris(params, 4, 1.0); return; }
       SoundManager.play('laserBeam');
       const path = this._simulateUnstableBeamPath(ox, oy, baseAngle, owner, planet, generation);
       this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
       return;
     }
 
-    // Electro: instant lightning spray (gen 0: 5–7 bolts; gen 1: 2–3)
+    // Electro: instant lightning spray (gen 0: 5–7 bolts; gen 1: 2–3; gen 2+: visual only)
     if (planet.type === PlanetType.ELECTRO) {
       flash(generation === 0 ? 0.5 : 0.35);
+      if (generation >= 2) { this._spawnEruptionDebris(params, 4, 1.0); return; }
       SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
       const electroLife = Math.ceil((ELECTRO_REACH_MULT * planet.radius) / (ELECTRO_SPEED * TIMESTEP));
       const n = generation === 0
@@ -2857,25 +2853,31 @@ export class GameLoop {
       return;
     }
 
-    // Pyro / Cryo
-    SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+    // Pyro / Cryo — a drawn-out rumble SEQUENCE at EVERY generation (so chained
+    // eruptions rumble just like the primary), scaled down as it chains:
+    //   gen 0 = full, long sequence with 1 → 2–3 → 1–2 ejecta waves
+    //   gen 1 = shorter rumble, 2–3 ejecta over two waves
+    //   gen 2+ = shorter rumble, NO ejecta (visual only) — cascade ends here
+    if (generation < 2) SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+    flash(generation === 0 ? 0.5 : 0.35);
+    const durScale = generation === 0 ? 1 : generation === 1 ? 0.6 : 0.42;
+    const duration = Math.floor(ERUPTION_DURATION_STEPS * durScale * (0.8 + this.rng.next() * 0.4));
+    let waves;
     if (generation === 0) {
-      // Full drawn-out SEQUENCE — escalating mini-bursts + ejecta in 1 → 2–3 → 1–2 waves.
-      const duration = Math.floor(ERUPTION_DURATION_STEPS * (0.8 + this.rng.next() * 0.4));
-      this.gs.eruptions.push({
-        ...params, chain: false, age: 0, duration, nextMiniAt: 0,
-        waves: [
-          { at: Math.floor(duration * 0.30), count: 1,                                  fired: false, big: false },
-          { at: Math.floor(duration * 0.60), count: 2 + Math.floor(this.rng.next() * 2), fired: false, big: true  }, // 2–3
-          { at: Math.floor(duration * 0.88), count: 1 + Math.floor(this.rng.next() * 2), fired: false, big: false }, // 1–2
-        ],
-      });
+      waves = [
+        { at: Math.floor(duration * 0.30), count: 1,                                  fired: false, big: false },
+        { at: Math.floor(duration * 0.60), count: 2 + Math.floor(this.rng.next() * 2), fired: false, big: true  }, // 2–3
+        { at: Math.floor(duration * 0.88), count: 1 + Math.floor(this.rng.next() * 2), fired: false, big: false }, // 1–2
+      ];
+    } else if (generation === 1) {
+      waves = [
+        { at: Math.floor(duration * 0.40), count: 1,                                  fired: false, big: false },
+        { at: Math.floor(duration * 0.78), count: 1 + Math.floor(this.rng.next() * 2), fired: false, big: true  }, // 1–2 (total 2–3)
+      ];
     } else {
-      // Generation 1: small instant burst of 2–3 ejecta (no long sequence)
-      flash(0.35);
-      this._spawnEruptionDebris(params, 5, 1.2);
-      this._spawnEjectaWave(params, 2 + Math.floor(this.rng.next() * 2));
+      waves = []; // gen 2+: rumble only, no ejecta
     }
+    this.gs.eruptions.push({ ...params, chain: generation > 0, age: 0, duration, nextMiniAt: 0, waves });
   }
 
   // Advance every active eruption sequence one step: emit escalating mini-bursts
@@ -2928,7 +2930,7 @@ export class GameLoop {
   // Spawn `n` small cosmetic debris particles (no gameplay effect) for a mini-burst.
   // `vScale` widens the velocity spread for the stronger bursts.
   _spawnEruptionDebris(seq, n, vScale = 1) {
-    const base = seq.vEsc * 0.4 * vScale;
+    const base = seq.vEsc * 0.28 * vScale;
     for (let i = 0; i < n; i++) {
       if (this.gs.eruptionDebris.length >= MAX_ERUPTION_DEBRIS) break;
       const a     = seq.baseAngle + (this.rng.next() * 2 - 1) * (EJECTA_SPREAD_DEG + 15) * Math.PI / 180;
