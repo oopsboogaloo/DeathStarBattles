@@ -239,12 +239,13 @@ const UNSTABLE_BASE_COL = {
   electro: [ 34,  40,  64],
   beam:    [ 62,  54,  28],
 };
+const UNSTABLE_SIZE_MULT = 2; // unstable planets are drawn/played at 2× their base radius
 
 // Build one unstable planet. type/radius/position optional; defaults to a random
 // subtype, a small radius, and a random in-field position.
 function makeUnstablePlanet(rng, gw, gh, { type = null, radius = null, position = null } = {}) {
   const t   = type ?? UNSTABLE_TYPES[rng.nextInt(UNSTABLE_TYPES.length)];
-  const r   = radius ?? (12 + rng.next() * 8);
+  const r   = (radius ?? (12 + rng.next() * 8)) * UNSTABLE_SIZE_MULT;
   const pos = position ?? new Vec2(rv(rng, 0.7, 0.15, 0.075, gw), rv(rng, 0.7, 0.15, 0.075, gh));
   return new Planet({
     position:  pos,
