@@ -116,7 +116,6 @@ export class Planet {
     this.hitCount      = hitCount;
     this.crackLines    = crackLines ?? [];
     this.crackSeed     = crackSeed;
-    this._eruptReadyStep = 0;  // firingStep before which this planet may not re-erupt
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

@@ -25,7 +25,6 @@ export const SPEED_STEPS = { verySlow: 11, slow: 21, normal: 42, fast: 84, veryF
 // ── Unstable-planet eruption tuning (spec/unstable-planets-spec.md §9) ────────
 // Ejecta are stepped once per physics sub-step (like bullets), so lifetimes are
 // in steps, not frames — bullets live tens of thousands of steps to cross the map.
-const ERUPTION_COOLDOWN_STEPS = 400;  // ~0.3s — blocks a multi-bullet weapon stacking eruptions
 const EJECTA_COUNT_MIN        = 5;
 const EJECTA_COUNT_MAX        = 7;
 const EJECTA_SPREAD_DEG       = 25;   // max angular offset from the surface normal
@@ -1094,8 +1093,6 @@ export class GameLoop {
     this.gs.eruptions             = [];
     this.gs.eruptionDebris        = [];
     this.gs.firingStep            = 0;
-    // firingStep resets each phase, so clear any stale eruption cooldowns too
-    for (const p of this.gs.planets) if (isUnstable(p.type)) p._eruptReadyStep = 0;
 
     for (const station of this._turnOrder) {
       if (station.status !== 'active') continue;
@@ -2801,12 +2798,13 @@ export class GameLoop {
   // Trigger an eruption at contact point (x,y) on an unstable planet. `owner` is
   // the station whose projectile struck it — credited for any kill/condition,
   // propagated through chains. Honours the per-planet re-eruption cooldown.
-  // `chain` = triggered by another eruption's payload (the firing phase does not
-  // wait for chain eruptions, only for a primary one to finish — see the gate).
-  _triggerEruption(planet, x, y, owner, chain = false) {
+  // `generation` bounds the chain: 0 = bullet-triggered (full eruption); a payload
+  // that triggers another planet passes its generation + 1. Gen 1 is a small burst
+  // (2–3 ejecta); gen 2+ is visual-only (no payload), so cascades can't run away.
+  // There is intentionally NO per-planet cooldown — every impact triggers (so a
+  // Triple Cannon triple-triggers); the generation cap keeps the total bounded.
+  _triggerEruption(planet, x, y, owner, generation = 0) {
     if (!planet || planet.destroyed || !isUnstable(planet.type)) return;
-    if (this.gs.firingStep < (planet._eruptReadyStep ?? 0)) return;
-    planet._eruptReadyStep = this.gs.firingStep + ERUPTION_COOLDOWN_STEPS;
 
     // Outward surface normal at the contact point
     let nx = x - planet.position.x;
@@ -2817,23 +2815,34 @@ export class GameLoop {
     const oy = planet.position.y + ny * (planet.radius + 0.5);
     const baseAngle = Math.atan2(ny, nx);
     const [gr, gg, gb] = UNSTABLE_GLOW[planet.type] ?? [255, 200, 80];
+    const vEsc = Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius));
+    const params = { kind: planet.type, owner, sourcePlanet: planet, ox, oy, nx, ny, baseAngle, vEsc, gr, gg, gb, generation };
+    const flash = (dur) => this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: dur });
 
-    // Beam: fire a single piercing laser perpendicular to the surface (instant)
+    // Generation 2+ : visual only — flash + debris, no payload. The cascade stops here.
+    if (generation >= 2) {
+      flash(0.3);
+      this._spawnEruptionDebris(params, 4, 1.0);
+      return;
+    }
+
+    // Beam: fire a piercing laser perpendicular to the surface (its hits chain at generation+1)
     if (planet.type === PlanetType.BEAM) {
-      this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: 0.5 });
+      flash(generation === 0 ? 0.5 : 0.35);
       SoundManager.play('laserBeam');
-      const path = this._simulateUnstableBeamPath(ox, oy, baseAngle, owner, planet);
+      const path = this._simulateUnstableBeamPath(ox, oy, baseAngle, owner, planet, generation);
       this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
       return;
     }
 
-    // Electro: instant lightning spray (5–7 fast straight bolts)
+    // Electro: instant lightning spray (gen 0: 5–7 bolts; gen 1: 2–3)
     if (planet.type === PlanetType.ELECTRO) {
-      this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: 0.5 });
+      flash(generation === 0 ? 0.5 : 0.35);
       SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
-      const vEsc = Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius));
       const electroLife = Math.ceil((ELECTRO_REACH_MULT * planet.radius) / (ELECTRO_SPEED * TIMESTEP));
-      const n = EJECTA_COUNT_MIN + Math.floor(this.rng.next() * (EJECTA_COUNT_MAX - EJECTA_COUNT_MIN + 1));
+      const n = generation === 0
+        ? EJECTA_COUNT_MIN + Math.floor(this.rng.next() * (EJECTA_COUNT_MAX - EJECTA_COUNT_MIN + 1))
+        : 2 + Math.floor(this.rng.next() * 2); // 2–3
       for (let i = 0; i < n; i++) {
         if (this.gs.ejecta.length >= MAX_EJECTA) break;
         const a = baseAngle + (this.rng.next() * 2 - 1) * EJECTA_SPREAD_DEG * Math.PI / 180;
@@ -2842,28 +2851,31 @@ export class GameLoop {
           velocity: new Vec2(Math.cos(a) * ELECTRO_SPEED, Math.sin(a) * ELECTRO_SPEED),
           kind: EjectaKind.ELECTRO, owner, sourcePlanet: planet,
           launchDelay: Math.floor(this.rng.next() * ERUPTION_STAGGER_STEPS),
-          maxLifetime: electroLife, maxRadius: 0,
+          maxLifetime: electroLife, maxRadius: 0, generation,
         }));
       }
       return;
     }
 
-    // Pyro / Cryo: a drawn-out eruption SEQUENCE — escalating cosmetic mini-bursts
-    // with the lethal ejecta released in 1 → 2–3 → 1–2 waves over ~1.7s.
+    // Pyro / Cryo
     SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
-    const duration = Math.floor(ERUPTION_DURATION_STEPS * (0.8 + this.rng.next() * 0.4));
-    this.gs.eruptions.push({
-      kind: planet.type, owner, sourcePlanet: planet, chain,
-      ox, oy, nx, ny, baseAngle,
-      vEsc: Math.sqrt(2 * G * planet.mass / Math.max(1, planet.radius)),
-      gr, gg, gb,
-      age: 0, duration, nextMiniAt: 0,
-      waves: [
-        { at: Math.floor(duration * 0.28), count: 1,                                          fired: false, big: false },
-        { at: Math.floor(duration * 0.55), count: 2 + Math.floor(this.rng.next() * 2),         fired: false, big: true  }, // 2–3
-        { at: Math.floor(duration * 0.80), count: 1 + Math.floor(this.rng.next() * 2),         fired: false, big: false }, // 1–2
-      ],
-    });
+    if (generation === 0) {
+      // Full drawn-out SEQUENCE — escalating mini-bursts + ejecta in 1 → 2–3 → 1–2 waves.
+      const duration = Math.floor(ERUPTION_DURATION_STEPS * (0.8 + this.rng.next() * 0.4));
+      this.gs.eruptions.push({
+        ...params, chain: false, age: 0, duration, nextMiniAt: 0,
+        waves: [
+          { at: Math.floor(duration * 0.28), count: 1,                                  fired: false, big: false },
+          { at: Math.floor(duration * 0.55), count: 2 + Math.floor(this.rng.next() * 2), fired: false, big: true  }, // 2–3
+          { at: Math.floor(duration * 0.80), count: 1 + Math.floor(this.rng.next() * 2), fired: false, big: false }, // 1–2
+        ],
+      });
+    } else {
+      // Generation 1: small instant burst of 2–3 ejecta (no long sequence)
+      flash(0.35);
+      this._spawnEruptionDebris(params, 5, 1.2);
+      this._spawnEjectaWave(params, 2 + Math.floor(this.rng.next() * 2));
+    }
   }
 
   // Advance every active eruption sequence one step: emit escalating mini-bursts
@@ -2908,6 +2920,7 @@ export class GameLoop {
         launchDelay: 0,
         maxLifetime: EJECTA_MAX_LIFETIME,
         maxRadius:   EJECTA_MAX_RADIUS * (0.85 + this.rng.next() * 0.3),
+        generation:  seq.generation ?? 0,
       }));
     }
   }
@@ -3028,7 +3041,7 @@ export class GameLoop {
         }
         const reach = planet.impactRadius + er;
         if (d2 >= reach * reach) continue;
-        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, e.owner, true); e.dead = true; break; }
+        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, e.owner, (e.generation ?? 0) + 1); e.dead = true; break; }
         if (e.kind === EjectaKind.PYRO &&
             (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL)) {
           planet.destroyed = true;                                     // pyro fragments asteroids
@@ -3071,7 +3084,7 @@ export class GameLoop {
   // Simulate a Beam planet's laser from origin (ox,oy) along angleRad. Pierces and
   // destroys stations, shatters asteroids, reflects off shields/blue rifts, chains
   // to other unstable planets, and is absorbed by solid bodies. Returns the path.
-  _simulateUnstableBeamPath(ox, oy, angleRad, owner, sourcePlanet) {
+  _simulateUnstableBeamPath(ox, oy, angleRad, owner, sourcePlanet, generation = 0) {
     const LASER_SPEED = 160, LASER_GRAVITY = 1.0, MAX_STEPS = 200;
     let px = ox, py = oy;
     let vx = LASER_SPEED * Math.cos(angleRad);
@@ -3137,7 +3150,7 @@ export class GameLoop {
         const dx = planet.position.x - px, dy = planet.position.y - py;
         if (dx * dx + dy * dy >= R * R) continue;
         if (planet === sourcePlanet) continue; // fires outward — never re-trigger its own source
-        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, owner, true); blocked = true; break; }
+        if (isUnstable(planet.type)) { this._triggerEruption(planet, px, py, owner, generation + 1); blocked = true; break; }
         if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
           planet.destroyed = true; this._spawnAsteroidExplosion(planet);
         } else {
