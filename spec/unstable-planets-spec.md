@@ -1,6 +1,6 @@
 # Unstable Planets — Specification
 
-> Adds a new family of stellar objects — **unstable planets** — that sit inert as ordinary obstacles until struck by a projectile, at which point they violently erupt at the point of contact and hurl a small spray of hazardous ejecta into the battlefield. They turn the terrain itself into a weapon: a well-placed shot into an unstable planet can rain destruction, freeze, or shock onto nearby stations. Three flavours exist — **Pyro**, **Cryo**, and **Electro** — distinguished by colour, particle behaviour, and the effect their ejecta apply.
+> Adds a new family of stellar objects — **unstable planets** — that sit inert as ordinary obstacles until struck by a projectile, at which point they violently erupt at the point of contact and unleash a hazard into the battlefield. They turn the terrain itself into a weapon: a well-placed shot into an unstable planet can rain destruction, freeze, shock, or a laser blast onto nearby stations. Four flavours exist — **Pyro**, **Cryo**, **Electro**, and **Beam** — distinguished by colour, idle effect, and the payload they release on impact.
 
 > **Status: Not started.** This is a design spec; no implementation exists yet.
 
@@ -12,13 +12,16 @@ The existing stellar bodies (rocky planets, stars, white dwarfs, black holes, th
 
 This makes the battlefield interactive in a new way. A skilled player can deliberately ignore a tricky direct line on an enemy and instead lob a shot into an unstable planet sitting beside them, letting the eruption do the work.
 
-Three subtypes share one mechanic but differ in payload:
+Four subtypes share one trigger (a projectile striking the surface) but differ in payload:
 
-| Subtype | Under-crack glow | Idle particles | Ejecta behaviour | Effect on station hit |
+| Subtype | Under-crack glow | Idle FX | Eruption payload | Effect on station hit |
 |---|---|---|---|---|
-| **Pyro** | Glowing **red** | Mini red particle eruptions | Ballistic, **gravity-affected** | **Destroys** the station (lethal, like a bullet) |
-| **Cryo** | Glowing **white** | White particle eruptions | Ballistic, **gravity-affected** | Applies **Frozen** (`frozen += 1`) |
-| **Electro** | Glowing **blue-cyan** | Crackling surface electricity | **Lightning** — straight, **ignores gravity** | Applies **Electrified** (`electrified += 1`) |
+| **Pyro** | Glowing **red** | Mini red particle eruptions | 5–7 ballistic, **gravity-affected** ejecta | **Destroys** the station (lethal, like a bullet) |
+| **Cryo** | Glowing **white** | White particle eruptions | 5–7 ballistic, **gravity-affected** ejecta | Applies **Frozen** (`frozen += 1`) |
+| **Electro** | Glowing **blue-cyan** | Crackling surface electricity | 5–7 **lightning** bolts — straight, **ignores gravity** | Applies **Electrified** (`electrified += 1`) |
+| **Beam** | Glowing **yellow** | Faint yellow light glints | **One laser beam** fired perpendicular to the surface | **Destroys** every station along the beam (like the Laser weapon) |
+
+The first three (Pyro / Cryo / Electro) share the **ejecta eruption** model (§4.2–§4.4). **Beam** is the odd one out: instead of a spray of particles it fires a single piercing **laser beam** straight out from the point of impact (§4.6).
 
 ---
 
@@ -26,15 +29,16 @@ Three subtypes share one mechanic but differ in payload:
 
 ### 2.1 PlanetType additions
 
-Three new values are added to the `PlanetType` enum (`src/entities/Planet.js`, design.md §3.2.1):
+Four new values are added to the `PlanetType` enum (`src/entities/Planet.js`, design.md §3.2.1):
 
 ```js
 PYRO:    'pyro',     // dormant; erupts ballistic fire ejecta on impact
 CRYO:    'cryo',     // dormant; erupts ballistic ice ejecta on impact
 ELECTRO: 'electro',  // dormant; erupts lightning on impact
+BEAM:    'beam',     // dormant; fires a perpendicular laser beam on impact
 ```
 
-A convenience predicate is added: `Planet.isUnstable(type)` → `true` for the three subtypes.
+A convenience predicate is added: `Planet.isUnstable(type)` → `true` for the four subtypes.
 
 ### 2.2 Gravity, mass and collision
 
@@ -63,6 +67,7 @@ The intent is stated plainly in the design brief: **the player should be in no d
   - Pyro → glowing **red** (molten/lava look)
   - Cryo → glowing **white** (super-cooled, frost-bright)
   - Electro → glowing **blue-cyan** (charged plasma)
+  - Beam → glowing **yellow** (focused light, about to lase)
 - The glow **pulses** slowly so the surface looks alive and pressurised. The crack pattern itself is static per planet instance (generated once at spawn from the planet's seed) so it does not shimmer distractingly.
 
 ### 3.2 Idle particle emission
@@ -74,6 +79,7 @@ Each subtype continuously emits a low-rate cosmetic particle effect from its sur
 | **Pyro** | Frequent **mini red particle eruptions** — small puffs/sparks that pop from random surface points and fall back or fade quickly |
 | **Cryo** | Small **white eruptions** — wisps of frost/vapour drifting off the surface |
 | **Electro** | **Crackling electricity** — short arcs skittering across the cracked surface between crack nodes |
+| **Beam** | **Faint yellow light glints** — occasional brief lens-flare/sparkle along the cracks, hinting at building focused energy |
 
 - Idle particles spawn from random points on the surface at a low, steady rate (a few per second), capped low so dormant unstable planets cost almost nothing to render.
 - They are drawn on the effects layer (Layer 2) and never interact with gameplay.
@@ -94,8 +100,8 @@ This is the entire point of the feature. **Most of the time the planet does noth
 - **Trigger event:** a *primary projectile* (a `Bullet` or `Rocket`) collides with an unstable planet's surface (`rSquared < planet.radius²`, the same test as any planet impact).
 - On trigger:
   1. The incoming projectile resolves its impact **exactly as it would against a rocky planet** — it explodes and is consumed. (The eruption is *in addition to*, not instead of, the normal impact.)
-  2. An eruption is spawned at the **point of contact** (§4.2).
-- **Ejecta do NOT trigger eruptions.** If an erupted particle (pyro/cryo/electro) later strikes another unstable planet, it is simply consumed with no secondary eruption. This prevents runaway chain reactions.
+  2. An eruption is spawned at the **point of contact** (§4.2). For Pyro / Cryo / Electro this is an ejecta spray (§4.3–§4.5); for **Beam** it is a single laser emission (§4.6).
+- **Eruptions do NOT chain-trigger.** Neither an erupted ejecta particle (pyro/cryo/electro) nor a Beam laser triggers a secondary eruption on another unstable planet — they resolve against it like any projectile but spawn nothing. This prevents runaway chain reactions.
 - **Cooldown:** after erupting, a planet enters a short cooldown (`ERUPTION_COOLDOWN`, tunable ≈ 300 ms). Further primary impacts during the cooldown still explode the projectile but do **not** spawn a second eruption. This stops a single multi-bullet weapon (Triple Cannon, scatter shots) from stacking a dozen simultaneous eruptions in one frame, while still allowing the planet to be re-used on a later turn.
 
 ### 4.2 Point of contact & surface normal
@@ -103,7 +109,7 @@ This is the entire point of the feature. **Most of the time the planet does noth
 - **Contact point** `c` = the projectile's position at the moment `rSquared < radius²` first holds (it is already just inside the surface; clamp it back to the surface radius for a clean origin).
 - **Surface normal** `n` = `normalise(c − planet.position)` — points radially outward from the planet centre through the contact point. The eruption fires *away* from the surface along this normal, with random spread.
 
-### 4.3 Ejecta spawn
+### 4.3 Ejecta spawn (Pyro / Cryo / Electro)
 
 On eruption, spawn **5–7 ejecta particles** (random count per eruption). Each particle:
 
@@ -138,32 +144,51 @@ The exact count, per-particle angle, per-particle speed, and per-particle delay 
 - **Pyro:** a fierce burst of red/orange ejecta with smoke trails (reuse the fireball/`fireballSmoke` smoke-puff pattern). The eruption flash at the contact point is bright red-white.
 - **Cryo:** white/pale-blue icy shards with a frosty vapour trail. Contact flash is cold white.
 - **Electro:** **branching lightning bolts** radiating from the contact point — short, jagged, redrawn each frame with randomised branch points for a crackling look (the same rendering approach planned for the Electrostar arcs, §12.11 of tasks.md), in blue-cyan/white.
+- **Beam:** a bright **yellow laser beam** (§4.6) — rendered via the existing `LaserVFX`, tinted yellow rather than a team colour.
 
-Each eruption fires a **sound hook** at the contact point, one per subtype (eruption roar / ice shatter / electric zap). This spec only requires the hook call sites; the actual audio assets and mixing are owned by the sound spec (tasks.md §15.1).
+Each eruption fires a **sound hook** at the contact point, one per subtype (eruption roar / ice shatter / electric zap / laser fire). This spec only requires the hook call sites; the actual audio assets and mixing are owned by the sound spec (tasks.md §15.1).
+
+### 4.6 Beam eruption (Beam type)
+
+The Beam planet does **not** spawn ejecta. On trigger it fires a single piercing **laser beam** outward from the point of contact, reusing the existing Laser-weapon machinery (design.md §14.2) wholesale:
+
+- **Origin:** the contact point `c` (§4.2), nudged just outside the surface so the beam starts in clear space.
+- **Direction:** the **surface normal** `n` — the beam fires *perpendicular to the surface* at the strike point. A tiny random jitter (≈ ±2°) is allowed so repeated triggers don't look mechanically identical, but it is essentially radial.
+- **Simulation:** run the standard laser path simulation — initial speed `200 × maxCannonSpeed`, gravity factor `1.0` (so the beam visibly bends near heavy bodies), terminating on boundary or `MAX_LASER_STEPS`. Along the path it:
+  - **destroys every station** it crosses (simulation continues past each — it is piercing),
+  - **shatters asteroids/crystals** it crosses (continues past),
+  - **reflects** off Force Shields, and
+  - is **absorbed** (terminates) by non-destructible planets — including other unstable planets, which are *not* re-triggered.
+- **Attribution:** every kill credits `beam.owner = triggeringProjectile.owner`, exactly as the Laser weapon credits `laser.owner`.
+- **Rendering:** the committed path is added as a `LaserVFX` (wide team-coloured glow + narrow white core, fading over ~1.5 s) — but tinted **yellow** to match the planet, so it reads as the planet's beam rather than a player's shot.
+- **No firing delay queue:** unlike the player Laser (which uses `pendingLaser`/`delaySteps` for staggered firing), the Beam planet fires its beam **immediately** on impact. The standard `ERUPTION_COOLDOWN` (§4.1) still applies, so a multi-bullet weapon can't spew multiple beams in one frame.
+
+Because the beam is instantaneous and pierces, a Beam planet is the most *surgical* of the four — a player who lines up a shot so the planet's outward normal points down a row of enemies can wipe several at once.
 
 ---
 
 ## 5. Effect on Stations
 
-When an ejecta particle reaches a station (`distance < station hit radius`):
+When an ejecta particle (or, for Beam, the laser path) reaches a station (`distance < station hit radius`):
 
-| Ejecta type | Effect | Mirrors |
+| Payload | Effect | Mirrors |
 |---|---|---|
 | **Pyro** | Station is **destroyed** — `status = EXPLODING`, killed exactly as by a direct bullet hit | Bullet → station impact (§4.4 design.md) |
 | **Cryo** | Station receives `frozen += 1` (capped at 3) and a `ConditionNotifyVFX` floating label | Comet freeze (frozen-condition-spec.md §3) |
 | **Electro** | Station receives `electrified += 1` (capped at 3) and a `ConditionNotifyVFX` floating label | Electrostar arc / shock weapons (tasks.md §12.10) |
+| **Beam** | **Every station** crossed by the beam is **destroyed** (piercing) | Laser weapon (design.md §14.2) |
 
 ### 5.1 Defensive interactions
 
-All three ejecta types respect the existing defensive layers, resolved in this order — consistent with how comets and shock weapons already behave:
+All payloads respect the existing defensive layers, resolved in this order — consistent with how comets, shock weapons, and the Laser already behave:
 
-1. **Team Shield** — if the station's team shield is up, the ejecta is blocked entirely (consumed, no effect). The shield absorbs the hit.
-2. **Armour** — if `armourLayers > 0`, one armour layer is consumed and **no** effect is applied (no destroy, no freeze, no shock). The ejecta is consumed.
+1. **Team Shield** — if the station's team shield is up, the hit is blocked. Ejecta are consumed; the **Beam reflects** off the shield boundary and continues (matching the Laser weapon's shield interaction, design.md §14.2).
+2. **Armour** — if `armourLayers > 0`, one armour layer is consumed and **no** effect is applied (no destroy, no freeze, no shock). The ejecta is consumed; the Beam continues past (one armour layer spent per protected station it crosses).
 3. **Unprotected** — the effect from the table above applies.
 
 ### 5.2 Attribution
 
-- A **Pyro** kill is credited to `ejecta.owner` (the player whose shot triggered the eruption), with the appropriate kill-type stat (treated as a normal kill for scoring; the instigator is the killer). Self-harm is possible: if your own eruption ejecta hits one of your stations, it counts as a normal own-goal exactly as a self-inflicted bullet would.
+- A **Pyro** or **Beam** kill is credited to `ejecta.owner` / `beam.owner` (the player whose shot triggered the eruption), with the appropriate kill-type stat (treated as a normal kill for scoring; the instigator is the killer). Self-harm is possible: if your own eruption hits one of your stations, it counts as a normal own-goal exactly as a self-inflicted bullet would.
 - A **Cryo/Electro** condition is applied to the target station in the **target's** team colour for the `ConditionNotifyVFX` label (per new-weapons-spec.md §18), but the *instigator* for any scoring purposes is `ejecta.owner`.
 
 ### 5.3 Frozen vs Electrified precedence
@@ -182,7 +207,7 @@ Two new named scenarios are added, following the numbering convention in `src/sc
 
 A single dominant unstable planet plus a field of small bodies:
 
-- **One large unstable planet**, type chosen at random (Pyro / Cryo / Electro, equal weight).
+- **One large unstable planet**, type chosen at random (Pyro / Cryo / Electro / Beam, equal weight).
   - **70%** of games: placed approximately at the **centre** of the map (small random jitter so it isn't pixel-exact).
   - **30%** of games: placed at a **random position** anywhere on the map (normal placement rules — at least partly on screen, no overlap).
 - **5–9 moons or asteroids** (random count) scattered randomly across the map as filler. These are ordinary small bodies — not unstable.
@@ -193,7 +218,7 @@ A single dominant unstable planet plus a field of small bodies:
 
 A crowded field of many smaller unstable planets:
 
-- **3–12 smaller unstable planets** (random count), each an independently rolled type (Pyro / Cryo / Electro). Sizes in the small-to-medium range (no single dominant body).
+- **3–12 smaller unstable planets** (random count), each an independently rolled type (Pyro / Cryo / Electro / Beam). Sizes in the small-to-medium range (no single dominant body).
 - **2–6 moons** (random count) scattered as filler.
 - This is deliberately chaotic — a battlefield where almost any errant shot sets *something* off.
 
@@ -201,7 +226,7 @@ A crowded field of many smaller unstable planets:
 
 ### 6.3 Wildcard pool
 
-Add an **unstable planet** to the **wildcard planet pool** (the random bonus stellar-object injection, requirements §6.1). When a wildcard object is rolled, it may be an unstable planet of a **randomly chosen type** (Pyro / Cryo / Electro). A single unstable planet dropped into an otherwise ordinary scenario is a nasty surprise.
+Add an **unstable planet** to the **wildcard planet pool** (the random bonus stellar-object injection, requirements §6.1). When a wildcard object is rolled, it may be an unstable planet of a **randomly chosen type** (Pyro / Cryo / Electro / Beam). A single unstable planet dropped into an otherwise ordinary scenario is a nasty surprise.
 
 ### 6.4 Spawn placement
 
@@ -222,14 +247,14 @@ Add an **unstable planet** to the **wildcard planet pool** (the random bonus ste
 
 | File | Change |
 |---|---|
-| `src/entities/Planet.js` | Add `PYRO` / `CRYO` / `ELECTRO` to `PlanetType`; add `isUnstable()`; eruption cooldown field |
+| `src/entities/Planet.js` | Add `PYRO` / `CRYO` / `ELECTRO` / `BEAM` to `PlanetType`; add `isUnstable()`; eruption cooldown field |
 | `src/entities/Ejecta.js` | **New** entity: position, velocity, `kind` (pyro/cryo/electro), `owner`, launch delay, lifetime |
 | `src/core/GameState.js` | Track `ejecta: Ejecta[]`; pending-eruption queue for staggered launches |
-| `src/physics/PhysicsEngine.js` | Detect primary-projectile impact on unstable planet → spawn eruption; integrate ejecta (gravity for pyro/cryo, straight for electro); ejecta↔station collision + shield/armour resolution + attribution; ejecta↔planet consumption |
-| `src/rendering/PlanetRenderer.js` | Cracked-surface + under-crack glow draw for the three subtypes |
-| `src/rendering/Renderer.js` | Idle particle emission (red/white eruptions, electric crackle); eruption flash; pyro/cryo ejecta trails + smoke; electro lightning rendering |
-| `src/scenarios/scenarioData.js` | Add Unstable Planet (39) + Unstable System (40) scenarios; bump `SCENARIO_COUNT`; add to extreme-eligible list; add both to `TARGET_PRACTICE_SCENARIOS`; add unstable planet (random type) to wildcard pool |
-| `src/audio/SoundManager.js` | Eruption SFX hooks (roar / shatter / zap) — call sites only; assets per sound spec |
+| `src/physics/PhysicsEngine.js` | Detect primary-projectile impact on unstable planet → spawn eruption; integrate ejecta (gravity for pyro/cryo, straight for electro); ejecta↔station collision + shield/armour resolution + attribution; ejecta↔planet consumption; **Beam** — run the laser path simulation along the surface normal and emit a `LaserVFX` (reuse design.md §14.2 machinery) |
+| `src/rendering/PlanetRenderer.js` | Cracked-surface + under-crack glow draw for the four subtypes (incl. yellow Beam) |
+| `src/rendering/Renderer.js` | Idle FX (red/white eruptions, electric crackle, yellow Beam glints); eruption flash; pyro/cryo ejecta trails + smoke; electro lightning; Beam laser via yellow-tinted `LaserVFX` |
+| `src/scenarios/scenarioData.js` | Add Unstable Planet (39) + Unstable System (40) scenarios; bump `SCENARIO_COUNT`; add to extreme-eligible list; add both to `TARGET_PRACTICE_SCENARIOS`; add unstable planet (random type, incl. Beam) to wildcard pool |
+| `src/audio/SoundManager.js` | Eruption SFX hooks (roar / shatter / zap / laser) — call sites only; assets per sound spec |
 | `src/story/StoryMissions.js` | Make unstable planets / scenarios available to Story missions |
 | `src/scenarios/ScenarioFactory.js` | Generate the two new scenarios (incl. extreme variants and inter-unstable separation) / wildcard injection |
 | `src/ai/SuperBot.js`, `src/ai/MegaBot.js` | (Phase 2) opportunistic eruption targeting |
@@ -259,7 +284,8 @@ All values are tuned empirically so the eruption is "strong enough to be visibly
 
 | Question | Decision |
 |---|---|
-| Subtypes | Three: Pyro (red), Cryo (white), Electro (blue-cyan) |
+| Subtypes | Four: Pyro (red), Cryo (white), Electro (blue-cyan), Beam (yellow) |
+| Beam payload | Single piercing laser beam fired perpendicular to the surface; reuses the Laser-weapon simulation/VFX (tinted yellow); destroys every station along the path |
 | Passive behaviour | Behave as a normal rocky planet (gravity + obstacle) until struck |
 | Trigger | Only primary projectiles (bullets/rockets); ejecta do not chain-trigger |
 | Planet persistence | Persists and can re-erupt on later impacts (with cooldown) — not destroyed |
