@@ -4265,6 +4265,10 @@ export class Renderer {
   _drawUnstablePlanets(ctx, planets) {
     const conv = this.conv;
     const now  = performance.now() / 1000;
+    // Frame delta (seconds) for the idle mini-eruption particles, clamped so a
+    // stalled tab / first frame can't fling particles across the map.
+    const dt = Math.min(0.05, Math.max(0, now - (this._idleLastNow ?? now)));
+    this._idleLastNow = now;
     for (const planet of planets) {
       if (planet.destroyed || !isUnstable(planet.type)) continue;
       const cx = planet.position.x * conv;
@@ -4306,30 +4310,58 @@ export class Renderer {
       }
       ctx.stroke();
 
-      // Idle particle emission — a few short-lived sparks per planet per frame
-      if (!this._simplified) {
-        if (planet.type === 'electro') {
-          // Crackling arcs skittering across the surface between crack nodes
-          ctx.lineWidth   = Math.max(0.5, conv * 0.35);
-          ctx.strokeStyle = `rgba(${gr},${gg},${gb},${(0.4 + Math.random() * 0.4).toFixed(2)})`;
-          ctx.beginPath();
-          for (let i = 0; i < 2; i++) {
-            const a1 = Math.random() * Math.PI * 2, a2 = a1 + (Math.random() - 0.5) * 1.6;
-            ctx.moveTo(cx + Math.cos(a1) * r * 0.9, cy + Math.sin(a1) * r * 0.9);
-            ctx.lineTo(cx + Math.cos(a2) * r * 0.9, cy + Math.sin(a2) * r * 0.9);
-          }
-          ctx.stroke();
-        } else if (Math.random() < 0.5) {
-          // Pyro/Cryo/Beam: small puff/glint popping off the surface
-          const a  = Math.random() * Math.PI * 2;
-          const pr = r * (0.95 + Math.random() * 0.25);
-          const ex = cx + Math.cos(a) * pr, ey = cy + Math.sin(a) * pr;
-          ctx.beginPath();
-          ctx.arc(ex, ey, Math.max(0.8, conv * (0.4 + Math.random() * 0.5)), 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${gr},${gg},${gb},${(0.5 + Math.random() * 0.4).toFixed(2)})`;
-          ctx.fill();
-        }
+      // Idle mini-eruptions — small bursts of particles that hop off the surface,
+      // arc under the planet's own gravity, and vanish on landing (stateful, pooled).
+      if (!this._simplified) this._drawIdleEruptions(ctx, planet, conv, now, dt, gr, gg, gb);
+    }
+  }
+
+  // Continuous "this planet is unstable" tell: every ~second-ish a little burst of
+  // 3–4 particles erupts from a random point on the surface, rises and falls under a
+  // simple emulation of the planet's own gravity, and disappears when it lands.
+  // Bursts are scheduled at random intervals so they sometimes overlap. Cosmetic
+  // only — pooled state lives on the planet (`_idleParts`, `_idleNextT`).
+  _drawIdleEruptions(ctx, planet, conv, now, dt, gr, gg, gb) {
+    const cx = planet.position.x, cy = planet.position.y; // game units
+    const r  = planet.radius;
+    let parts = planet._idleParts;
+    if (!parts) { parts = planet._idleParts = []; planet._idleNextT = now + Math.random() * 0.6; }
+
+    // Spawn a new mini-eruption from one surface point (random interval → overlaps)
+    if (now >= planet._idleNextT) {
+      const ang = Math.random() * Math.PI * 2;
+      const ox  = cx + Math.cos(ang) * r, oy = cy + Math.sin(ang) * r;
+      const v0  = 1.5 * r;                          // launch speed → ~1s flight, apex ≈ 0.38r
+      const n   = 3 + (Math.random() < 0.5 ? 1 : 0); // 3 or 4
+      for (let i = 0; i < n; i++) {
+        const a  = ang + (Math.random() * 2 - 1) * 0.5; // ~±28° off the surface normal
+        const sp = v0 * (0.8 + Math.random() * 0.4);
+        parts.push({ x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, size: 0.7 + Math.random() * 0.9 });
       }
+      planet._idleNextT = now + 0.4 + Math.random() * 0.9; // 0.4–1.3s
+    }
+
+    // Step + draw; uniform gravity toward the planet centre; remove on contact
+    const g = 3.0 * r; // units/s² — tuned with v0 for ~1s flight
+    const coreR = Math.min(255, gr + 120), coreG = Math.min(255, gg + 120), coreB = Math.min(255, gb + 120);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p  = parts[i];
+      const dx = cx - p.x, dy = cy - p.y;
+      const d  = Math.hypot(dx, dy) || 1;
+      p.vx += (dx / d) * g * dt;
+      p.vy += (dy / d) * g * dt;
+      p.x  += p.vx * dt; p.y += p.vy * dt;
+      p.age += dt;
+      if ((p.age > 0.08 && d <= r) || p.age > 2.5) { parts.splice(i, 1); continue; }
+      const alpha = 0.85 * Math.min(1, 1 - p.age / 2.2);
+      const sx = p.x * conv, sy = p.y * conv;
+      const rad = Math.max(0.8, p.size * conv);
+      ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${gr},${gg},${gb},${alpha.toFixed(3)})`;
+      ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, sy, rad * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${alpha.toFixed(3)})`;
+      ctx.fill();
     }
   }
 

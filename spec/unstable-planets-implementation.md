@@ -114,18 +114,18 @@ A dormant unstable planet draws three things over its baked rocky body:
 - **Crack network** — 5 jagged radial fractures generated **deterministically** from
   `planet.crackSeed` (the `Renderer._uHash` value-hash), so the cracks are fixed per
   planet and never shimmer; only their brightness rides the glow pulse.
-- **Idle emission** — the continuously-emitted "SFX" sparks. **These are not a pooled
-  particle system**: there is no entity, velocity, or lifetime — each spark is drawn
-  fresh every frame with `Math.random()` and exists for exactly that one frame, so the
-  flicker *is* the effect (same approach as the animated star fire rim). Because it is
-  driven by the render loop, the rate is **frame-rate based (~60/s)** and independent of
-  game speed. Two looks, by type:
-  - **Electro** — strokes **2 short arc segments** per frame between random points just
-    inside the rim (`r·0.9`), each with a ±0.8 rad angular jump, alpha 0.4–0.8 → crackling
-    electricity across the surface.
-  - **Pyro / Cryo / Beam** — a **50% chance per frame** to draw **one** small filled glint
-    at/just outside the rim (`r·0.95–1.20` from centre), size ~`conv·0.4–0.9`, alpha
-    0.5–0.9, in the type glow colour → sparks popping off the surface (~30/s on average).
+- **Idle mini-eruptions** — the continuous "this planet is unstable" tell. A **pooled,
+  stateful** particle system (per-planet `planet._idleParts`, stepped/drawn in
+  `Renderer._drawIdleEruptions`): roughly every ~second a little burst of **3–4 particles**
+  erupts from one random surface point, launched ~perpendicular to the surface (±28°),
+  **arcs under a simple emulation of the planet's own gravity** (uniform pull toward the
+  centre, only that planet — not a full N-body sim), and **vanishes when it lands** back on
+  the surface. Launch speed is `1.5·r` and gravity `3·r` (game units, calibrated together
+  for a **~1s rise-and-fall**, apex ≈ 0.36·r — both scale with the planet so big bodies hop
+  proportionally). Bursts are scheduled at **random 0.4–1.3s intervals**, so since each
+  burst lives ~1s they **sometimes overlap**. Stepped by real frame-delta (clamped ≤ 50ms)
+  so it's frame-rate-independent; skipped in **simplified** mode. Particles draw as a
+  type-coloured dot with a bright core. Cosmetic only.
 
 All purely decorative — no collisions, no gameplay — so "something unusual" reads at a
 glance. (Contrast the eruption *rumble* debris in §4.3, which **are** stateful, physics-
