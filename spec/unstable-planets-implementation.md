@@ -99,46 +99,25 @@ and calls `_triggerEruption(planet, x, y, owner, generation = 0)`.
 
 ## 4. Particle systems
 
-There are **eight** distinct visual/▶gameplay systems. Cosmetic ones never touch
+There are **seven** distinct visual/gameplay systems. Cosmetic ones never touch
 gameplay; lethal ones resolve collisions.
 
-### 4.1 Idle surface particles (cosmetic)
+### 4.1 Idle surface look (cosmetic)
 *Where:* `Renderer._drawUnstablePlanets` (live, every frame, under the camera transform),
-called from `_drawLive` for every non-destroyed unstable planet. Skipped in
-**simplified** performance mode.
+called from `_drawLive` for every non-destroyed unstable planet.
 
-A dormant unstable planet draws three things over its baked rocky body:
+A dormant unstable planet draws two things over its baked rocky body, so "something
+unusual" reads at a glance:
 
 - **Pulsing under-crack glow** — a radial gradient (centre → rim → transparent) whose
   alpha breathes via `sin(wallclock·2 + seed)`. Smooth and continuous.
 - **Crack network** — 5 jagged radial fractures generated **deterministically** from
   `planet.crackSeed` (the `Renderer._uHash` value-hash), so the cracks are fixed per
   planet and never shimmer; only their brightness rides the glow pulse.
-- **Idle mini-eruptions** — the continuous "this planet is unstable" tell. A **pooled,
-  stateful** particle system (per-planet `_idleParts` + active `_idleSeqs`, stepped/drawn
-  in `Renderer._drawIdleEruptions`). Each idle eruption is itself a little **escalating
-  sequence** mirroring the real ones: waves of **1–2 → 2–4 → 5–7 → 2–3** particles fired
-  ~0.18–0.5s apart. Eruptions are seeded **across the visible sphere**, not just the rim:
-  a spawn point at normalised radius `nd = d/r` (0 = pole facing the camera, 1 = limb)
-  behaves like `sin(latitude)` —
-  - **in-plane fountain** launch velocity ∝ `nd` (full at the rim, → 0 at the centre),
-  - a **constant outward "expansion" drift** ∝ `(1 − nd)` (max at the centre),
-  - **planet-gravity scaled by `nd`**, so rim points fountain up and **fall back onto the
-    surface** (side-on fountain) while centre points have no in-plane gravity and just
-    **expand outward and fade** (looking down into the eruption); everything between is a
-    blend. The `nd → 1` case reproduces the original edge eruptions exactly.
 
-  Particles vanish on **contact** (fall back to the rim, for the fountaining ones) or by
-  **lifetime** (~1.2–1.8s, for the expanding ones), with an alpha fade-out. Launch speed
-  `1.5·r`, expansion `0.45·r`, gravity `3·r·nd` — all scale with the planet. Spawn `nd =
-  √random` (uniform over disk area, so rim-weighted). Eruptions are scheduled with a
-  **bimodal random gap**: ~55% a short 0.1–0.6s gap (cluster / quick succession / overlap),
-  otherwise a long 1.6–5s pause. Soft cap 90 particles/planet. Stepped by clamped
-  frame-delta (frame-rate-independent); skipped in **simplified** mode. Cosmetic only.
-
-All purely decorative — no collisions, no gameplay — so "something unusual" reads at a
-glance. (Contrast the eruption *rumble* debris in §4.3, which **are** stateful, physics-
-driven particles in `gs.eruptionDebris`.)
+> A continuous idle-eruption *particle* system was prototyped (surface fountains across a
+> faked sphere) and then **removed** — the dormant tell is just the glow + cracks for now.
+> The eruption-time particle systems below are the focus.
 
 ### 4.2 Eruption sequence — the "rumble" choreography
 *Where:* `GameLoop._triggerEruption` (creates it) and `_stepEruptions` (advances it).
