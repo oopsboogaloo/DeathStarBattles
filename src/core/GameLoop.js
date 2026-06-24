@@ -47,6 +47,8 @@ const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (s
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
 const MAX_EJECTA              = 30;   // global active-ejecta cap
+const BEAM_CHARGE_STEPS       = 1300; // beam precursor build-up before the laser fires (~0.5s)
+const BEAM_CALM_STEPS         = 900;  // beam particle calm-down after firing (~0.36s)
 
 // Mammoth Cannon tuning constants
 const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
@@ -2819,14 +2821,18 @@ export class GameLoop {
     const params = { kind: planet.type, owner, sourcePlanet: planet, ox, oy, nx, ny, baseAngle, vEsc, gr, gg, gb, generation };
     const flash = (dur) => this.gs.vfxList.push({ type: 'eruptionFlash', x: ox, y: oy, r: gr, g: gg, b: gb, t: 0, duration: dur });
 
-    // Beam: fire a piercing laser perpendicular to the surface (its hits chain at
-    // generation+1). Gen 2+ is visual only — a flash + debris, no laser.
+    // Beam: a piercing laser with a CHARGE-UP. On impact it starts a precursor particle
+    // build-up at the contact point; after BEAM_CHARGE_STEPS the laser fires, then the
+    // particles calm down (handled in _stepBeamEruption). Gen 2+ is visual only — a flash
+    // + debris, no laser. Its hits chain at generation+1.
     if (planet.type === PlanetType.BEAM) {
-      flash(generation === 0 ? 0.5 : 0.35);
+      flash(generation === 0 ? 0.4 : 0.3);
       if (generation >= 2) { this._spawnEruptionDebris(params, 4, 1.0); return; }
-      SoundManager.play('laserBeam');
-      const path = this._simulateUnstableBeamPath(ox, oy, baseAngle, owner, planet, generation);
-      this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
+      SoundManager.play('laserCharged');
+      this.gs.eruptions.push({
+        ...params, beam: true, chain: generation > 0,
+        age: 0, chargeSteps: BEAM_CHARGE_STEPS, calmSteps: BEAM_CALM_STEPS, fired: false,
+      });
       return;
     }
 
@@ -2884,6 +2890,7 @@ export class GameLoop {
   // at random overlapping intervals and fire the lethal ejecta waves on schedule.
   _stepEruptions() {
     for (const seq of this.gs.eruptions) {
+      if (seq.beam) { this._stepBeamEruption(seq); continue; }
       seq.age++;
       // Mini-bursts — escalate then taper across the sequence (sine envelope)
       if (seq.age >= seq.nextMiniAt && seq.age < seq.duration) {
@@ -2903,8 +2910,53 @@ export class GameLoop {
         this._spawnEjectaWave(seq, w.count);
       }
     }
-    // A sequence is done once it has run its full duration and fired every wave
-    this.gs.eruptions = this.gs.eruptions.filter(s => s.age < s.duration || s.waves.some(w => !w.fired));
+    // A sequence is done once it has run its full duration and fired every wave (or, for
+    // a beam, once it has fired and finished its calm-down).
+    this.gs.eruptions = this.gs.eruptions.filter(s =>
+      s.beam ? (!s.fired || (s.age - s.chargeSteps) < s.calmSteps)
+             : (s.age < s.duration || s.waves.some(w => !w.fired)));
+  }
+
+  // Beam charge sequence: build precursor particles at the contact point, fire the laser
+  // when the charge completes, then taper the particles off.
+  _stepBeamEruption(seq) {
+    seq.age++;
+    if (!seq.fired) {
+      // Build-up: converging "charging" particles, intensifying toward the fire moment
+      const prog = Math.min(1, seq.age / seq.chargeSteps);
+      if (this.rng.next() < 0.04 + prog * 0.13) this._spawnBeamCharge(seq);
+      if (seq.age >= seq.chargeSteps) {
+        seq.fired = true;
+        this.gs.vfxList.push({ type: 'eruptionFlash', x: seq.ox, y: seq.oy, r: seq.gr, g: seq.gg, b: seq.gb, t: 0, duration: 0.55 });
+        SoundManager.play('laserBeam');
+        const path = this._simulateUnstableBeamPath(seq.ox, seq.oy, seq.baseAngle, seq.owner, seq.sourcePlanet, seq.generation);
+        this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
+        this._spawnEruptionDebris(seq, 12, 1.5); // muzzle burst as it discharges
+      }
+    } else {
+      // Calm-down: a tapering scatter of sparks dissipating from the muzzle
+      const taper = 1 - (seq.age - seq.chargeSteps) / seq.calmSteps;
+      if (taper > 0 && this.rng.next() < taper * 0.12) this._spawnEruptionDebris(seq, 1, 0.7);
+    }
+  }
+
+  // One converging "charging" particle: spawn on a ring around the contact point, moving
+  // inward toward it so the energy looks like it's gathering before the laser fires.
+  _spawnBeamCharge(seq) {
+    if (this.gs.eruptionDebris.length >= MAX_ERUPTION_DEBRIS) return;
+    const r  = seq.sourcePlanet?.radius ?? 30;
+    const a  = this.rng.next() * Math.PI * 2;
+    const cr = r * (0.3 + this.rng.next() * 0.4);
+    const px = seq.ox + Math.cos(a) * cr, py = seq.oy + Math.sin(a) * cr;
+    const dx = seq.ox - px, dy = seq.oy - py, dd = Math.hypot(dx, dy) || 1;
+    const sp = cr / 40; // converge onto the point over roughly its lifetime
+    this.gs.eruptionDebris.push({
+      x: px, y: py,
+      vx: (dx / dd) * sp, vy: (dy / dd) * sp,
+      t: 0, dt: 1 / (250 * (0.6 + this.rng.next() * 0.6)),
+      size: 0.7 + this.rng.next() * 1.3,
+      r: seq.gr, g: seq.gg, b: seq.gb,
+    });
   }
 
   // Spawn `count` lethal pyro/cryo blobs from an eruption sequence.

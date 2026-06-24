@@ -169,12 +169,22 @@ Each live pyro/cryo blob trails a short-lived coloured smoke puff per frame (pyr
 cryo pale blue) — emitted once per frame (not per sub-step) so the count stays bounded and
 game-speed-independent.
 
-### 4.7 Beam laser
-*Where:* `GameLoop._simulateUnstableBeamPath`, pushed as a yellow `laserPath` VFX.
-A Beam planet fires one piercing laser along the surface normal, reusing the Laser-weapon
-path simulation (100% gravity, pierces and **destroys** every station, shatters
-asteroids/crystals, reflects off shields, absorbed by solid planets). Instant; its hits
-chain at generation + 1.
+### 4.7 Beam laser (with charge-up)
+*Where:* a `beam` eruption sequence in `gs.eruptions`, advanced by `GameLoop._stepBeamEruption`;
+the laser itself is `_simulateUnstableBeamPath` pushed as a yellow `laserPath` VFX.
+A Beam impact does **not** fire instantly — it runs a short sequence:
+1. **Charge-up** (`BEAM_CHARGE_STEPS`, ~0.5s): converging "charging" particles
+   (`_spawnBeamCharge`) spawn on a ring around the contact point and move **inward**, at an
+   intensifying rate, so the energy looks like it's gathering. (`laserCharged` sound.)
+2. **Fire:** a bright flash + a muzzle burst of debris, then the laser path — one piercing
+   beam along the surface normal, reusing the Laser-weapon path simulation (100% gravity,
+   **destroys** every station, shatters asteroids/crystals, reflects off shields, absorbed
+   by solid planets). (`laserBeam` sound.) Its hits chain at generation + 1.
+3. **Calm-down** (`BEAM_CALM_STEPS`, ~0.36s): a tapering scatter of sparks dissipates.
+
+Gen 2+ skips the charge and is visual-only (flash + debris). Because a primary (gen-0) beam
+is a non-chain sequence, the fire phase waits for the full charge→fire→calm before the turn
+ends (so the build-up is always seen).
 
 ### 4.8 Eruption flash (VFX)
 *Where:* `eruptionFlash` entries in `gs.vfxList`, drawn by `Renderer._drawEruptionFlash`.
@@ -293,6 +303,8 @@ All in `src/core/GameLoop.js` unless noted.
 | `ERUPTION_DEBRIS_LIFE` | 840 | cosmetic debris lifetime (steps) |
 | `ERUPTION_DEBRIS_GRAV` | 0.167 | fraction of gravity the debris feel (float) |
 | `MAX_ERUPTION_DEBRIS` | 600 | global cosmetic-debris cap |
+| `BEAM_CHARGE_STEPS` | 1300 | beam precursor build-up before the laser fires (~0.5s) |
+| `BEAM_CALM_STEPS` | 900 | beam particle calm-down after firing (~0.36s) |
 
 ### Other
 | Constant | Value | Where |
