@@ -118,16 +118,23 @@ A dormant unstable planet draws three things over its baked rocky body:
   stateful** particle system (per-planet `_idleParts` + active `_idleSeqs`, stepped/drawn
   in `Renderer._drawIdleEruptions`). Each idle eruption is itself a little **escalating
   sequence** mirroring the real ones: waves of **1–2 → 2–4 → 5–7 → 2–3** particles fired
-  ~0.18–0.5s apart from one random surface point. Every particle launches ~perpendicular to
-  the surface (±28°), **arcs under a simple emulation of the planet's own gravity** (uniform
-  pull toward the centre, only that planet — not a full N-body sim), and **vanishes when it
-  lands**. Launch speed `1.5·r` and gravity `3·r` (game units) are calibrated for a **~1s
-  rise-and-fall**, apex ≈ 0.36·r — both scale with the planet. The eruptions are scheduled
-  with a **bimodal random gap**: ~55% of the time a short 0.1–0.6s gap (so they cluster /
-  fire in quick succession and overlap), otherwise a long 1.6–5s pause — giving irregular,
-  bursty timing rather than a metronome. Soft cap of 80 live particles per planet. Stepped
-  by real frame-delta (clamped ≤ 50ms, frame-rate-independent); skipped in **simplified**
-  mode. Particles draw as a type-coloured dot with a bright core. Cosmetic only.
+  ~0.18–0.5s apart. Eruptions are seeded **across the visible sphere**, not just the rim:
+  a spawn point at normalised radius `nd = d/r` (0 = pole facing the camera, 1 = limb)
+  behaves like `sin(latitude)` —
+  - **in-plane fountain** launch velocity ∝ `nd` (full at the rim, → 0 at the centre),
+  - a **constant outward "expansion" drift** ∝ `(1 − nd)` (max at the centre),
+  - **planet-gravity scaled by `nd`**, so rim points fountain up and **fall back onto the
+    surface** (side-on fountain) while centre points have no in-plane gravity and just
+    **expand outward and fade** (looking down into the eruption); everything between is a
+    blend. The `nd → 1` case reproduces the original edge eruptions exactly.
+
+  Particles vanish on **contact** (fall back to the rim, for the fountaining ones) or by
+  **lifetime** (~1.2–1.8s, for the expanding ones), with an alpha fade-out. Launch speed
+  `1.5·r`, expansion `0.45·r`, gravity `3·r·nd` — all scale with the planet. Spawn `nd =
+  √random` (uniform over disk area, so rim-weighted). Eruptions are scheduled with a
+  **bimodal random gap**: ~55% a short 0.1–0.6s gap (cluster / quick succession / overlap),
+  otherwise a long 1.6–5s pause. Soft cap 90 particles/planet. Stepped by clamped
+  frame-delta (frame-rate-independent); skipped in **simplified** mode. Cosmetic only.
 
 All purely decorative — no collisions, no gameplay — so "something unusual" reads at a
 glance. (Contrast the eruption *rumble* debris in §4.3, which **are** stateful, physics-

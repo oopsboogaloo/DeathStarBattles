@@ -4316,16 +4316,21 @@ export class Renderer {
     }
   }
 
-  // Continuous "this planet is unstable" tell. Each idle eruption is itself a little
-  // escalating SEQUENCE — waves of 1–2 → 2–4 → 5–7 → 2–3 particles, ~0.2–0.5s apart —
-  // erupting from one surface point, arcing under a simple emulation of the planet's
-  // own gravity, and vanishing on landing. The eruptions are scheduled with a bimodal
-  // random gap, so they cluster (several in quick succession / overlapping) and then
-  // pause for a longer beat. Cosmetic only; pooled state lives on the planet.
+  // Continuous "this planet is unstable" tell. Each idle eruption is a little
+  // escalating SEQUENCE — waves of 1–2 → 2–4 → 5–7 → 2–3 particles, ~0.2–0.5s apart.
+  // Eruptions are seeded across the *visible sphere*: a spawn point at normalised
+  // radius nd = d/r (0 = pole facing the camera, 1 = limb) behaves like sin(latitude):
+  //   • in-plane fountain velocity ∝ nd   (full at the rim, → 0 at the centre)
+  //   • a constant outward "expansion" drift ∝ (1 − nd) (max at the centre)
+  //   • planet-gravity scaled by nd, so rim points fountain & fall back while centre
+  //     points just expand and fade — looking down into the eruption.
+  // The rim case (nd→1) reproduces the original edge eruptions exactly. Eruptions are
+  // scheduled with a bimodal random gap so they cluster then pause. Cosmetic only.
   _drawIdleEruptions(ctx, planet, conv, now, dt, gr, gg, gb) {
     const cx = planet.position.x, cy = planet.position.y; // game units
     const r  = planet.radius;
-    const v0 = 1.5 * r; // launch speed → ~1s flight, apex ≈ 0.38r
+    const v0   = 1.5 * r;  // rim fountain launch speed → ~1s flight
+    const vExp = 0.45 * r; // centre expansion drift speed (units/s)
     let parts = planet._idleParts;
     if (!parts) {
       parts = planet._idleParts = [];
@@ -4333,20 +4338,29 @@ export class Renderer {
       planet._idleNextT = now + Math.random() * 0.6;
     }
 
-    const spawnWave = (ang, count) => {
-      if (parts.length > 80) return; // soft per-planet cap
-      const ox = cx + Math.cos(ang) * r, oy = cy + Math.sin(ang) * r;
+    const spawnWave = (ang, nd, count) => {
+      if (parts.length > 90) return; // soft per-planet cap
+      const rdx = Math.cos(ang), rdy = Math.sin(ang);     // radial-outward unit
+      const ox  = cx + rdx * (nd * r), oy = cy + rdy * (nd * r);
+      const driftSp = vExp * (1 - nd);                    // expansion: 0 at rim, max at centre
       for (let i = 0; i < count; i++) {
-        const a  = ang + (Math.random() * 2 - 1) * 0.5; // ~±28° off the surface normal
-        const sp = v0 * (0.8 + Math.random() * 0.4);
-        parts.push({ x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, size: 0.7 + Math.random() * 0.9 });
+        const a  = ang + (Math.random() * 2 - 1) * 0.5;   // ~±28° off the surface normal
+        const sp = v0 * nd * (0.8 + Math.random() * 0.4); // fountain ∝ nd
+        parts.push({
+          x: ox, y: oy,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,     // gravity-affected fountain
+          dx: rdx * driftSp,    dy: rdy * driftSp,        // constant outward expansion drift
+          nd, age: 0, life: 1.2 + Math.random() * 0.6, above: false,
+          size: 0.7 + Math.random() * 0.9,
+        });
       }
     };
 
     // Schedule a new eruption sequence — bimodal gap: usually a quick succession
-    // (cluster/overlap), occasionally a long pause.
+    // (cluster/overlap), occasionally a long pause. Spawn point spread over the disk.
     if (now >= planet._idleNextT) {
       const ang = Math.random() * Math.PI * 2;
+      const nd  = Math.sqrt(Math.random()); // uniform over the disk area (rim-weighted)
       const counts = [
         1 + Math.floor(Math.random() * 2), // 1–2
         2 + Math.floor(Math.random() * 3), // 2–4
@@ -4355,7 +4369,7 @@ export class Renderer {
       ];
       let t = 0; const at = [];
       for (let k = 0; k < counts.length; k++) { at.push(t); t += 0.18 + Math.random() * 0.32; }
-      planet._idleSeqs.push({ ang, counts, at, start: now, idx: 0 });
+      planet._idleSeqs.push({ ang, nd, counts, at, start: now, idx: 0 });
       planet._idleNextT = now + (Math.random() < 0.55 ? 0.1 + Math.random() * 0.5 : 1.6 + Math.random() * 3.4);
     }
 
@@ -4363,25 +4377,27 @@ export class Renderer {
     for (let s = planet._idleSeqs.length - 1; s >= 0; s--) {
       const seq = planet._idleSeqs[s];
       while (seq.idx < seq.counts.length && now >= seq.start + seq.at[seq.idx]) {
-        spawnWave(seq.ang, seq.counts[seq.idx]);
+        spawnWave(seq.ang, seq.nd, seq.counts[seq.idx]);
         seq.idx++;
       }
       if (seq.idx >= seq.counts.length) planet._idleSeqs.splice(s, 1);
     }
 
-    // Step + draw; uniform gravity toward the planet centre; remove on contact
-    const g = 3.0 * r; // units/s² — tuned with v0 for ~1s flight
+    // Step + draw. Gravity toward the centre is scaled by nd (rim arcs back, centre
+    // expands). Particles vanish when they fall back onto the surface, or fade by life.
     const coreR = Math.min(255, gr + 120), coreG = Math.min(255, gg + 120), coreB = Math.min(255, gb + 120);
     for (let i = parts.length - 1; i >= 0; i--) {
       const p  = parts[i];
       const dx = cx - p.x, dy = cy - p.y;
       const d  = Math.hypot(dx, dy) || 1;
+      const g  = 3.0 * r * p.nd; // in-plane gravity ∝ nd
       p.vx += (dx / d) * g * dt;
       p.vy += (dy / d) * g * dt;
-      p.x  += p.vx * dt; p.y += p.vy * dt;
+      p.x  += (p.vx + p.dx) * dt; p.y += (p.vy + p.dy) * dt;
       p.age += dt;
-      if ((p.age > 0.08 && d <= r) || p.age > 2.5) { parts.splice(i, 1); continue; }
-      const alpha = 0.85 * Math.min(1, 1 - p.age / 2.2);
+      if (d > r) p.above = true;
+      if ((p.above && p.age > 0.08 && d <= r) || p.age > p.life) { parts.splice(i, 1); continue; }
+      const alpha = 0.85 * Math.min(1, (p.life - p.age) / 0.35);
       const sx = p.x * conv, sy = p.y * conv;
       const rad = Math.max(0.8, p.size * conv);
       ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2);
