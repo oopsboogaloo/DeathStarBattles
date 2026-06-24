@@ -47,8 +47,8 @@ const EJECTA_MAX_LIFETIME     = 24000; // steps before a ballistic blob fades (s
 const ELECTRO_SPEED           = 1.6;  // electro bolt speed (units/time) — fast & straight
 const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
 const MAX_EJECTA              = 30;   // global active-ejecta cap
-const BEAM_CHARGE_STEPS       = 1300; // beam precursor build-up before the laser fires (~0.5s)
-const BEAM_CALM_STEPS         = 900;  // beam particle calm-down after firing (~0.36s)
+const BEAM_CHARGE_STEPS       = 5200; // beam precursor build-up before the laser fires (~2s)
+const BEAM_CALM_STEPS         = 3600; // beam particle calm-down after firing (~1.4s)
 
 // Mammoth Cannon tuning constants
 const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
