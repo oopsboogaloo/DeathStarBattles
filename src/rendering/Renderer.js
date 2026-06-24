@@ -928,6 +928,8 @@ export class Renderer {
     // Cosmetic eruption debris (mini-burst sprays), then the lethal ejecta blobs
     if (gameState.eruptionDebris?.length) this._drawEruptionDebris(ctx, gameState.eruptionDebris);
     if (gameState.ejecta?.length) this._drawEjecta(ctx, gameState.ejecta);
+    // Electro forked lightning
+    if (gameState.lightning?.length) this._drawLightning(ctx, gameState.lightning);
 
     // Rotating asteroids — drawn live every frame so the polygon matches _rotatedVerts
     for (const planet of this._planets) {
@@ -4309,30 +4311,14 @@ export class Renderer {
   }
 
 
-  // Eruption ejecta — pyro/cryo growing glowing blobs, electro lightning bolts.
+  // Eruption ejecta — pyro/cryo growing glowing blobs. (Electro is its own forked
+  // lightning system, see _drawLightning.)
   _drawEjecta(ctx, ejecta) {
     const conv = this.conv;
     for (const e of ejecta) {
       if (e.dead || e.launchDelay > 0) continue;
       const [gr, gg, gb] = UNSTABLE_GLOW[e.kind] ?? [255, 180, 60];
       const x = e.position.x * conv, y = e.position.y * conv;
-
-      if (e.kind === 'electro') {
-        // Lightning bolt — jagged trail + bright white head
-        if (e.trail.length > 1) {
-          ctx.beginPath();
-          ctx.moveTo(e.trail[0].x * conv, e.trail[0].y * conv);
-          for (let i = 1; i < e.trail.length; i++) ctx.lineTo(e.trail[i].x * conv, e.trail[i].y * conv);
-          ctx.strokeStyle = `rgba(${gr},${gg},${gb},0.85)`;
-          ctx.lineWidth   = Math.max(1, conv * 0.5);
-          ctx.stroke();
-        }
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(1, conv * 0.5), 0, Math.PI * 2);
-        ctx.fillStyle = 'rgb(255,255,255)';
-        ctx.fill();
-        continue;
-      }
 
       // Pyro/Cryo blob — radial gradient: white-hot core → colour → soft edge
       const R = Math.max(1.5, e.radius * conv);
@@ -4345,6 +4331,32 @@ export class Renderer {
       ctx.fillStyle = grad;
       ctx.fill();
     }
+  }
+
+  // Electro forked lightning — each strike is a set of placed segments. Drawn as a
+  // wide coloured glow plus a bright white core; `alpha` carries the hold/fade.
+  _drawLightning(ctx, lightning) {
+    const conv = this.conv;
+    for (const L of lightning) {
+      if (!L.segments.length || L.alpha <= 0) continue;
+      const a = Math.max(0, Math.min(1, L.alpha));
+
+      // Outer glow pass
+      ctx.beginPath();
+      for (const s of L.segments) { ctx.moveTo(s.x1 * conv, s.y1 * conv); ctx.lineTo(s.x2 * conv, s.y2 * conv); }
+      ctx.strokeStyle = `rgba(${L.r},${L.g},${L.b},${(0.45 * a).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1.5, conv * 1.0);
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+
+      // Bright white core pass
+      ctx.beginPath();
+      for (const s of L.segments) { ctx.moveTo(s.x1 * conv, s.y1 * conv); ctx.lineTo(s.x2 * conv, s.y2 * conv); }
+      ctx.strokeStyle = `rgba(255,255,255,${(0.9 * a).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(0.8, conv * 0.4);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
   }
 
   // Cosmetic mini-eruption debris — glowing sparks (bright hot core) that fade as

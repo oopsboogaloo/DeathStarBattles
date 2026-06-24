@@ -18,7 +18,7 @@ There are four subtypes, distinguished by colour, idle effect, and eruption payl
 |---|---|---|---|---|
 | **Pyro**    | `PYRO`    | molten red `[255,70,30]`     | slow swelling **blobs** (rumble sequence) | **destroys** it |
 | **Cryo**    | `CRYO`    | frost white `[225,240,255]`  | slow swelling **blobs** (rumble sequence) | **freezes** (`frozen += 1`) |
-| **Electro** | `ELECTRO` | blue-cyan `[70,200,255]`     | fast straight **lightning bolts** (instant) | **shocks** (`electrified += 1`) |
+| **Electro** | `ELECTRO` | blue-cyan `[70,200,255]`     | **forked lightning** strike (grows out into the map) | **shocks** (`electrified += 1`) |
 | **Beam**    | `BEAM`    | yellow `[255,210,60]`        | one piercing **laser** (instant) | **destroys** every station on the beam |
 
 Colours are `UNSTABLE_GLOW` in `src/entities/Planet.js`; they tint the under-crack glow,
@@ -155,12 +155,26 @@ Slow, swelling blobs:
   by its own surface).
 - They also emit comet-style smoke (§4.6).
 
-### 4.5 Lethal lightning bolts — Electro
-*Where:* `Ejecta` (kind electro), spawned **instantly** in `_triggerEruption`, stepped by
-`_stepEjecta`, drawn by `_drawEjecta` as a jagged bolt.
-Fast (`ELECTRO_SPEED = 1.6`), **straight** (ignores gravity), short range
-(`ELECTRO_REACH_MULT = 3` × planet radius). On a station: **electrified += 1**. Electro is
-a one-shot spray (no rumble sequence).
+### 4.5 Electro forked lightning
+*Where:* a strike object in `gs.lightning`, created in `_triggerEruption`, grown by
+`GameLoop._stepLightning` (**once per rendered frame**, so it reads as fast lightning),
+drawn by `Renderer._drawLightning`.
+A strike is a growing tree of bolt **segments**:
+- It starts at the contact point heading along the **surface normal** (out into the map).
+- Each frame every active **path head** lays one segment of ~`LIGHTNING_SEG_LEN`(11, a
+  station-width), turning a random **±`LIGHTNING_MAX_ANGLE`(30°)** from the previous one.
+- Each placed segment has a **`LIGHTNING_FORK_CHANCE`(15%)** chance to spawn a **new
+  forked path** (a fresh head at a wider angle), up to `LIGHTNING_MAX_HEADS`(10) heads.
+- It stops once the total segment budget is spent (`LIGHTNING_MAX_SEGMENTS`(30) for gen 0;
+  ~12 for gen 1) or all heads run off the map, then **holds ~1s**
+  (`LIGHTNING_HOLD_FRAMES`) and **quickly fades** (`LIGHTNING_FADE_FRAMES`).
+- As segments are laid, `_lightningHitCheck` electrifies any **station** a segment crosses
+  (`electrified += 1`, once each; **shield blocks**, **armour absorbs**) and
+  **chain-triggers** any other unstable planet it touches at generation + 1.
+
+Gen 2+ is visual only (flash + debris). The strike is rendered as a wide coloured glow
+plus a bright white core; the hold/fade rides an `alpha`. A primary (gen-0) strike is a
+non-chain entry, so the fire phase waits for it to grow→hold→fade before the turn ends.
 
 ### 4.6 Ejecta smoke puffs (cosmetic)
 *Where:* `GameLoop._emitEjectaSmoke` (once per frame), reusing the `gs.cometSmoke` pool;
@@ -218,8 +232,8 @@ ejecta. A payload that triggers another planet passes `generation + 1`:
 
 | Gen | Trigger | Pyro / Cryo | Electro | Beam |
 |---|---|---|---|---|
-| **0** | bullet / rocket | full rumble sequence, **1 → 2–3 → 1–2** ejecta (~3.6s) | 5–7 bolts (instant) | full laser |
-| **1** | a gen-0 payload | shorter rumble (~0.6×), **2–3** ejecta over 2 waves | 2–3 bolts | one laser |
+| **0** | bullet / rocket | full rumble sequence, **1 → 2–3 → 1–2** ejecta (~3.6s) | full forked strike (30 seg) | full laser (with charge-up) |
+| **1** | a gen-0 payload | shorter rumble (~0.6×), **2–3** ejecta over 2 waves | shorter strike (~12 seg) | one laser |
 | **2+** | a gen-1 payload | brief rumble (~0.42×), **0 ejecta** (visual only) | flash + debris only | flash + debris only |
 
 Because gen-2 produces **no payload**, the chain always terminates. The original source
@@ -291,8 +305,12 @@ All in `src/core/GameLoop.js` unless noted.
 | `EJECTA_GROW_STEPS` | 90 | steps to grow to full size (ease-out) |
 | `EJECTA_MAX_LIFETIME` | 24000 | blob airtime before it fades |
 | `ERUPTION_STAGGER_STEPS` | 300 | max random launch delay (electro spray) |
-| `ELECTRO_SPEED` | 1.6 | electro bolt speed (straight, no gravity) |
-| `ELECTRO_REACH_MULT` | 3 | electro range = this × planet radius |
+| `LIGHTNING_SEG_LEN` | 11 | bolt segment length (~a station width) |
+| `LIGHTNING_MAX_ANGLE` | 30 | ± degrees a segment may turn from the previous |
+| `LIGHTNING_FORK_CHANCE` | 0.15 | chance a segment forks a new path |
+| `LIGHTNING_MAX_SEGMENTS` | 30 | gen-0 total segment budget (gen 1 ≈ 12) |
+| `LIGHTNING_MAX_HEADS` | 10 | cap on simultaneous growing paths |
+| `LIGHTNING_HOLD_FRAMES / FADE_FRAMES` | 60 / 14 | hold (~1s) then quick fade |
 | `MAX_EJECTA` | 30 | global active-ejecta cap |
 
 ### Eruption sequence & rumble debris

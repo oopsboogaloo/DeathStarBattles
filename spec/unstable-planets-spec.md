@@ -18,7 +18,7 @@ Four subtypes share one trigger (a projectile striking the surface) but differ i
 |---|---|---|---|---|
 | **Pyro** | Glowing **red** | Mini red particle eruptions | 5–7 ballistic, **gravity-affected** ejecta | **Destroys** the station (lethal, like a bullet) |
 | **Cryo** | Glowing **white** | White particle eruptions | 5–7 ballistic, **gravity-affected** ejecta | Applies **Frozen** (`frozen += 1`) |
-| **Electro** | Glowing **blue-cyan** | Crackling surface electricity | 5–7 **lightning** bolts — straight, **ignores gravity** | Applies **Electrified** (`electrified += 1`) |
+| **Electro** | Glowing **blue-cyan** | Crackling surface electricity | A **forked lightning strike** that grows out into the map | Applies **Electrified** (`electrified += 1`) to anything it touches |
 | **Beam** | Glowing **yellow** | Faint yellow light glints | **One laser beam** fired perpendicular to the surface | **Destroys** every station along the beam (like the Laser weapon) |
 
 The first three (Pyro / Cryo / Electro) share the **ejecta eruption** model (§4.2–§4.4). **Beam** is the odd one out: instead of a spray of particles it fires a single piercing **laser beam** straight out from the point of impact (§4.6).

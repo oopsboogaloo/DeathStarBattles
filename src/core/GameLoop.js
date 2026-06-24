@@ -49,6 +49,14 @@ const ELECTRO_REACH_MULT      = 3;    // electro range = this × planet radius
 const MAX_EJECTA              = 30;   // global active-ejecta cap
 const BEAM_CHARGE_STEPS       = 5200; // beam precursor build-up before the laser fires (~2s)
 const BEAM_CALM_STEPS         = 3600; // beam particle calm-down after firing (~1.4s)
+// Electro forked-lightning (grown one segment per path per rendered frame)
+const LIGHTNING_SEG_LEN       = 11;   // segment length (~a regular station width)
+const LIGHTNING_MAX_ANGLE     = 30;   // ± degrees a segment may turn from the previous one
+const LIGHTNING_FORK_CHANCE   = 0.15; // chance a placed segment spawns a new forked path
+const LIGHTNING_MAX_SEGMENTS  = 30;   // total segment budget for a gen-0 strike
+const LIGHTNING_MAX_HEADS     = 10;   // cap on simultaneously growing path heads
+const LIGHTNING_HOLD_FRAMES   = 60;   // ~1s hold once fully grown
+const LIGHTNING_FADE_FRAMES   = 14;   // quick fade-out
 
 // Mammoth Cannon tuning constants
 const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
@@ -1094,6 +1102,7 @@ export class GameLoop {
     this.gs.ejecta                = [];
     this.gs.eruptions             = [];
     this.gs.eruptionDebris        = [];
+    this.gs.lightning             = [];
     this.gs.firingStep            = 0;
 
     for (const station of this._turnOrder) {
@@ -2171,6 +2180,8 @@ export class GameLoop {
 
     // Pyro/Cryo ejecta emit comet-style smoke puffs (once per frame, like comets)
     if (this.gs.ejecta.length) this._emitEjectaSmoke();
+    // Grow/hold/fade electro forked lightning (once per frame → fast lightning)
+    if (this.gs.lightning.length) this._stepLightning(allStations);
 
     // Fragment any asteroids hit this frame (mutates gs.planets in-place)
     this._processAsteroidFragments();
@@ -2325,14 +2336,17 @@ export class GameLoop {
     // Wait only for a PRIMARY (bullet-triggered) eruption sequence to finish — not
     // for the ejecta it throws, nor for chain eruptions those ejecta set off.
     const primaryErupting = this.gs.eruptions.some(s => !s.chain);
+    // Likewise wait for a primary (bullet-triggered) lightning strike to finish.
+    const primaryLightning = this.gs.lightning.some(L => !L.chain);
     const teleportsGone  = (this.gs.pendingTeleports?.length ?? 0) === 0;
     const stationsMoving = this.gs.stationMovement &&
       allStations.some(s => s.status === 'active' && s.velocity);
-    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && !primaryErupting && teleportsGone && !stationsMoving) {
-      // Mid-flight ejecta, chain eruptions, and debris just stop — clear them
+    if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && !primaryErupting && !primaryLightning && teleportsGone && !stationsMoving) {
+      // Mid-flight ejecta, chain eruptions, debris, and lightning just stop — clear them
       this.gs.ejecta = [];
       this.gs.eruptions = [];
       this.gs.eruptionDebris = [];
+      this.gs.lightning = [];
       for (const reinf of this.gs.pendingReinforcements ?? []) {
         this._spawnReinforcementStation(reinf.team, reinf.x, reinf.y, reinf.size);
       }
@@ -2836,26 +2850,23 @@ export class GameLoop {
       return;
     }
 
-    // Electro: instant lightning spray (gen 0: 5–7 bolts; gen 1: 2–3; gen 2+: visual only)
+    // Electro: a forked lightning strike that grows out into the map (one segment per
+    // path per frame), electrifying anything it touches, then holds and fades. Gen 2+ is
+    // visual only. Gen 1 is a shorter strike.
     if (planet.type === PlanetType.ELECTRO) {
       flash(generation === 0 ? 0.5 : 0.35);
       if (generation >= 2) { this._spawnEruptionDebris(params, 4, 1.0); return; }
-      SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
-      const electroLife = Math.ceil((ELECTRO_REACH_MULT * planet.radius) / (ELECTRO_SPEED * TIMESTEP));
-      const n = generation === 0
-        ? EJECTA_COUNT_MIN + Math.floor(this.rng.next() * (EJECTA_COUNT_MAX - EJECTA_COUNT_MIN + 1))
-        : 2 + Math.floor(this.rng.next() * 2); // 2–3
-      for (let i = 0; i < n; i++) {
-        if (this.gs.ejecta.length >= MAX_EJECTA) break;
-        const a = baseAngle + (this.rng.next() * 2 - 1) * EJECTA_SPREAD_DEG * Math.PI / 180;
-        this.gs.ejecta.push(new Ejecta({
-          position: new Vec2(ox, oy),
-          velocity: new Vec2(Math.cos(a) * ELECTRO_SPEED, Math.sin(a) * ELECTRO_SPEED),
-          kind: EjectaKind.ELECTRO, owner, sourcePlanet: planet,
-          launchDelay: Math.floor(this.rng.next() * ERUPTION_STAGGER_STEPS),
-          maxLifetime: electroLife, maxRadius: 0, generation,
-        }));
-      }
+      SoundManager.play('laser', { pitch: 0.3 });
+      this.gs.lightning.push({
+        owner, sourcePlanet: planet, generation, chain: generation > 0,
+        r: gr, g: gg, b: gb,
+        segments: [],                                   // {x1,y1,x2,y2} placed bolt segments
+        heads: [{ x: ox, y: oy, angle: baseAngle }],    // active growing path heads
+        total: 0,
+        maxSegments: generation === 0 ? LIGHTNING_MAX_SEGMENTS : Math.round(LIGHTNING_MAX_SEGMENTS * 0.4),
+        phase: 'growing', holdT: 0, alpha: 1,
+        hitStations: new Set(), hitPlanets: new Set(),
+      });
       return;
     }
 
@@ -3121,6 +3132,78 @@ export class GameLoop {
         r: sr, g: sg, b: sb,
       });
     }
+  }
+
+  // Advance electro forked-lightning once per rendered frame: while growing, each active
+  // path head lays one segment (turning ±30° from the previous, 15% chance to fork a new
+  // path) and electrifies anything it crosses; once the segment budget is spent it holds
+  // ~1s then fades. Grown per frame (not per sub-step) so it reads as fast lightning.
+  _stepLightning(allStations) {
+    if (!this.gs.lightning.length) return;
+    const { gw, gh } = this.physics;
+    const mx0 = -gw * 0.35, mx1 = gw * 1.35, my0 = -gh * 0.35, my1 = gh * 1.35;
+    const maxAng = LIGHTNING_MAX_ANGLE * Math.PI / 180;
+
+    for (const L of this.gs.lightning) {
+      if (L.phase === 'growing') {
+        const newHeads = [];
+        for (const h of L.heads) {
+          if (h.dead || L.total >= L.maxSegments) continue;
+          const ang = h.angle + (this.rng.next() * 2 - 1) * maxAng;
+          const len = LIGHTNING_SEG_LEN * (0.8 + this.rng.next() * 0.4);
+          const ex  = h.x + Math.cos(ang) * len, ey = h.y + Math.sin(ang) * len;
+          L.segments.push({ x1: h.x, y1: h.y, x2: ex, y2: ey });
+          L.total++;
+          this._lightningHitCheck(L, h.x, h.y, ex, ey, allStations);
+          h.x = ex; h.y = ey; h.angle = ang;
+          if (ex < mx0 || ex > mx1 || ey < my0 || ey > my1) { h.dead = true; continue; }
+          // 15% fork: a new path branching off at a wider angle
+          if (this.rng.next() < LIGHTNING_FORK_CHANCE &&
+              L.total < L.maxSegments && L.heads.length + newHeads.length < LIGHTNING_MAX_HEADS) {
+            const fa = ang + (this.rng.next() < 0.5 ? 1 : -1) * (maxAng + this.rng.next() * maxAng);
+            newHeads.push({ x: ex, y: ey, angle: fa });
+          }
+        }
+        L.heads = L.heads.filter(h => !h.dead).concat(newHeads);
+        if (L.total >= L.maxSegments || L.heads.length === 0) { L.phase = 'hold'; L.holdT = 0; }
+      } else if (L.phase === 'hold') {
+        if (++L.holdT >= LIGHTNING_HOLD_FRAMES) L.phase = 'fading';
+      } else {
+        L.alpha -= 1 / LIGHTNING_FADE_FRAMES;
+      }
+    }
+    this.gs.lightning = this.gs.lightning.filter(L => L.alpha > 0);
+  }
+
+  // A lightning segment electrifies any station it crosses (shield blocks, armour
+  // absorbs) and chain-triggers any other unstable planet it touches.
+  _lightningHitCheck(L, x1, y1, x2, y2, allStations) {
+    for (const s of allStations) {
+      if (s.status !== 'active' || L.hitStations.has(s)) continue;
+      if (this._segHitsCircle(x1, y1, x2, y2, s.position.x, s.position.y, s.radius)) {
+        L.hitStations.add(s);
+        const shielded = this.gs.shields.some(sh => sh.alive && sh.station === s);
+        if (!shielded) this._applyBeamCondition(s, 'electrified', 1);
+      }
+    }
+    for (const p of this.gs.planets) {
+      if (p.destroyed || p === L.sourcePlanet || L.hitPlanets.has(p) || !isUnstable(p.type)) continue;
+      if (this._segHitsCircle(x1, y1, x2, y2, p.position.x, p.position.y, p.impactRadius)) {
+        L.hitPlanets.add(p);
+        this._triggerEruption(p, x2, y2, L.owner, L.generation + 1);
+      }
+    }
+  }
+
+  // True if segment (x1,y1)-(x2,y2) comes within `rad` of (cx,cy).
+  _segHitsCircle(x1, y1, x2, y2, cx, cy, rad) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const l2 = dx * dx + dy * dy;
+    let t = l2 > 0 ? ((cx - x1) * dx + (cy - y1) * dy) / l2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const px = x1 + t * dx, py = y1 + t * dy;
+    const ddx = cx - px, ddy = cy - py;
+    return ddx * ddx + ddy * ddy <= rad * rad;
   }
 
   // Apply an ejecta's effect to a station: pyro kills, cryo freezes, electro shocks.
@@ -4854,6 +4937,7 @@ export class GameLoop {
     }
 
     if (this.gs.ejecta.length) this._emitEjectaSmoke();
+    if (this.gs.lightning.length) this._stepLightning(this.gs.allStations);
 
     this._processAsteroidFragments();
     this._processGreySplits();
