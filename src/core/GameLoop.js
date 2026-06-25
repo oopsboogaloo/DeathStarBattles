@@ -3164,49 +3164,13 @@ export class GameLoop {
   // ~1s then fades. Grown per frame (not per sub-step) so it reads as fast lightning.
   _stepLightning(allStations) {
     if (!this.gs.lightning.length) return;
-    const { gw, gh } = this.physics;
-    const mx0 = -gw * 0.35, mx1 = gw * 1.35, my0 = -gh * 0.35, my1 = gh * 1.35;
-    const maxAng = LIGHTNING_MAX_ANGLE * Math.PI / 180;
 
     for (const L of this.gs.lightning) {
       if (L.phase === 'growing') {
-        const newHeads = [];
-        const single = L.heads.length === 1; // a lone path forks more; multiple paths thin out
-        const forkAt = (ex, ey, ang) => {
-          if (L.total >= L.maxSegments || L.heads.length + newHeads.length >= LIGHTNING_MAX_HEADS) return;
-          const fa = ang + (this.rng.next() < 0.5 ? 1 : -1) * (maxAng + this.rng.next() * maxAng);
-          newHeads.push({ x: ex, y: ey, angle: fa });
-        };
-        for (const h of L.heads) {
-          if (h.dead || L.total >= L.maxSegments) continue;
-          const ang = h.angle + (this.rng.next() * 2 - 1) * maxAng;
-          const len = LIGHTNING_SEG_LEN * (0.8 + this.rng.next() * 0.4);
-          const ex  = h.x + Math.cos(ang) * len, ey = h.y + Math.sin(ang) * len;
-          const seg = { x1: h.x, y1: h.y, x2: ex, y2: ey };
-          L.segments.push(seg);
-          L.total++;
-          const blocker = this._lightningHitCheck(L, h.x, h.y, ex, ey, allStations);
-          if (blocker) {
-            // Clip the final segment to the planet surface so the bolt grounds cleanly
-            const clip = this._clipSegToCircle(h.x, h.y, ex, ey, blocker.position.x, blocker.position.y, blocker.impactRadius);
-            seg.x2 = clip.x; seg.y2 = clip.y;
-            h.dead = true; continue;
-          }
-          h.x = ex; h.y = ey; h.angle = ang;
-          // A branch also stops when it leaves the map
-          if (ex < mx0 || ex > mx1 || ey < my0 || ey > my1) { h.dead = true; continue; }
-          if (single) {
-            // Lone path: 30% chance to fork a new branch
-            if (this.rng.next() < LIGHTNING_FORK_CHANCE) forkAt(ex, ey, ang);
-          } else {
-            // Multiple paths: a general 10% fork keeps it busy, plus each path has a
-            // 5% chance to die off this segment
-            if (this.rng.next() < LIGHTNING_FORK_MULTI) forkAt(ex, ey, ang);
-            if (this.rng.next() < LIGHTNING_END_CHANCE) h.dead = true;
-          }
-        }
-        L.heads = L.heads.filter(h => !h.dead).concat(newHeads);
-        if (L.total >= L.maxSegments || L.heads.length === 0) { L.phase = 'hold'; L.holdT = 0; }
+        // Stutter: each frame advance the whole strike by a random 0–3 rounds, so it
+        // sometimes halts for a beat and sometimes jumps ahead — like real lightning.
+        const rounds = Math.floor(this.rng.next() * 4); // 0,1,2,3
+        for (let r = 0; r < rounds && L.phase === 'growing'; r++) this._growLightningRound(L, allStations);
       } else if (L.phase === 'hold') {
         if (++L.holdT >= LIGHTNING_HOLD_FRAMES) L.phase = 'fading';
       } else {
@@ -3214,6 +3178,50 @@ export class GameLoop {
       }
     }
     this.gs.lightning = this.gs.lightning.filter(L => L.alpha > 0);
+  }
+
+  // One growth round of a lightning strike: every active head lays a segment.
+  _growLightningRound(L, allStations) {
+    const { gw, gh } = this.physics;
+    const mx0 = -gw * 0.35, mx1 = gw * 1.35, my0 = -gh * 0.35, my1 = gh * 1.35;
+    const maxAng = LIGHTNING_MAX_ANGLE * Math.PI / 180;
+    const newHeads = [];
+    const single = L.heads.length === 1; // a lone path forks more; multiple paths thin out
+    const forkAt = (ex, ey, ang) => {
+      if (L.total >= L.maxSegments || L.heads.length + newHeads.length >= LIGHTNING_MAX_HEADS) return;
+      const fa = ang + (this.rng.next() < 0.5 ? 1 : -1) * (maxAng + this.rng.next() * maxAng);
+      newHeads.push({ x: ex, y: ey, angle: fa });
+    };
+    for (const h of L.heads) {
+      if (h.dead || L.total >= L.maxSegments) continue;
+      const ang = h.angle + (this.rng.next() * 2 - 1) * maxAng;
+      const len = LIGHTNING_SEG_LEN * (0.8 + this.rng.next() * 0.4);
+      const ex  = h.x + Math.cos(ang) * len, ey = h.y + Math.sin(ang) * len;
+      const seg = { x1: h.x, y1: h.y, x2: ex, y2: ey };
+      L.segments.push(seg);
+      L.total++;
+      const blocker = this._lightningHitCheck(L, h.x, h.y, ex, ey, allStations);
+      if (blocker) {
+        // Clip the final segment to the planet surface so the bolt grounds cleanly
+        const clip = this._clipSegToCircle(h.x, h.y, ex, ey, blocker.position.x, blocker.position.y, blocker.impactRadius);
+        seg.x2 = clip.x; seg.y2 = clip.y;
+        h.dead = true; continue;
+      }
+      h.x = ex; h.y = ey; h.angle = ang;
+      // A branch also stops when it leaves the map
+      if (ex < mx0 || ex > mx1 || ey < my0 || ey > my1) { h.dead = true; continue; }
+      if (single) {
+        // Lone path: 30% chance to fork a new branch
+        if (this.rng.next() < LIGHTNING_FORK_CHANCE) forkAt(ex, ey, ang);
+      } else {
+        // Multiple paths: a general 10% fork keeps it busy, plus each path has a
+        // 5% chance to die off this segment
+        if (this.rng.next() < LIGHTNING_FORK_MULTI) forkAt(ex, ey, ang);
+        if (this.rng.next() < LIGHTNING_END_CHANCE) h.dead = true;
+      }
+    }
+    L.heads = L.heads.filter(h => !h.dead).concat(newHeads);
+    if (L.total >= L.maxSegments || L.heads.length === 0) { L.phase = 'hold'; L.holdT = 0; }
   }
 
   // A lightning segment electrifies any station it crosses (shield blocks, armour

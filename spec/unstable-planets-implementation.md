@@ -161,7 +161,9 @@ Slow, swelling blobs:
 drawn by `Renderer._drawLightning`.
 A strike is a growing tree of bolt **segments**:
 - It starts at the contact point heading along the **surface normal** (out into the map).
-- Each frame every active **path head** lays one segment of ~`LIGHTNING_SEG_LEN`(11, a
+- Each frame the strike advances by a random **0–3 growth rounds** (so it sometimes halts
+  for a beat and sometimes jumps ahead — the characteristic lightning stutter). In each
+  round every active **path head** lays one segment of ~`LIGHTNING_SEG_LEN`(11, a
   station-width), turning a random **±`LIGHTNING_MAX_ANGLE`(30°)** from the previous one.
 - **While there is a single path**, each placed segment has a **`LIGHTNING_FORK_CHANCE`
   (30%)** chance to spawn a **new forked path** (a fresh head at a wider angle), up to
