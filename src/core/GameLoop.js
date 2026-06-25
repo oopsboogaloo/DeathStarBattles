@@ -1635,7 +1635,7 @@ export class GameLoop {
             burst.station.position.x + (burst.station.radius + 1) * Math.sin(rad),
             burst.station.position.y + (burst.station.radius + 1) * Math.cos(rad),
           );
-          const vel   = new Vec2(MAX_V * 0.08 * Math.sin(rad), MAX_V * 0.08 * Math.cos(rad));
+          const vel   = new Vec2(MAX_V * 0.32 * Math.sin(rad), MAX_V * 0.32 * Math.cos(rad));
           const ring  = new IceRing({ owner: burst.station, position: pos, velocity: vel });
           ring.radius = burst.station.radius;
           this.gs.iceRings.push(ring);
@@ -2198,11 +2198,15 @@ export class GameLoop {
           if (dx * dx + dy * dy < r2) { blast.hitSet.add(b); b.status = BulletStatus.DEAD; }
         }
       }
-      for (const p of this.gs.planets) {
-        if (p.destroyed || blast.hitSet.has(p)) continue;
-        if (p.type !== PlanetType.ASTEROID && p.type !== PlanetType.CRYSTAL) continue;
-        const dx = p.position.x - blast.x, dy = p.position.y - blast.y;
-        if (dx * dx + dy * dy < r2) { blast.hitSet.add(p); p.destroyed = true; }
+      // A condition blast (Ice Rocket / Ice Bomb freeze) only freezes — it does not
+      // shatter asteroids/crystals the way a normal explosive blast does.
+      if (!isCondition) {
+        for (const p of this.gs.planets) {
+          if (p.destroyed || blast.hitSet.has(p)) continue;
+          if (p.type !== PlanetType.ASTEROID && p.type !== PlanetType.CRYSTAL) continue;
+          const dx = p.position.x - blast.x, dy = p.position.y - blast.y;
+          if (dx * dx + dy * dy < r2) { blast.hitSet.add(p); p.destroyed = true; }
+        }
       }
       for (const c of this.gs.collectables) {
         if (!c.alive || blast.hitSet.has(c)) continue;
