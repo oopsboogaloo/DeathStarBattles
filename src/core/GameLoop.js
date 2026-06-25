@@ -1099,6 +1099,7 @@ export class GameLoop {
     this.gs.pendingSwaps          = [];
     this.gs.pendingTeleports      = [];
     this.gs.pendingReinforcements = [];
+    this._silencePendingBeams();
     this.gs.ejecta                = [];
     this.gs.eruptions             = [];
     this.gs.eruptionDebris        = [];
@@ -2343,6 +2344,7 @@ export class GameLoop {
       allStations.some(s => s.status === 'active' && s.velocity);
     if (bulletsGone && rocketsGone && ringsGone && blastsGone && burstsGone && lasersGone && !primaryErupting && !primaryLightning && teleportsGone && !stationsMoving) {
       // Mid-flight ejecta, chain eruptions, debris, and lightning just stop — clear them
+      this._silencePendingBeams();
       this.gs.ejecta = [];
       this.gs.eruptions = [];
       this.gs.eruptionDebris = [];
@@ -2842,10 +2844,10 @@ export class GameLoop {
     if (planet.type === PlanetType.BEAM) {
       flash(generation === 0 ? 0.4 : 0.3);
       if (generation >= 2) { this._spawnEruptionDebris(params, 4, 1.0); return; }
-      SoundManager.play('laserCharged');
+      const chargeSound = SoundManager.playHandle('laserCharged');
       this.gs.eruptions.push({
         ...params, beam: true, chain: generation > 0,
-        age: 0, chargeSteps: BEAM_CHARGE_STEPS, calmSteps: BEAM_CALM_STEPS, fired: false,
+        age: 0, chargeSteps: BEAM_CHARGE_STEPS, calmSteps: BEAM_CALM_STEPS, fired: false, chargeSound,
       });
       return;
     }
@@ -2938,6 +2940,7 @@ export class GameLoop {
       if (this.rng.next() < 0.04 + prog * 0.13) this._spawnBeamCharge(seq);
       if (seq.age >= seq.chargeSteps) {
         seq.fired = true;
+        this._stopSound(seq.chargeSound); seq.chargeSound = null; // charge done → silence it
         this.gs.vfxList.push({ type: 'eruptionFlash', x: seq.ox, y: seq.oy, r: seq.gr, g: seq.gg, b: seq.gb, t: 0, duration: 0.55 });
         SoundManager.play('laserBeam');
         const path = this._simulateUnstableBeamPath(seq.ox, seq.oy, seq.baseAngle, seq.owner, seq.sourcePlanet, seq.generation);
@@ -2968,6 +2971,17 @@ export class GameLoop {
       size: 0.7 + this.rng.next() * 1.3,
       r: seq.gr, g: seq.gg, b: seq.gb,
     });
+  }
+
+  // Stop a held sound source (e.g. a beam charge) if it's still playing.
+  _stopSound(src) { if (src) { try { src.stop(); } catch (_) {} } }
+
+  // Silence the charge sound of any beam eruption that hasn't fired yet (used before
+  // clearing eruptions, so a charging beam can't keep humming after it's gone).
+  _silencePendingBeams() {
+    for (const e of this.gs.eruptions) {
+      if (e.beam && !e.fired && e.chargeSound) { this._stopSound(e.chargeSound); e.chargeSound = null; }
+    }
   }
 
   // Spawn `count` lethal pyro/cryo blobs from an eruption sequence.

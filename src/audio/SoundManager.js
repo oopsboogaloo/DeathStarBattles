@@ -116,6 +116,34 @@ export const SoundManager = {
     src.start();
   },
 
+  // Like play(), but returns the BufferSource so the caller can stop() it early
+  // (e.g. a charging sound that must end when the action fires). Returns null if
+  // audio is unavailable.
+  playHandle(id, opts = {}) {
+    if (!_ctx || !_enabled) return null;
+    const buf = _buffers.get(id);
+    if (!buf) return null;
+
+    const src = _ctx.createBufferSource();
+    src.buffer = buf;
+
+    const variance = PITCH_VAR[id] ?? 0;
+    let rate = 1 + (Math.random() * 2 - 1) * variance;
+    if (opts.pitch != null) rate *= (1 + opts.pitch);
+    src.playbackRate.value = rate;
+
+    if (opts.volume != null) {
+      const vol = _ctx.createGain();
+      vol.gain.value = opts.volume;
+      src.connect(vol);
+      vol.connect(_masterGain);
+    } else {
+      src.connect(_masterGain);
+    }
+    src.start();
+    return src;
+  },
+
   playRandom(ids, opts = {}) {
     this.play(ids[Math.floor(Math.random() * ids.length)], opts);
   },
