@@ -175,6 +175,8 @@ A strike is a growing tree of bolt **segments**:
 - As segments are laid, `_lightningHitCheck` electrifies any **station** a segment crosses
   (`electrified += 1`, once each; **shield blocks**, **armour absorbs**) and
   **chain-triggers** any other unstable planet it touches at generation + 1.
+- A branch that runs into a **planet stops** there — the final segment is clipped to the
+  planet surface so the bolt grounds cleanly (gas giants are passed through).
 
 Gen 2+ is visual only (flash + debris). The strike is rendered as a wide coloured glow
 plus a bright white core; the hold/fade rides an `alpha`. A primary (gen-0) strike is a

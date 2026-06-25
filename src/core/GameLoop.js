@@ -3182,10 +3182,18 @@ export class GameLoop {
           const ang = h.angle + (this.rng.next() * 2 - 1) * maxAng;
           const len = LIGHTNING_SEG_LEN * (0.8 + this.rng.next() * 0.4);
           const ex  = h.x + Math.cos(ang) * len, ey = h.y + Math.sin(ang) * len;
-          L.segments.push({ x1: h.x, y1: h.y, x2: ex, y2: ey });
+          const seg = { x1: h.x, y1: h.y, x2: ex, y2: ey };
+          L.segments.push(seg);
           L.total++;
-          this._lightningHitCheck(L, h.x, h.y, ex, ey, allStations);
+          const blocker = this._lightningHitCheck(L, h.x, h.y, ex, ey, allStations);
+          if (blocker) {
+            // Clip the final segment to the planet surface so the bolt grounds cleanly
+            const clip = this._clipSegToCircle(h.x, h.y, ex, ey, blocker.position.x, blocker.position.y, blocker.impactRadius);
+            seg.x2 = clip.x; seg.y2 = clip.y;
+            h.dead = true; continue;
+          }
           h.x = ex; h.y = ey; h.angle = ang;
+          // A branch also stops when it leaves the map
           if (ex < mx0 || ex > mx1 || ey < my0 || ey > my1) { h.dead = true; continue; }
           if (single) {
             // Lone path: 30% chance to fork a new branch
@@ -3219,13 +3227,37 @@ export class GameLoop {
         if (!shielded) this._applyBeamCondition(s, 'electrified', 1);
       }
     }
+    // Planets stop a branch. The source planet is exempt for the first segment (the bolt
+    // emanates from its surface); a different unstable planet also chain-triggers (once).
+    let blocker = null;
     for (const p of this.gs.planets) {
-      if (p.destroyed || p === L.sourcePlanet || L.hitPlanets.has(p) || !isUnstable(p.type)) continue;
-      if (this._segHitsCircle(x1, y1, x2, y2, p.position.x, p.position.y, p.impactRadius)) {
+      if (p.destroyed || p.type === PlanetType.GAS_GIANT) continue; // bolts pass through gas giants
+      if (p === L.sourcePlanet && L.total <= 1) continue;           // don't self-block at launch
+      if (!this._segHitsCircle(x1, y1, x2, y2, p.position.x, p.position.y, p.impactRadius)) continue;
+      if (isUnstable(p.type) && p !== L.sourcePlanet && !L.hitPlanets.has(p)) {
         L.hitPlanets.add(p);
         this._triggerEruption(p, x2, y2, L.owner, L.generation + 1);
       }
+      blocker = p; // hitting any solid planet ends this branch
+      break;
     }
+    return blocker;
+  }
+
+  // Point where segment A→B first reaches `rad` of (cx,cy), clamped to the segment.
+  _clipSegToCircle(x1, y1, x2, y2, cx, cy, rad) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const fx = x1 - cx, fy = y1 - cy;
+    const a = dx * dx + dy * dy;
+    const b = 2 * (fx * dx + fy * dy);
+    const c = fx * fx + fy * fy - rad * rad;
+    let disc = b * b - 4 * a * c;
+    if (a < 1e-9 || disc < 0) return { x: x2, y: y2 };
+    disc = Math.sqrt(disc);
+    let t = (-b - disc) / (2 * a);
+    if (t < 0) t = (-b + disc) / (2 * a);
+    t = Math.max(0, Math.min(1, t));
+    return { x: x1 + t * dx, y: y1 + t * dy };
   }
 
   // True if segment (x1,y1)-(x2,y2) comes within `rad` of (cx,cy).
