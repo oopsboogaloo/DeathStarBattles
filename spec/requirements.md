@@ -229,7 +229,7 @@ A tier is rolled first at the stated probability, then a weapon is chosen unifor
 | Mind Control Beam | 1 |
 | Hedgehog | 1 |
 
-> **Note:** Electro Stun exists as a weapon but is excluded from the pickup pool. It can only be granted via developer mode.
+> **Note:** Electro Shock (formerly Electro Stun) is a Tier 2 pickup. It is aim-only (no power slider) and fires a fan of forked lightning bolts in the aim direction, electrifying anything they cross; the firing station is immune.
 
 ---
 

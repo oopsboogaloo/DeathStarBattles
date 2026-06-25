@@ -208,7 +208,7 @@ Collectables are assigned a tier that governs drop rarity and starting-weapon el
   - Power slider sets distance: minimum power → short hop, maximum power → full map diagonal.
   - Aim preview renders a destination marker (e.g. a ghost/outline of the station) at the computed safe landing point, updating live as angle/power change.
 
-- [x] **Electro Stun** *(Tier 2)* — Fires a fan of forked lightning across an aimed arc. Any station hit becomes Electrified for their next turn: they auto-fire a random cannon shot and cannot move or act.
+- [x] **Electro Shock** *(Tier 2)* — Aim-only (no power slider). Fires a fan of 7 forked lightning bolts in the aim direction; the firing station is immune. Any station a bolt crosses becomes Electrified for their next turn: they auto-fire a random cannon shot and cannot move or act.
 
   **Controls (FR-1)**
   - Left control: angle (direction the arc is centred on), as normal

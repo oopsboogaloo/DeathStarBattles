@@ -39,6 +39,7 @@ generation       // chain depth (0 = primary); used to scale + bound chains
 chain            // generation > 0 — the fire phase need not wait for these
 r, g, b          // bolt colour (Electro blue-cyan today)
 sourcePlanet     // the emitter, exempt from self-collision at launch (optional)
+immune           // a station that is never shocked by this strike (e.g. the firer; optional)
 
 // geometry
 segments[]       // { x1, y1, x2, y2 } — every placed segment (drawn each frame)
@@ -105,7 +106,8 @@ Per placed segment (`A→B`), using a segment-vs-circle test (`_segHitsCircle`):
 
 - **Stations** — for each active station the segment comes within `station.radius` of
   (once per station via `hitStations`): **apply the shock** unless a **team shield**
-  covers it (shield blocks). The shock today is `_applyBeamCondition(station,
+  covers it (shield blocks). An optional **`immune`** station is skipped entirely, so a
+  bolt that arcs back can't shock its own firer (used by the Electro Shock weapon). The shock today is `_applyBeamCondition(station,
   'electrified', 1)` which **armour absorbs** (one layer) else `electrified += 1` + a
   condition-notify label.
 - **Planets** — the first planet the segment reaches **stops the branch** (returns the
@@ -185,8 +187,9 @@ events, etc.), factor a small **`spawnLightning({...})`** helper and parametrise
 | **gate `chain` flag** | primary waits, chains don't | match the host system's turn flow |
 
 **Reuse helper:** `GameLoop._spawnLightning({ ox, oy, angle, owner, colour, maxSegments,
-shockAmount, noChain, chain, generation, sourcePlanet })` creates one strike with these
-inputs — used by both the Electro planet and the Shock Rocket.
+shockAmount, noChain, chain, generation, sourcePlanet, immune })` creates one strike with
+these inputs — used by the Electro planet, the Shock Rocket, and the Electro Shock weapon.
+Pass `immune` to exempt a station (the firer) from the shock.
 
 **Candidate reuse sites:**
 - ✅ **Shock Rocket** — now bursts into `SHOCK_BOLT_COUNT` (11) forked bolts radiating from
@@ -196,7 +199,11 @@ inputs — used by both the Electro planet and the Shock Rocket.
   burst point and starts each bolt just outside that planet's surface along its own outward
   heading — otherwise every bolt would lay its first segment inside the planet and ground
   out immediately.
-- The other **shock weapons** (Shock Beam, electro-stun) — replace their straight-beam /
+- ✅ **Electro Shock** (formerly Electro Stun) — an aim-only weapon that fans
+  `ELECTRO_SHOCK_BOLTS` (7) forked bolts of `ELECTRO_SHOCK_SEGMENTS` (20) each across the
+  aim direction (`_spawnAimedShockBurst`), electrifying anything they cross. The firing
+  station is passed as `immune` so a bolt arcing back can't shock its caster.
+- The other **shock weapons** (Shock Beam) — replace their straight-beam /
   zone VFX with a forked strike toward the target.
 - The planned **Electrostar** stellar body (its arc-lightning mechanic).
 - Any future **electric hazard** or condition-application visual.

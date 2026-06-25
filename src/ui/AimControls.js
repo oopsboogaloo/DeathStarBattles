@@ -9,7 +9,7 @@ const NO_POWER_WEAPONS = new Set([
   'blunderbuss', 'laser', 'antimatterLaser',
   'resupply', 'hedgehog', 'teamShield', 'armour', 'superLaser',
   'reinforcementSignal', 'mindControlBeam',
-  'minigun', 'spiral',
+  'minigun', 'spiral', 'electroStun',
 ]);
 
 const NO_AIM_WEAPONS = new Set([
@@ -59,7 +59,6 @@ export class AimControls {
     const isFragShot   = w === 'fragmentationShot';
     const isShotgun    = w === 'shotgun' || w === 'dualBlaster';
     const isBlaster    = w === 'blaster';
-    const isElectroStun = w === 'electroStun';
     this._angleGroup.style.visibility = noAim ? 'hidden' : 'visible';
     this._powerGroup.style.visibility = noPower ? 'hidden' : 'visible';
     if (this._minimal) {
@@ -72,9 +71,6 @@ export class AimControls {
         this._powerVal.textContent = `${label} ${(station.angle2 ?? station.angle).toFixed(1)}°`;
       } else if (isBlaster) {
         this._powerVal.textContent = `±${station.power}°`;
-      } else if (isElectroStun) {
-        const spread = (45 - (station.power - 1) / 799 * 40).toFixed(0);
-        this._powerVal.textContent = `±${spread}°`;
       } else {
         this._powerVal.textContent = `⚡${(station.power / 8).toFixed(1)}`;
       }
@@ -88,9 +84,6 @@ export class AimControls {
         this._powerVal.textContent = `${label}: ${(station.angle2 ?? station.angle).toFixed(1)}°`;
       } else if (isBlaster) {
         this._powerVal.textContent = `Spread: ±${station.power}°`;
-      } else if (isElectroStun) {
-        const spread = (45 - (station.power - 1) / 799 * 40).toFixed(0);
-        this._powerVal.textContent = `Spread: ${spread}°`;
       } else {
         this._powerVal.textContent = `Power: ${(station.power / 8).toFixed(1)}`;
       }

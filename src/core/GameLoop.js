@@ -79,11 +79,10 @@ const REPULSOR_FIELD_STRENGTH  = 5;    // multiplier vs standard rift-node repul
 const GRAVITY_CANNON_SIZE_MULT = 3;    // bullet draw radius multiplier
 const GRAVITY_CANNON_MASS      = 800;  // gravitational mass exerted on nearby bullets
 
-// Electro Stun tuning constants
-const ELECTRO_STUN_BOLTS      = 5;    // forked lightning bolt count per cast
-const ELECTRO_STUN_MIN_SPREAD = 5;    // spread in degrees at maximum power (focused)
-const ELECTRO_STUN_MAX_SPREAD = 45;   // spread in degrees at minimum power (wide)
-const ELECTRO_STUN_BASE_RANGE = 225;  // max range in game units at maximum power
+// Electro Shock tuning constants — an aim-only weapon that fans forked lightning bolts
+const ELECTRO_SHOCK_BOLTS     = 7;    // forked lightning bolts per cast
+const ELECTRO_SHOCK_SEGMENTS  = 20;   // segment budget per bolt
+const ELECTRO_SHOCK_SPREAD    = 50;   // total fan width (degrees) across the aim direction
 
 // Teleport tuning constants
 const TELEPORT_FIRE_STEP = 600;       // physics steps before teleport executes
@@ -1388,51 +1387,15 @@ export class GameLoop {
         this.gs.activeBullets.push(b);
         SoundManager.play('nova');
       } else if (w === WeaponId.ELECTRO_STUN && station.team.spendStock(WeaponId.ELECTRO_STUN)) {
-        const t            = (station.power - 1) / 799;
-        const spreadDeg    = ELECTRO_STUN_MAX_SPREAD - t * (ELECTRO_STUN_MAX_SPREAD - ELECTRO_STUN_MIN_SPREAD);
-        const halfSpreadRad = (spreadDeg / 2) * Math.PI / 180;
-        const range        = ELECTRO_STUN_BASE_RANGE * (0.2 + t * 0.8);
-        const centerRad    = (station.angle * Math.PI) / 180;
-        const centerDirX   = Math.sin(centerRad);
-        const centerDirY   = Math.cos(centerRad);
-
-        for (const target of this.gs.allStations) {
-          if (target === station || target.status !== 'active') continue;
-          const dx   = target.position.x - station.position.x;
-          const dy   = target.position.y - station.position.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist > range || dist < 0.001) continue;
-          // Arc check via dot product
-          if ((dx / dist) * centerDirX + (dy / dist) * centerDirY < Math.cos(halfSpreadRad)) continue;
-          // Line-of-sight block by solid planets
-          let blocked = false;
-          for (const planet of this.gs.planets) {
-            if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
-            if (planet.type === PlanetType.WORMHOLE_PAIRED || planet.type === PlanetType.WORMHOLE_CYCLIC ||
-                planet.type === PlanetType.WORMHOLE_RANDOM || planet.type === PlanetType.WORMHOLE_PLANET ||
-                planet.type === PlanetType.WORMHOLE_SELF   || planet.type === PlanetType.WORMHOLE_NETWORK) continue;
-            const pdx  = planet.position.x - station.position.x;
-            const pdy  = planet.position.y - station.position.y;
-            const u    = Math.max(0, Math.min(1, (pdx * dx + pdy * dy) / (dist * dist)));
-            const cdx  = pdx - u * dx;
-            const cdy  = pdy - u * dy;
-            if (cdx * cdx + cdy * cdy < planet.impactRadius * planet.impactRadius) { blocked = true; break; }
-          }
-          if (blocked) continue;
-          // Apply effect (armour absorbs)
-          if ((target.armourLayers ?? 0) > 0) {
-            target.armourLayers--;
-            target.armourFlash = 1.0;
-          } else {
-            target.electrified      = Math.min(3, (target.electrified ?? 0) + 1);
-            target.electrifiedFlash = 1.0;
-            this._notifyCondition(target, 'electrified');
-          }
-        }
-        const [er, eg, eb] = station.team.colour;
-        this.gs.vfxList.push({ type: 'electroStun', x: station.position.x, y: station.position.y,
-          angle: centerRad, spreadRad: halfSpreadRad, range,
-          numBolts: ELECTRO_STUN_BOLTS, r: er, g: eg, b: eb, t: 0, duration: 0.6 });
+        // Electro Shock: aim-only. Fan a set of forked lightning bolts out along the aim
+        // direction; each bolt electrifies whatever it crosses. The firer is immune so a
+        // bolt that arcs back doesn't shock its own station.
+        const centerRad   = (station.angle * Math.PI) / 180;
+        // Station aim direction is (sin, cos); the lightning system's angle uses (cos, sin),
+        // so convert to the lightning math angle.
+        const centerAngle = Math.atan2(Math.cos(centerRad), Math.sin(centerRad));
+        this._spawnAimedShockBurst(station.position.x, station.position.y, centerAngle, station, station.team.colour);
+        SoundManager.play('laser', { pitch: 0.3 });
         station.stats.turns++;
         continue;
       } else if (w === WeaponId.TELEPORT && station.team.spendStock(WeaponId.TELEPORT)) {
@@ -3161,9 +3124,9 @@ export class GameLoop {
   // shock strength to apply on a station hit, and whether it may chain unstable planets.
   _spawnLightning({ ox, oy, angle, owner, generation = 0, chain = false, colour,
                     maxSegments = LIGHTNING_MAX_SEGMENTS, sourcePlanet = null,
-                    shockAmount = 1, noChain = false }) {
+                    shockAmount = 1, noChain = false, immune = null }) {
     this.gs.lightning.push({
-      owner, sourcePlanet, generation, chain,
+      owner, sourcePlanet, generation, chain, immune,
       r: colour[0], g: colour[1], b: colour[2],
       segments: [],                                  // {x1,y1,x2,y2} placed bolt segments
       heads: [{ x: ox, y: oy, angle }],              // active growing path heads
@@ -3204,6 +3167,27 @@ export class GameLoop {
         ox, oy, angle, owner,
         colour: SHOCK_LIGHTNING_COLOUR, maxSegments: SHOCK_BOLT_SEGMENTS,
         shockAmount, noChain: true, chain: false,
+      });
+    }
+  }
+
+  // Electro Shock weapon burst: fan ELECTRO_SHOCK_BOLTS forked bolts out along the aim
+  // direction (`centerAngle`, in the lightning math convention), each electrifying anything
+  // it crosses. `immune` (the firing station) is never shocked, so a bolt that arcs back
+  // can't hit its own caster.
+  _spawnAimedShockBurst(x, y, centerAngle, immune, colour) {
+    const spread = ELECTRO_SHOCK_SPREAD * Math.PI / 180;
+    for (let i = 0; i < ELECTRO_SHOCK_BOLTS; i++) {
+      // Even fan across [-spread/2, +spread/2] plus a little jitter.
+      const frac  = ELECTRO_SHOCK_BOLTS > 1 ? i / (ELECTRO_SHOCK_BOLTS - 1) - 0.5 : 0;
+      const angle = centerAngle + frac * spread + (this.rng.next() - 0.5) * 0.2;
+      const r     = (immune.radius ?? 5) + 1;          // emanate from just outside the hull
+      const ox    = x + Math.cos(angle) * r;
+      const oy    = y + Math.sin(angle) * r;
+      this._spawnLightning({
+        ox, oy, angle, owner: immune, immune,
+        colour, maxSegments: ELECTRO_SHOCK_SEGMENTS,
+        shockAmount: 1, noChain: true, chain: false,
       });
     }
   }
@@ -3278,7 +3262,7 @@ export class GameLoop {
   // absorbs) and chain-triggers any other unstable planet it touches.
   _lightningHitCheck(L, x1, y1, x2, y2, allStations) {
     for (const s of allStations) {
-      if (s.status !== 'active' || L.hitStations.has(s)) continue;
+      if (s.status !== 'active' || s === L.immune || L.hitStations.has(s)) continue;
       if (this._segHitsCircle(x1, y1, x2, y2, s.position.x, s.position.y, s.radius)) {
         L.hitStations.add(s);
         const shielded = this.gs.shields.some(sh => sh.alive && sh.station === s);
