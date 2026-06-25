@@ -156,6 +156,8 @@ Slow, swelling blobs:
 - They also emit comet-style smoke (§4.6).
 
 ### 4.5 Electro forked lightning
+*The reusable algorithm is captured on its own in `forked-lightning-spec.md` (intended
+for reuse across other electric-shock effects).*
 *Where:* a strike object in `gs.lightning`, created in `_triggerEruption`, grown by
 `GameLoop._stepLightning` (**once per rendered frame**, so it reads as fast lightning),
 drawn by `Renderer._drawLightning`.
