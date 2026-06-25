@@ -32,6 +32,9 @@ const ANOMALY_INWARD_CFG = {
 
 // Crack overlays applied to damaged bodies (loaded once, recoloured black).
 const CRACK_SVG_PATHS = ['Images/cracks1.svg', 'Images/cracks2.svg', 'Images/cracks3.svg'];
+// Fractured-crust overlays for unstable planets — one picked per planet by seed,
+// stamped dark over the pulsing under-crack glow (spec/unstable-planets-spec.md §3.1).
+const UNSTABLE_SVG_PATHS = ['Images/unstable1.svg', 'Images/unstable2.svg', 'Images/unstable3.svg'];
 
 // Shared cache of raw SVG overlay text, keyed by path. The fetch *promise* is
 // cached so every concurrent caller — and the boot-time preload — shares a single
@@ -85,6 +88,7 @@ export class Renderer {
     this._svgOverlayCache     = new Map(); // planet → [{img, rotation, alpha}]
     this._atmosphereCache     = new Map(); // planet → [r, g, b]
     this._crackSvgImgs        = [];        // pool of crack SVG images, one picked randomly per hit
+    this._unstableSvgImgs     = [];        // pool of unstable-planet fracture overlays, one per planet by seed
     this._wormholeParticles      = new Map(); // planet → WormholeParticles
     this._giantWormholeParticles = new Map(); // planet → GiantWormholeParticles
     this._whiteHoleParticles     = new Map(); // planet → WhiteHoleParticles
@@ -251,6 +255,7 @@ export class Renderer {
     this._svgOverlayCache.clear();
     this._atmosphereCache.clear();
     this._crackSvgImgs = [];
+    this._unstableSvgImgs = [];
     this._wormholeParticles.clear();
     this._giantWormholeParticles.clear();
     this._whiteHoleParticles.clear();
@@ -1367,7 +1372,7 @@ export class Renderer {
   // colour-injection + decode instead of a serial network chain — the root cause
   // of overlays appearing seconds late. Safe to call repeatedly (cache dedups).
   static preloadSvgText() {
-    const paths = new Set(CRACK_SVG_PATHS);
+    const paths = new Set([...CRACK_SVG_PATHS, ...UNSTABLE_SVG_PATHS]);
     for (const layerDefs of Object.values(PLANET_OVERLAYS)) {
       for (const def of layerDefs) for (const s of def.svgs) paths.add(s);
     }
@@ -1386,9 +1391,10 @@ export class Renderer {
     });
   }
 
-  async _loadCrackSvgs() {
-    const colour = 'rgb(0,0,0)';
-    await Promise.all(CRACK_SVG_PATHS.map(async (path) => {
+  // Load a pool of SVGs, recoloured to a flat colour and decoded into Images.
+  // Shared by the damage cracks (moons/planets) and the unstable-planet crusts.
+  async _loadSvgPool(paths, target, colour = 'rgb(0,0,0)') {
+    await Promise.all(paths.map(async (path) => {
       try {
         const raw = await fetchSvgText(path);
         if (!raw) return;
@@ -1400,11 +1406,18 @@ export class Renderer {
         const blob = new Blob([text], { type: 'image/svg+xml' });
         const img  = new Image();
         img.src    = URL.createObjectURL(blob);
-        this._crackSvgImgs.push(img);
+        target.push(img);
       } catch (e) {
         console.warn(`Failed to load ${path}`, e);
       }
     }));
+  }
+
+  async _loadCrackSvgs() {
+    await Promise.all([
+      this._loadSvgPool(CRACK_SVG_PATHS,    this._crackSvgImgs),
+      this._loadSvgPool(UNSTABLE_SVG_PATHS, this._unstableSvgImgs),
+    ]);
   }
 
   async _loadPlanetOverlays(planets) {
@@ -4287,27 +4300,27 @@ export class Renderer {
       ctx.fillStyle = glow;
       ctx.fill();
 
-      // Crack network — radial fractures from near-centre to the rim, static per planet
-      const nCracks = 5;
-      ctx.lineWidth   = Math.max(1, conv * 0.5);
-      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${(0.5 + pulse * 0.4).toFixed(3)})`;
-      ctx.beginPath();
-      for (let i = 0; i < nCracks; i++) {
-        const a0  = Renderer._uHash(seed + i * 13.1) * Math.PI * 2;
-        const seg = 3;
-        let rr = r * 0.15;
-        let ax = cx + Math.cos(a0) * rr, ay = cy + Math.sin(a0) * rr;
-        ctx.moveTo(ax, ay);
-        let ang = a0;
-        for (let s = 1; s <= seg; s++) {
-          ang += (Renderer._uHash(seed + i * 13.1 + s * 7.7) - 0.5) * 0.9;
-          rr   = r * (0.15 + (s / seg) * 0.85);
-          ax = cx + Math.cos(ang) * rr;
-          ay = cy + Math.sin(ang) * rr;
-          ctx.lineTo(ax, ay);
+      // Fractured crust — a static SVG fracture overlay (one of three, picked per
+      // planet by seed and rotated by a fixed seed angle), stamped dark and clipped
+      // to the body so the pulsing glow shows through the cracks. Mirrors the moon
+      // damage-crack pipeline (_drawMoon); replaces the old radial crack lines.
+      const pool = this._unstableSvgImgs;
+      if (pool.length) {
+        const img = pool[Math.floor(Math.abs(seed)) % pool.length];
+        if (img?.complete) {
+          const rotation = Renderer._uHash(seed * 1.7) * Math.PI * 2;
+          const size     = r * 2;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.globalAlpha = 0.6;
+          ctx.translate(cx, cy);
+          ctx.rotate(rotation);
+          ctx.drawImage(img, -size / 2, -size / 2, size, size);
+          ctx.restore();
         }
       }
-      ctx.stroke();
     }
   }
 
