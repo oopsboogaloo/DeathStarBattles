@@ -52,7 +52,8 @@ const BEAM_CALM_STEPS         = 3600; // beam particle calm-down after firing (~
 // Electro forked-lightning (grown one segment per path per rendered frame)
 const LIGHTNING_SEG_LEN       = 11;   // segment length (~a regular station width)
 const LIGHTNING_MAX_ANGLE     = 30;   // ± degrees a segment may turn from the previous one
-const LIGHTNING_FORK_CHANCE   = 0.15; // chance a placed segment spawns a new forked path
+const LIGHTNING_FORK_CHANCE   = 0.30; // fork chance per segment WHILE there is a single path
+const LIGHTNING_END_CHANCE    = 0.05; // per-path chance to end per segment WHILE multiple paths
 const LIGHTNING_MAX_SEGMENTS  = 30;   // total segment budget for a gen-0 strike
 const LIGHTNING_MAX_HEADS     = 10;   // cap on simultaneously growing path heads
 const LIGHTNING_HOLD_FRAMES   = 60;   // ~1s hold once fully grown
@@ -3161,6 +3162,7 @@ export class GameLoop {
     for (const L of this.gs.lightning) {
       if (L.phase === 'growing') {
         const newHeads = [];
+        const single = L.heads.length === 1; // a lone path forks; multiple paths thin out
         for (const h of L.heads) {
           if (h.dead || L.total >= L.maxSegments) continue;
           const ang = h.angle + (this.rng.next() * 2 - 1) * maxAng;
@@ -3171,11 +3173,16 @@ export class GameLoop {
           this._lightningHitCheck(L, h.x, h.y, ex, ey, allStations);
           h.x = ex; h.y = ey; h.angle = ang;
           if (ex < mx0 || ex > mx1 || ey < my0 || ey > my1) { h.dead = true; continue; }
-          // 15% fork: a new path branching off at a wider angle
-          if (this.rng.next() < LIGHTNING_FORK_CHANCE &&
-              L.total < L.maxSegments && L.heads.length + newHeads.length < LIGHTNING_MAX_HEADS) {
-            const fa = ang + (this.rng.next() < 0.5 ? 1 : -1) * (maxAng + this.rng.next() * maxAng);
-            newHeads.push({ x: ex, y: ey, angle: fa });
+          if (single) {
+            // Lone path: 30% chance to fork a new branch (wider angle)
+            if (this.rng.next() < LIGHTNING_FORK_CHANCE &&
+                L.total < L.maxSegments && L.heads.length + newHeads.length < LIGHTNING_MAX_HEADS) {
+              const fa = ang + (this.rng.next() < 0.5 ? 1 : -1) * (maxAng + this.rng.next() * maxAng);
+              newHeads.push({ x: ex, y: ey, angle: fa });
+            }
+          } else if (this.rng.next() < LIGHTNING_END_CHANCE) {
+            // Multiple paths: each has a small chance to die off this segment
+            h.dead = true;
           }
         }
         L.heads = L.heads.filter(h => !h.dead).concat(newHeads);

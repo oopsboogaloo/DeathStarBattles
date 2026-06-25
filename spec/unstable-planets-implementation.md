@@ -163,8 +163,12 @@ A strike is a growing tree of bolt **segments**:
 - It starts at the contact point heading along the **surface normal** (out into the map).
 - Each frame every active **path head** lays one segment of ~`LIGHTNING_SEG_LEN`(11, a
   station-width), turning a random **±`LIGHTNING_MAX_ANGLE`(30°)** from the previous one.
-- Each placed segment has a **`LIGHTNING_FORK_CHANCE`(15%)** chance to spawn a **new
-  forked path** (a fresh head at a wider angle), up to `LIGHTNING_MAX_HEADS`(10) heads.
+- **While there is a single path**, each placed segment has a **`LIGHTNING_FORK_CHANCE`
+  (30%)** chance to spawn a **new forked path** (a fresh head at a wider angle), up to
+  `LIGHTNING_MAX_HEADS`(10). **While there are multiple paths**, no new forks — instead
+  each path has a **`LIGHTNING_END_CHANCE`(5%)** chance to end per segment. The strike
+  therefore oscillates between a lone channel and a branched one (a main bolt that keeps
+  sprouting branches which fork off and die).
 - It stops once the total segment budget is spent (`LIGHTNING_MAX_SEGMENTS`(30) for gen 0;
   ~12 for gen 1) or all heads run off the map, then **holds ~1s**
   (`LIGHTNING_HOLD_FRAMES`) and **quickly fades** (`LIGHTNING_FADE_FRAMES`).
@@ -307,7 +311,8 @@ All in `src/core/GameLoop.js` unless noted.
 | `ERUPTION_STAGGER_STEPS` | 300 | max random launch delay (electro spray) |
 | `LIGHTNING_SEG_LEN` | 11 | bolt segment length (~a station width) |
 | `LIGHTNING_MAX_ANGLE` | 30 | ± degrees a segment may turn from the previous |
-| `LIGHTNING_FORK_CHANCE` | 0.15 | chance a segment forks a new path |
+| `LIGHTNING_FORK_CHANCE` | 0.30 | fork chance per segment while there's a single path |
+| `LIGHTNING_END_CHANCE` | 0.05 | per-path end chance per segment while multiple paths |
 | `LIGHTNING_MAX_SEGMENTS` | 30 | gen-0 total segment budget (gen 1 ≈ 12) |
 | `LIGHTNING_MAX_HEADS` | 10 | cap on simultaneous growing paths |
 | `LIGHTNING_HOLD_FRAMES / FADE_FRAMES` | 60 / 14 | hold (~1s) then quick fade |
