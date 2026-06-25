@@ -3196,7 +3196,7 @@ export class GameLoop {
       if (host) {
         // Place the origin a hair outside the host surface along this bolt's heading, so the
         // first segment starts in clear space and heads away from the planet.
-        const r = host.impactRadius + 1.5;
+        const r = host.impactRadius + 1;
         ox = host.position.x + Math.cos(angle) * r;
         oy = host.position.y + Math.sin(angle) * r;
       }
