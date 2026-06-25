@@ -789,10 +789,10 @@ export class GameLoop {
       } else if (p.type === PlanetType.COMET) {
         this._spawnCometExplosion(p);
       } else if (p.type === PlanetType.CRYSTAL) {
-        children.push(...this._fragmentCrystalAsteroid(p));
+        if (!p.noFragments) children.push(...this._fragmentCrystalAsteroid(p));
         this._spawnCrystalExplosion(p);
       } else {
-        children.push(...this._fragmentAsteroid(p));
+        if (!p.noFragments) children.push(...this._fragmentAsteroid(p));
         this._spawnAsteroidExplosion(p);
       }
     }
@@ -3534,6 +3534,7 @@ export class GameLoop {
             planet.type === PlanetType.WORMHOLE_RANDOM || planet.type === PlanetType.WORMHOLE_PLANET ||
             planet.type === PlanetType.WORMHOLE_SELF   || planet.type === PlanetType.WORMHOLE_NETWORK) continue;
         if (planet.type === PlanetType.ASTEROID || planet.type === PlanetType.CRYSTAL) {
+          planet.noFragments = true;   // super laser annihilates — no debris children
           planet.destroyed = true; continue;
         }
         if (planet.type === PlanetType.COMET) {
@@ -3572,12 +3573,11 @@ export class GameLoop {
       }
     }
 
-    // Fragment moons destroyed along the path
+    // Moons / giant asteroids destroyed along the path are annihilated — no fragment
+    // children remain, so the super laser reads as total destruction (just the explosion VFX).
     for (const moon of moonsToDestroy) {
       const idx = this.gs.planets.indexOf(moon);
       if (idx !== -1) this.gs.planets.splice(idx, 1);
-      if (moon.type === PlanetType.GIANT_ASTEROID) this._fragmentGiantAsteroid(moon);
-      else this._fragmentMoon(moon);
       this._spawnAsteroidExplosion(moon);
     }
 
