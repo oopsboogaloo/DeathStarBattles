@@ -3194,11 +3194,11 @@ export class GameLoop {
       const angle = base + (i / SHOCK_BOLT_COUNT) * Math.PI * 2 + (this.rng.next() - 0.5) * 0.35;
       let ox = x, oy = y;
       if (host) {
-        // Place the origin a hair outside the host surface along this bolt's heading, so the
-        // first segment starts in clear space and heads away from the planet.
-        const r = host.impactRadius + 1;
-        ox = host.position.x + Math.cos(angle) * r;
-        oy = host.position.y + Math.sin(angle) * r;
+        // Offset the origin 1 unit from the impact point along this bolt's heading. The
+        // outward-heading bolts then emanate right at the impact point; the inward-heading
+        // ones still start inside the planet and ground out naturally.
+        ox = x + Math.cos(angle) * 1;
+        oy = y + Math.sin(angle) * 1;
       }
       this._spawnLightning({
         ox, oy, angle, owner,
