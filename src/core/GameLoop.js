@@ -1768,6 +1768,13 @@ export class GameLoop {
               this._applyBeamCondition(s, 'frozen', 1);
             }
           }
+          // Cold shatters any crystal (glass) the ring sweeps over; the ring continues.
+          for (const planet of this.gs.planets) {
+            if (planet.destroyed || planet.type !== PlanetType.CRYSTAL) continue;
+            const reach = planet.impactRadius + ring.radius;
+            const dx = planet.position.x - ring.position.x, dy = planet.position.y - ring.position.y;
+            if (dx * dx + dy * dy < reach * reach) planet.destroyed = true;
+          }
           // Solid planets stop the ring (asteroids / crystals / gas giants pass through)
           for (const planet of this.gs.planets) {
             if (planet.destroyed) continue;
@@ -2198,15 +2205,16 @@ export class GameLoop {
           if (dx * dx + dy * dy < r2) { blast.hitSet.add(b); b.status = BulletStatus.DEAD; }
         }
       }
-      // A condition blast (Ice Rocket / Ice Bomb freeze) only freezes — it does not
-      // shatter asteroids/crystals the way a normal explosive blast does.
-      if (!isCondition) {
-        for (const p of this.gs.planets) {
-          if (p.destroyed || blast.hitSet.has(p)) continue;
-          if (p.type !== PlanetType.ASTEROID && p.type !== PlanetType.CRYSTAL) continue;
-          const dx = p.position.x - blast.x, dy = p.position.y - blast.y;
-          if (dx * dx + dy * dy < r2) { blast.hitSet.add(p); p.destroyed = true; }
-        }
+      for (const p of this.gs.planets) {
+        if (p.destroyed || blast.hitSet.has(p)) continue;
+        // Cold shatters crystal (glass) — so even a freeze blast breaks crystals. A normal
+        // explosive blast also breaks plain asteroids, but cold leaves asteroids unharmed.
+        const isCrystal  = p.type === PlanetType.CRYSTAL;
+        const isAsteroid = p.type === PlanetType.ASTEROID;
+        if (!isCrystal && !isAsteroid) continue;
+        if (isAsteroid && isCondition) continue; // cold doesn't hurt rock
+        const dx = p.position.x - blast.x, dy = p.position.y - blast.y;
+        if (dx * dx + dy * dy < r2) { blast.hitSet.add(p); p.destroyed = true; }
       }
       for (const c of this.gs.collectables) {
         if (!c.alive || blast.hitSet.has(c)) continue;
