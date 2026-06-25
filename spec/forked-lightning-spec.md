@@ -191,7 +191,11 @@ inputs — used by both the Electro planet and the Shock Rocket.
 **Candidate reuse sites:**
 - ✅ **Shock Rocket** — now bursts into `SHOCK_BOLT_COUNT` (11) forked bolts radiating from
   the detonation (`_spawnShockBurst`), each applying `shockAmount` and `noChain: true`,
-  replacing the old expanding shock zone + explosion.
+  replacing the old expanding shock zone + explosion. Because the rocket usually detonates
+  on/inside the planet it struck, `_spawnShockBurst` detects a host planet containing the
+  burst point and starts each bolt just outside that planet's surface along its own outward
+  heading — otherwise every bolt would lay its first segment inside the planet and ground
+  out immediately.
 - The other **shock weapons** (Shock Beam, electro-stun) — replace their straight-beam /
   zone VFX with a forked strike toward the target.
 - The planned **Electrostar** stellar body (its arc-lightning mechanic).

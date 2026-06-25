@@ -3177,11 +3177,31 @@ export class GameLoop {
   // Shock Rocket burst: fire SHOCK_BOLT_COUNT forked bolts radiating in all directions
   // from (x,y), each electrifying anything it touches. Replaces the old expanding blast.
   _spawnShockBurst(x, y, owner, shockAmount) {
+    // A Shock Rocket usually detonates on/inside the planet it struck. If the burst point
+    // sits within a solid planet, every bolt would otherwise lay its first segment inside
+    // that planet and ground out immediately. So when we're inside a planet, start each
+    // bolt just outside that planet's surface along its own outward direction, pointing
+    // radially away — the bolts spray off the surface instead of being absorbed.
+    let host = null;
+    for (const p of this.gs.planets) {
+      if (p.destroyed || p.type === PlanetType.GAS_GIANT) continue;
+      const dx = x - p.position.x, dy = y - p.position.y;
+      if (dx * dx + dy * dy < p.impactRadius * p.impactRadius) { host = p; break; }
+    }
+
     const base = this.rng.next() * Math.PI * 2;
     for (let i = 0; i < SHOCK_BOLT_COUNT; i++) {
       const angle = base + (i / SHOCK_BOLT_COUNT) * Math.PI * 2 + (this.rng.next() - 0.5) * 0.35;
+      let ox = x, oy = y;
+      if (host) {
+        // Place the origin a hair outside the host surface along this bolt's heading, so the
+        // first segment starts in clear space and heads away from the planet.
+        const r = host.impactRadius + 1.5;
+        ox = host.position.x + Math.cos(angle) * r;
+        oy = host.position.y + Math.sin(angle) * r;
+      }
       this._spawnLightning({
-        ox: x, oy: y, angle, owner,
+        ox, oy, angle, owner,
         colour: SHOCK_LIGHTNING_COLOUR, maxSegments: SHOCK_BOLT_SEGMENTS,
         shockAmount, noChain: true, chain: false,
       });
