@@ -2926,10 +2926,16 @@ export class GameLoop {
       }
     }
     // A sequence is done once it has run its full duration and fired every wave (or, for
-    // a beam, once it has fired and finished its calm-down).
-    this.gs.eruptions = this.gs.eruptions.filter(s =>
-      s.beam ? (!s.fired || (s.age - s.chargeSteps) < s.calmSteps)
-             : (s.age < s.duration || s.waves.some(w => !w.fired)));
+    // a beam, once it has fired and finished its calm-down). Stop a finished beam's sounds
+    // so the laser/charge audio can't outlive the eruption.
+    this.gs.eruptions = this.gs.eruptions.filter(s => {
+      if (s.beam) {
+        const alive = !s.fired || (s.age - s.chargeSteps) < s.calmSteps;
+        if (!alive) { this._stopSound(s.chargeSound); this._stopSound(s.beamSound); }
+        return alive;
+      }
+      return s.age < s.duration || s.waves.some(w => !w.fired);
+    });
   }
 
   // Beam charge sequence: build precursor particles at the contact point, fire the laser
@@ -2944,7 +2950,7 @@ export class GameLoop {
         seq.fired = true;
         this._stopSound(seq.chargeSound); seq.chargeSound = null; // charge done → silence it
         this.gs.vfxList.push({ type: 'eruptionFlash', x: seq.ox, y: seq.oy, r: seq.gr, g: seq.gg, b: seq.gb, t: 0, duration: 0.55 });
-        SoundManager.play('laserBeam');
+        seq.beamSound = SoundManager.playHandle('laserBeam'); // stoppable so it can't outlive the beam
         const path = this._simulateUnstableBeamPath(seq.ox, seq.oy, seq.baseAngle, seq.owner, seq.sourcePlanet, seq.generation);
         this.gs.vfxList.push({ type: 'laserPath', path, colour: [...UNSTABLE_GLOW.beam], t: 0, duration: 1.2 });
         this._spawnEruptionDebris(seq, 12, 1.5); // muzzle burst as it discharges
@@ -2979,10 +2985,12 @@ export class GameLoop {
   _stopSound(src) { if (src) { try { src.stop(); } catch (_) {} } }
 
   // Silence the charge sound of any beam eruption that hasn't fired yet (used before
-  // clearing eruptions, so a charging beam can't keep humming after it's gone).
+  // clearing eruptions, so neither the charge hum nor the laser sound can outlive a beam.
   _silencePendingBeams() {
     for (const e of this.gs.eruptions) {
-      if (e.beam && !e.fired && e.chargeSound) { this._stopSound(e.chargeSound); e.chargeSound = null; }
+      if (!e.beam) continue;
+      this._stopSound(e.chargeSound); e.chargeSound = null;
+      this._stopSound(e.beamSound);   e.beamSound = null;
     }
   }
 
