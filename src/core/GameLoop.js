@@ -59,8 +59,8 @@ const LIGHTNING_MAX_SEGMENTS  = 30;   // total segment budget for a gen-0 strike
 const LIGHTNING_MAX_HEADS     = 10;   // cap on simultaneously growing path heads
 const LIGHTNING_HOLD_FRAMES   = 60;   // ~1s hold once fully grown
 const LIGHTNING_FADE_FRAMES   = 14;   // quick fade-out
-const SHOCK_BOLT_COUNT        = 11;   // Shock Rocket: forked bolts radiating from the burst
-const SHOCK_BOLT_SEGMENTS     = 15;   // segment budget per Shock Rocket bolt
+const SHOCK_BOLT_COUNT        = 15;   // Shock Rocket: forked bolts radiating from the burst
+const SHOCK_BOLT_SEGMENTS     = 25;   // segment budget per Shock Rocket bolt
 const SHOCK_LIGHTNING_COLOUR  = [120, 210, 255]; // bright electric blue for weapon shocks
 
 // Mammoth Cannon tuning constants
