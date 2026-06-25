@@ -52,6 +52,7 @@ const LABELS = {
   [WeaponId.TEAM_ARMOUR]:            'TEAM ARMOUR',
   [WeaponId.SHOCK_ROCKET]:           'SHOCK ROCKET',
   [WeaponId.SHOCK_BEAM]:             'SHOCK BEAM',
+  [WeaponId.SHOCK_BOMB]:             'SHOCK BOMB',
   [WeaponId.SUIT_UP]:                'SUIT UP',
   [WeaponId.AAARRRGGHH]:             'AAARRRGGHH',
   [WeaponId.THEFT_BEAM]:             'THEFT BEAM',
@@ -75,7 +76,7 @@ const LIMITED = new Set([
   WeaponId.SURPRISE, WeaponId.ICE_BOMB, WeaponId.QUANTUM_BEAM,
   WeaponId.BOUNCE_AUTOCANNON, WeaponId.BIRTHDAY_PRESENT, WeaponId.FREEZE_RAY,
   WeaponId.THRUST_BOOSTER, WeaponId.TEAM_ARMOUR, WeaponId.SHOCK_ROCKET,
-  WeaponId.SHOCK_BEAM, WeaponId.SUIT_UP, WeaponId.AAARRRGGHH,
+  WeaponId.SHOCK_BEAM, WeaponId.SHOCK_BOMB, WeaponId.SUIT_UP, WeaponId.AAARRRGGHH,
   WeaponId.THEFT_BEAM,
 ]);
 
@@ -232,6 +233,7 @@ export class WeaponSelector {
       WeaponId.TEAM_ARMOUR,
       WeaponId.SHOCK_ROCKET,
       WeaponId.SHOCK_BEAM,
+      WeaponId.SHOCK_BOMB,
       WeaponId.SUIT_UP,
       WeaponId.AAARRRGGHH,
       WeaponId.THEFT_BEAM,

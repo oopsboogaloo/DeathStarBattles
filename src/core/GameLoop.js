@@ -1254,6 +1254,15 @@ export class GameLoop {
         b.thickTrail       = true;
         this.gs.activeBullets.push(b);
         SoundManager.play('cannon');
+      } else if (w === WeaponId.SHOCK_BOMB && station.team.spendStock(WeaponId.SHOCK_BOMB)) {
+        const b = this._makeBullet(station, station.angle, station.power);
+        b.shockBomb        = true;
+        b.shockBombTimer   = Math.round((1 + (station.power - 1) / 799 * 4) * 1800);
+        b.fragBouncy       = true;
+        b.bouncePlanetOnly = true;
+        b.thickTrail       = true;
+        this.gs.activeBullets.push(b);
+        SoundManager.play('cannon');
       } else if (w === WeaponId.SPIRAL && station.team.spendStock(WeaponId.SPIRAL)) {
         this.gs.burstQueue.push({
           station, weapon: WeaponId.SPIRAL, shotsRemaining: 13, totalShots: 13,
@@ -2080,6 +2089,16 @@ export class GameLoop {
             if (bullet.iceBombTimer <= 0) this._detonateIceBomb(bullet);
           } else if (bullet.status === BulletStatus.EXPLODING) {
             this._detonateIceBomb(bullet);
+          }
+        }
+
+        // Shock Bomb: detonate on fuse expiry or on impact (counterpart to the Ice Bomb)
+        if (bullet.shockBomb && !bullet._shockBombed) {
+          if (bullet.status === BulletStatus.ACTIVE && bullet.shockBombTimer !== null) {
+            bullet.shockBombTimer--;
+            if (bullet.shockBombTimer <= 0) this._detonateShockBomb(bullet);
+          } else if (bullet.status === BulletStatus.EXPLODING) {
+            this._detonateShockBomb(bullet);
           }
         }
 
@@ -3896,6 +3915,17 @@ export class GameLoop {
       owner: bullet.owner, hitSet: new Set(),
       freezeZones: true, whiteBlast: true, noKillBullets: true,
     });
+  }
+
+  // Shock Bomb detonation — counterpart to the Ice Bomb that bursts into the same
+  // forked-lightning shock as the Shock Rocket (radiating bolts that electrify anything
+  // they cross) instead of an expanding freeze zone.
+  _detonateShockBomb(bullet) {
+    if (bullet._shockBombed) return;
+    bullet._shockBombed = true;
+    bullet.status = BulletStatus.EXPLODING;
+    SoundManager.play('laser', { pitch: 0.25 });
+    this._spawnShockBurst(bullet.position.x, bullet.position.y, bullet.owner, 2);
   }
 
   // Push a floating condition-notification label (FROZEN / DOUBLE FROZEN /

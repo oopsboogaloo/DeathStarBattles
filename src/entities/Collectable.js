@@ -51,6 +51,7 @@ export const WeaponId = Object.freeze({
   TEAM_ARMOUR:              'teamArmour',
   SHOCK_ROCKET:             'shockRocket',
   SHOCK_BEAM:               'shockBeam',
+  SHOCK_BOMB:               'shockBomb',
   SUIT_UP:                  'suitUp',
   AAARRRGGHH:               'aaarrrgghh',
   THEFT_BEAM:               'theftBeam',
@@ -108,6 +109,7 @@ export const WEAPON_GRANTS = [
   // Tier 3
   { id: WeaponId.SURPRISE,              charges: 3, label: 'SURPRISE',            tier: 3 },
   { id: WeaponId.ICE_BOMB,              charges: 1, label: 'ICE BOMB',            tier: 3 },
+  { id: WeaponId.SHOCK_BOMB,            charges: 1, label: 'SHOCK BOMB',          tier: 3 },
   { id: WeaponId.QUANTUM_BEAM,          charges: 3, label: 'QUANTUM BEAM',        tier: 2 },
   { id: WeaponId.BOUNCE_AUTOCANNON,     charges: 1, label: 'BOUNCE AUTOCANNON',   tier: 3 },
   { id: WeaponId.BIRTHDAY_PRESENT,      charges: 1, label: 'BIRTHDAY PRESENT',    tier: 3 },

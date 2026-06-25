@@ -276,6 +276,33 @@ The Ice Bomb projectile itself explodes on planet contact (same as a cannon shot
 
 ---
 
+## 5b. Shock Bomb
+
+**Tier:** 3  
+**Charges per collectable:** 1  
+**WeaponId:** `SHOCK_BOMB`
+
+The Shock Bomb is the **exact counterpart of the Ice Bomb** (§5): a cannon-speed,
+planet-bouncing projectile with the same power-scaled fuse, fired/handled identically:
+
+```js
+b.shockBomb        = true
+b.shockBombTimer   = Math.round((1 + t * 4) * 1800)   // t = power / 800; identical to iceBombTimer
+b.fragBouncy       = true
+b.bouncePlanetOnly = true
+b.thickTrail       = true
+```
+
+The **only** difference is the detonation. Instead of an expanding freeze zone, it bursts
+into the **same forked-lightning shock as the Shock Rocket** — `_spawnShockBurst(x, y,
+owner, 2)` radiates `SHOCK_BOLT_COUNT` bolts from the detonation point, each electrifying
+anything it crosses (see `forked-lightning-spec.md`). It detonates on fuse expiry or on
+impact (`_detonateShockBomb`), exactly like the Ice Bomb. There is no expanding blast zone,
+so the lightning bolts (drawn by `_drawLightning`) are the whole effect; the fire phase
+waits for them via the existing `primaryLightning` gate.
+
+---
+
 ## 6. Quantum Beam
 
 **Tier:** 3  
@@ -846,6 +873,7 @@ New entries for `WEAPON_GRANTS` table:
 | `SHOCK_BEAM` | 2 | 1 | `SHOCK BEAM` |
 | `SURPRISE` | 3 | 3 | `SURPRISE` |
 | `ICE_BOMB` | 3 | 1 | `ICE BOMB` |
+| `SHOCK_BOMB` | 3 | 1 | `SHOCK BOMB` |
 | `QUANTUM_BEAM` | 3 | 3 | `QUANTUM BEAM` |
 | `BOUNCE_AUTOCANNON` | 3 | 1 | `BOUNCE AUTOCANNON` |
 | `BIRTHDAY_PRESENT` | 3 | 1 | `BIRTHDAY PRESENT` |

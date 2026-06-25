@@ -38,6 +38,8 @@ export class Bullet {
     this.gravityCannon     = false;      // exerts gravitational attraction on all nearby bullets
     this.iceBomb           = false;      // detonates into a freeze-zone blast (fuse or impact)
     this.iceBombTimer      = null;       // physics steps until ice-bomb fuse detonation
+    this.shockBomb         = false;      // detonates into a forked-lightning shock burst (fuse or impact)
+    this.shockBombTimer    = null;       // physics steps until shock-bomb fuse detonation
     this.birthdayPresent   = false;      // grants weapons to the struck team on hit
     this.gravityScale      = 1;          // extra per-bullet gravity scale (Birthday Present: 1/9)
     this.bounceCount       = 0;          // number of surface bounces (for trickshot award)

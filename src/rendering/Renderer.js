@@ -2396,6 +2396,7 @@ export class Renderer {
       case 'surprise':
         return; // weapon revealed at fire time — no preview
       case 'iceBomb':
+      case 'shockBomb':
         shots = [{ dAngle: 0, speed: null, alpha: 0.7, lw: 1.5 }];
         break;
       case 'quantumBeam':
