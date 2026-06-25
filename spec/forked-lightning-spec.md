@@ -184,9 +184,16 @@ events, etc.), factor a small **`spawnLightning({...})`** helper and parametrise
 | **sourcePlanet** | the emitter (self-collision exemption) | optional; omit for a free strike |
 | **gate `chain` flag** | primary waits, chains don't | match the host system's turn flow |
 
+**Reuse helper:** `GameLoop._spawnLightning({ ox, oy, angle, owner, colour, maxSegments,
+shockAmount, noChain, chain, generation, sourcePlanet })` creates one strike with these
+inputs — used by both the Electro planet and the Shock Rocket.
+
 **Candidate reuse sites:**
-- The existing **shock weapons** (Shock Beam, Shock Rocket / electro-stun) — replace their
-  straight-beam / zone VFX with a forked strike toward the target.
+- ✅ **Shock Rocket** — now bursts into `SHOCK_BOLT_COUNT` (11) forked bolts radiating from
+  the detonation (`_spawnShockBurst`), each applying `shockAmount` and `noChain: true`,
+  replacing the old expanding shock zone + explosion.
+- The other **shock weapons** (Shock Beam, electro-stun) — replace their straight-beam /
+  zone VFX with a forked strike toward the target.
 - The planned **Electrostar** stellar body (its arc-lightning mechanic).
 - Any future **electric hazard** or condition-application visual.
 
@@ -196,5 +203,7 @@ shared module (e.g. `src/effects/Lightning.js`), keyed off a generic `gs.lightni
 with the per-use inputs in the table above passed at creation. The on-hit effect becomes a
 callback so non-electric variants (e.g. a different condition) are possible too.
 
-> **Status:** implemented for the Electro unstable planet; not yet extracted into a shared
-> module. Extraction + first reuse is the next step.
+> **Status:** implemented for the Electro unstable planet and the Shock Rocket via the
+> shared `_spawnLightning` helper (still in `GameLoop`, not yet a standalone module). A
+> generic on-hit callback (instead of the hardcoded electrified application) would let
+> non-electric variants reuse it too.

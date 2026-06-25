@@ -59,6 +59,9 @@ const LIGHTNING_MAX_SEGMENTS  = 30;   // total segment budget for a gen-0 strike
 const LIGHTNING_MAX_HEADS     = 10;   // cap on simultaneously growing path heads
 const LIGHTNING_HOLD_FRAMES   = 60;   // ~1s hold once fully grown
 const LIGHTNING_FADE_FRAMES   = 14;   // quick fade-out
+const SHOCK_BOLT_COUNT        = 11;   // Shock Rocket: forked bolts radiating from the burst
+const SHOCK_BOLT_SEGMENTS     = 15;   // segment budget per Shock Rocket bolt
+const SHOCK_LIGHTNING_COLOUR  = [120, 210, 255]; // bright electric blue for weapon shocks
 
 // Mammoth Cannon tuning constants
 const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
@@ -2861,15 +2864,10 @@ export class GameLoop {
       flash(generation === 0 ? 0.5 : 0.35);
       if (generation >= 2) { this._spawnEruptionDebris(params, 4, 1.0); return; }
       SoundManager.play('laser', { pitch: 0.3 });
-      this.gs.lightning.push({
-        owner, sourcePlanet: planet, generation, chain: generation > 0,
-        r: gr, g: gg, b: gb,
-        segments: [],                                   // {x1,y1,x2,y2} placed bolt segments
-        heads: [{ x: ox, y: oy, angle: baseAngle }],    // active growing path heads
-        total: 0,
+      this._spawnLightning({
+        ox, oy, angle: baseAngle, owner, generation, chain: generation > 0,
+        colour: [gr, gg, gb], sourcePlanet: planet,
         maxSegments: generation === 0 ? LIGHTNING_MAX_SEGMENTS : Math.round(LIGHTNING_MAX_SEGMENTS * 0.4),
-        phase: 'growing', holdT: 0, alpha: 1,
-        hitStations: new Set(), hitPlanets: new Set(),
       });
       return;
     }
@@ -3158,6 +3156,38 @@ export class GameLoop {
     }
   }
 
+  // Create one forked-lightning strike (see spec/forked-lightning-spec.md). Reusable for
+  // any electric shock: pass the origin, launch angle, owner, colour, segment budget, the
+  // shock strength to apply on a station hit, and whether it may chain unstable planets.
+  _spawnLightning({ ox, oy, angle, owner, generation = 0, chain = false, colour,
+                    maxSegments = LIGHTNING_MAX_SEGMENTS, sourcePlanet = null,
+                    shockAmount = 1, noChain = false }) {
+    this.gs.lightning.push({
+      owner, sourcePlanet, generation, chain,
+      r: colour[0], g: colour[1], b: colour[2],
+      segments: [],                                  // {x1,y1,x2,y2} placed bolt segments
+      heads: [{ x: ox, y: oy, angle }],              // active growing path heads
+      total: 0, maxSegments,
+      phase: 'growing', holdT: 0, alpha: 1,
+      hitStations: new Set(), hitPlanets: new Set(),
+      shockAmount, noChain,
+    });
+  }
+
+  // Shock Rocket burst: fire SHOCK_BOLT_COUNT forked bolts radiating in all directions
+  // from (x,y), each electrifying anything it touches. Replaces the old expanding blast.
+  _spawnShockBurst(x, y, owner, shockAmount) {
+    const base = this.rng.next() * Math.PI * 2;
+    for (let i = 0; i < SHOCK_BOLT_COUNT; i++) {
+      const angle = base + (i / SHOCK_BOLT_COUNT) * Math.PI * 2 + (this.rng.next() - 0.5) * 0.35;
+      this._spawnLightning({
+        ox: x, oy: y, angle, owner,
+        colour: SHOCK_LIGHTNING_COLOUR, maxSegments: SHOCK_BOLT_SEGMENTS,
+        shockAmount, noChain: true, chain: false,
+      });
+    }
+  }
+
   // Advance electro forked-lightning once per rendered frame: while growing, each active
   // path head lays one segment (turning ±30° from the previous, 15% chance to fork a new
   // path) and electrifies anything it crosses; once the segment budget is spent it holds
@@ -3232,17 +3262,18 @@ export class GameLoop {
       if (this._segHitsCircle(x1, y1, x2, y2, s.position.x, s.position.y, s.radius)) {
         L.hitStations.add(s);
         const shielded = this.gs.shields.some(sh => sh.alive && sh.station === s);
-        if (!shielded) this._applyBeamCondition(s, 'electrified', 1);
+        if (!shielded) this._applyBeamCondition(s, 'electrified', L.shockAmount ?? 1);
       }
     }
     // Planets stop a branch. The source planet is exempt for the first segment (the bolt
-    // emanates from its surface); a different unstable planet also chain-triggers (once).
+    // emanates from its surface); a different unstable planet also chain-triggers (once),
+    // unless this strike is `noChain` (a weapon shock that shouldn't set off planets).
     let blocker = null;
     for (const p of this.gs.planets) {
       if (p.destroyed || p.type === PlanetType.GAS_GIANT) continue; // bolts pass through gas giants
       if (p === L.sourcePlanet && L.total <= 1) continue;           // don't self-block at launch
       if (!this._segHitsCircle(x1, y1, x2, y2, p.position.x, p.position.y, p.impactRadius)) continue;
-      if (isUnstable(p.type) && p !== L.sourcePlanet && !L.hitPlanets.has(p)) {
+      if (!L.noChain && isUnstable(p.type) && p !== L.sourcePlanet && !L.hitPlanets.has(p)) {
         L.hitPlanets.add(p);
         this._triggerEruption(p, x2, y2, L.owner, L.generation + 1);
       }
@@ -3809,6 +3840,16 @@ export class GameLoop {
   _detonateRocket(rocket) {
     if (rocket.status !== RocketStatus.ACTIVE) return;
     if (rocket.owner?.lastTrails && rocket.trail.length > 1) rocket.owner.lastTrails.push([...rocket.trail]);
+
+    // Shock Rocket: no explosion / expanding shock zone — burst into a fan of forked
+    // lightning bolts that electrify anything they touch as they travel.
+    if (rocket.lightningBlast) {
+      rocket.status = RocketStatus.DEAD;
+      SoundManager.play('laser', { pitch: 0.25 });
+      this._spawnShockBurst(rocket.position.x, rocket.position.y, rocket.owner, rocket.shockAmount ?? 2);
+      return;
+    }
+
     rocket.status = RocketStatus.EXPLODING;
     SoundManager.playRandom(['explosionMed', 'explosionMed2']);
     // Spawn an expanding blast zone — damage is applied progressively as it grows.
