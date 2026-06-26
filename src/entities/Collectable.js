@@ -98,9 +98,9 @@ export const WEAPON_GRANTS = [
   { id: WeaponId.HEDGEHOG,              charges: 1, label: 'HEDGEHOG',         tier: 3 },
   // ── New weapons (new-weapons-spec.md) ──────────────────────────────────────
   // Tier 1
-  { id: WeaponId.ICE_ROCKET,            charges: 2, label: 'ICE ROCKET',      tier: 1 },
   { id: WeaponId.THRUST_BOOSTER,        charges: 2, label: 'THRUST BOOSTER',  tier: 1, needsMovement: true },
   // Tier 2
+  { id: WeaponId.ICE_ROCKET,            charges: 2, label: 'ICE ROCKET',          tier: 2 },
   { id: WeaponId.ICE_BLAST,             charges: 1, label: 'ICE BLAST',           tier: 2 },
   { id: WeaponId.TRIPLE_BOUNCE_CANNON,  charges: 1, label: 'TRIPLE BOUNCE',       tier: 2 },
   { id: WeaponId.SHOCK_ROCKET,          charges: 2, label: 'SHOCK ROCKET',        tier: 2 },
