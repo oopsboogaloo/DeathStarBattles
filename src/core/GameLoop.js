@@ -3144,7 +3144,9 @@ export class GameLoop {
       this.gs.cometSmoke.push({
         x: e.position.x + (this.rng.next() - 0.5) * e.radius,
         y: e.position.y + (this.rng.next() - 0.5) * e.radius,
-        maxR: 1.2 + this.rng.next() * 2.0, dt: 1 / 24, fast: true, t: 0,
+        // dt = 1/48 → ~48 frames of life (double the old 1/24), so more puffs
+        // linger behind each blob and the ejecta trail reads as longer.
+        maxR: 1.2 + this.rng.next() * 2.0, dt: 1 / 48, fast: true, t: 0,
         r: sr, g: sg, b: sb,
       });
     }
