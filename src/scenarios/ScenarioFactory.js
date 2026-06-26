@@ -385,8 +385,9 @@ export class ScenarioFactory {
       }
     }
 
-    // Wildcard bonus injection — frequency controlled by wildcardFrequency setting
-    // 10% chance wildcard becomes a rift (SR-07) instead of a planet bonus
+    // Wildcard bonus injection — frequency controlled by wildcardFrequency setting.
+    // A Rift is just one entry (10%) in the bonus pool now (see _addBonus), so the
+    // rifts sink is threaded through and the special-casing here is gone.
     const WILDCARD_THRESHOLDS = {
       off: 0, veryRare: 0.03, rare: 0.1, occasional: 0.25, common: 0.55, always: 2,
     };
@@ -397,21 +398,9 @@ export class ScenarioFactory {
     const wcCollectablePositions = [];
     if (threshold > 0 && rn[1] < threshold) {
       const noGrey = scenarioId === 26;
-      if (rn[2] < 0.10) {
-        const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
-        r.reflective = riftsReflective; // match the per-game variant
-        rifts.push(r);
-      } else {
-        ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
-      }
+      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions, rifts, riftsReflective);
       if (rn[4] < 0.35) {
-        if (rn[5] < 0.10) {
-          const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
-          r.reflective = riftsReflective; // match the per-game variant
-          rifts.push(r);
-        } else {
-          ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions);
-        }
+        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions, rifts, riftsReflective);
       }
     }
 
@@ -2231,12 +2220,24 @@ export class ScenarioFactory {
 
   // ─── bonus random feature injection ─────────────────────────────────────
 
-  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false, collectablesOn = false, collectablePositions = null) {
+  static _addBonus(planets, rng, ra, rb, gw, gh, performance = 'full', noGrey = false, collectablesOn = false, collectablePositions = null, rifts = null, riftsReflective = false) {
     const simplified = performance === 'simplified';
     if (planets.length < 2) return;
 
+    // Rift band — 10% of the pool. Materialised only when a rifts sink is supplied
+    // (the wildcard injection); scenario-internal bonus calls pass none, so the band
+    // is a no-op for them.
+    if (rb < 0.10) {
+      if (rifts) {
+        const r = ScenarioFactory.generateRift(gw, gh, rng, planets);
+        r.reflective = riftsReflective; // match the per-game variant
+        rifts.push(r);
+      }
+      return;
+    }
+
     let candidates;
-    if (rb < 0.25 && planets.length > 2) {
+    if (rb < 0.30 && planets.length > 2) {
       const w0 = makeWormhole(rng, gw,gh, [255,55,255], PlanetType.WORMHOLE_PAIRED);
       const w1 = makeWormhole(rng, gw,gh, [255,55,255], PlanetType.WORMHOLE_PAIRED);
       w0.partner = w1; w1.partner = w0;
