@@ -964,6 +964,7 @@ export class GameLoop {
       // No humans alive — stay in Fast FWD for all remaining AI turns
     }
     this._processStoryEvents(); // may spawn stations and set storyDialogText
+    this._planetUpkeep();       // civilised-planet armour regeneration
     // Decrement frozen/electrified for stations that served the condition last turn
     for (const s of this.gs.allStations) {
       if (s._frozenActive)      { s.frozen      = Math.max(0, s.frozen - 1);             s._frozenActive      = false; }
@@ -2022,6 +2023,12 @@ export class GameLoop {
           bullet._eruptPlanet = null;
         }
 
+        // Civilised planet hit — damage a building / absorb into armour and alert
+        if (bullet._hitCivilised) {
+          this._handleCivilisedHit(bullet._hitCivilised, bullet._hitCivilisedX, bullet._hitCivilisedY, bullet.owner);
+          bullet._hitCivilised = null;
+        }
+
         // Quantum Torpedo: teleport through solid body
         if (bullet._qtTeleportPlanet) {
           this._handleQuantumTeleport(bullet);
@@ -2241,6 +2248,17 @@ export class GameLoop {
         }
       }
 
+      // Civilised buildings caught in the blast — destroyed (or absorbed by armour),
+      // and the planet treats it as aggression from the blast's owning team.
+      for (const p of this.gs.planets) {
+        if (!p.civilised || p.destroyed || blast.hitSet.has(p)) continue;
+        const reach = blast.currentRadius + p.impactRadius;
+        const dx = p.position.x - blast.x, dy = p.position.y - blast.y;
+        if (dx * dx + dy * dy >= reach * reach) continue;
+        blast.hitSet.add(p);
+        this._damagePlanetArea(p, blast.x, blast.y, blast.currentRadius, this._ownerTeam(blast.owner));
+      }
+
       if (blast.currentRadius >= blast.maxRadius) this.gs.rocketBlasts.splice(i, 1);
     }
 
@@ -2456,6 +2474,186 @@ export class GameLoop {
         if (!moon.crackSvgIdxs) moon.crackSvgIdxs  = [];
         moon.crackAngles.push(Math.atan2(impactY - moon.position.y, impactX - moon.position.x));
         moon.crackSvgIdxs.push(Math.floor(this.rng.next() * 3));
+      }
+    }
+  }
+
+  // ─── Civilised planets (spec/civilised-planets-spec.md §1–2) ───────────────
+
+  // Real combatant team behind a projectile owner, or null for a planet's own
+  // defence faction (which lives outside gs.teams and never turns a planet hostile).
+  _ownerTeam(owner) {
+    const team = owner?.team;
+    return team && this.gs.teams.includes(team) ? team : null;
+  }
+
+  // Single projectile striking a civilised planet at (x, y).
+  _handleCivilisedHit(planet, x, y, owner) {
+    if (planet.destroyed) return;
+    const aggressor = this._ownerTeam(owner);
+    if (planet.armour > 0) {
+      planet.armour--;
+      planet.armourFlash = 1.0;
+      SoundManager.play('pop2');
+    } else {
+      this._destroyNearestAsset(planet, x, y);
+    }
+    this._alertPlanet(planet, aggressor);
+  }
+
+  // Area damage (a rocket / bomb blast) over a civilised planet.
+  _damagePlanetArea(planet, x, y, radius, aggressorTeam) {
+    if (planet.destroyed) return;
+    if (planet.armour > 0) {
+      planet.armour--;
+      planet.armourFlash = 1.0;
+    } else {
+      const r2 = radius * radius;
+      const inBlast = a => {
+        const ax = planet.position.x + Math.cos(a.angle) * planet.radius;
+        const ay = planet.position.y + Math.sin(a.angle) * planet.radius;
+        const dx = ax - x, dy = ay - y;
+        return dx * dx + dy * dy <= r2 ? [ax, ay] : null;
+      };
+      for (const b of planet.buildings) {
+        if (b.destroyed) continue;
+        const p = inBlast(b);
+        if (p) this._wreckBuilding(planet, b, p[0], p[1]);
+      }
+      for (const L of planet.surfaceRockets) {
+        if (L.destroyed) continue;
+        if (inBlast(L)) L.destroyed = true;
+      }
+    }
+    this._alertPlanet(planet, aggressorTeam);
+  }
+
+  // Destroy the intact building or surface launcher nearest the impact angle.
+  _destroyNearestAsset(planet, x, y) {
+    const impactAngle = Math.atan2(y - planet.position.y, x - planet.position.x);
+    const angDiff = a => Math.abs(((a - impactAngle + Math.PI) % (Math.PI * 2)) - Math.PI);
+    let bestB = null, bestBDiff = Infinity;
+    for (const b of planet.buildings) {
+      if (b.destroyed) continue;
+      const d = angDiff(b.angle);
+      if (d < bestBDiff) { bestBDiff = d; bestB = b; }
+    }
+    let bestL = null, bestLDiff = Infinity;
+    for (const L of planet.surfaceRockets) {
+      if (L.destroyed) continue;
+      const d = angDiff(L.angle);
+      if (d < bestLDiff) { bestLDiff = d; bestL = L; }
+    }
+    // A launcher takes the hit only if it is the closest asset to the impact.
+    if (bestL && bestLDiff < 0.15 && bestLDiff <= bestBDiff) {
+      bestL.destroyed = true;
+      SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+    } else if (bestB && bestBDiff < 0.3) {
+      const bx = planet.position.x + Math.cos(bestB.angle) * planet.radius;
+      const by = planet.position.y + Math.sin(bestB.angle) * planet.radius;
+      this._wreckBuilding(planet, bestB, bx, by);
+    }
+  }
+
+  // Flip a building to rubble and spawn a small debris puff.
+  _wreckBuilding(planet, building, bx, by) {
+    building.destroyed = true;
+    SoundManager.playRandom(['explosionSmall', 'explosionSmall2', 'explosionSmall3']);
+    for (let i = 0; i < 3; i++) {
+      this.gs.rocketSmoke.push({
+        x: bx + (this.rng.next() - 0.5) * 4,
+        y: by + (this.rng.next() - 0.5) * 4,
+        maxR: 3 + this.rng.next() * 3,
+        t: 0, r: 150, g: 150, b: 160,
+      });
+    }
+  }
+
+  // First damage to any asset puts the planet on alert: it records the aggressor,
+  // turns hostile, and immediately launches its surface rockets.
+  _alertPlanet(planet, aggressorTeam) {
+    if (aggressorTeam) {
+      planet.aggressors.add(aggressorTeam);
+      if (!planet.firstAggressor) planet.firstAggressor = aggressorTeam;
+    }
+    if (!planet.alerted) {
+      planet.alerted   = true;
+      planet.alertFlash = 1.0;
+      this._fireSurfaceRockets(planet);
+    } else {
+      // Already alerted — a later aggressor still wakes any launchers held back
+      // because no valid target faced them when the planet first alerted.
+      this._fireSurfaceRockets(planet);
+    }
+  }
+
+  // Lazily build the neutral defence faction that owns a planet's rockets. It is
+  // deliberately kept out of gs.teams so it never takes a turn, is never targeted,
+  // and never affects win conditions — it only attributes blasts and kills.
+  _planetFaction(planet) {
+    if (planet.faction) return planet.faction;
+    const team = new Team({ index: 0 });
+    team.colour = [205, 205, 215]; // neutral defence grey
+    const station = new Station({ id: -1, team, position: planet.position, size: StationSize.SMALL });
+    station.role = 'ai';
+    planet.faction = { team, station };
+    return planet.faction;
+  }
+
+  // Launch a rocket from every intact, unfired surface launcher that has a hostile
+  // target on its side of the planet. Each launcher holds a single rocket.
+  _fireSurfaceRockets(planet) {
+    const targets = this.gs.allStations.filter(
+      s => s.status === 'active' && planet.aggressors.has(s.team));
+    if (!targets.length) return;
+
+    const faction = this._planetFaction(planet);
+    let launched = false;
+    const maxDist = Math.hypot(this.physics.gw, this.physics.gh);
+
+    for (const launcher of planet.surfaceRockets) {
+      if (launcher.fired || launcher.destroyed) continue;
+      const nx = Math.cos(launcher.angle), ny = Math.sin(launcher.angle); // outward normal
+      const px = planet.position.x + nx * planet.radius;
+      const py = planet.position.y + ny * planet.radius;
+
+      // Nearest target that lies on this launcher's side of the planet.
+      let target = null, bestSq = Infinity;
+      for (const s of targets) {
+        const tdx = s.position.x - px, tdy = s.position.y - py;
+        if (tdx * nx + tdy * ny <= 0.1) continue; // behind the launcher — would hit the planet
+        const dSq = tdx * tdx + tdy * tdy;
+        if (dSq < bestSq) { bestSq = dSq; target = s; }
+      }
+      if (!target) continue;
+
+      const dist = Math.sqrt(bestSq);
+      const dirX = (target.position.x - px) / (dist || 1);
+      const dirY = (target.position.y - py) / (dist || 1);
+      const pos  = new Vec2(px + nx * 1.5, py + ny * 1.5); // clear of the surface
+      const rocket = new Rocket({
+        owner: faction.station, position: pos,
+        velocity: new Vec2(dirX * ROCKET_LAUNCH_SPEED, dirY * ROCKET_LAUNCH_SPEED),
+      });
+      const frac = Math.min(1, dist / maxDist);
+      rocket.fuel = ROCKET_MIN_FUEL + frac * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+      this.gs.rockets.push(rocket);
+      launcher.fired = true;
+      launched = true;
+    }
+    if (launched) SoundManager.play('rocket');
+  }
+
+  // Per-round upkeep for civilised planets: regenerate planetary armour.
+  _planetUpkeep() {
+    for (const p of this.gs.planets) {
+      if (!p.civilised || p.destroyed) continue;
+      if (p.armourRegen > 0 && p.armour < p.armourMax) {
+        if (++p.armourTimer >= p.armourRegen) {
+          p.armourTimer = 0;
+          p.armour++;
+          p.armourFlash = 1.0;
+        }
       }
     }
   }
@@ -4439,6 +4637,13 @@ export class GameLoop {
       if (station.electrifiedFlash > 0) station.electrifiedFlash = Math.max(0, station.electrifiedFlash - 0.012);
       if (station.mindControlFlash > 0) station.mindControlFlash = Math.max(0, station.mindControlFlash - 0.02);
       if (station.frozenFlash      > 0) station.frozenFlash      = Math.max(0, station.frozenFlash      - 0.005);
+    }
+
+    // Civilised-planet flashes
+    for (const planet of this.gs.planets) {
+      if (!planet.civilised) continue;
+      if (planet.armourFlash > 0) planet.armourFlash = Math.max(0, planet.armourFlash - 0.04);
+      if (planet.alertFlash  > 0) planet.alertFlash  = Math.max(0, planet.alertFlash  - 0.02);
     }
 
     // Freestanding asteroid explosions

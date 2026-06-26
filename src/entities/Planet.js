@@ -89,6 +89,12 @@ export class Planet {
     hitCount      = 0,      // damage level 0-2; 3rd hit destroys the moon
     crackLines    = null,   // [[Vec2[]]...] — one crack-set per hit (MOON only)
     crackSeed     = 0,      // deterministic seed for unstable-planet crack pattern
+    // ── Civilised planets (see spec/civilised-planets-spec.md §1) ───────────────
+    civilised     = false,  // true → inhabited body with buildings and defences
+    buildings     = null,   // [{angle, kind, h, destroyed}] — decorative/destructible structures
+    armour        = 0,      // planetary armour points absorbed before buildings take damage
+    armourRegen   = 0,      // restore one armour point every N rounds (0 = none)
+    surfaceRockets = null,  // [{angle, fired, destroyed}] — single-shot surface launch sites
   }) {
     this.position      = position;
     this.radius        = radius;
@@ -116,6 +122,20 @@ export class Planet {
     this.hitCount      = hitCount;
     this.crackLines    = crackLines ?? [];
     this.crackSeed     = crackSeed;
+    // ── Civilised planet state ──────────────────────────────────────────────────
+    this.civilised     = civilised;
+    this.buildings     = buildings ?? [];
+    this.armour        = armour;
+    this.armourMax     = armour;        // ceiling for regeneration
+    this.armourRegen   = armourRegen;
+    this.armourTimer   = 0;             // rounds counted toward the next regen
+    this.surfaceRockets = surfaceRockets ?? [];
+    this.alerted       = false;         // becomes true the first time any asset is damaged
+    this.aggressors    = new Set();     // Team[] this planet has turned hostile toward
+    this.firstAggressor = null;         // the Team that first provoked the planet
+    this.armourFlash   = 0;             // 1→0 flash when an armour point absorbs a hit
+    this.alertFlash    = 0;             // 1→0 flash when the planet first alerts
+    this.faction       = null;          // lazy { team, station } used as defence-rocket owner
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }

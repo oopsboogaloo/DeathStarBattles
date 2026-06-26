@@ -961,6 +961,9 @@ export class Renderer {
       if (planet.type === PlanetType.MOON && !planet.destroyed) this._drawMoon(ctx, planet);
     }
 
+    // Civilised planets — buildings, armour, launchers and alert state over the baked body
+    this._drawCivilisedPlanets(ctx, gameState.planets);
+
     // Ghost trail of previous shot — helps human players adjust aim
     if ((gameState.mode === 'aiming' || gameState.mode === 'tp_aiming') && gameState.waitingForInput) {
       const active = gameState.activeStation;
@@ -1628,6 +1631,116 @@ export class Renderer {
         ctx.rotate(rotation);
         ctx.drawImage(img, -size / 2, -size / 2, size, size);
         ctx.restore();
+      }
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Civilised planets — buildings, planetary armour, surface launchers and
+  // alert state, drawn live over the baked rocky body (spec §1–2).
+  // ----------------------------------------------------------------
+
+  _drawCivilisedPlanets(ctx, planets) {
+    for (const planet of planets) {
+      if (!planet.civilised || planet.destroyed) continue;
+      const cx = planet.position.x * this.conv;
+      const cy = planet.position.y * this.conv;
+      const r  = Math.max(3, planet.radius * this.conv);
+
+      // ── Planetary armour — concentric translucent shells just above the surface
+      const armour = planet.armour ?? 0;
+      const aFlash = planet.armourFlash ?? 0;
+      if (armour > 0 || aFlash > 0) {
+        for (let k = 0; k < armour; k++) {
+          const rr = r + (k + 1) * Math.max(1.5, r * 0.04);
+          ctx.beginPath();
+          ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(120,200,255,${0.30 + aFlash * 0.5})`;
+          ctx.lineWidth = Math.max(1, r * 0.03);
+          ctx.stroke();
+        }
+        if (aFlash > 0) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r + Math.max(1.5, r * 0.04), 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(200,235,255,${aFlash * 0.8})`;
+          ctx.lineWidth = Math.max(1.5, r * 0.05);
+          ctx.stroke();
+        }
+      }
+
+      // ── Alert ring — pulsing red halo while the planet is hostile
+      if (planet.alerted) {
+        const pulse = 0.25 + 0.2 * (0.5 + 0.5 * Math.sin(performance.now() / 220));
+        const aa    = Math.min(0.9, pulse + (planet.alertFlash ?? 0));
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 1.16, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,60,40,${aa})`;
+        ctx.lineWidth = Math.max(1, r * 0.025);
+        ctx.stroke();
+      }
+
+      // ── Buildings around the rim ────────────────────────────────────────────
+      const bw = Math.max(1.2, r * 0.05);  // base half-width along the tangent
+      const bh = Math.max(2.0, r * 0.10);   // base height outward from the rim
+      for (const b of planet.buildings) {
+        const ca = Math.cos(b.angle), sa = Math.sin(b.angle);
+        const bx = cx + ca * r, by = cy + sa * r; // rim base point
+        const tx = -sa, ty = ca;                  // tangent direction
+        if (b.destroyed) {
+          // Rubble — a small dark mound at the former site
+          ctx.beginPath();
+          ctx.arc(bx, by, bw * 0.9, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(40,40,46,0.9)';
+          ctx.fill();
+          continue;
+        }
+        const w = bw * b.w;
+        const h = bh * b.h;
+        // Four corners of a radially-standing structure
+        const ox = ca * h, oy = sa * h; // outward offset
+        const p1x = bx - tx * w,        p1y = by - ty * w;
+        const p2x = bx + tx * w,        p2y = by + ty * w;
+        const p3x = bx + tx * w + ox,   p3y = by + ty * w + oy;
+        const p4x = bx - tx * w + ox,   p4y = by - ty * w + oy;
+        ctx.beginPath();
+        ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.lineTo(p3x, p3y); ctx.lineTo(p4x, p4y); ctx.closePath();
+        ctx.fillStyle = b.kind === 1 ? 'rgb(150,160,180)' : b.kind === 2 ? 'rgb(120,150,170)' : 'rgb(135,145,165)';
+        ctx.fill();
+        // Lit roof cap
+        ctx.beginPath();
+        ctx.moveTo(p4x, p4y); ctx.lineTo(p3x, p3y);
+        ctx.lineTo(p3x - tx * w * 0.4, p3y - ty * w * 0.4);
+        ctx.lineTo(p4x + tx * w * 0.4, p4y + ty * w * 0.4); ctx.closePath();
+        ctx.fillStyle = planet.alerted ? 'rgba(255,170,90,0.9)' : 'rgba(210,225,255,0.8)';
+        ctx.fill();
+      }
+
+      // ── Surface rocket launchers ────────────────────────────────────────────
+      const lh = Math.max(2.5, r * 0.13);
+      const lw = Math.max(1.4, r * 0.045);
+      for (const L of planet.surfaceRockets) {
+        if (L.destroyed) continue;
+        const ca = Math.cos(L.angle), sa = Math.sin(L.angle);
+        const bx = cx + ca * r, by = cy + sa * r;
+        const tx = -sa, ty = ca;
+        // Launch pad base
+        ctx.beginPath();
+        ctx.moveTo(bx - tx * lw * 1.6, by - ty * lw * 1.6);
+        ctx.lineTo(bx + tx * lw * 1.6, by + ty * lw * 1.6);
+        ctx.lineTo(bx + tx * lw * 1.2 + ca * lh * 0.3, by + ty * lw * 1.2 + sa * lh * 0.3);
+        ctx.lineTo(bx - tx * lw * 1.2 + ca * lh * 0.3, by - ty * lw * 1.2 + sa * lh * 0.3);
+        ctx.closePath();
+        ctx.fillStyle = 'rgb(90,96,110)';
+        ctx.fill();
+        // Missile tube (spent launchers point empty — drawn dimmer)
+        const tipX = bx + ca * lh, tipY = by + sa * lh;
+        ctx.beginPath();
+        ctx.moveTo(bx - tx * lw * 0.6 + ca * lh * 0.3, by - ty * lw * 0.6 + sa * lh * 0.3);
+        ctx.lineTo(bx + tx * lw * 0.6 + ca * lh * 0.3, by + ty * lw * 0.6 + sa * lh * 0.3);
+        ctx.lineTo(tipX, tipY);
+        ctx.closePath();
+        ctx.fillStyle = L.fired ? 'rgb(70,74,84)' : 'rgb(180,80,70)';
+        ctx.fill();
       }
     }
   }

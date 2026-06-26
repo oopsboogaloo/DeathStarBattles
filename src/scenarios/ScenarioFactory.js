@@ -293,6 +293,74 @@ function placeRockyInField(planets, rng, gw, gh, attempts = 60) {
   return null;
 }
 
+// ─── Civilised planets (spec/civilised-planets-spec.md §1) ────────────────────
+
+const CIVILISED_COL = [120, 132, 150]; // cool grey-blue inhabited crust
+
+// Decorative/destructible buildings spaced around the planet rim. Spacing and
+// orientation are randomised; count scales with circumference. Each has one hit
+// point (destroyed flag flipped by GameLoop when damaged).
+function generateBuildings(rng, radius) {
+  const buildings = [];
+  const spacing   = 11 + rng.next() * 6;            // game units between sites (avg)
+  let angle       = rng.next() * Math.PI * 2;
+  const end       = angle + Math.PI * 2;
+  while (angle < end) {
+    buildings.push({
+      angle,
+      kind:      rng.nextInt(3),                    // sprite/shape variant 0-2
+      h:         0.7 + rng.next() * 0.9,            // height multiplier
+      w:         0.7 + rng.next() * 0.6,            // width multiplier
+      destroyed: false,
+    });
+    // Convert the linear spacing to an angular step at this radius, with jitter.
+    const gap = spacing * (0.7 + rng.next() * 0.9);
+    angle += Math.max(0.05, gap / radius);
+  }
+  return buildings;
+}
+
+// Single-shot surface launch sites at distinct angles around the planet.
+function generateSurfaceRockets(rng, n) {
+  const rockets = [];
+  for (let i = 0; i < n; i++) {
+    rockets.push({
+      angle:     rng.next() * Math.PI * 2,
+      fired:     false,
+      destroyed: false,
+    });
+  }
+  return rockets;
+}
+
+// Roll planetary armour from a probability table [{p, n}] (cumulative).
+function rollArmour(rng) {
+  const r = rng.next();
+  if (r < 0.80) return 0;
+  if (r < 0.90) return 1;
+  if (r < 0.96) return 2;
+  return 3;
+}
+
+// Build a large inhabited rocky planet with buildings, optional armour and
+// surface rockets. Dormant/beam-in defence stations, satellites and mines are
+// future phases (see spec §2) and are not generated here yet.
+function makeCivilisedPlanet(rng, position, radius, { surfaceRockets = 0, armour = 0, armourRegen = 0 } = {}) {
+  return new Planet({
+    position,
+    radius,
+    density:  0.03,
+    type:     PlanetType.ROCKY,
+    colour:   [...CIVILISED_COL],
+    shading:  ShadingStyle.ROCKY,
+    civilised: true,
+    buildings: generateBuildings(rng, radius),
+    armour,
+    armourRegen,
+    surfaceRockets: generateSurfaceRockets(rng, surfaceRockets),
+  });
+}
+
 function makePulsar(rng, A, B, C, gw, gh) {
   const bigR  = rng.nextInRange(80, 160) + 140.5;
   const dispR = rng.nextInRange(7, 10);
@@ -2054,6 +2122,52 @@ export class ScenarioFactory {
           if (rng.next() < 0.5) planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
           else                  planets.push(makeAsteroid(rng, 0.8, 0.1, 0.05, 12, 5, 3, gw, gh, 0.05, richProb));
         }
+        break;
+      }
+
+      // ── 41: Civilised Planet (spec §4.1) ──────────────────────────────────
+      case 41: {
+        // One large inhabited planet, mostly on-screen and near the centre.
+        const bigR = Math.min(gw, gh) * (0.16 + rng.next() * 0.05); // ~16–21% of the short side
+        const pos  = new Vec2(
+          gw * 0.5 + (rng.next() - 0.5) * gw * 0.18,
+          gh * 0.5 + (rng.next() - 0.5) * gh * 0.18,
+        );
+        // Core-phase defences: surface rockets (0–5) and planetary armour. (Dormant
+        // and beam-in defence stations, satellites and mines are later phases.)
+        const nSurface = rng.nextInt(6);                 // 0–5
+        const armour   = rollArmour(rng);                // 0–3 per the spec table
+        const armourRegen = armour > 0 ? 4 + rng.nextInt(5) : 0; // restore 1 every 4–8 rounds
+        const planet = makeCivilisedPlanet(rng, pos, bigR, { surfaceRockets: nSurface, armour, armourRegen });
+        planets.push(planet);
+
+        // 2–6 moons orbiting the planet
+        const nMoons = 2 + rng.nextInt(5);
+        for (let m = 0; m < nMoons; m++) {
+          const angle   = rng.next() * Math.PI * 2;
+          const dist    = bigR + 24 + rng.next() * 60;
+          const mx      = Math.max(8, Math.min(gw - 8, pos.x + Math.cos(angle) * dist));
+          const my      = Math.max(8, Math.min(gh - 8, pos.y + Math.sin(angle) * dist));
+          const mRadius = 10 + rng.next() * 8;
+          const nCraters = 3 + rng.nextInt(4);
+          const craterData = [];
+          for (let c = 0; c < nCraters; c++) {
+            const ca = rng.next() * Math.PI * 2;
+            const cd = rng.next() * mRadius * 0.7;
+            const cr = 2 + rng.next() * (mRadius * 0.22);
+            craterData.push({ dx: Math.cos(ca) * cd, dy: Math.sin(ca) * cd, cr });
+          }
+          planets.push(new Planet({
+            position: new Vec2(mx, my), radius: mRadius, density: 0.04,
+            type: PlanetType.MOON, colour: [200, 207, 228], shading: ShadingStyle.ROCKY,
+            craterData, hitCount: 0, crackLines: [],
+          }));
+        }
+
+        // Scatter a handful of asteroids across the rest of the field
+        const nAst = 3 + rng.nextInt(6); // 3–8
+        for (let i = 0; i < nAst; i++)
+          planets.push(makeAsteroid(rng, 1,0,0, 14,5,3, gw,gh, 0.05, richProb));
         break;
       }
 

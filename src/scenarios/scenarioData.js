@@ -1,7 +1,7 @@
 // Copyright © 2026 Chloe Bolland
 // contact chloe@mammoththoughts.com if you wish to use, publish or reproduce this game or any part of it in any way
 
-export const SCENARIO_COUNT = 40;
+export const SCENARIO_COUNT = 41;
 
 // Deterministic FNV-1a 32-bit hash of a UTF-16 string (platform-independent)
 export function hashString(str) {
@@ -56,6 +56,7 @@ export const SCENARIO_NAMES = [
   'Sol',                // 38
   'Unstable Planet',    // 39
   'Unstable System',    // 40
+  'Civilised Planet',   // 41
 ];
 
 // Scenarios valid for Target Practice mode

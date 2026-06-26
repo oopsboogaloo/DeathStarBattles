@@ -501,6 +501,15 @@ export class PhysicsEngine {
         break;
 
       default: {
+        // Civilised planet: flag the impact point so GameLoop can damage a
+        // building / absorb into armour and alert the planet. The bullet still
+        // resolves as a normal rocky-body hit (explode / frag-bounce below).
+        if (planet.civilised) {
+          bullet._hitCivilised  = planet;
+          bullet._hitCivilisedX = bullet.position.x;
+          bullet._hitCivilisedY = bullet.position.y;
+        }
+
         // Skim detection applies to stars only (FR-1); all other solid bodies destroy the bullet
         if (planet.type === PlanetType.STAR) {
           const speed = Math.sqrt(bullet.velocity.x ** 2 + bullet.velocity.y ** 2);

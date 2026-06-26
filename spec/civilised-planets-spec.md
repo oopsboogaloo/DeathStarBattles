@@ -2,7 +2,9 @@
 
 > Introduces civilised planets, planetary defence systems, new hazard objects, and several new scenarios. The intent is to make the universe feel inhabited and reactive while greatly increasing the number of emergent gameplay situations. The majority of these features are **generic, reusable systems** rather than scripted behaviours, so they can be shared across Story Mode, random games, and future scenarios.
 
-> **Status:** Future work — captured for later. Not yet implemented. This document records the design intent; implementation details (affected files, data shapes, tuning constants) are to be worked out when the feature is scheduled.
+> **Status:** Core foundation implemented (Phase 1). The following are in place: civilised planets with destructible buildings, the planet **Alert** state, a per-planet **aggressor list**, **planetary armour** (with regeneration), **surface rockets**, and a new **Civilised Planet** scenario (id 41). A civilised planet's rockets/kills are attributed to a neutral defence faction kept outside the normal team list.
+>
+> **Deferred to later phases:** dormant & beam-in defence stations (§2.1), planetary mines (§2.4), defence satellites (§2.5), Force Rifts (§2.6), the new space objects (§3), and the remaining scenarios — Warzone, Space Junkyard, Space Minefield, Space Fortress (§4.2–4.5).
 
 ---
 
