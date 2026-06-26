@@ -62,11 +62,11 @@ const LIGHTNING_FADE_FRAMES   = 14;   // quick fade-out
 const SHOCK_BOLT_COUNT        = 15;   // Shock Rocket: forked bolts radiating from the burst
 const SHOCK_BOLT_SEGMENTS     = 25;   // segment budget per Shock Rocket bolt
 const SHOCK_LIGHTNING_COLOUR  = [120, 210, 255]; // bright electric blue for weapon shocks
-// Civilised-planet surface rockets launch from the surface of a large body, so
-// they need a faster launch and stronger, longer thrust than player rockets to
-// climb out of its gravity well rather than fall back into orbit.
-const SURFACE_ROCKET_LAUNCH_SPEED = 0.45; // vs ROCKET_LAUNCH_SPEED (0.15)
-const SURFACE_ROCKET_THRUST_MULT  = 3.0;  // multiplies ROCKET_THRUST while fuel lasts
+// Civilised-planet surface rockets launch from the surface of a large body, the
+// worst case for gravity. Rather than over-powering them, they simply feel a
+// fraction of gravity so they can climb off the surface without falling straight
+// back into orbit (and without being flung off to infinity).
+const SURFACE_ROCKET_GRAVITY_MULT = 1 / 3; // fraction of normal gravity felt
 
 // Mammoth Cannon tuning constants
 const MAMMOTH_SIZE_MULT        = 3;     // bullet draw radius multiplier
@@ -1800,18 +1800,18 @@ export class GameLoop {
       for (const rocket of this.gs.rockets) {
         if (rocket.status !== RocketStatus.ACTIVE) continue;
 
-        // Thrust (surface-defence rockets carry a thrustMult so they can climb
-        // out of a large planet's gravity well — see _fireSurfaceRockets)
+        // Thrust
         if (rocket.fuel > 0) {
-          const thrust = ROCKET_THRUST * (rocket.thrustMult ?? 1);
           const speed = Math.sqrt(rocket.velocity.x ** 2 + rocket.velocity.y ** 2) || 1;
-          const ax    = (rocket.velocity.x / speed) * thrust / (ROCKET_BASE_MASS + rocket.fuel) * TIMESTEP;
-          const ay    = (rocket.velocity.y / speed) * thrust / (ROCKET_BASE_MASS + rocket.fuel) * TIMESTEP;
+          const ax    = (rocket.velocity.x / speed) * ROCKET_THRUST / (ROCKET_BASE_MASS + rocket.fuel) * TIMESTEP;
+          const ay    = (rocket.velocity.y / speed) * ROCKET_THRUST / (ROCKET_BASE_MASS + rocket.fuel) * TIMESTEP;
           rocket.velocity = new Vec2(rocket.velocity.x + ax, rocket.velocity.y + ay);
           rocket.fuel    -= ROCKET_FUEL_BURN_RATE * TIMESTEP;
         }
 
-        // Gravity
+        // Gravity (surface-defence rockets feel a fraction of it, via gravityMult,
+        // so they can climb off the surface of a large planet without flying off)
+        const gMult = rocket.gravityMult ?? 1;
         for (const planet of this.gs.planets) {
           if (planet.destroyed) continue;
           const dx  = planet.position.x - rocket.position.x;
@@ -1829,6 +1829,7 @@ export class GameLoop {
           } else {
             accel = sign * G * planet.mass / rSq;
           }
+          accel *= gMult;
           rocket.velocity = new Vec2(
             rocket.velocity.x + Math.cos(theta) * accel * TIMESTEP,
             rocket.velocity.y + Math.sin(theta) * accel * TIMESTEP,
@@ -2616,6 +2617,7 @@ export class GameLoop {
 
     const faction = this._planetFaction(planet);
     let launched = false;
+    const maxDist = Math.hypot(this.physics.gw, this.physics.gh);
 
     for (const launcher of planet.surfaceRockets) {
       if (launcher.fired || launcher.destroyed) continue;
@@ -2634,22 +2636,18 @@ export class GameLoop {
       if (!target) continue;
 
       const dist = Math.sqrt(bestSq);
-      // Aim biased outward so the rocket clears the planet's surface before
-      // homing toward the target — blend the to-target direction with the
-      // launcher's outward normal.
-      let dirX = (target.position.x - px) / (dist || 1) + nx * 0.6;
-      let dirY = (target.position.y - py) / (dist || 1) + ny * 0.6;
-      const dl = Math.hypot(dirX, dirY) || 1;
-      dirX /= dl; dirY /= dl;
+      const dirX = (target.position.x - px) / (dist || 1);
+      const dirY = (target.position.y - py) / (dist || 1);
       const pos  = new Vec2(px + nx * 1.5, py + ny * 1.5); // clear of the surface
       const rocket = new Rocket({
         owner: faction.station, position: pos,
-        velocity: new Vec2(dirX * SURFACE_ROCKET_LAUNCH_SPEED, dirY * SURFACE_ROCKET_LAUNCH_SPEED),
+        velocity: new Vec2(dirX * ROCKET_LAUNCH_SPEED, dirY * ROCKET_LAUNCH_SPEED),
       });
-      // Full fuel (long burn) plus extra thrust so a rocket fired from the
-      // surface of a large planet reliably escapes its gravity well.
-      rocket.fuel       = ROCKET_MAX_FUEL;
-      rocket.thrustMult = SURFACE_ROCKET_THRUST_MULT;
+      const frac = Math.min(1, dist / maxDist);
+      rocket.fuel = ROCKET_MIN_FUEL + frac * (ROCKET_MAX_FUEL - ROCKET_MIN_FUEL);
+      // Surface rockets feel reduced gravity so they can climb off the surface
+      // of a large planet rather than falling straight back into orbit.
+      rocket.gravityMult = SURFACE_ROCKET_GRAVITY_MULT;
       this.gs.rockets.push(rocket);
       launcher.fired = true;
       launched = true;

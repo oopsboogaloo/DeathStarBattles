@@ -1647,12 +1647,15 @@ export class Renderer {
       const cy = planet.position.y * this.conv;
       const r  = Math.max(3, planet.radius * this.conv);
 
-      // ── Planetary armour — concentric translucent shells just above the surface
+      // ── Planetary armour — concentric translucent shells clear of the
+      //    buildings (which stand out to ~1.18× the radius from the surface)
       const armour = planet.armour ?? 0;
       const aFlash = planet.armourFlash ?? 0;
+      const armourBase = r * 1.25 + Math.max(2, r * 0.06);
+      const armourGap  = Math.max(2.5, r * 0.07);
       if (armour > 0 || aFlash > 0) {
         for (let k = 0; k < armour; k++) {
-          const rr = r + (k + 1) * Math.max(1.5, r * 0.04);
+          const rr = armourBase + k * armourGap;
           ctx.beginPath();
           ctx.arc(cx, cy, rr, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(120,200,255,${0.30 + aFlash * 0.5})`;
@@ -1661,7 +1664,7 @@ export class Renderer {
         }
         if (aFlash > 0) {
           ctx.beginPath();
-          ctx.arc(cx, cy, r + Math.max(1.5, r * 0.04), 0, Math.PI * 2);
+          ctx.arc(cx, cy, armourBase, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(200,235,255,${aFlash * 0.8})`;
           ctx.lineWidth = Math.max(1.5, r * 0.05);
           ctx.stroke();
