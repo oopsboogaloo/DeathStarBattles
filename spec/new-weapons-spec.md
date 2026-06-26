@@ -85,15 +85,15 @@ class IceRing {
 **Constants:**
 ```
 ICE_RING_INITIAL_SPEED = 0.08 × maxCannonSpeed   (very slow)
-ICE_RING_GRAVITY_FACTOR = 1.0                     (full gravity)
+ICE_RING_GRAVITY_FACTOR = 0                        (gravity-immune — flies dead straight)
 ICE_RING_MAX_RADIUS = 18                          (game units)
 ICE_RING_LIFETIME = 3000                          (simulation steps)
 ICE_RING_EXPAND_RATE = ICE_RING_MAX_RADIUS / ICE_RING_LIFETIME
 ```
 
 Each step, an ice ring:
-1. Accumulates gravity from all planets (same as a bullet, `G × 1.0`)
-2. Updates position
+1. (Gravity-immune — no acceleration is applied; velocity stays constant)
+2. Updates position (dead straight along its launch velocity)
 3. Expands `radius += ICE_RING_EXPAND_RATE`
 4. Checks collision with any station whose centre is within `ring.radius + station.radius` of the ring centre and is not in `ring.hitSet`
 5. On station contact: applies **single freeze** (`frozen = min(3, frozen + 1)`); adds station to `ring.hitSet`; ring does **not** stop — it passes through stations

@@ -1752,18 +1752,8 @@ export class GameLoop {
         for (const ring of this.gs.iceRings) {
           if (ring.status !== 'active') continue;
           ring.lifetime++;
-          // Gravity (full G)
-          for (const planet of this.gs.planets) {
-            if (planet.destroyed) continue;
-            const dx = planet.position.x - ring.position.x, dy = planet.position.y - ring.position.y;
-            const rSq = dx * dx + dy * dy;
-            if (rSq < 0.01) continue;
-            const sign  = dx < 0 ? -1 : 1;
-            const theta = Math.atan(dy / dx);
-            const accel = sign * G * planet.mass / rSq;
-            ring.velocity = new Vec2(ring.velocity.x + Math.cos(theta) * accel * TIMESTEP,
-                                     ring.velocity.y + Math.sin(theta) * accel * TIMESTEP);
-          }
+          // Gravity-immune — the ring flies dead straight at constant velocity so it
+          // stays a predictable, aimable freeze rather than being bent off course.
           ring.position = new Vec2(ring.position.x + ring.velocity.x * TIMESTEP,
                                    ring.position.y + ring.velocity.y * TIMESTEP);
           ring.radius = Math.min(ICE_RING_MAX_RADIUS, ring.radius + ICE_RING_MAX_RADIUS / ICE_RING_LIFETIME);
