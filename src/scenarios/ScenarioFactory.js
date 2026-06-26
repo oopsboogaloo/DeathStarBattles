@@ -2249,7 +2249,7 @@ export class ScenarioFactory {
       // Red network — 4 wormholes all in the same network
       const wn = [0,1,2,3].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK));
       candidates = wn;
-    } else if (rb < 0.645) {
+    } else if (rb < 0.62) {
       if (noGrey) {
         candidates = [makeCrystalAsteroid(rng, 0.4,0.4,0.1, 20,5,3, gw,gh, 0.05)];
       } else {
@@ -2259,7 +2259,7 @@ export class ScenarioFactory {
           ? [0,1,2].map(() => makeWormhole(rng, gw,gh, [255,55,55], PlanetType.WORMHOLE_NETWORK))
           : [0,1,2].map(() => makeWormhole(rng, gw,gh, [155,155,155], PlanetType.WORMHOLE_PLANET));
       }
-    } else if (rb < 0.70) {
+    } else if (rb < 0.675) {
       // Collectables wildcard — 3–6 collectables, or crystal asteroids if collectables are off
       if (collectablesOn && collectablePositions) {
         const n = 3 + rng.nextInt(4);
@@ -2268,10 +2268,10 @@ export class ScenarioFactory {
         return;
       }
       candidates = Array.from({length: 2 + rng.nextInt(3)}, () => makeCrystalAsteroid(rng, 1,0,0, 20,5,3, gw,gh, 0.05));
-    } else if (rb < 0.78) {
+    } else if (rb < 0.725) {
       // Yellow self wormhole
       candidates = [makeWormhole(rng, gw,gh, [255,255,55], PlanetType.WORMHOLE_SELF)];
-    } else if (rb < 0.85) {
+    } else if (rb < 0.795) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
@@ -2279,7 +2279,7 @@ export class ScenarioFactory {
         type: PlanetType.WHITE_DWARF, colour: WHITE_COL, shading: ShadingStyle.GLOWING,
         halo: 15.0,
       })];
-    } else if (rb < 0.90) {
+    } else if (rb < 0.845) {
       const bigR = rng.nextInRange(3, 6) + 4;
       candidates = [new Planet({
         position:     new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
@@ -2290,7 +2290,7 @@ export class ScenarioFactory {
         pulsarPeriod: 0.1 + rng.next() * 0.9,
         pulsarPhase:  rng.next() * 0.9,
       })];
-    } else if (rb < 0.93) {
+    } else if (rb < 0.875) {
       candidates = [new Planet({
         position: new Vec2(rv(rng,0.4,0.4,0.1,gw), rv(rng,0.4,0.4,0.1,gh)),
         radius: 3, density: 50,
