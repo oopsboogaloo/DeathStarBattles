@@ -139,6 +139,19 @@ export class Planet {
   }
 
   get mass()         { return this._massOverride ?? (this.radius * this.radius * this.density); }
-  get impactRadius() { return this._impactRadius ?? this.radius; }
+
+  // Outermost planetary-armour shell radius (game units), kept in sync with the
+  // shells the renderer draws. ARMOUR_BASE = 1.25 (clear of buildings) + 0.06
+  // (first shell offset); ARMOUR_GAP = 0.07 per additional layer.
+  get armourRadius() {
+    return this.radius * (1.31 + Math.max(0, this.armour - 1) * 0.07);
+  }
+
+  // When a civilised planet still has armour, projectiles collide with the
+  // armour shell rather than the surface (the hit is absorbed by the armour).
+  get impactRadius() {
+    if (this.civilised && this.armour > 0) return this.armourRadius;
+    return this._impactRadius ?? this.radius;
+  }
   get cssColour()    { return `rgb(${this.colour[0]},${this.colour[1]},${this.colour[2]})`; }
 }

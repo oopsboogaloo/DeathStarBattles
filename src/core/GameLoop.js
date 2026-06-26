@@ -1904,6 +1904,7 @@ export class GameLoop {
         // Planet collision → teleport through wormhole or detonate (gas giants passed through)
         for (const planet of this.gs.planets) {
           if (planet.destroyed || planet.type === PlanetType.GAS_GIANT) continue;
+          if (planet === rocket.homePlanet) continue; // own planet — pass through (incl. armour)
           // Broad-phase bounding circle, then exact polygon narrow-phase for asteroids
           // (same test bullets use) so a rocket only strikes the actual jagged rock,
           // not the empty circle around it.
@@ -2648,6 +2649,9 @@ export class GameLoop {
       // Surface rockets feel reduced gravity so they can climb off the surface
       // of a large planet rather than falling straight back into orbit.
       rocket.gravityMult = SURFACE_ROCKET_GRAVITY_MULT;
+      // Launched from inside the armour bubble — they pass through their own
+      // planet (and its armour) rather than detonating on it (spec §2.2).
+      rocket.homePlanet  = planet;
       this.gs.rockets.push(rocket);
       launcher.fired = true;
       launched = true;
