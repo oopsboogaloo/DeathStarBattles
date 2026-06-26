@@ -2896,14 +2896,17 @@ export class GameLoop {
   // Advance every active eruption sequence one step: emit escalating mini-bursts
   // at random overlapping intervals and fire the lethal ejecta waves on schedule.
   _stepEruptions() {
+    const simplified = this._performance === 'simplified';
     for (const seq of this.gs.eruptions) {
       if (seq.beam) { this._stepBeamEruption(seq); continue; }
       seq.age++;
-      // Mini-bursts — escalate then taper across the sequence (sine envelope)
+      // Mini-bursts — escalate then taper across the sequence (sine envelope).
+      // Simplified mode skips the cosmetic rumble debris (the timing draws still
+      // run, so the rest of the sequence is unaffected).
       if (seq.age >= seq.nextMiniAt && seq.age < seq.duration) {
         const env      = Math.sin((seq.age / seq.duration) * Math.PI); // 0 → 1 → 0
         const strength = 2 + Math.floor(env * 8 * (0.5 + this.rng.next() * 0.6));
-        this._spawnEruptionDebris(seq, strength, 0.6 + env * 0.8);
+        if (!simplified) this._spawnEruptionDebris(seq, strength, 0.6 + env * 0.8);
         seq.nextMiniAt = seq.age + ERUPTION_MINI_MIN_GAP +
           Math.floor(this.rng.next() * (ERUPTION_MINI_MAX_GAP - ERUPTION_MINI_MIN_GAP));
       }
@@ -2933,11 +2936,13 @@ export class GameLoop {
   // Beam charge sequence: build precursor particles at the contact point, fire the laser
   // when the charge completes, then taper the particles off.
   _stepBeamEruption(seq) {
+    const simplified = this._performance === 'simplified';
     seq.age++;
     if (!seq.fired) {
-      // Build-up: converging "charging" particles, intensifying toward the fire moment
+      // Build-up: converging "charging" particles, intensifying toward the fire moment.
+      // Simplified mode skips the cosmetic precursor (timing draw still runs).
       const prog = Math.min(1, seq.age / seq.chargeSteps);
-      if (this.rng.next() < 0.04 + prog * 0.13) this._spawnBeamCharge(seq);
+      if (this.rng.next() < 0.04 + prog * 0.13 && !simplified) this._spawnBeamCharge(seq);
       if (seq.age >= seq.chargeSteps) {
         seq.fired = true;
         this._stopSound(seq.chargeSound); seq.chargeSound = null; // charge done → silence it
@@ -3137,6 +3142,11 @@ export class GameLoop {
   // Emit short-lived comet-style smoke puffs from live pyro/cryo blobs — once per
   // frame so the count stays bounded and game-speed independent.
   _emitEjectaSmoke() {
+    // Simplified mode halves the ejecta smoke trail — emit on every other frame.
+    if (this._performance === 'simplified') {
+      this._ejectaSmokeSkip = !this._ejectaSmokeSkip;
+      if (this._ejectaSmokeSkip) return;
+    }
     for (const e of this.gs.ejecta) {
       if (e.dead || e.launchDelay > 0) continue;
       if (e.kind !== EjectaKind.PYRO && e.kind !== EjectaKind.CRYO) continue;

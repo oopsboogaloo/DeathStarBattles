@@ -271,6 +271,28 @@ function placeUnstableInField(planets, rng, gw, gh, opts, attempts = 60) {
   return null;
 }
 
+// Place an ordinary rocky planet in the field the same way, sized to match the
+// unstable planets it stands in for (used when simplified mode caps the unstable
+// count and fills the remainder with regular planets).
+function placeRockyInField(planets, rng, gw, gh, attempts = 60) {
+  const minGap = 10;
+  for (let a = 0; a < attempts; a++) {
+    const r = (9 + rng.next() * 8) * UNSTABLE_SIZE_MULT; // same drawn size as the unstable bodies
+    const p = new Planet({
+      position: new Vec2(rv(rng, 0.7, 0.15, 0.075, gw), rv(rng, 0.7, 0.15, 0.075, gh)),
+      radius:   r,
+      density:  0.03,
+      type:     PlanetType.ROCKY,
+      colour:   [...ROCKY_COLS[rng.nextInt(ROCKY_COLS.length)]],
+      shading:  ShadingStyle.ROCKY,
+    });
+    const overlaps = planets.some(q =>
+      p.position.distanceTo(q.position) < (p.impactRadius + q.impactRadius + minGap));
+    if (!overlaps) { planets.push(p); return p; }
+  }
+  return null;
+}
+
 function makePulsar(rng, A, B, C, gw, gh) {
   const bigR  = rng.nextInRange(80, 160) + 140.5;
   const dispR = rng.nextInRange(7, 10);
@@ -2020,8 +2042,13 @@ export class ScenarioFactory {
         let nUnstable = 3 + rng.nextInt(10); // 3–12
         const extreme40 = forceExtreme || rng.next() < 0.10;
         if (extreme40) { isExtreme = true; nUnstable *= 2; } // 6–24
-        for (let i = 0; i < nUnstable; i++)
+        // Simplified mode caps the unstable count at 3 (each carries costly eruption
+        // VFX); the remainder become ordinary rocky planets so the field stays as full.
+        const nUnstablePlaced = simplified ? Math.min(3, nUnstable) : nUnstable;
+        for (let i = 0; i < nUnstablePlaced; i++)
           placeUnstableInField(planets, rng, gw, gh, { radius: 9 + rng.next() * 8 });
+        for (let i = nUnstablePlaced; i < nUnstable; i++)
+          placeRockyInField(planets, rng, gw, gh);
         const nMoons = 2 + rng.nextInt(5); // 2–6
         for (let i = 0; i < nMoons; i++) {
           if (rng.next() < 0.5) planets.push(makeMoon(rng, 0.8, 0.1, 0.05, gw, gh));
