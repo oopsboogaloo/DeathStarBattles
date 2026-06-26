@@ -93,6 +93,7 @@ export class Renderer {
     this._giantWormholeParticles = new Map(); // planet → GiantWormholeParticles
     this._whiteHoleParticles     = new Map(); // planet → WhiteHoleParticles
     this._starSurfaceParticles   = new Map(); // planet → StarSurfaceParticles (experimental)
+    this._unstableParticles      = new Map(); // unstable planet → StarSurfaceParticles (tinted surface boil)
     this._smokeImg            = null;
     this._smokeTintCache      = new Map(); // "r,g,b" → tinted canvas
     this._spriteColorCache    = new Map(); // "r,g,b" → {primary, secondary} CSS colours
@@ -260,6 +261,7 @@ export class Renderer {
     this._giantWormholeParticles.clear();
     this._whiteHoleParticles.clear();
     this._starSurfaceParticles.clear();
+    this._unstableParticles.clear();
     for (const planet of planets) {
       if (planet.anomalyRepels !== undefined) {
         if (planet.anomalyRepels) {
@@ -285,6 +287,18 @@ export class Renderer {
         // Surface bubbling — consumed in full and experimental modes (gated in
         // _drawLive), but built unconditionally so toggling mode needs no rebuild.
         this._starSurfaceParticles.set(planet, new StarSurfaceParticles(planet));
+      } else if (isUnstable(planet.type)) {
+        // Unstable planets boil with the same surface-particle system as stars,
+        // tinted to the subtype glow colour so the body reads as volatile/dangerous.
+        const [gr, gg, gb] = UNSTABLE_GLOW[planet.type] ?? [255, 200, 80];
+        this._unstableParticles.set(planet, new StarSurfaceParticles(planet, {
+          colour:         `rgb(${gr},${gg},${gb})`,
+          dimByLuminance: false,
+          count:          90,
+          alphaMax:       0.6,
+          sizeMult:       0.05,
+          maxSize:        4,
+        }));
       }
     }
 
@@ -4281,6 +4295,10 @@ export class Renderer {
   _drawUnstablePlanets(ctx, planets) {
     const conv = this.conv;
     const now  = performance.now() / 1000;
+    // Surface boil is a full/experimental-mode extra; bounds + clock shared by all.
+    const boil    = !this._simplified;
+    const b       = boil ? this._liveLocalBounds() : null;
+    const nowSec  = Date.now() / 1000;
     for (const planet of planets) {
       if (planet.destroyed || !isUnstable(planet.type)) continue;
       const cx = planet.position.x * conv;
@@ -4320,6 +4338,21 @@ export class Renderer {
           ctx.drawImage(img, -size / 2, -size / 2, size, size);
           ctx.restore();
         }
+      }
+
+      // Surface boil — the star surface-bubbling system, tinted to the subtype
+      // colour, drawn on top of the crust so molten/charged activity reads as a
+      // live, dangerous surface. Clipped to the disc so ovals don't spill past the
+      // rim. Off in simplified mode.
+      const particles = boil && this._unstableParticles.get(planet);
+      if (particles) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.clip();
+        particles.update(nowSec);
+        particles.draw(ctx, conv, b);
+        ctx.restore();
       }
     }
   }

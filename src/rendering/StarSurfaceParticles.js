@@ -35,6 +35,8 @@ export const STAR_SURFACE_PARTICLE_DEFAULTS = {
   growFrom:   0.25,   // size fraction at birth (expands to full during fade-in)
   growTo:     1.15,   // size fraction reached by death (gentle later expansion)
   edgeMargin: 2,      // px slack when testing on-screen
+  colour:     '#fff', // fill colour of the ovals (tinted reuse, e.g. unstable planets)
+  dimByLuminance: true, // scale alpha by the planet's colour luminance (stars); off for tinted reuse
 };
 
 export class StarSurfaceParticles {
@@ -45,12 +47,20 @@ export class StarSurfaceParticles {
     const n = this._cfg.count * (planet.supergiant ? this._cfg.supergiantMult : 1);
     this.count   = n; // exposed so the SFX/debug counter can include these bubbles
 
+    // Fill colour — white for stars, or a tint (e.g. an unstable planet's glow).
+    this._fill = this._cfg.colour;
+
     // Fainter white ovals on darker stars (e.g. red giants); bright white/yellow
     // stars sit at full alpha. Scaled by perceived luminance of the star colour.
-    const [pr, pg, pb] = planet.colour ?? [255, 255, 255];
-    const lum   = (0.299 * pr + 0.587 * pg + 0.114 * pb) / 255;
-    const scale = Math.max(this._cfg.minAlphaScale, Math.min(1, lum / this._cfg.brightRef));
-    this._alphaMax = this._cfg.alphaMax * scale;
+    // Tinted reuse (dimByLuminance off) keeps the configured peak alpha as-is.
+    if (this._cfg.dimByLuminance) {
+      const [pr, pg, pb] = planet.colour ?? [255, 255, 255];
+      const lum   = (0.299 * pr + 0.587 * pg + 0.114 * pb) / 255;
+      const scale = Math.max(this._cfg.minAlphaScale, Math.min(1, lum / this._cfg.brightRef));
+      this._alphaMax = this._cfg.alphaMax * scale;
+    } else {
+      this._alphaMax = this._cfg.alphaMax;
+    }
 
     this._dx     = new Float32Array(n); // normalised disc x: (px - cx) / R, in [-1,1]
     this._dy     = new Float32Array(n); // normalised disc y: (py - cy) / R, in [-1,1]
@@ -117,7 +127,7 @@ export class StarSurfaceParticles {
     if (bx1 <= bx0 || by1 <= by0) return;
     const boxW = bx1 - bx0, boxH = by1 - by0;
 
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = this._fill;
     for (let i = 0; i < this.count; i++) {
       // Place (or replace) this bubble somewhere on the visible surface.
       if (!this._placed[i] && !this._sampleVisible(i, cx, cy, R, bx0, by0, boxW, boxH)) continue;
