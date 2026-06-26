@@ -11,6 +11,7 @@ import { PhysicsEngine, G, TIMESTEP, MIN_POWER, MAX_POWER } from '../physics/Phy
 import { SCENARIO_NAMES } from '../scenarios/scenarioData.js';
 import { ROCKET_BASE_MASS, ROCKET_THRUST, ROCKET_FUEL_BURN_RATE,
          ROCKET_MIN_FUEL, ROCKET_MAX_FUEL, ROCKET_LAUNCH_SPEED } from '../entities/Rocket.js';
+import { ICE_RING_LIFETIME } from '../entities/IceRing.js';
 import { PLANET_OVERLAYS } from './planetOverlays.js';
 import { getSprite } from './sprites/index.js';
 import { SpriteSheetCache } from './sprites/SpriteSheetCache.js';
@@ -3265,7 +3266,11 @@ export class Renderer {
       const cx = ring.position.x * conv;
       const cy = ring.position.y * conv;
       const r  = Math.max(1, ring.radius * conv);
-      const fade = Math.max(0, 1 - ring.lifetime / 3000);
+      // Hold full opacity while the ring is still doing its job; only dissolve over
+      // the final quarter of its life. Track the real lifetime so the visual no
+      // longer fades out at the halfway point (it was hardcoded to half the value).
+      const t    = ring.lifetime / ICE_RING_LIFETIME;          // 0 → 1
+      const fade = t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25);
 
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
       grad.addColorStop(0, `rgba(180,230,255,${(0.15 * fade).toFixed(3)})`);
