@@ -398,9 +398,20 @@ export class ScenarioFactory {
     const wcCollectablePositions = [];
     if (threshold > 0 && rn[1] < threshold) {
       const noGrey = scenarioId === 26;
-      ScenarioFactory._addBonus(planets, rng, rn[2], rn[3], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions, rifts, riftsReflective);
-      if (rn[4] < 0.35) {
-        ScenarioFactory._addBonus(planets, rng, rn[5], rn[6], gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions, rifts, riftsReflective);
+      const addBonus = (ra, rb) => ScenarioFactory._addBonus(
+        planets, rng, ra, rb, gw, gh, performance, noGrey, collectablesOn, wcCollectablePositions, rifts, riftsReflective);
+      // Slot 1 always fires; each further slot only rolls if the previous one fired,
+      // so extra bonuses taper off fast (20% → 10% → 10%). The deep slots are
+      // vanishingly rare and occasionally stack otherwise-impossible configurations.
+      addBonus(rn[2], rn[3]);                                 // slot 1 — always
+      if (rn[4] < 0.20) {                                     // slot 2 — 20%
+        addBonus(rn[5], rn[6]);
+        if (rng.next() < 0.10) {                              // slot 3 — 10% (only if slot 2 fired)
+          addBonus(rng.next(), rng.next());
+          if (rng.next() < 0.10) {                            // slot 4 — 10% (only if slot 3 fired)
+            addBonus(rng.next(), rng.next());
+          }
+        }
       }
     }
 
